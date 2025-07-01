@@ -34,7 +34,6 @@ import {
   Sun,
   Shield,
   MapPin,
-  AlertTriangle,
   LogOut,
   ChevronDown
 } from "lucide-react";
@@ -50,20 +49,8 @@ const Layout = () => {
   };
 
   const handleLogout = () => {
-    // Add logout logic here
     console.log('Logging out...');
   };
-
-  const mainMenuItems = [
-    { icon: Home, label: "Dashboard", href: "/", badge: null },
-    { icon: Package, label: "Orders", href: "/orders", badge: "234" },
-    { icon: Truck, label: "Dispatch", href: "/dispatch", badge: null },
-    { icon: RotateCcw, label: "Returns", href: "/returns", badge: "12" },
-    { icon: MapPin, label: "Address Verification", href: "/address-verification", badge: null },
-    { icon: Users, label: "User Management", href: "/user-management", badge: null },
-    { icon: Shield, label: "Admin Panel", href: "/admin-panel", badge: null },
-    { icon: Settings, label: "Settings", href: "/settings", badge: null },
-  ];
 
   const customerSubMenuItems = [
     { label: "All Customers", href: "/all-customers", badge: null },
@@ -74,19 +61,19 @@ const Layout = () => {
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900">
         <Sidebar className="border-r border-white/20 bg-gradient-to-b from-slate-900 via-purple-900/50 to-slate-900 dark:from-gray-950 dark:via-purple-950/50 dark:to-gray-950">
-          <SidebarHeader className="p-6 border-b border-white/10">
+          <SidebarHeader className="spacing-md border-b border-white/10">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
-                <Package className="h-6 w-6 text-white" />
+              <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+                <Package className="h-7 w-7 text-white" />
               </div>
               <div>
                 <h2 className="text-lg font-bold text-white">Ecomnet Portal</h2>
-                <p className="text-xs text-gray-300">Order Management</p>
+                <p className="text-sm text-gray-300">Order Management System</p>
               </div>
             </div>
           </SidebarHeader>
           
-          <SidebarContent className="p-4">
+          <SidebarContent className="spacing-sm">
             <SidebarMenu className="space-y-2">
               {/* Dashboard */}
               <SidebarMenuItem>
@@ -110,7 +97,7 @@ const Layout = () => {
                   <a href="/orders" className="flex items-center gap-3">
                     <Package className="h-5 w-5 group-hover:scale-110 transition-transform" />
                     <span className="font-medium">Orders</span>
-                    <Badge className="ml-auto bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 text-xs">
+                    <Badge className="ml-auto bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 text-xs font-semibold">
                       234
                     </Badge>
                   </a>
@@ -124,7 +111,7 @@ const Layout = () => {
                     <SidebarMenuButton className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
                       <Users className="h-5 w-5 group-hover:scale-110 transition-transform" />
                       <span className="font-medium">Customers</span>
-                      <ChevronDown className={`ml-auto h-4 w-4 transition-transform ${isCustomersOpen ? 'rotate-180' : ''}`} />
+                      <ChevronDown className={`ml-auto h-4 w-4 transition-transform duration-300 ${isCustomersOpen ? 'rotate-180' : ''}`} />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
@@ -138,7 +125,7 @@ const Layout = () => {
                             <a href={subItem.href} className="flex items-center gap-3">
                               <span className="font-medium">{subItem.label}</span>
                               {subItem.badge && (
-                                <Badge className="ml-auto bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 text-xs">
+                                <Badge className="ml-auto bg-gradient-to-r from-red-500 to-pink-500 text-white border-0 text-xs font-semibold">
                                   {subItem.badge}
                                 </Badge>
                               )}
@@ -173,7 +160,7 @@ const Layout = () => {
                   <a href="/returns" className="flex items-center gap-3">
                     <RotateCcw className="h-5 w-5 group-hover:scale-110 transition-transform" />
                     <span className="font-medium">Returns</span>
-                    <Badge className="ml-auto bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 text-xs">
+                    <Badge className="ml-auto bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 text-xs font-semibold">
                       12
                     </Badge>
                   </a>
@@ -234,31 +221,31 @@ const Layout = () => {
             </SidebarMenu>
           </SidebarContent>
           
-          <SidebarFooter className="p-4 border-t border-white/10">
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10">
-              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                <Users className="h-4 w-4 text-white" />
+          <SidebarFooter className="spacing-sm border-t border-white/10">
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-white/10">
+              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                <Users className="h-5 w-5 text-white" />
               </div>
-              <div>
-                <p className="text-sm font-medium text-white">Admin User</p>
-                <p className="text-xs text-gray-300">admin@ecomnet.com</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white truncate">Admin User</p>
+                <p className="text-xs text-gray-300 truncate">admin@ecomnet.com</p>
               </div>
             </div>
           </SidebarFooter>
         </Sidebar>
 
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           {/* Top Navigation */}
-          <header className="bg-white/70 dark:bg-gray-900/70 backdrop-blur-lg border-b border-white/20 dark:border-gray-800/20 sticky top-0 z-50">
+          <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-white/20 dark:border-gray-800/20 sticky top-0 z-50">
             <div className="flex items-center justify-between p-4 lg:px-6">
               <div className="flex items-center gap-4">
                 <SidebarTrigger className="lg:hidden" />
                 <div className="hidden md:flex items-center gap-4">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input 
-                      placeholder="Search orders, customers..." 
-                      className="pl-10 w-80 bg-white/50 dark:bg-gray-800/50 border-white/20 dark:border-gray-700/20 focus:bg-white dark:focus:bg-gray-800 transition-colors"
+                      placeholder="Search orders, customers, products..." 
+                      className="pl-10 w-80 bg-white/60 dark:bg-gray-800/60 border-white/30 dark:border-gray-700/30 focus:bg-white dark:focus:bg-gray-800 transition-all duration-300 rounded-lg"
                     />
                   </div>
                 </div>

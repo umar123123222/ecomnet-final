@@ -71,35 +71,34 @@ const Settings = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-          Settings
-        </h1>
-        <p className="text-gray-600 mt-2">Manage your account settings and preferences</p>
+    <div className="container-md spacing-md">
+      {/* Page Header */}
+      <div className="page-header">
+        <h1 className="page-title">Account Settings</h1>
+        <p className="page-description">
+          Manage your account settings and preferences to personalize your experience
+        </p>
       </div>
 
-      <div className="grid gap-6">
+      <div className="space-y-8">
         {/* Profile Information Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Profile Information
-            </CardTitle>
-            <CardDescription>
-              Update your personal information and profile picture
+        <Card className="modern-card">
+          <CardHeader className="card-header">
+            <CardTitle className="card-title">Profile Information</CardTitle>
+            <CardDescription className="card-description">
+              Update your personal information and profile picture to keep your account current
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Profile Picture */}
-            <div className="flex items-center gap-4">
-              <Avatar className="w-20 h-20">
-                <AvatarImage src={profileImage} alt="Profile" />
-                <AvatarFallback className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xl">
+          <CardContent className="card-content space-y-8">
+            {/* Profile Picture Section */}
+            <div className="flex items-center gap-6">
+              <Avatar className="w-24 h-24 ring-4 ring-purple-100 dark:ring-purple-800">
+                <AvatarImage src={profileImage} alt="Profile Picture" />
+                <AvatarFallback className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-2xl font-semibold">
                   {formData.name.split(' ').map(n => n[0]).join('')}
                 </AvatarFallback>
               </Avatar>
-              <div>
+              <div className="space-y-2">
                 <input
                   id="profile-image"
                   type="file"
@@ -116,98 +115,108 @@ const Settings = () => {
                   <Camera className="h-4 w-4" />
                   Change Photo
                 </ModernButton>
-                <p className="text-sm text-gray-500 mt-1">
-                  JPG, PNG or GIF (max 5MB)
+                <p className="form-helper">
+                  Upload JPG, PNG or GIF files (max 5MB)
                 </p>
               </div>
             </div>
 
-            {/* Name and Email */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+            {/* Personal Information */}
+            <div className="grid-2-col">
+              <div className="form-group">
+                <Label htmlFor="name" className="form-label">Full Name</Label>
                 <Input
                   id="name"
+                  className="form-input"
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
                   placeholder="Enter your full name"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
+              <div className="form-group">
+                <Label htmlFor="email" className="form-label">Email Address</Label>
                 <Input
                   id="email"
                   type="email"
+                  className="form-input"
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
-                  placeholder="Enter your email"
+                  placeholder="Enter your email address"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end pt-4 border-t border-border">
               <ModernButton onClick={handleSaveProfile} className="gap-2">
                 <Save className="h-4 w-4" />
-                Save Profile
+                Save Changes
               </ModernButton>
             </div>
           </CardContent>
         </Card>
 
-        {/* Change Password Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Change Password</CardTitle>
-            <CardDescription>
-              Update your password to keep your account secure
+        {/* Security Settings Card */}
+        <Card className="modern-card">
+          <CardHeader className="card-header">
+            <CardTitle className="card-title">Security Settings</CardTitle>
+            <CardDescription className="card-description">
+              Update your password to keep your account secure and protected
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="current-password">Current Password</Label>
+          <CardContent className="card-content space-y-6">
+            {/* Current Password */}
+            <div className="form-group">
+              <Label htmlFor="current-password" className="form-label">Current Password</Label>
               <div className="relative">
                 <Input
                   id="current-password"
                   type={showPassword ? "text" : "password"}
+                  className="form-input pr-10"
                   value={formData.currentPassword}
                   onChange={(e) => handleInputChange('currentPassword', e.target.value)}
-                  placeholder="Enter current password"
+                  placeholder="Enter your current password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="new-password">New Password</Label>
+            {/* New Password Fields */}
+            <div className="grid-2-col">
+              <div className="form-group">
+                <Label htmlFor="new-password" className="form-label">New Password</Label>
                 <Input
                   id="new-password"
                   type="password"
+                  className="form-input"
                   value={formData.newPassword}
                   onChange={(e) => handleInputChange('newPassword', e.target.value)}
                   placeholder="Enter new password"
                 />
+                <p className="form-helper">
+                  Password must be at least 8 characters long
+                </p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm New Password</Label>
+              <div className="form-group">
+                <Label htmlFor="confirm-password" className="form-label">Confirm New Password</Label>
                 <div className="relative">
                   <Input
                     id="confirm-password"
                     type={showConfirmPassword ? "text" : "password"}
+                    className="form-input pr-10"
                     value={formData.confirmPassword}
                     onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                    placeholder="Confirm new password"
+                    placeholder="Confirm your new password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   >
                     {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -215,14 +224,14 @@ const Settings = () => {
               </div>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end pt-4 border-t border-border">
               <ModernButton 
                 onClick={handleChangePassword}
                 variant="secondary"
                 className="gap-2"
               >
                 <Save className="h-4 w-4" />
-                Change Password
+                Update Password
               </ModernButton>
             </div>
           </CardContent>
