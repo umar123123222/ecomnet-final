@@ -28,7 +28,8 @@ import {
   Sun,
   Shield,
   MapPin,
-  AlertTriangle
+  AlertTriangle,
+  LogOut
 } from "lucide-react";
 
 const Layout = () => {
@@ -37,6 +38,11 @@ const Layout = () => {
   const toggleTheme = () => {
     setIsDark(!isDark);
     document.documentElement.classList.toggle('dark');
+  };
+
+  const handleLogout = () => {
+    // Add logout logic here
+    console.log('Logging out...');
   };
 
   const menuItems = [
@@ -143,8 +149,14 @@ const Layout = () => {
                   {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </ModernButton>
                 
-                <ModernButton variant="default" size="sm">
-                  Profile
+                <ModernButton 
+                  variant="destructive" 
+                  size="sm"
+                  onClick={handleLogout}
+                  className="gap-2"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Logout
                 </ModernButton>
               </div>
             </div>
