@@ -37,6 +37,41 @@ export interface Order {
   };
 }
 
+// Helper function to safely parse order items
+const parseOrderItems = (items: any): Order['order_items'] => {
+  if (!items) return [];
+  
+  try {
+    // If items is already an array, use it directly
+    if (Array.isArray(items)) {
+      return items.map((item: any) => ({
+        id: item.id || `item_${Date.now()}_${Math.random()}`,
+        item_name: item.item_name || item.name || 'Unknown Item',
+        quantity: Number(item.quantity) || 1,
+        price: Number(item.price) || 0,
+      }));
+    }
+    
+    // If items is a JSON string, parse it
+    if (typeof items === 'string') {
+      const parsed = JSON.parse(items);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item: any) => ({
+          id: item.id || `item_${Date.now()}_${Math.random()}`,
+          item_name: item.item_name || item.name || 'Unknown Item',
+          quantity: Number(item.quantity) || 1,
+          price: Number(item.price) || 0,
+        }));
+      }
+    }
+    
+    return [];
+  } catch (error) {
+    console.warn('Failed to parse order items:', error);
+    return [];
+  }
+};
+
 export const orderService = {
   async getOrders(filters?: {
     status?: string;
@@ -81,11 +116,11 @@ export const orderService = {
     return (data || []).map(order => ({
       id: order.id,
       customer_id: order.customer_id,
-      order_type: 'regular', // Default since column doesn't exist
-      gpt_score: 0, // Default since column doesn't exist
+      order_type: 'regular',
+      gpt_score: 0,
       status: order.status,
       price: Number(order.total_amount) || 0,
-      city: 'Unknown', // Default since column doesn't exist in schema
+      city: 'Unknown',
       courier: order.courier,
       shipping_address: order.shipping_address,
       tracking_id: order.tracking_id,
@@ -97,7 +132,7 @@ export const orderService = {
       dispatched_at: order.dispatched_at,
       delivered_at: order.delivered_at,
       customer: order.customer,
-      order_items: Array.isArray(order.items) ? order.items : [],
+      order_items: parseOrderItems(order.items),
       assigned_user: order.assigned_user ? {
         id: order.assigned_user.id,
         name: order.assigned_user.full_name
