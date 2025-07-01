@@ -29,8 +29,7 @@ const AllCustomers = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
-
-  const customers = [
+  const [customers, setCustomers] = useState([
     {
       id: 'CUST-001',
       name: 'John Doe',
@@ -100,7 +99,7 @@ const AllCustomers = () => {
         { id: 'ORD-008', date: '2023-12-10', status: 'Returned', amount: 'Rs. 1,400' },
       ]
     },
-  ];
+  ]);
 
   const handleSelectCustomer = (customerId: string) => {
     setSelectedCustomers(prev => 
@@ -133,22 +132,96 @@ const AllCustomers = () => {
 
   const handleAddTag = (customerId: string, tag: string) => {
     console.log('Adding tag to customer:', customerId, tag);
-    // In a real app, this would make an API call to add the tag
+    const updatedCustomers = customers.map(customer => {
+      if (customer.id === customerId) {
+        const newTag = {
+          id: `tag-${Date.now()}`,
+          text: tag,
+          addedBy: 'Current User', // In a real app, this would be the logged-in user
+          addedAt: new Date().toLocaleString(),
+          canDelete: true
+        };
+        return {
+          ...customer,
+          tags: [...customer.tags, newTag]
+        };
+      }
+      return customer;
+    });
+    setCustomers(updatedCustomers);
+    
+    // Update selected customer if it's currently being viewed
+    if (selectedCustomer && selectedCustomer.id === customerId) {
+      const updatedCustomer = updatedCustomers.find(c => c.id === customerId);
+      setSelectedCustomer(updatedCustomer);
+    }
   };
 
   const handleAddNote = (customerId: string, note: string) => {
     console.log('Adding note to customer:', customerId, note);
-    // In a real app, this would make an API call to add the note
+    const updatedCustomers = customers.map(customer => {
+      if (customer.id === customerId) {
+        const newNote = {
+          id: `note-${Date.now()}`,
+          text: note,
+          addedBy: 'Current User', // In a real app, this would be the logged-in user
+          addedAt: new Date().toLocaleString(),
+          canDelete: true
+        };
+        return {
+          ...customer,
+          notes: [...customer.notes, newNote]
+        };
+      }
+      return customer;
+    });
+    setCustomers(updatedCustomers);
+    
+    // Update selected customer if it's currently being viewed
+    if (selectedCustomer && selectedCustomer.id === customerId) {
+      const updatedCustomer = updatedCustomers.find(c => c.id === customerId);
+      setSelectedCustomer(updatedCustomer);
+    }
   };
 
   const handleDeleteTag = (customerId: string, tagId: string) => {
     console.log('Deleting tag from customer:', customerId, tagId);
-    // In a real app, this would make an API call to delete the tag
+    const updatedCustomers = customers.map(customer => {
+      if (customer.id === customerId) {
+        return {
+          ...customer,
+          tags: customer.tags.filter(tag => tag.id !== tagId)
+        };
+      }
+      return customer;
+    });
+    setCustomers(updatedCustomers);
+    
+    // Update selected customer if it's currently being viewed
+    if (selectedCustomer && selectedCustomer.id === customerId) {
+      const updatedCustomer = updatedCustomers.find(c => c.id === customerId);
+      setSelectedCustomer(updatedCustomer);
+    }
   };
 
   const handleDeleteNote = (customerId: string, noteId: string) => {
     console.log('Deleting note from customer:', customerId, noteId);
-    // In a real app, this would make an API call to delete the note
+    const updatedCustomers = customers.map(customer => {
+      if (customer.id === customerId) {
+        return {
+          ...customer,
+          notes: customer.notes.filter(note => note.id !== noteId)
+        };
+      }
+      return customer;
+    });
+    setCustomers(updatedCustomers);
+    
+    // Update selected customer if it's currently being viewed
+    if (selectedCustomer && selectedCustomer.id === customerId) {
+      const updatedCustomer = updatedCustomers.find(c => c.id === customerId);
+      setSelectedCustomer(updatedCustomer);
+    }
   };
 
   return (
@@ -162,15 +235,7 @@ const AllCustomers = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Customers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">1,234</div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Active Customers</CardTitle>
