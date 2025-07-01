@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,9 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Search, Upload, Plus, Filter, Download, ChevronDown, ChevronUp, Package, Send } from 'lucide-react';
 import TagsNotes from '@/components/TagsNotes';
+import { useAuth } from '@/contexts/AuthContext';
 
 const OrderDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -32,8 +31,7 @@ const OrderDashboard = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [selectAllPages, setSelectAllPages] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
-
-  const orders = [
+  const [orders, setOrders] = useState([
     {
       id: 'ORD-001',
       trackingId: 'TRK-123456',
@@ -105,7 +103,9 @@ const OrderDashboard = () => {
       tags: [],
       notes: []
     },
-  ];
+  ]);
+
+  const { user } = useAuth();
 
   const getStatusBadge = (status: string) => {
     const statusMap = {
@@ -152,7 +152,6 @@ const OrderDashboard = () => {
 
   const handleSelectAllPages = () => {
     setSelectAllPages(!selectAllPages);
-    // In a real app, this would select all orders across all pages
     if (!selectAllPages) {
       setSelectedOrders(orders.map(order => order.id));
     } else {
@@ -170,28 +169,95 @@ const OrderDashboard = () => {
 
   const handleBulkAction = (action: string) => {
     console.log(`Bulk ${action} for orders:`, selectedOrders);
-    // Implement bulk action logic here
   };
 
   const handleAddTag = (orderId: string, tag: string) => {
     console.log(`Adding tag "${tag}" to order ${orderId}`);
-    // In a real app, this would update the order with the new tag
+    setOrders(prevOrders => 
+      prevOrders.map(order => 
+        order.id === orderId 
+          ? {
+              ...order,
+              tags: [
+                ...order.tags,
+                {
+                  id: `tag_${Date.now()}`,
+                  text: tag,
+                  addedBy: user?.name || 'Current User',
+                  addedAt: new Date().toLocaleString(),
+                  canDelete: true
+                }
+              ]
+            }
+          : order
+      )
+    );
   };
 
   const handleAddNote = (orderId: string, note: string) => {
     console.log(`Adding note "${note}" to order ${orderId}`);
-    // In a real app, this would update the order with the new note
+    setOrders(prevOrders => 
+      prevOrders.map(order => 
+        order.id === orderId 
+          ? {
+              ...order,
+              notes: [
+                ...order.notes,
+                {
+                  id: `note_${Date.now()}`,
+                  text: note,
+                  addedBy: user?.name || 'Current User',
+                  addedAt: new Date().toLocaleString(),
+                  canDelete: true
+                }
+              ]
+            }
+          : order
+      )
+    );
   };
 
   const handleDeleteTag = (orderId: string, tagId: string) => {
     console.log(`Deleting tag ${tagId} from order ${orderId}`);
-    // In a real app, this would remove the tag from the order
+    setOrders(prevOrders => 
+      prevOrders.map(order => 
+        order.id === orderId 
+          ? {
+              ...order,
+              tags: order.tags.filter(tag => tag.id !== tagId)
+            }
+          : order
+      )
+    );
   };
 
   const handleDeleteNote = (orderId: string, noteId: string) => {
     console.log(`Deleting note ${noteId} from order ${orderId}`);
-    // In a real app, this would remove the note from the order
+    setOrders(prevOrders => 
+      prevOrders.map(order => 
+        order.id === orderId 
+          ? {
+              ...order,
+              notes: order.notes.filter(note => note.id !== noteId)
+            }
+          : order
+      )
+    );
   };
+
+  // Filter orders based on search and filters
+  const filteredOrders = orders.filter(order => {
+    const matchesSearch = order.trackingId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.phone.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+    const matchesCourier = courierFilter === 'all' || order.courier.toLowerCase() === courierFilter;
+    
+    return matchesSearch && matchesStatus && matchesCourier;
+  });
 
   return (
     <div className="p-6 space-y-6">
@@ -214,7 +280,7 @@ const OrderDashboard = () => {
           </div>
         </div>
 
-        {/* Bulk Actions Section - Only show when orders are selected */}
+        {/* Bulk Actions Section */}
         {selectedOrders.length > 0 && (
           <Card className="border-orange-200 bg-orange-50">
             <CardContent className="pt-4">
@@ -288,11 +354,11 @@ const OrderDashboard = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Orders</span>
+            <span>Orders ({filteredOrders.length})</span>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <Checkbox
-                  checked={selectedOrders.length === orders.length}
+                  checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0}
                   onCheckedChange={handleSelectAllCurrentPage}
                 />
                 <span className="text-sm text-gray-600">Select All (Current Page)</span>
@@ -369,7 +435,7 @@ const OrderDashboard = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {orders.map((order) => (
+              {filteredOrders.map((order) => (
                 <React.Fragment key={order.id}>
                   <TableRow>
                     <TableCell>
@@ -472,4 +538,3 @@ const OrderDashboard = () => {
 };
 
 export default OrderDashboard;
-
