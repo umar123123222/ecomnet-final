@@ -20,7 +20,7 @@ const Dashboard = () => {
     { title: "Cancelled Orders", value: "45", change: "-23.1%", trend: "down", icon: XCircle, color: "from-red-500 to-pink-500" },
     { title: "Returns in Transit", value: "23", change: "+5.4%", trend: "up", icon: RotateCcw, color: "from-indigo-500 to-purple-500" },
     { title: "Returned Orders", value: "12", change: "-12.8%", trend: "down", icon: Package, color: "from-gray-500 to-gray-600" },
-    { title: "Active Users", value: "156", change: "+9.7%", trend: "up", icon: Users, color: "from-teal-500 to-blue-500" },
+    { title: "Customers", value: "156", change: "+9.7%", trend: "up", icon: Users, color: "from-teal-500 to-blue-500" },
   ];
 
   const courierData = [
