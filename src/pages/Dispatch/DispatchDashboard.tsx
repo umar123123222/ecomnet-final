@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,10 +19,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Download, Plus, Truck } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Textarea } from '@/components/ui/textarea';
+import { Search, Download, Scan, Edit, Truck } from 'lucide-react';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
+import { useForm } from 'react-hook-form';
 
 const DispatchDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -32,6 +41,14 @@ const DispatchDashboard = () => {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(),
     to: addDays(new Date(), 7),
+  });
+  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
+  const [isScanningOpen, setIsScanningOpen] = useState(false);
+
+  const form = useForm({
+    defaultValues: {
+      trackingIds: '',
+    },
   });
 
   const dispatches = useMemo(() => [
@@ -149,6 +166,39 @@ const DispatchDashboard = () => {
     }
   };
 
+  const handleScanDispatch = async () => {
+    setIsScanningOpen(true);
+    try {
+      // Check if we're on mobile or desktop and request camera access
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment' // Use back camera on mobile
+        } 
+      });
+      
+      // For now, we'll just log that camera is accessed
+      console.log('Camera access granted', stream);
+      
+      // In a real implementation, you would integrate with a barcode scanning library
+      // For demo purposes, we'll simulate a scan result after 3 seconds
+      setTimeout(() => {
+        console.log('Simulated scan result: TRK-SCANNED-123');
+        stream.getTracks().forEach(track => track.stop()); // Stop camera
+        setIsScanningOpen(false);
+      }, 3000);
+      
+    } catch (error) {
+      console.error('Camera access denied or not available:', error);
+      setIsScanningOpen(false);
+    }
+  };
+
+  const handleManualEntry = (data: { trackingIds: string }) => {
+    console.log('Manual entry tracking IDs:', data.trackingIds);
+    setIsManualEntryOpen(false);
+    form.reset();
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -157,11 +207,79 @@ const DispatchDashboard = () => {
           <h1 className="text-3xl font-bold text-gray-900">Dispatch Management</h1>
           <p className="text-gray-600 mt-1">Track and manage order dispatches</p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Dispatch
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleScanDispatch}>
+            <Scan className="h-4 w-4 mr-2" />
+            Scan Dispatch
+          </Button>
+          <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Edit className="h-4 w-4 mr-2" />
+                Manual Entry
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Manual Tracking ID Entry</DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleManualEntry)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="trackingIds"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tracking IDs</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Enter tracking IDs (one per line or comma separated)..."
+                            className="min-h-[100px]"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" onClick={() => setIsManualEntryOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit">
+                      Submit
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
+
+      {/* Scanning Dialog */}
+      <Dialog open={isScanningOpen} onOpenChange={setIsScanningOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Scanning for Tracking ID</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center py-8">
+            <div className="w-48 h-48 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
+              <Scan className="h-12 w-12 text-gray-400 animate-pulse" />
+            </div>
+            <p className="text-gray-600 text-center">
+              Point your camera at the tracking ID barcode or QR code
+            </p>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsScanningOpen(false)}
+              className="mt-4"
+            >
+              Cancel Scan
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
