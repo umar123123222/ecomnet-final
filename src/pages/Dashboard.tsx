@@ -27,10 +27,8 @@ const Dashboard = () => {
   ];
 
   const courierData = [
-    { name: "Leopard Success", rate: "94.2%", status: "success" },
-    { name: "Leopard Failed", rate: "5.8%", status: "destructive" },
-    { name: "PostEx Success", rate: "91.5%", status: "success" },
-    { name: "PostEx Failed", rate: "8.5%", status: "destructive" },
+    { name: "Leopard Success Rate", rate: "94.2%", status: "success" },
+    { name: "PostEx Success Rate", rate: "91.5%", status: "success" },
   ];
 
   return (
@@ -47,7 +45,7 @@ const Dashboard = () => {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
-            <DatePickerWithRange dateRange={dateRange} setDateRange={setDateRange} />
+            <DatePickerWithRange date={dateRange} setDate={setDateRange} />
             <ModernButton variant="default" className="whitespace-nowrap">
               <BarChart3 className="h-4 w-4" />
               Export Report
@@ -97,7 +95,7 @@ const Dashboard = () => {
         </div>
 
         {/* Courier Performance Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {courierData.map((courier, index) => (
             <GradientCard key={index} variant="glass" className="p-4 sm:p-6 text-center">
               <h3 className="font-semibold text-sm sm:text-base mb-2 text-foreground">
@@ -110,7 +108,7 @@ const Dashboard = () => {
                 variant={courier.status as "success" | "destructive"} 
                 className="mx-auto"
               >
-                {courier.status === "success" ? "Excellent" : "Needs Attention"}
+                Excellent
               </StatusBadge>
             </GradientCard>
           ))}
