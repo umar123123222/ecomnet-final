@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,16 +51,7 @@ const UserManagement = () => {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const { user: currentUser } = useAuth();
 
-  const form = useForm<z.infer<typeof userSchema>>({
-    resolver: zodResolver(userSchema),
-    defaultValues: {
-      name: '',
-      email: '',
-      role: '',
-    },
-  });
-
-  const users = useMemo(() => [
+  const [users, setUsers] = useState([
     {
       id: 'SA-001',
       name: 'Muhammad Umar',
@@ -69,7 +61,16 @@ const UserManagement = () => {
       lastLogin: new Date().toLocaleString(),
       permissions: ['All'],
     },
-  ], []);
+  ]);
+
+  const form = useForm<z.infer<typeof userSchema>>({
+    resolver: zodResolver(userSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      role: '',
+    },
+  });
 
   const roles = useMemo(() => ['Owner/SuperAdmin', 'Store Manager', 'Dispatch Manager', 'Returns Manager', 'Staff'], []);
 
@@ -99,15 +100,31 @@ const UserManagement = () => {
   };
 
   const handleAddUser = (data: z.infer<typeof userSchema>) => {
-    console.log('Adding user:', data);
+    const newUser = {
+      id: `U-${String(users.length + 1).padStart(3, '0')}`,
+      name: data.name,
+      email: data.email,
+      role: data.role,
+      status: 'Active',
+      lastLogin: 'Never',
+      permissions: [data.role === 'Owner/SuperAdmin' ? 'All' : 'Limited']
+    };
+    
+    setUsers(prev => [...prev, newUser]);
     setIsAddUserOpen(false);
     form.reset();
+    console.log('User added:', newUser);
   };
 
   const handleEditUser = (data: z.infer<typeof userSchema>) => {
-    console.log('Editing user:', data);
+    setUsers(prev => prev.map(user => 
+      user.id === selectedUser?.id 
+        ? { ...user, name: data.name, email: data.email, role: data.role }
+        : user
+    ));
     setIsEditUserOpen(false);
     form.reset();
+    console.log('User edited:', data);
   };
 
   const handleViewUser = (user: any) => {
@@ -117,7 +134,8 @@ const UserManagement = () => {
 
   const handleDeleteUser = (userId: string) => {
     if (confirm('Are you sure you want to delete this user?')) {
-      console.log('Deleting user:', userId);
+      setUsers(prev => prev.filter(user => user.id !== userId));
+      console.log('User deleted:', userId);
     }
   };
 
@@ -395,7 +413,6 @@ const UserManagement = () => {
         </DialogContent>
       </Dialog>
 
-      {/* View User Dialog */}
       <Dialog open={isViewUserOpen} onOpenChange={setIsViewUserOpen}>
         <DialogContent>
           <DialogHeader>

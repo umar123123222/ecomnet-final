@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,14 +12,42 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Search, Filter, UserPlus, Trash2, Eye, Edit } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import LoginLogs from '@/components/LoginLogs';
+
+const adminSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Invalid email'),
+  role: z.string().min(1, 'Role is required'),
+});
 
 const AdminPanel = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAdmins, setSelectedAdmins] = useState<string[]>([]);
+  const [isAddAdminOpen, setIsAddAdminOpen] = useState(false);
+  const [isEditAdminOpen, setIsEditAdminOpen] = useState(false);
+  const [isViewAdminOpen, setIsViewAdminOpen] = useState(false);
+  const [selectedAdmin, setSelectedAdmin] = useState<any>(null);
 
-  const admins = [
+  const [admins, setAdmins] = useState([
     {
       id: 'SA-001',
       name: 'Muhammad Umar',
@@ -30,7 +57,18 @@ const AdminPanel = () => {
       lastLogin: new Date().toLocaleString(),
       permissions: 'All'
     },
-  ];
+  ]);
+
+  const form = useForm<z.infer<typeof adminSchema>>({
+    resolver: zodResolver(adminSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      role: '',
+    },
+  });
+
+  const roles = ['Owner/SuperAdmin', 'Store Manager', 'Dispatch Manager', 'Returns Manager'];
 
   const handleSelectAdmin = (adminId: string) => {
     setSelectedAdmins(prev => 
@@ -48,6 +86,54 @@ const AdminPanel = () => {
     );
   };
 
+  const handleAddAdmin = (data: z.infer<typeof adminSchema>) => {
+    const newAdmin = {
+      id: `SA-${String(admins.length + 1).padStart(3, '0')}`,
+      name: data.name,
+      email: data.email,
+      role: data.role,
+      status: 'Active',
+      lastLogin: 'Never',
+      permissions: data.role === 'Owner/SuperAdmin' ? 'All' : 'Limited'
+    };
+    
+    setAdmins(prev => [...prev, newAdmin]);
+    setIsAddAdminOpen(false);
+    form.reset();
+    console.log('Admin added:', newAdmin);
+  };
+
+  const handleEditAdmin = (data: z.infer<typeof adminSchema>) => {
+    setAdmins(prev => prev.map(admin => 
+      admin.id === selectedAdmin?.id 
+        ? { ...admin, name: data.name, email: data.email, role: data.role }
+        : admin
+    ));
+    setIsEditAdminOpen(false);
+    form.reset();
+    console.log('Admin edited:', data);
+  };
+
+  const handleViewAdmin = (admin: any) => {
+    setSelectedAdmin(admin);
+    setIsViewAdminOpen(true);
+  };
+
+  const handleDeleteAdmin = (adminId: string) => {
+    if (confirm('Are you sure you want to delete this admin?')) {
+      setAdmins(prev => prev.filter(admin => admin.id !== adminId));
+      console.log('Admin deleted:', adminId);
+    }
+  };
+
+  const openEditDialog = (admin: any) => {
+    setSelectedAdmin(admin);
+    form.setValue('name', admin.name);
+    form.setValue('email', admin.email);
+    form.setValue('role', admin.role);
+    setIsEditAdminOpen(true);
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -57,10 +143,77 @@ const AdminPanel = () => {
           <p className="text-gray-600 mt-1">Manage system administrators and global actions</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Add Admin
-          </Button>
+          <Dialog open={isAddAdminOpen} onOpenChange={setIsAddAdminOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Add Admin
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Admin</DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleAddAdmin)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter email" type="email" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Role</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select role" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {roles.map(role => (
+                              <SelectItem key={role} value={role}>{role}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" onClick={() => setIsAddAdminOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit">Add Admin</Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
           <Button variant="destructive" disabled={selectedAdmins.length === 0}>
             <Trash2 className="h-4 w-4 mr-2" />
             Delete Selected
@@ -76,7 +229,7 @@ const AdminPanel = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p><span className="font-medium">Total Users:</span> 1</p>
+              <p><span className="font-medium">Total Users:</span> {admins.length}</p>
               <p><span className="font-medium">Active Sessions:</span> 1</p>
               <p><span className="font-medium">System Health:</span> <Badge className="bg-green-100 text-green-800">Good</Badge></p>
             </div>
@@ -146,10 +299,10 @@ const AdminPanel = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Current Administrators</span>
+            <span>Current Administrators ({admins.length})</span>
             <div className="flex items-center gap-2">
               <Checkbox
-                checked={selectedAdmins.length === admins.length}
+                checked={selectedAdmins.length === admins.length && admins.length > 0}
                 onCheckedChange={handleSelectAll}
               />
               <span className="text-sm text-gray-600">Select All</span>
@@ -157,6 +310,19 @@ const AdminPanel = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Search and Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search admins..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+
           <Table>
             <TableHeader>
               <TableRow>
@@ -171,7 +337,10 @@ const AdminPanel = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {admins.map((admin) => (
+              {admins.filter(admin => 
+                admin.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                admin.email.toLowerCase().includes(searchTerm.toLowerCase())
+              ).map((admin) => (
                 <TableRow key={admin.id}>
                   <TableCell>
                     <Checkbox
@@ -192,12 +361,15 @@ const AdminPanel = () => {
                   <TableCell>{admin.lastLogin}</TableCell>
                   <TableCell>{admin.permissions}</TableCell>
                   <TableCell>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Eye className="h-4 w-4" />
+                    <div className="flex gap-1">
+                      <Button variant="outline" size="sm" onClick={() => handleViewAdmin(admin)}>
+                        <Eye className="h-3 w-3" />
                       </Button>
-                      <Button variant="outline" size="sm">
-                        <Edit className="h-4 w-4" />
+                      <Button variant="outline" size="sm" onClick={() => openEditDialog(admin)}>
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleDeleteAdmin(admin.id)}>
+                        <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
                   </TableCell>
@@ -207,6 +379,110 @@ const AdminPanel = () => {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Edit Admin Dialog */}
+      <Dialog open={isEditAdminOpen} onOpenChange={setIsEditAdminOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Admin</DialogTitle>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleEditAdmin)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter email" type="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {roles.map(role => (
+                          <SelectItem key={role} value={role}>{role}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsEditAdminOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">Save Changes</Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Admin Dialog */}
+      <Dialog open={isViewAdminOpen} onOpenChange={setIsViewAdminOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Admin Details</DialogTitle>
+          </DialogHeader>
+          {selectedAdmin && (
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-600">Name</label>
+                <p className="text-sm">{selectedAdmin.name}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Email</label>
+                <p className="text-sm">{selectedAdmin.email}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Role</label>
+                <p className="text-sm">{selectedAdmin.role}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Status</label>
+                <p className="text-sm">{selectedAdmin.status}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Last Login</label>
+                <p className="text-sm">{selectedAdmin.lastLogin}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Permissions</label>
+                <p className="text-sm">{selectedAdmin.permissions}</p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
