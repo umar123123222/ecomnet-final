@@ -5,25 +5,25 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const modernButtonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold ring-offset-background transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 relative overflow-hidden group",
   {
     variants: {
       variant: {
-        default: "bg-slate-600 text-white hover:bg-slate-700 shadow-sm",
-        destructive: "bg-red-600 text-white hover:bg-red-700 shadow-sm",
-        outline: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 shadow-sm",
-        secondary: "bg-slate-100 text-slate-700 hover:bg-slate-200 shadow-sm",
-        ghost: "text-slate-600 hover:bg-slate-100",
-        link: "text-slate-600 underline-offset-4 hover:underline hover:text-slate-700",
-        success: "bg-green-600 text-white hover:bg-green-700 shadow-sm",
-        warning: "bg-amber-600 text-white hover:bg-amber-700 shadow-sm",
-        info: "bg-blue-600 text-white hover:bg-blue-700 shadow-sm",
+        default: "bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-colored",
+        destructive: "bg-gradient-to-r from-red-500 to-pink-500 text-white hover:from-red-600 hover:to-pink-600",
+        outline: "border-2 border-purple-200 bg-transparent text-purple-600 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50",
+        secondary: "bg-gradient-to-r from-gray-100 to-gray-200 text-gray-900 hover:from-gray-200 hover:to-gray-300",
+        ghost: "text-purple-600 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50",
+        link: "text-purple-600 underline-offset-4 hover:underline",
+        success: "bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600",
+        warning: "bg-gradient-to-r from-orange-500 to-yellow-500 text-white hover:from-orange-600 hover:to-yellow-600",
+        info: "bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-12 rounded-lg px-6 text-base",
-        icon: "h-10 w-10",
+        default: "h-11 px-6 py-2",
+        sm: "h-9 rounded-lg px-4 text-xs",
+        lg: "h-13 rounded-xl px-8 text-base",
+        icon: "h-11 w-11",
       },
     },
     defaultVariants: {
@@ -48,6 +48,7 @@ const ModernButton = React.forwardRef<HTMLButtonElement, ModernButtonProps>(
         ref={ref}
         {...props}
       >
+        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></span>
         {children}
       </Comp>
     )
