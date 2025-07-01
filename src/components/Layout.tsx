@@ -87,7 +87,7 @@ const Layout = () => {
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
-              {/* Orders */}
+              {/* Orders - removed badge */}
               <SidebarMenuItem>
                 <SidebarMenuButton 
                   asChild 
@@ -96,14 +96,11 @@ const Layout = () => {
                   <a href="/orders" className="flex items-center gap-3">
                     <Package className="h-5 w-5 group-hover:scale-110 transition-transform" />
                     <span className="font-medium">Orders</span>
-                    <Badge className="ml-auto bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 text-xs font-semibold">
-                      234
-                    </Badge>
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               
-              {/* Customers Menu with Sub-items */}
+              {/* Customers Menu with Sub-items - badge only on Suspicious Customers */}
               <SidebarMenuItem>
                 <Collapsible open={isCustomersOpen} onOpenChange={setIsCustomersOpen}>
                   <CollapsibleTrigger asChild>
@@ -150,7 +147,7 @@ const Layout = () => {
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
-              {/* Returns */}
+              {/* Returns - kept badge */}
               <SidebarMenuItem>
                 <SidebarMenuButton 
                   asChild 
