@@ -123,6 +123,7 @@ const UserManagement = () => {
         : user
     ));
     setIsEditUserOpen(false);
+    setSelectedUser(null);
     form.reset();
     console.log('User edited:', data);
   };
@@ -217,7 +218,7 @@ const UserManagement = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Role</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Select role" />
@@ -386,7 +387,7 @@ const UserManagement = () => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Role</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select role" />
@@ -413,6 +414,7 @@ const UserManagement = () => {
         </DialogContent>
       </Dialog>
 
+      {/* View User Dialog */}
       <Dialog open={isViewUserOpen} onOpenChange={setIsViewUserOpen}>
         <DialogContent>
           <DialogHeader>
