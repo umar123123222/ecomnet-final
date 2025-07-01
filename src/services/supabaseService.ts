@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { Customer, Order, Return, Profile, ActivityLog, UserPerformance, OrderItem } from '@/types/database';
 
@@ -134,9 +133,11 @@ export const orderService = {
   },
 
   async update(id: string, updates: Partial<Order>): Promise<Order> {
-    const updateData = { ...updates };
-    if (updateData.items) {
-      (updateData as any).items = JSON.stringify(updateData.items);
+    const { items, ...otherUpdates } = updates;
+    const updateData: any = { ...otherUpdates };
+    
+    if (items) {
+      updateData.items = JSON.stringify(items);
     }
 
     const { data, error } = await supabase
