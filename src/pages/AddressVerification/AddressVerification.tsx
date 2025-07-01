@@ -13,13 +13,29 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Search, Filter, Download, CheckCircle, XCircle, MessageCircle } from 'lucide-react';
+import { Search, Download, CheckCircle, XCircle, MessageCircle } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+
+interface Address {
+  id: string;
+  orderId: string;
+  customerName: string;
+  phone: string;
+  address: string;
+  gptScore: number;
+  status: 'pending' | 'approved' | 'disapproved';
+  approvedBy?: string;
+  approvedAt?: string;
+  disapprovedBy?: string;
+  disapprovedAt?: string;
+}
 
 const AddressVerification = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAddresses, setSelectedAddresses] = useState<string[]>([]);
+  const { user } = useAuth();
 
-  const addresses = [
+  const [addresses, setAddresses] = useState<Address[]>([
     {
       id: 'ADDR-001',
       orderId: 'ORD-001',
@@ -38,7 +54,7 @@ const AddressVerification = () => {
       gptScore: 45,
       status: 'pending'
     },
-  ];
+  ]);
 
   const handleSelectAddress = (addressId: string) => {
     setSelectedAddresses(prev => 
@@ -56,20 +72,84 @@ const AddressVerification = () => {
     );
   };
 
-  const handleBulkAction = (action: string) => {
-    console.log(`Bulk ${action} for addresses:`, selectedAddresses);
-    // Implement bulk action logic here
+  const handleBulkApprove = () => {
+    const currentTime = new Date().toISOString();
+    setAddresses(prev => prev.map(address => 
+      selectedAddresses.includes(address.id)
+        ? {
+            ...address,
+            status: 'approved' as const,
+            approvedBy: user?.name || 'Current User',
+            approvedAt: currentTime
+          }
+        : address
+    ));
+    setSelectedAddresses([]);
   };
 
-  const handleIndividualAction = (addressId: string, action: string) => {
-    console.log(`${action} for address:`, addressId);
-    // Implement individual action logic here
+  const handleBulkDisapprove = () => {
+    const currentTime = new Date().toISOString();
+    setAddresses(prev => prev.map(address => 
+      selectedAddresses.includes(address.id)
+        ? {
+            ...address,
+            status: 'disapproved' as const,
+            disapprovedBy: user?.name || 'Current User',
+            disapprovedAt: currentTime
+          }
+        : address
+    ));
+    setSelectedAddresses([]);
+  };
+
+  const handleIndividualApprove = (addressId: string) => {
+    const currentTime = new Date().toISOString();
+    setAddresses(prev => prev.map(address => 
+      address.id === addressId
+        ? {
+            ...address,
+            status: 'approved' as const,
+            approvedBy: user?.name || 'Current User',
+            approvedAt: currentTime
+          }
+        : address
+    ));
+  };
+
+  const handleIndividualDisapprove = (addressId: string) => {
+    const currentTime = new Date().toISOString();
+    setAddresses(prev => prev.map(address => 
+      address.id === addressId
+        ? {
+            ...address,
+            status: 'disapproved' as const,
+            disapprovedBy: user?.name || 'Current User',
+            disapprovedAt: currentTime
+          }
+        : address
+    ));
+  };
+
+  const handleWhatsAppMessage = (phone: string) => {
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    window.open(`https://wa.me/${cleanPhone}`, '_blank');
   };
 
   const getScoreBadge = (score: number) => {
     if (score >= 80) return 'bg-green-100 text-green-800';
     if (score >= 60) return 'bg-orange-100 text-orange-800';
     return 'bg-red-100 text-red-800';
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return 'bg-green-100 text-green-800';
+      case 'disapproved':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-yellow-100 text-yellow-800';
+    }
   };
 
   return (
@@ -82,61 +162,7 @@ const AddressVerification = () => {
         </div>
       </div>
 
-      {/* Bulk Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Bulk Actions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3 mb-4">
-            <Button 
-              variant="outline" 
-              disabled={selectedAddresses.length === 0}
-              onClick={() => handleBulkAction('approve')}
-            >
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Approve Selected
-            </Button>
-            <Button 
-              variant="outline" 
-              disabled={selectedAddresses.length === 0}
-              onClick={() => handleBulkAction('disapprove')}
-            >
-              <XCircle className="h-4 w-4 mr-2" />
-              Disapprove Selected
-            </Button>
-            <Button 
-              variant="outline" 
-              disabled={selectedAddresses.length === 0}
-              onClick={() => handleBulkAction('clarification')}
-            >
-              <MessageCircle className="h-4 w-4 mr-2" />
-              Send Clarification
-            </Button>
-            <Button 
-              variant="outline" 
-              disabled={selectedAddresses.length === 0}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Download Selected
-            </Button>
-          </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              placeholder="Search by order ID, customer name, phone..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Addresses Table */}
+      {/* Combined Address Verification Queue with Integrated Actions */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
@@ -151,6 +177,42 @@ const AddressVerification = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Search and Bulk Actions */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search by order ID, customer name, phone..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button 
+              variant="outline" 
+              disabled={selectedAddresses.length === 0}
+              onClick={handleBulkApprove}
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Approve Selected
+            </Button>
+            <Button 
+              variant="outline" 
+              disabled={selectedAddresses.length === 0}
+              onClick={handleBulkDisapprove}
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              Disapprove Selected
+            </Button>
+            <Button 
+              variant="outline" 
+              disabled={selectedAddresses.length === 0}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download Selected
+            </Button>
+          </div>
+
           <Table>
             <TableHeader>
               <TableRow>
@@ -160,6 +222,7 @@ const AddressVerification = () => {
                 <TableHead>Phone</TableHead>
                 <TableHead>Address</TableHead>
                 <TableHead>GPT Score</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -182,25 +245,44 @@ const AddressVerification = () => {
                     </Badge>
                   </TableCell>
                   <TableCell>
+                    <div className="space-y-1">
+                      <Badge className={getStatusBadge(address.status)}>
+                        {address.status}
+                      </Badge>
+                      {address.status === 'approved' && address.approvedBy && (
+                        <p className="text-xs text-gray-500">
+                          Approved by {address.approvedBy}
+                        </p>
+                      )}
+                      {address.status === 'disapproved' && address.disapprovedBy && (
+                        <p className="text-xs text-gray-500">
+                          Disapproved by {address.disapprovedBy}
+                        </p>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleIndividualAction(address.id, 'approve')}
+                        onClick={() => handleIndividualApprove(address.id)}
+                        disabled={address.status !== 'pending'}
                       >
                         <CheckCircle className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleIndividualAction(address.id, 'disapprove')}
+                        onClick={() => handleIndividualDisapprove(address.id)}
+                        disabled={address.status !== 'pending'}
                       >
                         <XCircle className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleIndividualAction(address.id, 'clarification')}
+                        onClick={() => handleWhatsAppMessage(address.phone)}
                       >
                         <MessageCircle className="h-4 w-4" />
                       </Button>
