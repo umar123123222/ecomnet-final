@@ -6,10 +6,10 @@ export interface Order {
   customer_id: string;
   order_type: string;
   gpt_score: number;
-  status: string;
+  status: 'pending' | 'booked' | 'dispatched' | 'delivered' | 'cancelled' | 'returned';
   price: number;
   city: string;
-  courier: string;
+  courier: 'postex' | 'leopard' | 'tcs' | 'other';
   shipping_address: string;
   tracking_id?: string;
   notes?: string;
@@ -51,20 +51,20 @@ export const orderService = {
         *,
         customer:customers(*),
         order_items(*),
-        assigned_user:users(id, name)
+        assigned_user:users!orders_assigned_to_fkey(id, name)
       `)
       .order('created_at', { ascending: false });
 
     if (filters?.status && filters.status !== 'all') {
-      query = query.eq('status', filters.status);
+      query = query.eq('status', filters.status as any);
     }
 
     if (filters?.courier && filters.courier !== 'all') {
-      query = query.eq('courier', filters.courier);
+      query = query.eq('courier', filters.courier as any);
     }
 
     if (filters?.search) {
-      query = query.or(`tracking_id.ilike.%${filters.search}%,customer.name.ilike.%${filters.search}%,customer.email.ilike.%${filters.search}%,customer.phone.ilike.%${filters.search}%`);
+      query = query.or(`tracking_id.ilike.%${filters.search}%`);
     }
 
     if (filters?.limit) {
@@ -78,13 +78,38 @@ export const orderService = {
     const { data, error } = await query;
 
     if (error) throw error;
-    return data as Order[];
+    
+    return (data || []).map(order => ({
+      id: order.id,
+      customer_id: order.customer_id,
+      order_type: order.order_type || 'regular',
+      gpt_score: order.gpt_score || 0,
+      status: order.status,
+      price: Number(order.price) || 0,
+      city: order.city,
+      courier: order.courier,
+      shipping_address: order.shipping_address,
+      tracking_id: order.tracking_id,
+      notes: order.notes,
+      tags: order.tags,
+      assigned_to: order.assigned_to,
+      created_at: order.created_at,
+      updated_at: order.updated_at,
+      dispatched_at: order.dispatched_at,
+      delivered_at: order.delivered_at,
+      customer: order.customer,
+      order_items: order.order_items,
+      assigned_user: order.assigned_user
+    })) as Order[];
   },
 
   async updateOrder(id: string, updates: Partial<Order>) {
+    const dbUpdates: any = { ...updates };
+    if (updates.price) dbUpdates.price = updates.price;
+    
     const { data, error } = await supabase
       .from('orders')
-      .update(updates)
+      .update(dbUpdates)
       .eq('id', id)
       .select()
       .single();
@@ -94,9 +119,12 @@ export const orderService = {
   },
 
   async bulkUpdateOrders(orderIds: string[], updates: Partial<Order>) {
+    const dbUpdates: any = { ...updates };
+    if (updates.price) dbUpdates.price = updates.price;
+    
     const { data, error } = await supabase
       .from('orders')
-      .update(updates)
+      .update(dbUpdates)
       .in('id', orderIds)
       .select();
 

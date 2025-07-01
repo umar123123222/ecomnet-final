@@ -6,7 +6,7 @@ export interface User {
   name: string;
   email: string;
   phone?: string;
-  role: string;
+  role: 'Owner/SuperAdmin' | 'Store Manager' | 'Dispatch Manager' | 'Returns Manager' | 'Staff';
   status: string;
   created_at: string;
   updated_at: string;
@@ -17,22 +17,23 @@ export const userService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    // Try to get from profiles table first, then users table
-    let { data: profile } = await supabase
-      .from('profiles')
+    // Try to get from users table
+    let { data: userProfile } = await supabase
+      .from('users')
       .select('*')
       .eq('id', user.id)
       .single();
 
-    if (profile) {
+    if (userProfile) {
       return {
-        id: profile.id,
-        name: profile.full_name,
-        email: profile.email,
-        role: profile.role,
-        status: profile.is_active ? 'active' : 'inactive',
-        created_at: profile.created_at,
-        updated_at: profile.updated_at,
+        id: userProfile.id,
+        name: userProfile.name,
+        email: userProfile.email,
+        phone: userProfile.phone,
+        role: userProfile.role,
+        status: userProfile.status,
+        created_at: userProfile.created_at,
+        updated_at: userProfile.updated_at,
       };
     }
 
@@ -41,6 +42,7 @@ export const userService = {
       id: user.id,
       name: user.email?.split('@')[0] || 'Unknown User',
       email: user.email || '',
+      phone: '',
       role: 'Staff',
       status: 'active',
       created_at: user.created_at || new Date().toISOString(),
@@ -50,31 +52,33 @@ export const userService = {
 
   async getUsers(): Promise<User[]> {
     const { data, error } = await supabase
-      .from('profiles')
+      .from('users')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
-    return (data || []).map(profile => ({
-      id: profile.id,
-      name: profile.full_name,
-      email: profile.email,
-      role: profile.role,
-      status: profile.is_active ? 'active' : 'inactive',
-      created_at: profile.created_at,
-      updated_at: profile.updated_at,
+    return (data || []).map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      status: user.status,
+      created_at: user.created_at,
+      updated_at: user.updated_at,
     }));
   },
 
   async updateUser(id: string, updates: Partial<User>): Promise<User> {
     const { data, error } = await supabase
-      .from('profiles')
+      .from('users')
       .update({
-        full_name: updates.name,
+        name: updates.name,
         email: updates.email,
+        phone: updates.phone,
         role: updates.role,
-        is_active: updates.status === 'active',
+        status: updates.status,
       })
       .eq('id', id)
       .select()
@@ -84,10 +88,11 @@ export const userService = {
 
     return {
       id: data.id,
-      name: data.full_name,
+      name: data.name,
       email: data.email,
+      phone: data.phone,
       role: data.role,
-      status: data.is_active ? 'active' : 'inactive',
+      status: data.status,
       created_at: data.created_at,
       updated_at: data.updated_at,
     };
