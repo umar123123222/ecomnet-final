@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -19,12 +20,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Upload, Plus, Filter } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Search, Upload, Plus, Filter, Download, ChevronDown, ChevronUp } from 'lucide-react';
 
 const OrderDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [courierFilter, setCourierFilter] = useState('all');
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [selectAllPages, setSelectAllPages] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<string[]>([]);
 
   const orders = [
     {
@@ -37,6 +42,15 @@ const OrderDashboard = () => {
       status: 'delivered',
       amount: 'PKR 2,500',
       date: '2024-01-15',
+      address: 'House 123, Street 45, Block F, Gulberg, Lahore',
+      gptScore: 85,
+      totalPrice: 2500,
+      orderType: 'COD',
+      city: 'Lahore',
+      items: [
+        { name: 'T-Shirt', quantity: 2, price: 1000 },
+        { name: 'Jeans', quantity: 1, price: 1500 }
+      ]
     },
     {
       id: 'ORD-002',
@@ -48,6 +62,14 @@ const OrderDashboard = () => {
       status: 'dispatched',
       amount: 'PKR 1,800',
       date: '2024-01-14',
+      address: 'Flat 7, Building 12, Main Road, Karachi',
+      gptScore: 92,
+      totalPrice: 1800,
+      orderType: 'Prepaid',
+      city: 'Karachi',
+      items: [
+        { name: 'Shoes', quantity: 1, price: 1800 }
+      ]
     },
     {
       id: 'ORD-003',
@@ -59,6 +81,15 @@ const OrderDashboard = () => {
       status: 'booked',
       amount: 'PKR 3,200',
       date: '2024-01-13',
+      address: 'Plot 45, Sector 12, Islamabad',
+      gptScore: 78,
+      totalPrice: 3200,
+      orderType: 'COD',
+      city: 'Islamabad',
+      items: [
+        { name: 'Laptop Case', quantity: 1, price: 2000 },
+        { name: 'Mouse', quantity: 1, price: 1200 }
+      ]
     },
   ];
 
@@ -88,6 +119,45 @@ const OrderDashboard = () => {
     { title: 'Cancelled', value: '89', color: 'bg-red-500' },
     { title: 'Returns', value: '168', color: 'bg-gray-500' },
   ];
+
+  const handleSelectOrder = (orderId: string) => {
+    setSelectedOrders(prev => 
+      prev.includes(orderId) 
+        ? prev.filter(id => id !== orderId)
+        : [...prev, orderId]
+    );
+  };
+
+  const handleSelectAllCurrentPage = () => {
+    setSelectedOrders(
+      selectedOrders.length === orders.length 
+        ? [] 
+        : orders.map(order => order.id)
+    );
+  };
+
+  const handleSelectAllPages = () => {
+    setSelectAllPages(!selectAllPages);
+    // In a real app, this would select all orders across all pages
+    if (!selectAllPages) {
+      setSelectedOrders(orders.map(order => order.id));
+    } else {
+      setSelectedOrders([]);
+    }
+  };
+
+  const toggleExpanded = (orderId: string) => {
+    setExpandedRows(prev => 
+      prev.includes(orderId)
+        ? prev.filter(id => id !== orderId)
+        : [...prev, orderId]
+    );
+  };
+
+  const handleBulkAction = (action: string) => {
+    console.log(`Bulk ${action} for orders:`, selectedOrders);
+    // Implement bulk action logic here
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -124,6 +194,51 @@ const OrderDashboard = () => {
           </Card>
         ))}
       </div>
+
+      {/* Bulk Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Bulk Actions
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-3 mb-4">
+            <Button 
+              variant="outline" 
+              disabled={selectedOrders.length === 0}
+              onClick={() => handleBulkAction('recommender')}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Upload to Recommender Portals
+            </Button>
+            <Button 
+              variant="outline" 
+              disabled={selectedOrders.length === 0}
+              onClick={() => handleBulkAction('leopard')}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Upload to Leopard
+            </Button>
+            <Button 
+              variant="outline" 
+              disabled={selectedOrders.length === 0}
+              onClick={() => handleBulkAction('postex')}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Upload to PostEx
+            </Button>
+            <Button 
+              variant="outline" 
+              disabled={selectedOrders.length === 0}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download Selected Orders
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       <Card>
@@ -179,12 +294,31 @@ const OrderDashboard = () => {
       {/* Orders Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Orders</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            <span>Orders</span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={selectedOrders.length === orders.length}
+                  onCheckedChange={handleSelectAllCurrentPage}
+                />
+                <span className="text-sm text-gray-600">Select All (Current Page)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={selectAllPages}
+                  onCheckedChange={handleSelectAllPages}
+                />
+                <span className="text-sm text-gray-600">Select All Pages</span>
+              </div>
+            </div>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Select</TableHead>
                 <TableHead>Order ID</TableHead>
                 <TableHead>Tracking ID</TableHead>
                 <TableHead>Customer</TableHead>
@@ -194,35 +328,89 @@ const OrderDashboard = () => {
                 <TableHead>Amount</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Actions</TableHead>
+                <TableHead>Details</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {orders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell className="font-medium">{order.id}</TableCell>
-                  <TableCell>{order.trackingId}</TableCell>
-                  <TableCell>{order.customer}</TableCell>
-                  <TableCell>
-                    <div className="text-sm">
-                      <div>{order.email}</div>
-                      <div className="text-gray-500">{order.phone}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{order.courier}</TableCell>
-                  <TableCell>{getStatusBadge(order.status)}</TableCell>
-                  <TableCell>{order.amount}</TableCell>
-                  <TableCell>{order.date}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm">
-                        View
+                <React.Fragment key={order.id}>
+                  <TableRow>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedOrders.includes(order.id)}
+                        onCheckedChange={() => handleSelectOrder(order.id)}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">{order.id}</TableCell>
+                    <TableCell>{order.trackingId}</TableCell>
+                    <TableCell>{order.customer}</TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        <div>{order.email}</div>
+                        <div className="text-gray-500">{order.phone}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{order.courier}</TableCell>
+                    <TableCell>{getStatusBadge(order.status)}</TableCell>
+                    <TableCell>{order.amount}</TableCell>
+                    <TableCell>{order.date}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm">
+                          View
+                        </Button>
+                        <Button variant="outline" size="sm">
+                          Track
+                        </Button>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleExpanded(order.id)}
+                      >
+                        {expandedRows.includes(order.id) ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
                       </Button>
-                      <Button variant="outline" size="sm">
-                        Track
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                    </TableCell>
+                  </TableRow>
+                  {expandedRows.includes(order.id) && (
+                    <TableRow>
+                      <TableCell colSpan={11} className="bg-gray-50 p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          <div>
+                            <h4 className="font-semibold mb-2">Customer Address</h4>
+                            <p className="text-sm text-gray-600">{order.address}</p>
+                          </div>
+                          <div>
+                            <h4 className="font-semibold mb-2">Order Details</h4>
+                            <div className="space-y-1 text-sm">
+                              <p><span className="font-medium">GPT Score:</span> {order.gptScore}%</p>
+                              <p><span className="font-medium">Total Price:</span> PKR {order.totalPrice}</p>
+                              <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
+                              <p><span className="font-medium">City:</span> {order.city}</p>
+                            </div>
+                          </div>
+                          <div>
+                            <h4 className="font-semibold mb-2">Items</h4>
+                            <div className="space-y-1">
+                              {order.items.map((item, index) => (
+                                <div key={index} className="text-sm">
+                                  <span className="font-medium">{item.name}</span>
+                                  <span className="text-gray-500 ml-2">x{item.quantity} - PKR {item.price}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </React.Fragment>
               ))}
             </TableBody>
           </Table>

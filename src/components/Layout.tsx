@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { 
@@ -25,10 +26,8 @@ import {
   Bell, 
   Moon, 
   Sun,
-  BarChart3,
   Shield,
   MapPin,
-  FileText,
   AlertTriangle
 } from "lucide-react";
 
@@ -45,12 +44,10 @@ const Layout = () => {
     { icon: Package, label: "Orders", href: "/orders", badge: "234" },
     { icon: Truck, label: "Dispatch", href: "/dispatch", badge: null },
     { icon: RotateCcw, label: "Returns", href: "/returns", badge: "12" },
-    { icon: BarChart3, label: "Analytics", href: "/analytics", badge: null },
-    { icon: AlertTriangle, label: "Suspicious", href: "/suspicious", badge: "5" },
-    { icon: MapPin, label: "Address Verification", href: "/address", badge: null },
-    { icon: FileText, label: "Reports", href: "/reports", badge: null },
-    { icon: Users, label: "User Management", href: "/users", badge: null },
-    { icon: Shield, label: "Admin Panel", href: "/admin", badge: null },
+    { icon: AlertTriangle, label: "Suspicious Customers", href: "/suspicious-customers", badge: "5" },
+    { icon: MapPin, label: "Address Verification", href: "/address-verification", badge: null },
+    { icon: Users, label: "User Management", href: "/user-management", badge: null },
+    { icon: Shield, label: "Admin Panel", href: "/admin-panel", badge: null },
     { icon: Settings, label: "Settings", href: "/settings", badge: null },
   ];
 
