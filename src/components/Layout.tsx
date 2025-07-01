@@ -1,11 +1,9 @@
-
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { ModernButton } from "@/components/ui/modern-button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Home, Package, Truck, RotateCcw, Users, Settings, Search, Bell, Moon, Sun, Shield, MapPin, LogOut, ChevronDown } from "lucide-react";
+import { Home, Package, Truck, RotateCcw, Users, Settings, Bell, Moon, Sun, Shield, MapPin, LogOut, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from '@/contexts/AuthContext';
 import { getNavigationItems } from '@/utils/rolePermissions';
@@ -126,12 +124,6 @@ const Layout = () => {
             <div className="flex items-center justify-between p-4 lg:px-6">
               <div className="flex items-center gap-4">
                 <SidebarTrigger />
-                <div className="hidden md:flex items-center gap-4">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search orders, customers, products..." className="pl-10 w-80 bg-white/60 dark:bg-gray-800/60 border-white/30 dark:border-gray-700/30 focus:bg-white dark:focus:bg-gray-800 transition-all duration-300 rounded-lg" />
-                  </div>
-                </div>
               </div>
               
               <div className="flex items-center gap-3">
