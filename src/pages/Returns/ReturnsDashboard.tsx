@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Upload, Plus, Filter, Download, Scan, RotateCcw, Calendar } from 'lucide-react';
+import { Search, Upload, Plus, Filter, Download, Scan, RotateCcw } from 'lucide-react';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
@@ -145,23 +144,6 @@ const ReturnsDashboard = () => {
         </div>
       </div>
 
-      {/* Date Range Filter */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Date Range Filter
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DatePickerWithRange
-            date={dateRange}
-            setDate={setDateRange}
-            className="w-full"
-          />
-        </CardContent>
-      </Card>
-
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card>
@@ -191,11 +173,11 @@ const ReturnsDashboard = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
-            Search & Actions
+            Search & Filters
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
@@ -205,6 +187,11 @@ const ReturnsDashboard = () => {
                 className="pl-10"
               />
             </div>
+            <DatePickerWithRange
+              date={dateRange}
+              setDate={setDateRange}
+              className="w-full"
+            />
             <Button variant="outline" disabled={selectedReturns.length === 0}>
               <Download className="h-4 w-4 mr-2" />
               Download Selected
