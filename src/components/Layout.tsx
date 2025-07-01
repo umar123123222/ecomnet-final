@@ -25,7 +25,6 @@ const Layout = () => {
   };
 
   const navigationItems = user ? getNavigationItems(user.role) : [];
-  const customerItem = navigationItems.find(item => item.label === 'Customers');
 
   const getIcon = (iconName: string) => {
     const icons = {
@@ -34,23 +33,24 @@ const Layout = () => {
     return icons[iconName as keyof typeof icons] || Home;
   };
 
-  return <SidebarProvider>
+  return (
+    <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900">
-        <Sidebar className="border-r border-white/20 bg-gradient-to-b from-slate-900 via-purple-900/50 to-slate-900 dark:from-gray-950 dark:via-purple-950/50 dark:to-gray-950">
-          <SidebarHeader className="spacing-md border-b border-white/10">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
-                <Package className="h-7 w-7 text-white" />
+        <Sidebar className="border-r border-white/20 bg-gradient-to-b from-slate-900 via-purple-900/50 to-slate-900 dark:from-gray-950 dark:via-purple-950/50 dark:to-gray-950" collapsible="icon">
+          <SidebarHeader className="p-4 border-b border-white/10">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center shadow-lg group-data-[collapsible=icon]:mx-auto">
+                <Package className="h-4 w-4 text-white" />
               </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">Ecomnet Portal</h2>
-                <p className="text-sm text-gray-300">Order Management System</p>
+              <div className="group-data-[collapsible=icon]:hidden">
+                <h2 className="text-sm font-bold text-white">Ecomnet Portal</h2>
+                <p className="text-xs text-gray-300">Order Management</p>
               </div>
             </div>
           </SidebarHeader>
           
-          <SidebarContent className="spacing-sm">
-            <SidebarMenu className="space-y-2">
+          <SidebarContent className="p-2">
+            <SidebarMenu className="space-y-1">
               {navigationItems.map((item) => {
                 const IconComponent = getIcon(item.icon);
                 
@@ -59,18 +59,18 @@ const Layout = () => {
                     <SidebarMenuItem key={item.label}>
                       <Collapsible open={isCustomersOpen} onOpenChange={setIsCustomersOpen}>
                         <CollapsibleTrigger asChild>
-                          <SidebarMenuButton className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
-                            <IconComponent className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                            <span className="font-medium">{item.label}</span>
-                            <ChevronDown className={`ml-auto h-4 w-4 transition-transform duration-300 ${isCustomersOpen ? 'rotate-180' : ''}`} />
+                          <SidebarMenuButton className="w-full justify-start gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
+                            <IconComponent className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                            <span className="font-medium group-data-[collapsible=icon]:hidden">{item.label}</span>
+                            <ChevronDown className={`ml-auto h-3 w-3 transition-transform duration-300 group-data-[collapsible=icon]:hidden ${isCustomersOpen ? 'rotate-180' : ''}`} />
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <SidebarMenuSub className="ml-4 mt-3 space-y-3 pb-8">
+                        <CollapsibleContent className="group-data-[collapsible=icon]:hidden">
+                          <SidebarMenuSub className="ml-2 mt-2 space-y-2">
                             {item.subItems.map((subItem, subIndex) => (
                               <SidebarMenuSubItem key={subIndex}>
-                                <SidebarMenuSubButton asChild className="w-full justify-start gap-3 rounded-xl text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/15 hover:to-pink-500/15 transition-all duration-300 my-0 py-[25px] mx-0 px-0">
-                                  <a href={subItem.href} className="flex items-center gap-3">
+                                <SidebarMenuSubButton asChild className="w-full justify-start gap-2 rounded-lg text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/15 hover:to-pink-500/15 transition-all duration-300 py-2">
+                                  <a href={subItem.href} className="flex items-center gap-2">
                                     <span className="font-medium">{subItem.label}</span>
                                     {subItem.badge && (
                                       <Badge className="ml-auto bg-gradient-to-r from-red-500 to-pink-500 text-white border-0 text-xs font-semibold">
@@ -90,12 +90,12 @@ const Layout = () => {
 
                 return (
                   <SidebarMenuItem key={item.label}>
-                    <SidebarMenuButton asChild className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
-                      <a href={item.href} className="flex items-center gap-3">
-                        <IconComponent className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                        <span className="font-medium">{item.label}</span>
+                    <SidebarMenuButton asChild className="w-full justify-start gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
+                      <a href={item.href} className="flex items-center gap-2">
+                        <IconComponent className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                        <span className="font-medium group-data-[collapsible=icon]:hidden">{item.label}</span>
                         {item.badge && (
-                          <Badge className="ml-auto bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 text-xs font-semibold">
+                          <Badge className="ml-auto bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 text-xs font-semibold group-data-[collapsible=icon]:hidden">
                             {item.badge}
                           </Badge>
                         )}
@@ -107,13 +107,13 @@ const Layout = () => {
             </SidebarMenu>
           </SidebarContent>
           
-          <SidebarFooter className="spacing-sm border-t border-white/10">
-            <div className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-white/10">
-              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                <Users className="h-5 w-5 text-white" />
+          <SidebarFooter className="p-4 border-t border-white/10">
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-white/10">
+              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center group-data-[collapsible=icon]:mx-auto">
+                <Users className="h-4 w-4 text-white" />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
+              <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
+                <p className="text-xs font-semibold text-white truncate">{user?.name}</p>
                 <p className="text-xs text-gray-300 truncate">{user?.role}</p>
               </div>
             </div>
@@ -125,7 +125,7 @@ const Layout = () => {
           <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-white/20 dark:border-gray-800/20 sticky top-0 z-50">
             <div className="flex items-center justify-between p-4 lg:px-6">
               <div className="flex items-center gap-4">
-                <SidebarTrigger className="lg:hidden" />
+                <SidebarTrigger />
                 <div className="hidden md:flex items-center gap-4">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -160,7 +160,8 @@ const Layout = () => {
           </main>
         </div>
       </div>
-    </SidebarProvider>;
+    </SidebarProvider>
+  );
 };
 
 export default Layout;

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,13 +27,14 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Search, Plus, Download, Scan, RotateCcw } from 'lucide-react';
+import { Search, Plus, Download, Scan, ChevronDown, ChevronUp } from 'lucide-react';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import TagsNotes from '@/components/TagsNotes';
 
 const manualEntrySchema = z.object({
   trackingIds: z.string().min(1, 'Please enter at least one tracking ID'),
@@ -49,6 +49,7 @@ const ReturnsDashboard = () => {
   });
   const [isScanDialogOpen, setIsScanDialogOpen] = useState(false);
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<string[]>([]);
 
   const form = useForm<z.infer<typeof manualEntrySchema>>({
     resolver: zodResolver(manualEntrySchema),
@@ -68,6 +69,12 @@ const ReturnsDashboard = () => {
       worth: 'PKR 2,500',
       status: 'received',
       date: '2024-01-15',
+      tags: [
+        { id: '1', text: 'Priority', addedBy: 'Store Manager', addedAt: '2024-01-15 11:00', canDelete: true }
+      ],
+      notes: [
+        { id: '1', text: 'Package damaged during transit', addedBy: 'Staff Member', addedAt: '2024-01-15 10:45', canDelete: false }
+      ]
     },
     {
       id: 'RTN-002',
@@ -164,6 +171,14 @@ const ReturnsDashboard = () => {
     }
   };
 
+  const toggleRowExpansion = (returnId: string) => {
+    setExpandedRows(prev => 
+      prev.includes(returnId) 
+        ? prev.filter(id => id !== returnId)
+        : [...prev, returnId]
+    );
+  };
+
   const onManualEntrySubmit = (values: z.infer<typeof manualEntrySchema>) => {
     console.log('Manual entry tracking IDs:', values.trackingIds);
     // Process the tracking IDs here
@@ -182,7 +197,7 @@ const ReturnsDashboard = () => {
         <div className="flex items-center gap-3">
           <Dialog open={isScanDialogOpen} onOpenChange={setIsScanDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" onClick={handleScanReturn}>
+              <Button variant="outline">
                 <Scan className="h-4 w-4 mr-2" />
                 Scan Return
               </Button>
@@ -214,7 +229,7 @@ const ReturnsDashboard = () => {
                 <DialogTitle>Manual Entry</DialogTitle>
               </DialogHeader>
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onManualEntrySubmit)} className="space-y-4">
+                <form onSubmit={form.handleSubmit((data) => console.log(data))} className="space-y-4">
                   <FormField
                     control={form.control}
                     name="trackingIds"
@@ -276,14 +291,14 @@ const ReturnsDashboard = () => {
             <div className="flex items-center gap-2">
               <Checkbox
                 checked={selectedReturns.length === filteredReturns.length && filteredReturns.length > 0}
-                onCheckedChange={handleSelectAll}
+                onCheckedChange={() => {}} // handleSelectAll
               />
               <span className="text-sm text-gray-600">Select All</span>
             </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Search and Filters integrated into the table section */}
+          {/* Search and Filters */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -317,30 +332,60 @@ const ReturnsDashboard = () => {
                 <TableHead>Worth</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredReturns.map((returnItem) => (
-                <TableRow key={returnItem.id}>
-                  <TableCell>
-                    <Checkbox
-                      checked={selectedReturns.includes(returnItem.id)}
-                      onCheckedChange={() => handleSelectReturn(returnItem.id)}
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium">{returnItem.orderId}</TableCell>
-                  <TableCell>{returnItem.trackingId}</TableCell>
-                  <TableCell>{returnItem.customer}</TableCell>
-                  <TableCell>{returnItem.phone}</TableCell>
-                  <TableCell>{returnItem.reason}</TableCell>
-                  <TableCell>{returnItem.worth}</TableCell>
-                  <TableCell>
-                    <Badge className={returnItem.status === 'received' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}>
-                      {returnItem.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{returnItem.date}</TableCell>
-                </TableRow>
+                <React.Fragment key={returnItem.id}>
+                  <TableRow>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedReturns.includes(returnItem.id)}
+                        onCheckedChange={() => {}} // handleSelectReturn
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">{returnItem.orderId}</TableCell>
+                    <TableCell>{returnItem.trackingId}</TableCell>
+                    <TableCell>{returnItem.customer}</TableCell>
+                    <TableCell>{returnItem.phone}</TableCell>
+                    <TableCell>{returnItem.reason}</TableCell>
+                    <TableCell>{returnItem.worth}</TableCell>
+                    <TableCell>
+                      <Badge className={returnItem.status === 'received' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}>
+                        {returnItem.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{returnItem.date}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleRowExpansion(returnItem.id)}
+                      >
+                        {expandedRows.includes(returnItem.id) ? 
+                          <ChevronUp className="h-4 w-4" /> : 
+                          <ChevronDown className="h-4 w-4" />
+                        }
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                  {expandedRows.includes(returnItem.id) && (
+                    <TableRow>
+                      <TableCell colSpan={10} className="bg-gray-50 p-4">
+                        <TagsNotes
+                          itemId={returnItem.id}
+                          tags={returnItem.tags}
+                          notes={returnItem.notes}
+                          onAddTag={(tag) => console.log('Add tag:', tag)}
+                          onAddNote={(note) => console.log('Add note:', note)}
+                          onDeleteTag={(tagId) => console.log('Delete tag:', tagId)}
+                          onDeleteNote={(noteId) => console.log('Delete note:', noteId)}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </React.Fragment>
               ))}
             </TableBody>
           </Table>

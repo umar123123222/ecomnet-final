@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,15 +19,45 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Plus, Filter, Download, UserPlus, Trash2, Edit } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Search, UserPlus, Download, Edit, Trash2, Eye } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getRolePermissions } from '@/utils/rolePermissions';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+
+const userSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Invalid email'),
+  role: z.string().min(1, 'Role is required'),
+});
 
 const UserManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [roleFilter, setRoleFilter] = useState('all');
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
+  const [isViewUserOpen, setIsViewUserOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
   const { user: currentUser } = useAuth();
+
+  const form = useForm<z.infer<typeof userSchema>>({
+    resolver: zodResolver(userSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      role: '',
+    },
+  });
 
   const users = useMemo(() => [
     {
@@ -69,6 +98,37 @@ const UserManagement = () => {
     );
   };
 
+  const handleAddUser = (data: z.infer<typeof userSchema>) => {
+    console.log('Adding user:', data);
+    setIsAddUserOpen(false);
+    form.reset();
+  };
+
+  const handleEditUser = (data: z.infer<typeof userSchema>) => {
+    console.log('Editing user:', data);
+    setIsEditUserOpen(false);
+    form.reset();
+  };
+
+  const handleViewUser = (user: any) => {
+    setSelectedUser(user);
+    setIsViewUserOpen(true);
+  };
+
+  const handleDeleteUser = (userId: string) => {
+    if (confirm('Are you sure you want to delete this user?')) {
+      console.log('Deleting user:', userId);
+    }
+  };
+
+  const openEditDialog = (user: any) => {
+    setSelectedUser(user);
+    form.setValue('name', user.name);
+    form.setValue('email', user.email);
+    form.setValue('role', user.role);
+    setIsEditUserOpen(true);
+  };
+
   const permissions = currentUser ? getRolePermissions(currentUser.role) : null;
 
   if (!permissions?.canAccessUserManagement) {
@@ -94,24 +154,98 @@ const UserManagement = () => {
         </div>
         <div className="flex items-center gap-3">
           {permissions.canAddUsers && (
-            <Button>
-              <UserPlus className="h-4 w-4 mr-2" />
-              Add User
-            </Button>
+            <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Add User
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New User</DialogTitle>
+                </DialogHeader>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(handleAddUser)} className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter email" type="email" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="role"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Role</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select role" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {roles.map(role => (
+                                <SelectItem key={role} value={role}>{role}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button type="button" variant="outline" onClick={() => setIsAddUserOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button type="submit">Add User</Button>
+                    </div>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
           )}
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Users Table with integrated filters */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filters & Actions
+          <CardTitle className="flex items-center justify-between">
+            <span>Users ({filteredUsers.length})</span>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
+                onCheckedChange={handleSelectAll}
+              />
+              <span className="text-sm text-gray-600">Select All</span>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          {/* Search and Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
@@ -132,35 +266,12 @@ const UserManagement = () => {
                 ))}
               </SelectContent>
             </Select>
-            {permissions.canDeleteUsers && (
-              <Button variant="outline" disabled={selectedUsers.length === 0}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Selected
-              </Button>
-            )}
             <Button variant="outline" disabled={selectedUsers.length === 0}>
               <Download className="h-4 w-4 mr-2" />
               Export Users
             </Button>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Users Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Users ({filteredUsers.length})</span>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
-                onCheckedChange={handleSelectAll}
-              />
-              <span className="text-sm text-gray-600">Select All</span>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
@@ -194,15 +305,18 @@ const UserManagement = () => {
                   </TableCell>
                   <TableCell>{user.lastLogin}</TableCell>
                   <TableCell>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1">
+                      <Button variant="outline" size="sm" onClick={() => handleViewUser(user)}>
+                        <Eye className="h-3 w-3" />
+                      </Button>
                       {permissions.canEditUsers && (
-                        <Button variant="outline" size="sm">
-                          <Edit className="h-4 w-4" />
+                        <Button variant="outline" size="sm" onClick={() => openEditDialog(user)}>
+                          <Edit className="h-3 w-3" />
                         </Button>
                       )}
                       {permissions.canDeleteUsers && user.id !== currentUser?.id && (
-                        <Button variant="outline" size="sm">
-                          <Trash2 className="h-4 w-4" />
+                        <Button variant="outline" size="sm" onClick={() => handleDeleteUser(user.id)}>
+                          <Trash2 className="h-3 w-3" />
                         </Button>
                       )}
                     </div>
@@ -213,6 +327,106 @@ const UserManagement = () => {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Edit User Dialog */}
+      <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleEditUser)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter email" type="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {roles.map(role => (
+                          <SelectItem key={role} value={role}>{role}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsEditUserOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">Save Changes</Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* View User Dialog */}
+      <Dialog open={isViewUserOpen} onOpenChange={setIsViewUserOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>User Details</DialogTitle>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-600">Name</label>
+                <p className="text-sm">{selectedUser.name}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Email</label>
+                <p className="text-sm">{selectedUser.email}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Role</label>
+                <p className="text-sm">{selectedUser.role}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Status</label>
+                <p className="text-sm">{selectedUser.status}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Last Login</label>
+                <p className="text-sm">{selectedUser.lastLogin}</p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

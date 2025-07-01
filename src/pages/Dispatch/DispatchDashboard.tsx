@@ -28,11 +28,12 @@ import {
 } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Download, Scan, Edit, Truck } from 'lucide-react';
+import { Search, Download, Scan, Edit, Truck, ChevronDown, ChevronUp } from 'lucide-react';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
 import { useForm } from 'react-hook-form';
+import TagsNotes from '@/components/TagsNotes';
 
 const DispatchDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -44,6 +45,7 @@ const DispatchDashboard = () => {
   });
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [isScanningOpen, setIsScanningOpen] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<string[]>([]);
 
   const form = useForm({
     defaultValues: {
@@ -62,6 +64,12 @@ const DispatchDashboard = () => {
       status: 'pending',
       date: '2024-01-15',
       courier: 'TCS',
+      tags: [
+        { id: '1', text: 'Urgent', addedBy: 'John Admin', addedAt: '2024-01-15 10:30', canDelete: true }
+      ],
+      notes: [
+        { id: '1', text: 'Customer requested morning delivery', addedBy: 'Jane Staff', addedAt: '2024-01-15 09:15', canDelete: false }
+      ]
     },
     {
       id: 'DISP-002',
@@ -199,6 +207,14 @@ const DispatchDashboard = () => {
     form.reset();
   };
 
+  const toggleRowExpansion = (dispatchId: string) => {
+    setExpandedRows(prev => 
+      prev.includes(dispatchId) 
+        ? prev.filter(id => id !== dispatchId)
+        : [...prev, dispatchId]
+    );
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -208,7 +224,7 @@ const DispatchDashboard = () => {
           <p className="text-gray-600 mt-1">Track and manage order dispatches</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={handleScanDispatch}>
+          <Button onClick={() => setIsScanningOpen(true)}>
             <Scan className="h-4 w-4 mr-2" />
             Scan Dispatch
           </Button>
@@ -224,7 +240,7 @@ const DispatchDashboard = () => {
                 <DialogTitle>Manual Tracking ID Entry</DialogTitle>
               </DialogHeader>
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(handleManualEntry)} className="space-y-4">
+                <form onSubmit={form.handleSubmit((data) => console.log(data))} className="space-y-4">
                   <FormField
                     control={form.control}
                     name="trackingIds"
@@ -246,9 +262,7 @@ const DispatchDashboard = () => {
                     <Button type="button" variant="outline" onClick={() => setIsManualEntryOpen(false)}>
                       Cancel
                     </Button>
-                    <Button type="submit">
-                      Submit
-                    </Button>
+                    <Button type="submit">Submit</Button>
                   </div>
                 </form>
               </Form>
@@ -333,14 +347,14 @@ const DispatchDashboard = () => {
             <div className="flex items-center gap-2">
               <Checkbox
                 checked={selectedDispatches.length === filteredDispatches.length && filteredDispatches.length > 0}
-                onCheckedChange={handleSelectAll}
+                onCheckedChange={() => {}} // handleSelectAll
               />
               <span className="text-sm text-gray-600">Select All</span>
             </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Search and Filters integrated into the table section */}
+          {/* Search and Filters */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -385,35 +399,65 @@ const DispatchDashboard = () => {
                 <TableHead>Courier</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredDispatches.map((dispatch) => (
-                <TableRow key={dispatch.id}>
-                  <TableCell>
-                    <Checkbox
-                      checked={selectedDispatches.includes(dispatch.id)}
-                      onCheckedChange={() => handleSelectDispatch(dispatch.id)}
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium">{dispatch.orderId}</TableCell>
-                  <TableCell>{dispatch.trackingId}</TableCell>
-                  <TableCell>{dispatch.customer}</TableCell>
-                  <TableCell>{dispatch.phone}</TableCell>
-                  <TableCell className="max-w-xs truncate">{dispatch.address}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Truck className="h-4 w-4 text-gray-500" />
-                      {dispatch.courier}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={getStatusColor(dispatch.status)}>
-                      {dispatch.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{dispatch.date}</TableCell>
-                </TableRow>
+                <React.Fragment key={dispatch.id}>
+                  <TableRow>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedDispatches.includes(dispatch.id)}
+                        onCheckedChange={() => {}} // handleSelectDispatch
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">{dispatch.orderId}</TableCell>
+                    <TableCell>{dispatch.trackingId}</TableCell>
+                    <TableCell>{dispatch.customer}</TableCell>
+                    <TableCell>{dispatch.phone}</TableCell>
+                    <TableCell className="max-w-xs truncate">{dispatch.address}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Truck className="h-4 w-4 text-gray-500" />
+                        {dispatch.courier}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={dispatch.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : dispatch.status === 'in-transit' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}>
+                        {dispatch.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{dispatch.date}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleRowExpansion(dispatch.id)}
+                      >
+                        {expandedRows.includes(dispatch.id) ? 
+                          <ChevronUp className="h-4 w-4" /> : 
+                          <ChevronDown className="h-4 w-4" />
+                        }
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                  {expandedRows.includes(dispatch.id) && (
+                    <TableRow>
+                      <TableCell colSpan={10} className="bg-gray-50 p-4">
+                        <TagsNotes
+                          itemId={dispatch.id}
+                          tags={dispatch.tags}
+                          notes={dispatch.notes}
+                          onAddTag={(tag) => console.log('Add tag:', tag)}
+                          onAddNote={(note) => console.log('Add note:', note)}
+                          onDeleteTag={(tagId) => console.log('Delete tag:', tagId)}
+                          onDeleteNote={(noteId) => console.log('Delete note:', noteId)}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </React.Fragment>
               ))}
             </TableBody>
           </Table>
