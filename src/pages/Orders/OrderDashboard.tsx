@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Search, Upload, Plus, Filter, Download, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Upload, Plus, Filter, Download, ChevronDown, ChevronUp, Package, Send } from 'lucide-react';
 
 const OrderDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -161,52 +161,76 @@ const OrderDashboard = () => {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Order Management</h1>
-          <p className="text-gray-600 mt-1">Manage and track all your orders</p>
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Order Management</h1>
+            <p className="text-gray-600 mt-1">Manage and track all your orders</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              New Order
+            </Button>
+            <Button variant="outline">
+              <Upload className="h-4 w-4 mr-2" />
+              Bulk Upload
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <Button variant="outline">
-            <Upload className="h-4 w-4 mr-2" />
-            Bulk Upload
-          </Button>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            New Order
-          </Button>
-          <Button 
-            variant="outline" 
-            disabled={selectedOrders.length === 0}
-            onClick={() => handleBulkAction('recommender')}
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Upload to Recommender
-          </Button>
-          <Button 
-            variant="outline" 
-            disabled={selectedOrders.length === 0}
-            onClick={() => handleBulkAction('leopard')}
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Upload to Leopard
-          </Button>
-          <Button 
-            variant="outline" 
-            disabled={selectedOrders.length === 0}
-            onClick={() => handleBulkAction('postex')}
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Upload to PostEx
-          </Button>
-          <Button 
-            variant="outline" 
-            disabled={selectedOrders.length === 0}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Download Selected
-          </Button>
-        </div>
+
+        {/* Bulk Actions Section - Only show when orders are selected */}
+        {selectedOrders.length > 0 && (
+          <Card className="border-orange-200 bg-orange-50">
+            <CardContent className="pt-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <Package className="h-5 w-5 text-orange-600" />
+                  <span className="font-medium text-orange-800">
+                    {selectedOrders.length} order{selectedOrders.length > 1 ? 's' : ''} selected
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button 
+                    size="sm"
+                    variant="outline" 
+                    onClick={() => handleBulkAction('recommender')}
+                    className="border-orange-300 text-orange-700 hover:bg-orange-100"
+                  >
+                    <Send className="h-4 w-4 mr-1" />
+                    Recommender
+                  </Button>
+                  <Button 
+                    size="sm"
+                    variant="outline" 
+                    onClick={() => handleBulkAction('leopard')}
+                    className="border-orange-300 text-orange-700 hover:bg-orange-100"
+                  >
+                    <Send className="h-4 w-4 mr-1" />
+                    Leopard
+                  </Button>
+                  <Button 
+                    size="sm"
+                    variant="outline" 
+                    onClick={() => handleBulkAction('postex')}
+                    className="border-orange-300 text-orange-700 hover:bg-orange-100"
+                  >
+                    <Send className="h-4 w-4 mr-1" />
+                    PostEx
+                  </Button>
+                  <Button 
+                    size="sm"
+                    variant="outline"
+                    className="border-orange-300 text-orange-700 hover:bg-orange-100"
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    Download
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Summary Cards */}
