@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,14 +20,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Upload, Plus, Filter, Download, Scan, Calendar } from 'lucide-react';
+import { Search, Plus, Filter, Download, Scan } from 'lucide-react';
 
 const DispatchDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDispatches, setSelectedDispatches] = useState<string[]>([]);
   const [timeFilter, setTimeFilter] = useState('daily');
 
-  const dispatches = [
+  const dispatches = useMemo(() => [
     {
       id: 'DSP-001',
       trackingId: 'TRK-123456',
@@ -48,9 +48,9 @@ const DispatchDashboard = () => {
       worth: 'PKR 1,800',
       date: '2024-01-14',
     },
-  ];
+  ], []);
 
-  const metrics = {
+  const metrics = useMemo(() => ({
     daily: {
       dispatched: 45,
       totalWorth: 'PKR 125,000',
@@ -63,7 +63,14 @@ const DispatchDashboard = () => {
       returnedCount: 18,
       returnedWorth: 'PKR 42,000'
     }
-  };
+  }), []);
+
+  const filteredDispatches = useMemo(() => {
+    return dispatches.filter(dispatch => 
+      dispatch.trackingId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dispatch.customer.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [dispatches, searchTerm]);
 
   const handleSelectDispatch = (dispatchId: string) => {
     setSelectedDispatches(prev => 
@@ -75,9 +82,9 @@ const DispatchDashboard = () => {
 
   const handleSelectAll = () => {
     setSelectedDispatches(
-      selectedDispatches.length === dispatches.length 
+      selectedDispatches.length === filteredDispatches.length 
         ? [] 
-        : dispatches.map(d => d.id)
+        : filteredDispatches.map(d => d.id)
     );
   };
 
@@ -154,7 +161,7 @@ const DispatchDashboard = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
@@ -186,10 +193,10 @@ const DispatchDashboard = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Dispatches</span>
+            <span>Dispatches ({filteredDispatches.length})</span>
             <div className="flex items-center gap-2">
               <Checkbox
-                checked={selectedDispatches.length === dispatches.length}
+                checked={selectedDispatches.length === filteredDispatches.length && filteredDispatches.length > 0}
                 onCheckedChange={handleSelectAll}
               />
               <span className="text-sm text-gray-600">Select All</span>
@@ -212,7 +219,7 @@ const DispatchDashboard = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {dispatches.map((dispatch) => (
+              {filteredDispatches.map((dispatch) => (
                 <TableRow key={dispatch.id}>
                   <TableCell>
                     <Checkbox

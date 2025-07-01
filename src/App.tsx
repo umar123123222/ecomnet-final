@@ -7,19 +7,43 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Layout from "@/components/Layout";
-import Dashboard from "@/pages/Dashboard";
-import OrderDashboard from "@/pages/Orders/OrderDashboard";
-import DispatchDashboard from "@/pages/Dispatch/DispatchDashboard";
-import ReturnsDashboard from "@/pages/Returns/ReturnsDashboard";
-import AllCustomers from "@/pages/Customers/AllCustomers";
-import SuspiciousCustomers from "@/pages/SuspiciousCustomers/SuspiciousCustomers";
-import AddressVerification from "@/pages/AddressVerification/AddressVerification";
-import UserManagement from "@/pages/UserManagement/UserManagement";
-import AdminPanel from "@/pages/AdminPanel/AdminPanel";
-import Settings from "@/pages/Settings/Settings";
-import NotFound from "./pages/NotFound";
+import { lazy, Suspense } from "react";
+import { Loader2 } from "lucide-react";
 
-const queryClient = new QueryClient();
+// Lazy load all pages to improve initial load time
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const OrderDashboard = lazy(() => import("@/pages/Orders/OrderDashboard"));
+const DispatchDashboard = lazy(() => import("@/pages/Dispatch/DispatchDashboard"));
+const ReturnsDashboard = lazy(() => import("@/pages/Returns/ReturnsDashboard"));
+const AllCustomers = lazy(() => import("@/pages/Customers/AllCustomers"));
+const SuspiciousCustomers = lazy(() => import("@/pages/SuspiciousCustomers/SuspiciousCustomers"));
+const AddressVerification = lazy(() => import("@/pages/AddressVerification/AddressVerification"));
+const UserManagement = lazy(() => import("@/pages/UserManagement/UserManagement"));
+const AdminPanel = lazy(() => import("@/pages/AdminPanel/AdminPanel"));
+const Settings = lazy(() => import("@/pages/Settings/Settings"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+// Optimized QueryClient configuration
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+// Loading component
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-[400px]">
+    <div className="text-center">
+      <Loader2 className="h-8 w-8 animate-spin text-purple-500 mx-auto mb-4" />
+      <p className="text-gray-600">Loading...</p>
+    </div>
+  </div>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -34,18 +58,61 @@ const App = () => (
                 <Layout />
               </ProtectedRoute>
             }>
-              <Route index element={<Dashboard />} />
-              <Route path="orders" element={<OrderDashboard />} />
-              <Route path="dispatch" element={<DispatchDashboard />} />
-              <Route path="returns" element={<ReturnsDashboard />} />
-              <Route path="all-customers" element={<AllCustomers />} />
-              <Route path="suspicious-customers" element={<SuspiciousCustomers />} />
-              <Route path="address-verification" element={<AddressVerification />} />
-              <Route path="user-management" element={<UserManagement />} />
-              <Route path="admin-panel" element={<AdminPanel />} />
-              <Route path="settings" element={<Settings />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
+              <Route index element={
+                <Suspense fallback={<PageLoader />}>
+                  <Dashboard />
+                </Suspense>
+              } />
+              <Route path="orders" element={
+                <Suspense fallback={<PageLoader />}>
+                  <OrderDashboard />
+                </Suspense>
+              } />
+              <Route path="dispatch" element={
+                <Suspense fallback={<PageLoader />}>
+                  <DispatchDashboard />
+                </Suspense>
+              } />
+              <Route path="returns" element={
+                <Suspense fallback={<PageLoader />}>
+                  <ReturnsDashboard />
+                </Suspense>
+              } />
+              <Route path="all-customers" element={
+                <Suspense fallback={<PageLoader />}>
+                  <AllCustomers />
+                </Suspense>
+              } />
+              <Route path="suspicious-customers" element={
+                <Suspense fallback={<PageLoader />}>
+                  <SuspiciousCustomers />
+                </Suspense>
+              } />
+              <Route path="address-verification" element={
+                <Suspense fallback={<PageLoader />}>
+                  <AddressVerification />
+                </Suspense>
+              } />
+              <Route path="user-management" element={
+                <Suspense fallback={<PageLoader />}>
+                  <UserManagement />
+                </Suspense>
+              } />
+              <Route path="admin-panel" element={
+                <Suspense fallback={<PageLoader />}>
+                  <AdminPanel />
+                </Suspense>
+              } />
+              <Route path="settings" element={
+                <Suspense fallback={<PageLoader />}>
+                  <Settings />
+                </Suspense>
+              } />
+              <Route path="*" element={
+                <Suspense fallback={<PageLoader />}>
+                  <NotFound />
+                </Suspense>
+              } />
             </Route>
           </Routes>
         </BrowserRouter>

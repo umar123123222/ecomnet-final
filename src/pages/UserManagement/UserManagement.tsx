@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,8 +25,9 @@ import { Search, Plus, Filter, Download, UserPlus, Trash2, Edit } from 'lucide-r
 const UserManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [roleFilter, setRoleFilter] = useState('all');
 
-  const users = [
+  const users = useMemo(() => [
     {
       id: 'SA-001',
       name: 'Muhammad Umar',
@@ -35,14 +36,19 @@ const UserManagement = () => {
       status: 'Active',
       lastLogin: new Date().toLocaleString(),
       permissions: ['All'],
-      activities: [
-        { action: 'Login', timestamp: new Date().toLocaleString() },
-        { action: 'System initialized', timestamp: new Date().toLocaleString() },
-      ]
     },
-  ];
+  ], []);
 
-  const roles = ['Owner/SuperAdmin', 'Store Manager', 'Dispatch Manager', 'Returns Manager', 'Staff'];
+  const roles = useMemo(() => ['Owner/SuperAdmin', 'Store Manager', 'Dispatch Manager', 'Returns Manager', 'Staff'], []);
+
+  const filteredUsers = useMemo(() => {
+    return users.filter(user => {
+      const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           user.email.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+      return matchesSearch && matchesRole;
+    });
+  }, [users, searchTerm, roleFilter]);
 
   const handleSelectUser = (userId: string) => {
     setSelectedUsers(prev => 
@@ -54,9 +60,9 @@ const UserManagement = () => {
 
   const handleSelectAll = () => {
     setSelectedUsers(
-      selectedUsers.length === users.length 
+      selectedUsers.length === filteredUsers.length 
         ? [] 
-        : users.map(u => u.id)
+        : filteredUsers.map(u => u.id)
     );
   };
 
@@ -123,14 +129,14 @@ const UserManagement = () => {
                 className="pl-10"
               />
             </div>
-            <Select>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Filter by Role" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
                 {roles.map((role) => (
-                  <SelectItem key={role} value={role.toLowerCase()}>{role}</SelectItem>
+                  <SelectItem key={role} value={role}>{role}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -150,10 +156,10 @@ const UserManagement = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Users</span>
+            <span>Users ({filteredUsers.length})</span>
             <div className="flex items-center gap-2">
               <Checkbox
-                checked={selectedUsers.length === users.length}
+                checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
                 onCheckedChange={handleSelectAll}
               />
               <span className="text-sm text-gray-600">Select All</span>
@@ -174,7 +180,7 @@ const UserManagement = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => (
+              {filteredUsers.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell>
                     <Checkbox
