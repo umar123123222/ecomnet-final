@@ -13,59 +13,83 @@ export interface User {
 }
 
 export const userService = {
-  async getUsers() {
+  async getCurrentUser(): Promise<User | null> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // Try to get from profiles table first, then users table
+    let { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (profile) {
+      return {
+        id: profile.id,
+        name: profile.full_name,
+        email: profile.email,
+        role: profile.role,
+        status: profile.is_active ? 'active' : 'inactive',
+        created_at: profile.created_at,
+        updated_at: profile.updated_at,
+      };
+    }
+
+    // Fallback to creating a basic user object
+    return {
+      id: user.id,
+      name: user.email?.split('@')[0] || 'Unknown User',
+      email: user.email || '',
+      role: 'Staff',
+      status: 'active',
+      created_at: user.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  },
+
+  async getUsers(): Promise<User[]> {
     const { data, error } = await supabase
-      .from('users')
+      .from('profiles')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data as User[];
+
+    return (data || []).map(profile => ({
+      id: profile.id,
+      name: profile.full_name,
+      email: profile.email,
+      role: profile.role,
+      status: profile.is_active ? 'active' : 'inactive',
+      created_at: profile.created_at,
+      updated_at: profile.updated_at,
+    }));
   },
 
-  async getCurrentUser() {
-    const { data: authUser } = await supabase.auth.getUser();
-    if (!authUser.user) return null;
-
+  async updateUser(id: string, updates: Partial<User>): Promise<User> {
     const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', authUser.user.email)
-      .single();
-
-    if (error) throw error;
-    return data as User;
-  },
-
-  async createUser(user: Omit<User, 'id' | 'created_at' | 'updated_at'>) {
-    const { data, error } = await supabase
-      .from('users')
-      .insert(user)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
-  async updateUser(id: string, updates: Partial<User>) {
-    const { data, error } = await supabase
-      .from('users')
-      .update(updates)
+      .from('profiles')
+      .update({
+        full_name: updates.name,
+        email: updates.email,
+        role: updates.role,
+        is_active: updates.status === 'active',
+      })
       .eq('id', id)
       .select()
       .single();
 
     if (error) throw error;
-    return data;
-  },
 
-  async deleteUser(id: string) {
-    const { error } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', id);
-
-    if (error) throw error;
+    return {
+      id: data.id,
+      name: data.full_name,
+      email: data.email,
+      role: data.role,
+      status: data.is_active ? 'active' : 'inactive',
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+    };
   }
 };

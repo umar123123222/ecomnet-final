@@ -15,12 +15,12 @@ import {
 } from '@/components/ui/table';
 import { Search, Download, CheckCircle, XCircle, MessageCircle, Loader2 } from 'lucide-react';
 import { useSupabaseQuery, useSupabaseMutation } from '@/hooks/useSupabaseQuery';
-import { addressVerificationService, AddressVerification } from '@/services/addressVerificationService';
+import { addressVerificationService, type AddressVerificationData } from '@/services/addressVerificationService';
 import { userService } from '@/services/userService';
 import { activityLogService } from '@/services/activityLogService';
 import { useToast } from '@/hooks/use-toast';
 
-const AddressVerification = () => {
+const AddressVerificationPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAddresses, setSelectedAddresses] = useState<string[]>([]);
   const { toast } = useToast();
@@ -361,7 +361,7 @@ const AddressVerification = () => {
                           variant="outline"
                           size="sm"
                           onClick={() => handleIndividualDisapprove(address.id)}
-                          disabled={(address.verified === false && address.verified_by) || disapproveMutation.isPending}
+                          disabled={(!address.verified && address.verified_by) || disapproveMutation.isPending}
                           className="border-red-300 text-red-700 hover:bg-red-50"
                         >
                           <XCircle className="h-4 w-4" />
@@ -393,4 +393,4 @@ const AddressVerification = () => {
   );
 };
 
-export default AddressVerification;
+export default AddressVerificationPage;
