@@ -20,12 +20,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Plus, Filter, Download, Scan } from 'lucide-react';
+import { Search, Plus, Filter, Download, Scan, Calendar } from 'lucide-react';
+import { DatePickerWithRange } from '@/components/DatePickerWithRange';
+import { DateRange } from 'react-day-picker';
+import { addDays, isWithinInterval, parseISO } from 'date-fns';
 
 const DispatchDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDispatches, setSelectedDispatches] = useState<string[]>([]);
   const [timeFilter, setTimeFilter] = useState('daily');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: new Date(),
+    to: addDays(new Date(), 7),
+  });
 
   const dispatches = useMemo(() => [
     {
@@ -48,29 +55,59 @@ const DispatchDashboard = () => {
       worth: 'PKR 1,800',
       date: '2024-01-14',
     },
+    {
+      id: 'DSP-003',
+      trackingId: 'TRK-345678',
+      customer: 'Ali Khan',
+      phone: '+92-302-5556789',
+      courier: 'TCS',
+      status: 'in-transit',
+      worth: 'PKR 3,200',
+      date: '2024-01-16',
+    },
+    {
+      id: 'DSP-004',
+      trackingId: 'TRK-901234',
+      customer: 'Sara Ahmed',
+      phone: '+92-303-7778888',
+      courier: 'Leopard',
+      status: 'dispatched',
+      worth: 'PKR 1,500',
+      date: '2024-01-13',
+    },
   ], []);
 
-  const metrics = useMemo(() => ({
-    daily: {
-      dispatched: 45,
-      totalWorth: 'PKR 125,000',
-      returnedCount: 3,
-      returnedWorth: 'PKR 8,500'
-    },
-    weekly: {
-      dispatched: 312,
-      totalWorth: 'PKR 875,000',
-      returnedCount: 18,
-      returnedWorth: 'PKR 42,000'
-    }
-  }), []);
+  const filteredByDate = useMemo(() => {
+    if (!dateRange?.from) return dispatches;
+    
+    return dispatches.filter(dispatch => {
+      const dispatchDate = parseISO(dispatch.date);
+      if (dateRange.to) {
+        return isWithinInterval(dispatchDate, { start: dateRange.from, end: dateRange.to });
+      }
+      return dispatchDate >= dateRange.from;
+    });
+  }, [dispatches, dateRange]);
 
   const filteredDispatches = useMemo(() => {
-    return dispatches.filter(dispatch => 
+    return filteredByDate.filter(dispatch => 
       dispatch.trackingId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       dispatch.customer.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [dispatches, searchTerm]);
+  }, [filteredByDate, searchTerm]);
+
+  const metrics = useMemo(() => {
+    const totalDispatched = filteredByDate.length;
+    const totalWorth = filteredByDate.reduce((sum, dispatch) => {
+      const worth = parseInt(dispatch.worth.replace('PKR ', '').replace(',', ''));
+      return sum + worth;
+    }, 0);
+
+    return {
+      dispatched: totalDispatched,
+      totalWorth: `PKR ${totalWorth.toLocaleString()}`,
+    };
+  }, [filteredByDate]);
 
   const handleSelectDispatch = (dispatchId: string) => {
     setSelectedDispatches(prev => 
@@ -94,7 +131,7 @@ const DispatchDashboard = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Dispatch Portal</h1>
-          <p className="text-gray-600 mt-1">Manage dispatched orders and returns</p>
+          <p className="text-gray-600 mt-1">Manage dispatched orders</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline">
@@ -108,46 +145,43 @@ const DispatchDashboard = () => {
         </div>
       </div>
 
+      {/* Date Range Filter */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Date Range Filter
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DatePickerWithRange
+            date={dateRange}
+            setDate={setDateRange}
+            className="w-full"
+          />
+        </CardContent>
+      </Card>
+
       {/* Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Dispatched Orders ({timeFilter})
+              Dispatched Orders (Selected Period)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics[timeFilter as keyof typeof metrics].dispatched}</div>
+            <div className="text-2xl font-bold">{metrics.dispatched}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Total Worth ({timeFilter})
+              Total Worth (Selected Period)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics[timeFilter as keyof typeof metrics].totalWorth}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Returns Received ({timeFilter})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics[timeFilter as keyof typeof metrics].returnedCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Returns Worth ({timeFilter})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics[timeFilter as keyof typeof metrics].returnedWorth}</div>
+            <div className="text-2xl font-bold">{metrics.totalWorth}</div>
           </CardContent>
         </Card>
       </div>
@@ -157,11 +191,11 @@ const DispatchDashboard = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
-            Filters & Actions
+            Search & Actions
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
@@ -171,16 +205,6 @@ const DispatchDashboard = () => {
                 className="pl-10"
               />
             </div>
-            <Select value={timeFilter} onValueChange={setTimeFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Time Filter" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-              </SelectContent>
-            </Select>
             <Button variant="outline" disabled={selectedDispatches.length === 0}>
               <Download className="h-4 w-4 mr-2" />
               Download Selected
@@ -233,7 +257,11 @@ const DispatchDashboard = () => {
                   <TableCell>{dispatch.phone}</TableCell>
                   <TableCell>{dispatch.courier}</TableCell>
                   <TableCell>
-                    <Badge className={dispatch.status === 'delivered' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}>
+                    <Badge className={
+                      dispatch.status === 'delivered' ? 'bg-green-100 text-green-800' : 
+                      dispatch.status === 'in-transit' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-blue-100 text-blue-800'
+                    }>
                       {dispatch.status}
                     </Badge>
                   </TableCell>

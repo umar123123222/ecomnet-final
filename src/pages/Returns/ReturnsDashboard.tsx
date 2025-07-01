@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,14 +20,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Upload, Plus, Filter, Download, Scan, RotateCcw } from 'lucide-react';
+import { Search, Upload, Plus, Filter, Download, Scan, RotateCcw, Calendar } from 'lucide-react';
+import { DatePickerWithRange } from '@/components/DatePickerWithRange';
+import { DateRange } from 'react-day-picker';
+import { addDays, isWithinInterval, parseISO } from 'date-fns';
 
 const ReturnsDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedReturns, setSelectedReturns] = useState<string[]>([]);
   const [timeFilter, setTimeFilter] = useState('daily');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: new Date(),
+    to: addDays(new Date(), 7),
+  });
 
-  const returns = [
+  const returns = useMemo(() => [
     {
       id: 'RTN-001',
       trackingId: 'TRK-123456',
@@ -48,18 +55,59 @@ const ReturnsDashboard = () => {
       status: 'processing',
       date: '2024-01-14',
     },
-  ];
-
-  const metrics = {
-    daily: {
-      returnedCount: 8,
-      returnedWorth: 'PKR 18,500'
+    {
+      id: 'RTN-003',
+      trackingId: 'TRK-345678',
+      customer: 'Ali Khan',
+      phone: '+92-302-5556789',
+      reason: 'Defective',
+      worth: 'PKR 3,200',
+      status: 'received',
+      date: '2024-01-16',
     },
-    weekly: {
-      returnedCount: 42,
-      returnedWorth: 'PKR 125,000'
-    }
-  };
+    {
+      id: 'RTN-004',
+      trackingId: 'TRK-901234',
+      customer: 'Sara Ahmed',
+      phone: '+92-303-7778888',
+      reason: 'Size Issue',
+      worth: 'PKR 1,500',
+      status: 'processing',
+      date: '2024-01-13',
+    },
+  ], []);
+
+  const filteredByDate = useMemo(() => {
+    if (!dateRange?.from) return returns;
+    
+    return returns.filter(returnItem => {
+      const returnDate = parseISO(returnItem.date);
+      if (dateRange.to) {
+        return isWithinInterval(returnDate, { start: dateRange.from, end: dateRange.to });
+      }
+      return returnDate >= dateRange.from;
+    });
+  }, [returns, dateRange]);
+
+  const filteredReturns = useMemo(() => {
+    return filteredByDate.filter(returnItem => 
+      returnItem.trackingId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      returnItem.customer.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [filteredByDate, searchTerm]);
+
+  const metrics = useMemo(() => {
+    const returnedCount = filteredByDate.length;
+    const returnedWorth = filteredByDate.reduce((sum, returnItem) => {
+      const worth = parseInt(returnItem.worth.replace('PKR ', '').replace(',', ''));
+      return sum + worth;
+    }, 0);
+
+    return {
+      returnedCount,
+      returnedWorth: `PKR ${returnedWorth.toLocaleString()}`,
+    };
+  }, [filteredByDate]);
 
   const handleSelectReturn = (returnId: string) => {
     setSelectedReturns(prev => 
@@ -71,9 +119,9 @@ const ReturnsDashboard = () => {
 
   const handleSelectAll = () => {
     setSelectedReturns(
-      selectedReturns.length === returns.length 
+      selectedReturns.length === filteredReturns.length 
         ? [] 
-        : returns.map(r => r.id)
+        : filteredReturns.map(r => r.id)
     );
   };
 
@@ -97,26 +145,43 @@ const ReturnsDashboard = () => {
         </div>
       </div>
 
+      {/* Date Range Filter */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Date Range Filter
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DatePickerWithRange
+            date={dateRange}
+            setDate={setDateRange}
+            className="w-full"
+          />
+        </CardContent>
+      </Card>
+
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Returned Orders ({timeFilter})
+              Returned Orders (Selected Period)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics[timeFilter as keyof typeof metrics].returnedCount}</div>
+            <div className="text-2xl font-bold">{metrics.returnedCount}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Worth of Returns ({timeFilter})
+              Worth of Returns (Selected Period)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics[timeFilter as keyof typeof metrics].returnedWorth}</div>
+            <div className="text-2xl font-bold">{metrics.returnedWorth}</div>
           </CardContent>
         </Card>
       </div>
@@ -126,11 +191,11 @@ const ReturnsDashboard = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
-            Filters & Actions
+            Search & Actions
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
@@ -140,16 +205,6 @@ const ReturnsDashboard = () => {
                 className="pl-10"
               />
             </div>
-            <Select value={timeFilter} onValueChange={setTimeFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Time Filter" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-              </SelectContent>
-            </Select>
             <Button variant="outline" disabled={selectedReturns.length === 0}>
               <Download className="h-4 w-4 mr-2" />
               Download Selected
@@ -162,10 +217,10 @@ const ReturnsDashboard = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Returns</span>
+            <span>Returns ({filteredReturns.length})</span>
             <div className="flex items-center gap-2">
               <Checkbox
-                checked={selectedReturns.length === returns.length}
+                checked={selectedReturns.length === filteredReturns.length && filteredReturns.length > 0}
                 onCheckedChange={handleSelectAll}
               />
               <span className="text-sm text-gray-600">Select All</span>
@@ -188,7 +243,7 @@ const ReturnsDashboard = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {returns.map((returnItem) => (
+              {filteredReturns.map((returnItem) => (
                 <TableRow key={returnItem.id}>
                   <TableCell>
                     <Checkbox
