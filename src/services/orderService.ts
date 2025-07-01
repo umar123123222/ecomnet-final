@@ -50,8 +50,7 @@ export const orderService = {
       .select(`
         *,
         customer:customers(*),
-        order_items(*),
-        assigned_user:users!orders_assigned_to_fkey(id, name)
+        assigned_user:profiles!orders_assigned_to_fkey(id, full_name)
       `)
       .order('created_at', { ascending: false });
 
@@ -82,11 +81,11 @@ export const orderService = {
     return (data || []).map(order => ({
       id: order.id,
       customer_id: order.customer_id,
-      order_type: order.order_type || 'regular',
-      gpt_score: order.gpt_score || 0,
+      order_type: 'regular', // Default since column doesn't exist
+      gpt_score: 0, // Default since column doesn't exist
       status: order.status,
-      price: Number(order.price) || 0,
-      city: order.city,
+      price: Number(order.total_amount) || 0,
+      city: 'Unknown', // Default since column doesn't exist in schema
       courier: order.courier,
       shipping_address: order.shipping_address,
       tracking_id: order.tracking_id,
@@ -98,14 +97,17 @@ export const orderService = {
       dispatched_at: order.dispatched_at,
       delivered_at: order.delivered_at,
       customer: order.customer,
-      order_items: order.order_items,
-      assigned_user: order.assigned_user
+      order_items: Array.isArray(order.items) ? order.items : [],
+      assigned_user: order.assigned_user ? {
+        id: order.assigned_user.id,
+        name: order.assigned_user.full_name
+      } : undefined
     })) as Order[];
   },
 
   async updateOrder(id: string, updates: Partial<Order>) {
     const dbUpdates: any = { ...updates };
-    if (updates.price) dbUpdates.price = updates.price;
+    if (updates.price) dbUpdates.total_amount = updates.price;
     
     const { data, error } = await supabase
       .from('orders')
@@ -120,7 +122,7 @@ export const orderService = {
 
   async bulkUpdateOrders(orderIds: string[], updates: Partial<Order>) {
     const dbUpdates: any = { ...updates };
-    if (updates.price) dbUpdates.price = updates.price;
+    if (updates.price) dbUpdates.total_amount = updates.price;
     
     const { data, error } = await supabase
       .from('orders')

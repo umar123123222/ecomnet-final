@@ -17,9 +17,9 @@ export const userService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    // Try to get from users table
+    // Try to get from profiles table
     let { data: userProfile } = await supabase
-      .from('users')
+      .from('profiles')
       .select('*')
       .eq('id', user.id)
       .single();
@@ -27,11 +27,12 @@ export const userService = {
     if (userProfile) {
       return {
         id: userProfile.id,
-        name: userProfile.name,
+        name: userProfile.full_name,
         email: userProfile.email,
-        phone: userProfile.phone,
-        role: userProfile.role,
-        status: userProfile.status,
+        phone: '',
+        role: userProfile.role === 'admin' ? 'Owner/SuperAdmin' : 
+              userProfile.role === 'dispatch' ? 'Dispatch Manager' : 'Staff',
+        status: userProfile.is_active ? 'active' : 'inactive',
         created_at: userProfile.created_at,
         updated_at: userProfile.updated_at,
       };
@@ -52,7 +53,7 @@ export const userService = {
 
   async getUsers(): Promise<User[]> {
     const { data, error } = await supabase
-      .from('users')
+      .from('profiles')
       .select('*')
       .order('created_at', { ascending: false });
 
@@ -60,26 +61,31 @@ export const userService = {
 
     return (data || []).map(user => ({
       id: user.id,
-      name: user.name,
+      name: user.full_name,
       email: user.email,
-      phone: user.phone,
-      role: user.role,
-      status: user.status,
+      phone: '',
+      role: user.role === 'admin' ? 'Owner/SuperAdmin' : 
+            user.role === 'dispatch' ? 'Dispatch Manager' : 'Staff',
+      status: user.is_active ? 'active' : 'inactive',
       created_at: user.created_at,
       updated_at: user.updated_at,
     }));
   },
 
   async updateUser(id: string, updates: Partial<User>): Promise<User> {
+    const dbUpdates: any = {};
+    
+    if (updates.name) dbUpdates.full_name = updates.name;
+    if (updates.email) dbUpdates.email = updates.email;
+    if (updates.status) dbUpdates.is_active = updates.status === 'active';
+    if (updates.role) {
+      dbUpdates.role = updates.role === 'Owner/SuperAdmin' ? 'admin' :
+                      updates.role === 'Dispatch Manager' ? 'dispatch' : 'order_handler';
+    }
+
     const { data, error } = await supabase
-      .from('users')
-      .update({
-        name: updates.name,
-        email: updates.email,
-        phone: updates.phone,
-        role: updates.role,
-        status: updates.status,
-      })
+      .from('profiles')
+      .update(dbUpdates)
       .eq('id', id)
       .select()
       .single();
@@ -88,11 +94,12 @@ export const userService = {
 
     return {
       id: data.id,
-      name: data.name,
+      name: data.full_name,
       email: data.email,
-      phone: data.phone,
-      role: data.role,
-      status: data.status,
+      phone: '',
+      role: data.role === 'admin' ? 'Owner/SuperAdmin' : 
+            data.role === 'dispatch' ? 'Dispatch Manager' : 'Staff',
+      status: data.is_active ? 'active' : 'inactive',
       created_at: data.created_at,
       updated_at: data.updated_at,
     };

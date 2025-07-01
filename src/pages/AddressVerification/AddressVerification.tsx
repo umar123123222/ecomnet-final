@@ -26,8 +26,8 @@ import { addressVerificationService, type AddressVerificationData } from '@/serv
 import { userService } from '@/services/userService';
 import { activityLogService } from '@/services/activityLogService';
 import { useToast } from '@/hooks/use-toast';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { EmptyState } from '@/components/EmptyState';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import EmptyState from '@/components/EmptyState';
 
 const AddressVerificationPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -319,7 +319,7 @@ const AddressVerificationPage = () => {
         <CardContent className="p-0">
           {addressVerifications.length === 0 ? (
             <EmptyState 
-              icon={MapPin}
+              icon="search"
               title="No addresses found"
               description="No address verifications match your current filters."
             />
