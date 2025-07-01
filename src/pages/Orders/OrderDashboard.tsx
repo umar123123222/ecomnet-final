@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,7 @@ import {
 } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Search, Upload, Plus, Filter, Download, ChevronDown, ChevronUp, Package, Send } from 'lucide-react';
+import TagsNotes from '@/components/TagsNotes';
 
 const OrderDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,6 +52,14 @@ const OrderDashboard = () => {
       items: [
         { name: 'T-Shirt', quantity: 2, price: 1000 },
         { name: 'Jeans', quantity: 1, price: 1500 }
+      ],
+      tags: [
+        { id: 'tag1', text: 'Priority', addedBy: 'Muhammad Umar', addedAt: '2024-01-15 10:30', canDelete: true },
+        { id: 'tag2', text: 'VIP Customer', addedBy: 'Staff Member', addedAt: '2024-01-15 11:00', canDelete: false }
+      ],
+      notes: [
+        { id: 'note1', text: 'Customer requested express delivery', addedBy: 'Muhammad Umar', addedAt: '2024-01-15 10:30', canDelete: true },
+        { id: 'note2', text: 'Fragile items - handle with care', addedBy: 'Staff Member', addedAt: '2024-01-15 11:00', canDelete: false }
       ]
     },
     {
@@ -69,7 +79,9 @@ const OrderDashboard = () => {
       city: 'Karachi',
       items: [
         { name: 'Shoes', quantity: 1, price: 1800 }
-      ]
+      ],
+      tags: [],
+      notes: []
     },
     {
       id: 'ORD-003',
@@ -89,7 +101,9 @@ const OrderDashboard = () => {
       items: [
         { name: 'Laptop Case', quantity: 1, price: 2000 },
         { name: 'Mouse', quantity: 1, price: 1200 }
-      ]
+      ],
+      tags: [],
+      notes: []
     },
   ];
 
@@ -157,6 +171,26 @@ const OrderDashboard = () => {
   const handleBulkAction = (action: string) => {
     console.log(`Bulk ${action} for orders:`, selectedOrders);
     // Implement bulk action logic here
+  };
+
+  const handleAddTag = (orderId: string, tag: string) => {
+    console.log(`Adding tag "${tag}" to order ${orderId}`);
+    // In a real app, this would update the order with the new tag
+  };
+
+  const handleAddNote = (orderId: string, note: string) => {
+    console.log(`Adding note "${note}" to order ${orderId}`);
+    // In a real app, this would update the order with the new note
+  };
+
+  const handleDeleteTag = (orderId: string, tagId: string) => {
+    console.log(`Deleting tag ${tagId} from order ${orderId}`);
+    // In a real app, this would remove the tag from the order
+  };
+
+  const handleDeleteNote = (orderId: string, noteId: string) => {
+    console.log(`Deleting note ${noteId} from order ${orderId}`);
+    // In a real app, this would remove the note from the order
   };
 
   return (
@@ -383,31 +417,45 @@ const OrderDashboard = () => {
                   </TableRow>
                   {expandedRows.includes(order.id) && (
                     <TableRow>
-                      <TableCell colSpan={11} className="bg-gray-50 p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                          <div>
-                            <h4 className="font-semibold mb-2">Customer Address</h4>
-                            <p className="text-sm text-gray-600">{order.address}</p>
-                          </div>
-                          <div>
-                            <h4 className="font-semibold mb-2">Order Details</h4>
-                            <div className="space-y-1 text-sm">
-                              <p><span className="font-medium">GPT Score:</span> {order.gptScore}%</p>
-                              <p><span className="font-medium">Total Price:</span> PKR {order.totalPrice}</p>
-                              <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
-                              <p><span className="font-medium">City:</span> {order.city}</p>
+                      <TableCell colSpan={11} className="bg-gray-50 p-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          <div className="space-y-6">
+                            <div>
+                              <h4 className="font-semibold mb-2">Customer Address</h4>
+                              <p className="text-sm text-gray-600">{order.address}</p>
+                            </div>
+                            <div>
+                              <h4 className="font-semibold mb-2">Order Details</h4>
+                              <div className="space-y-1 text-sm">
+                                <p><span className="font-medium">GPT Score:</span> {order.gptScore}%</p>
+                                <p><span className="font-medium">Total Price:</span> PKR {order.totalPrice}</p>
+                                <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
+                                <p><span className="font-medium">City:</span> {order.city}</p>
+                              </div>
+                            </div>
+                            <div>
+                              <h4 className="font-semibold mb-2">Items</h4>
+                              <div className="space-y-1">
+                                {order.items.map((item, index) => (
+                                  <div key={index} className="text-sm">
+                                    <span className="font-medium">{item.name}</span>
+                                    <span className="text-gray-500 ml-2">x{item.quantity} - PKR {item.price}</span>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           </div>
                           <div>
-                            <h4 className="font-semibold mb-2">Items</h4>
-                            <div className="space-y-1">
-                              {order.items.map((item, index) => (
-                                <div key={index} className="text-sm">
-                                  <span className="font-medium">{item.name}</span>
-                                  <span className="text-gray-500 ml-2">x{item.quantity} - PKR {item.price}</span>
-                                </div>
-                              ))}
-                            </div>
+                            <h4 className="font-semibold mb-4">Tags & Notes</h4>
+                            <TagsNotes
+                              itemId={order.id}
+                              tags={order.tags}
+                              notes={order.notes}
+                              onAddTag={(tag) => handleAddTag(order.id, tag)}
+                              onAddNote={(note) => handleAddNote(order.id, note)}
+                              onDeleteTag={(tagId) => handleDeleteTag(order.id, tagId)}
+                              onDeleteNote={(noteId) => handleDeleteNote(order.id, noteId)}
+                            />
                           </div>
                         </div>
                       </TableCell>
@@ -424,3 +472,4 @@ const OrderDashboard = () => {
 };
 
 export default OrderDashboard;
+
