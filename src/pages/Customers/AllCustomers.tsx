@@ -1,14 +1,9 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { LoadingSpinner, LoadingTable } from '@/components/ui/loading-spinner';
-import { useRealtimeData } from '@/hooks/useSupabaseData';
-import { customerService } from '@/services/supabaseService';
-import { useToast } from '@/hooks/use-toast';
-import { Customer } from '@/types/database';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -20,91 +15,241 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Search, Plus, Edit, Trash2, AlertTriangle, Users } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Search, Download, Eye, Edit, MessageCircle } from 'lucide-react';
+import TagsNotes from '@/components/TagsNotes';
 
 const AllCustomers = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [processing, setProcessing] = useState(false);
-  const { toast } = useToast();
+  const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [editingCustomer, setEditingCustomer] = useState<any>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [customers, setCustomers] = useState([
+    {
+      id: 'CUST-001',
+      name: 'John Doe',
+      phone: '+92-300-1234567',
+      email: 'john@example.com',
+      status: 'Active',
+      totalOrders: 15,
+      totalSpent: 'Rs. 25,000',
+      joinDate: '2023-12-15',
+      ordersDelivered: 12,
+      ordersCancelled: 2,
+      ordersReturned: 1,
+      tags: [
+        { id: 'tag1', text: 'VIP Customer', addedBy: 'Muhammad Umar', addedAt: '2024-01-15 10:30', canDelete: true },
+        { id: 'tag2', text: 'Regular Buyer', addedBy: 'Store Manager', addedAt: '2024-01-10 14:20', canDelete: false }
+      ],
+      notes: [
+        { id: 'note1', text: 'Customer prefers morning delivery', addedBy: 'Muhammad Umar', addedAt: '2024-01-20 09:15', canDelete: true },
+        { id: 'note2', text: 'Lives in apartment complex, building 3', addedBy: 'Delivery Staff', addedAt: '2024-01-18 16:45', canDelete: false }
+      ],
+      orders: [
+        { id: 'ORD-001', date: '2024-01-20', status: 'Delivered', amount: 'Rs. 2,500' },
+        { id: 'ORD-002', date: '2024-01-18', status: 'Delivered', amount: 'Rs. 1,800' },
+        { id: 'ORD-003', date: '2024-01-15', status: 'Cancelled', amount: 'Rs. 3,200' },
+        { id: 'ORD-004', date: '2024-01-12', status: 'Returned', amount: 'Rs. 1,500' },
+      ]
+    },
+    {
+      id: 'CUST-002',
+      name: 'Jane Smith',
+      phone: '+92-301-9876543',
+      email: 'jane@example.com',
+      status: 'Active',
+      totalOrders: 8,
+      totalSpent: 'Rs. 15,500',
+      joinDate: '2024-01-10',
+      ordersDelivered: 7,
+      ordersCancelled: 1,
+      ordersReturned: 0,
+      tags: [
+        { id: 'tag3', text: 'New Customer', addedBy: 'Store Manager', addedAt: '2024-01-10 11:00', canDelete: true }
+      ],
+      notes: [],
+      orders: [
+        { id: 'ORD-005', date: '2024-01-19', status: 'Delivered', amount: 'Rs. 2,200' },
+        { id: 'ORD-006', date: '2024-01-16', status: 'Delivered', amount: 'Rs. 1,900' },
+      ]
+    },
+    {
+      id: 'CUST-003',
+      name: 'Ali Hassan',
+      phone: '+92-302-5555555',
+      email: 'ali@example.com',
+      status: 'Inactive',
+      totalOrders: 3,
+      totalSpent: 'Rs. 5,200',
+      joinDate: '2023-11-20',
+      ordersDelivered: 2,
+      ordersCancelled: 0,
+      ordersReturned: 1,
+      tags: [],
+      notes: [
+        { id: 'note3', text: 'Customer requested no calls after 8 PM', addedBy: 'Customer Service', addedAt: '2023-12-01 13:30', canDelete: true }
+      ],
+      orders: [
+        { id: 'ORD-007', date: '2023-12-15', status: 'Delivered', amount: 'Rs. 2,800' },
+        { id: 'ORD-008', date: '2023-12-10', status: 'Returned', amount: 'Rs. 1,400' },
+      ]
+    },
+  ]);
 
-  const { data: customers, loading, refetch } = useRealtimeData<Customer>(
-    'customers',
-    '*',
-    undefined
-  );
+  const handleSelectCustomer = (customerId: string) => {
+    setSelectedCustomers(prev => 
+      prev.includes(customerId) 
+        ? prev.filter(id => id !== customerId)
+        : [...prev, customerId]
+    );
+  };
 
-  const filteredCustomers = customers.filter((customer: Customer) =>
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.phone?.includes(searchTerm) ||
-    customer.city.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleSelectAll = () => {
+    setSelectedCustomers(
+      selectedCustomers.length === customers.length 
+        ? [] 
+        : customers.map(c => c.id)
+    );
+  };
 
-  const handleToggleSuspicious = async (customerId: string, isSuspicious: boolean) => {
-    setProcessing(true);
-    try {
-      await customerService.update(customerId, {
-        is_suspicious: !isSuspicious,
-        suspicious_reason: !isSuspicious ? 'Marked as suspicious' : undefined
-      });
+  const handleWhatsAppContact = (phone: string) => {
+    window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}`, '_blank');
+  };
 
-      toast({
-        title: 'Success',
-        description: `Customer ${!isSuspicious ? 'marked as suspicious' : 'removed from suspicious list'}`,
-      });
+  const handleViewCustomer = (customer: any) => {
+    setSelectedCustomer(customer);
+  };
 
-      refetch();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to update customer status',
-        variant: 'destructive',
-      });
-    } finally {
-      setProcessing(false);
+  const handleEditCustomer = (customer: any) => {
+    console.log('Edit customer:', customer);
+    setEditingCustomer({ ...customer });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveCustomer = () => {
+    if (!editingCustomer) return;
+    
+    const updatedCustomers = customers.map(customer => 
+      customer.id === editingCustomer.id ? editingCustomer : customer
+    );
+    setCustomers(updatedCustomers);
+    
+    // Update selected customer if it's currently being viewed
+    if (selectedCustomer && selectedCustomer.id === editingCustomer.id) {
+      setSelectedCustomer(editingCustomer);
+    }
+    
+    setIsEditDialogOpen(false);
+    setEditingCustomer(null);
+  };
+
+  const handleEditInputChange = (field: string, value: string) => {
+    if (!editingCustomer) return;
+    setEditingCustomer({
+      ...editingCustomer,
+      [field]: value
+    });
+  };
+
+  const handleAddTag = (customerId: string, tag: string) => {
+    console.log('Adding tag to customer:', customerId, tag);
+    const updatedCustomers = customers.map(customer => {
+      if (customer.id === customerId) {
+        const newTag = {
+          id: `tag-${Date.now()}`,
+          text: tag,
+          addedBy: 'Current User', // In a real app, this would be the logged-in user
+          addedAt: new Date().toLocaleString(),
+          canDelete: true
+        };
+        return {
+          ...customer,
+          tags: [...customer.tags, newTag]
+        };
+      }
+      return customer;
+    });
+    setCustomers(updatedCustomers);
+    
+    // Update selected customer if it's currently being viewed
+    if (selectedCustomer && selectedCustomer.id === customerId) {
+      const updatedCustomer = updatedCustomers.find(c => c.id === customerId);
+      setSelectedCustomer(updatedCustomer);
     }
   };
 
-  const handleDeleteCustomer = async (customerId: string) => {
-    if (!confirm('Are you sure you want to delete this customer?')) return;
-
-    setProcessing(true);
-    try {
-      await customerService.delete(customerId);
-      
-      toast({
-        title: 'Success',
-        description: 'Customer deleted successfully',
-      });
-
-      refetch();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to delete customer',
-        variant: 'destructive',
-      });
-    } finally {
-      setProcessing(false);
+  const handleAddNote = (customerId: string, note: string) => {
+    console.log('Adding note to customer:', customerId, note);
+    const updatedCustomers = customers.map(customer => {
+      if (customer.id === customerId) {
+        const newNote = {
+          id: `note-${Date.now()}`,
+          text: note,
+          addedBy: 'Current User', // In a real app, this would be the logged-in user
+          addedAt: new Date().toLocaleString(),
+          canDelete: true
+        };
+        return {
+          ...customer,
+          notes: [...customer.notes, newNote]
+        };
+      }
+      return customer;
+    });
+    setCustomers(updatedCustomers);
+    
+    // Update selected customer if it's currently being viewed
+    if (selectedCustomer && selectedCustomer.id === customerId) {
+      const updatedCustomer = updatedCustomers.find(c => c.id === customerId);
+      setSelectedCustomer(updatedCustomer);
     }
   };
 
-  const getSuspiciousBadge = (isSuspicious: boolean) => {
-    return isSuspicious
-      ? 'bg-red-100 text-red-800'
-      : 'bg-green-100 text-green-800';
+  const handleDeleteTag = (customerId: string, tagId: string) => {
+    console.log('Deleting tag from customer:', customerId, tagId);
+    const updatedCustomers = customers.map(customer => {
+      if (customer.id === customerId) {
+        return {
+          ...customer,
+          tags: customer.tags.filter(tag => tag.id !== tagId)
+        };
+      }
+      return customer;
+    });
+    setCustomers(updatedCustomers);
+    
+    // Update selected customer if it's currently being viewed
+    if (selectedCustomer && selectedCustomer.id === customerId) {
+      const updatedCustomer = updatedCustomers.find(c => c.id === customerId);
+      setSelectedCustomer(updatedCustomer);
+    }
   };
 
-  // Calculate average orders per customer safely
-  const avgOrdersPerCustomer = customers.length > 0 
-    ? Math.round(customers.reduce((sum: number, c: Customer) => sum + (c.total_orders || 0), 0) / customers.length)
-    : 0;
+  const handleDeleteNote = (customerId: string, noteId: string) => {
+    console.log('Deleting note from customer:', customerId, noteId);
+    const updatedCustomers = customers.map(customer => {
+      if (customer.id === customerId) {
+        return {
+          ...customer,
+          notes: customer.notes.filter(note => note.id !== noteId)
+        };
+      }
+      return customer;
+    });
+    setCustomers(updatedCustomers);
+    
+    // Update selected customer if it's currently being viewed
+    if (selectedCustomer && selectedCustomer.id === customerId) {
+      const updatedCustomer = updatedCustomers.find(c => c.id === customerId);
+      setSelectedCustomer(updatedCustomer);
+    }
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -114,160 +259,334 @@ const AllCustomers = () => {
           <h1 className="text-3xl font-bold text-gray-900">All Customers</h1>
           <p className="text-gray-600 mt-1">Manage all customer accounts and information</p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Customer
-        </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Total Customers</p>
-                <p className="text-2xl font-bold text-gray-900">{customers.length}</p>
-              </div>
-              <Users className="h-8 w-8 text-blue-600" />
-            </div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Active Customers</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">1,089</div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Suspicious Customers</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {customers.filter((c: Customer) => c.is_suspicious).length}
-                </p>
-              </div>
-              <AlertTriangle className="h-8 w-8 text-red-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Avg Orders/Customer</p>
-                <p className="text-2xl font-bold text-gray-900">{avgOrdersPerCustomer}</p>
-              </div>
-              <Users className="h-8 w-8 text-green-600" />
-            </div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">New This Month</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">156</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Customers Table */}
+      {/* Combined Filters and Customer List */}
       <Card>
         <CardHeader>
-          <CardTitle>Customer List</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* Search */}
-          <div className="flex items-center gap-4 mb-6">
-            <div className="relative flex-1">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <CardTitle className="flex items-center gap-2">
+              Customer List
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={selectedCustomers.length === customers.length}
+                onCheckedChange={handleSelectAll}
+              />
+              <span className="text-sm text-gray-600">Select All</span>
+            </div>
+          </div>
+          
+          {/* Filters Row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search customers by name, email, phone, or city..."
+                placeholder="Search by tracking ID, customer, order ID..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
-                disabled={loading}
               />
             </div>
+            <Button variant="outline" disabled={selectedCustomers.length === 0}>
+              <Download className="h-4 w-4 mr-2" />
+              Download Selected
+            </Button>
           </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Select</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Orders</TableHead>
+                <TableHead>Total Spent</TableHead>
+                <TableHead>Join Date</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {customers.map((customer) => (
+                <TableRow key={customer.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedCustomers.includes(customer.id)}
+                      onCheckedChange={() => handleSelectCustomer(customer.id)}
+                    />
+                  </TableCell>
+                  <TableCell className="font-medium">{customer.name}</TableCell>
+                  <TableCell>{customer.phone}</TableCell>
+                  <TableCell>{customer.email}</TableCell>
+                  <TableCell>
+                    <Badge className={
+                      customer.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                    }>
+                      {customer.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{customer.totalOrders}</TableCell>
+                  <TableCell>{customer.totalSpent}</TableCell>
+                  <TableCell>{customer.joinDate}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      {/* View Customer Dialog */}
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleViewCustomer(customer)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                          <DialogHeader>
+                            <DialogTitle>Customer Details - {customer.name}</DialogTitle>
+                            <DialogDescription>
+                              Complete customer information, order history, and notes
+                            </DialogDescription>
+                          </DialogHeader>
+                          
+                          <Tabs defaultValue="overview" className="w-full">
+                            <TabsList className="grid w-full grid-cols-4">
+                              <TabsTrigger value="overview">Overview</TabsTrigger>
+                              <TabsTrigger value="orders">Orders</TabsTrigger>
+                              <TabsTrigger value="statistics">Statistics</TabsTrigger>
+                              <TabsTrigger value="notes-tags">Notes & Tags</TabsTrigger>
+                            </TabsList>
+                            
+                            <TabsContent value="overview" className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-sm font-medium">Name</label>
+                                  <p className="text-sm text-gray-600">{customer.name}</p>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">Phone</label>
+                                  <p className="text-sm text-gray-600">{customer.phone}</p>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">Email</label>
+                                  <p className="text-sm text-gray-600">{customer.email}</p>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">Status</label>
+                                  <Badge className={
+                                    customer.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                  }>
+                                    {customer.status}
+                                  </Badge>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">Join Date</label>
+                                  <p className="text-sm text-gray-600">{customer.joinDate}</p>
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">Total Spent</label>
+                                  <p className="text-sm text-gray-600">{customer.totalSpent}</p>
+                                </div>
+                              </div>
+                            </TabsContent>
+                            
+                            <TabsContent value="orders" className="space-y-4">
+                              <div className="space-y-4">
+                                <h3 className="text-lg font-semibold">Order History</h3>
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Order ID</TableHead>
+                                      <TableHead>Date</TableHead>
+                                      <TableHead>Status</TableHead>
+                                      <TableHead>Amount</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {customer.orders.map((order) => (
+                                      <TableRow key={order.id}>
+                                        <TableCell className="font-medium">{order.id}</TableCell>
+                                        <TableCell>{order.date}</TableCell>
+                                        <TableCell>
+                                          <Badge className={
+                                            order.status === 'Delivered' ? 'bg-green-100 text-green-800' :
+                                            order.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
+                                            'bg-yellow-100 text-yellow-800'
+                                          }>
+                                            {order.status}
+                                          </Badge>
+                                        </TableCell>
+                                        <TableCell>{order.amount}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </TabsContent>
+                            
+                            <TabsContent value="statistics" className="space-y-4">
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <Card>
+                                  <CardHeader className="pb-2">
+                                    <CardTitle className="text-sm font-medium text-gray-600">Total Orders</CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <div className="text-2xl font-bold">{customer.totalOrders}</div>
+                                  </CardContent>
+                                </Card>
+                                <Card>
+                                  <CardHeader className="pb-2">
+                                    <CardTitle className="text-sm font-medium text-gray-600">Orders Delivered</CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <div className="text-2xl font-bold text-green-600">{customer.ordersDelivered}</div>
+                                  </CardContent>
+                                </Card>
+                                <Card>
+                                  <CardHeader className="pb-2">
+                                    <CardTitle className="text-sm font-medium text-gray-600">Orders Cancelled</CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <div className="text-2xl font-bold text-red-600">{customer.ordersCancelled}</div>
+                                  </CardContent>
+                                </Card>
+                                <Card>
+                                  <CardHeader className="pb-2">
+                                    <CardTitle className="text-sm font-medium text-gray-600">Orders Returned</CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <div className="text-2xl font-bold text-yellow-600">{customer.ordersReturned}</div>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            </TabsContent>
+                            
+                            <TabsContent value="notes-tags" className="space-y-4">
+                              <TagsNotes
+                                itemId={customer.id}
+                                tags={customer.tags}
+                                notes={customer.notes}
+                                onAddTag={(tag) => handleAddTag(customer.id, tag)}
+                                onAddNote={(note) => handleAddNote(customer.id, note)}
+                                onDeleteTag={(tagId) => handleDeleteTag(customer.id, tagId)}
+                                onDeleteNote={(noteId) => handleDeleteNote(customer.id, noteId)}
+                              />
+                            </TabsContent>
+                          </Tabs>
+                        </DialogContent>
+                      </Dialog>
 
-          {loading ? (
-            <LoadingTable rows={10} />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Orders</TableHead>
-                  <TableHead>Returns</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCustomers.map((customer: Customer) => (
-                  <TableRow key={customer.id}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium text-gray-900">{customer.name}</p>
-                        <p className="text-sm text-gray-600">{customer.email}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-sm text-gray-900">{customer.phone}</p>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="text-sm text-gray-900">{customer.city}</p>
-                        <p className="text-xs text-gray-600 truncate max-w-[200px]">
-                          {customer.address}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{customer.total_orders || 0}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{customer.return_count || 0}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getSuspiciousBadge(customer.is_suspicious)}>
-                        {customer.is_suspicious ? 'Suspicious' : 'Normal'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleToggleSuspicious(customer.id, customer.is_suspicious)}
-                          disabled={processing}
-                        >
-                          {processing ? (
-                            <LoadingSpinner size="sm" />
-                          ) : (
-                            <AlertTriangle className="h-4 w-4" />
+                      {/* Edit Customer Dialog */}
+                      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleEditCustomer(customer)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                          <DialogHeader>
+                            <DialogTitle>Edit Customer - {editingCustomer?.name}</DialogTitle>
+                            <DialogDescription>
+                              Update customer information
+                            </DialogDescription>
+                          </DialogHeader>
+                          
+                          {editingCustomer && (
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-sm font-medium">Name</label>
+                                  <Input
+                                    value={editingCustomer.name}
+                                    onChange={(e) => handleEditInputChange('name', e.target.value)}
+                                    placeholder="Customer name"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">Phone</label>
+                                  <Input
+                                    value={editingCustomer.phone}
+                                    onChange={(e) => handleEditInputChange('phone', e.target.value)}
+                                    placeholder="Phone number"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">Email</label>
+                                  <Input
+                                    value={editingCustomer.email}
+                                    onChange={(e) => handleEditInputChange('email', e.target.value)}
+                                    placeholder="Email address"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">Status</label>
+                                  <select
+                                    value={editingCustomer.status}
+                                    onChange={(e) => handleEditInputChange('status', e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  >
+                                    <option value="Active">Active</option>
+                                    <option value="Inactive">Inactive</option>
+                                  </select>
+                                </div>
+                              </div>
+                              
+                              <div className="flex justify-end gap-2">
+                                <Button 
+                                  variant="outline" 
+                                  onClick={() => setIsEditDialogOpen(false)}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button onClick={handleSaveCustomer}>
+                                  Save Changes
+                                </Button>
+                              </div>
+                            </div>
                           )}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSelectedCustomer(customer)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeleteCustomer(customer.id)}
-                          disabled={processing}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filteredCustomers.length === 0 && !loading && (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-gray-500 py-8">
-                      No customers found
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
+                        </DialogContent>
+                      </Dialog>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleWhatsAppContact(customer.phone)}
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>
