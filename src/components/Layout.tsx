@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { 
@@ -73,7 +72,7 @@ const Layout = () => {
             </div>
           </SidebarHeader>
           
-          <SidebarContent className="spacing-sm">
+          <SidebarContent className="spacing-sm overflow-visible">
             <SidebarMenu className="space-y-2">
               {/* Dashboard */}
               <SidebarMenuItem>
@@ -105,7 +104,7 @@ const Layout = () => {
               </SidebarMenuItem>
               
               {/* Customers Menu with Sub-items */}
-              <SidebarMenuItem>
+              <SidebarMenuItem className="relative">
                 <Collapsible open={isCustomersOpen} onOpenChange={setIsCustomersOpen}>
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/30 hover:to-pink-500/30 transition-all duration-300 group backdrop-blur-sm">
@@ -114,8 +113,8 @@ const Layout = () => {
                       <ChevronDown className={`ml-auto h-4 w-4 transition-transform duration-300 ${isCustomersOpen ? 'rotate-180' : ''}`} />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub className="ml-4 mt-2 space-y-1">
+                  <CollapsibleContent className="relative z-50">
+                    <SidebarMenuSub className="ml-4 mt-2 space-y-1 relative z-50 bg-gradient-to-r from-slate-800/90 via-purple-800/90 to-slate-800/90 backdrop-blur-xl rounded-lg border border-white/10 shadow-2xl">
                       {customerSubMenuItems.map((subItem, subIndex) => (
                         <SidebarMenuSubItem key={subIndex}>
                           <SidebarMenuSubButton 
