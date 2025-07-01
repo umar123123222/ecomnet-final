@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -51,7 +50,16 @@ const UserManagement = () => {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const { user: currentUser } = useAuth();
 
-  const [users, setUsers] = useState([
+  const form = useForm<z.infer<typeof userSchema>>({
+    resolver: zodResolver(userSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      role: '',
+    },
+  });
+
+  const users = useMemo(() => [
     {
       id: 'SA-001',
       name: 'Muhammad Umar',
@@ -61,16 +69,7 @@ const UserManagement = () => {
       lastLogin: new Date().toLocaleString(),
       permissions: ['All'],
     },
-  ]);
-
-  const form = useForm<z.infer<typeof userSchema>>({
-    resolver: zodResolver(userSchema),
-    defaultValues: {
-      name: '',
-      email: '',
-      role: '',
-    },
-  });
+  ], []);
 
   const roles = useMemo(() => ['Owner/SuperAdmin', 'Store Manager', 'Dispatch Manager', 'Returns Manager', 'Staff'], []);
 
@@ -100,32 +99,15 @@ const UserManagement = () => {
   };
 
   const handleAddUser = (data: z.infer<typeof userSchema>) => {
-    const newUser = {
-      id: `U-${String(users.length + 1).padStart(3, '0')}`,
-      name: data.name,
-      email: data.email,
-      role: data.role,
-      status: 'Active',
-      lastLogin: 'Never',
-      permissions: [data.role === 'Owner/SuperAdmin' ? 'All' : 'Limited']
-    };
-    
-    setUsers(prev => [...prev, newUser]);
+    console.log('Adding user:', data);
     setIsAddUserOpen(false);
     form.reset();
-    console.log('User added:', newUser);
   };
 
   const handleEditUser = (data: z.infer<typeof userSchema>) => {
-    setUsers(prev => prev.map(user => 
-      user.id === selectedUser?.id 
-        ? { ...user, name: data.name, email: data.email, role: data.role }
-        : user
-    ));
+    console.log('Editing user:', data);
     setIsEditUserOpen(false);
-    setSelectedUser(null);
     form.reset();
-    console.log('User edited:', data);
   };
 
   const handleViewUser = (user: any) => {
@@ -135,8 +117,7 @@ const UserManagement = () => {
 
   const handleDeleteUser = (userId: string) => {
     if (confirm('Are you sure you want to delete this user?')) {
-      setUsers(prev => prev.filter(user => user.id !== userId));
-      console.log('User deleted:', userId);
+      console.log('Deleting user:', userId);
     }
   };
 
@@ -218,7 +199,7 @@ const UserManagement = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Role</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Select role" />
@@ -387,7 +368,7 @@ const UserManagement = () => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Role</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select role" />
