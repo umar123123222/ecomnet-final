@@ -14,6 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Search, Filter, UserPlus, Trash2, Eye, Edit } from 'lucide-react';
+import LoginLogs from '@/components/LoginLogs';
 
 const AdminPanel = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -21,22 +22,13 @@ const AdminPanel = () => {
 
   const admins = [
     {
-      id: 'ADMIN-001',
-      name: 'Super Admin',
-      email: 'super@admin.com',
-      role: 'Super Admin',
+      id: 'SA-001',
+      name: 'Muhammad Umar',
+      email: 'umaridmpaksitan@gmail.com',
+      role: 'Owner/SuperAdmin',
       status: 'Active',
-      lastLogin: '2024-01-15 10:30 AM',
+      lastLogin: new Date().toLocaleString(),
       permissions: 'All'
-    },
-    {
-      id: 'ADMIN-002',
-      name: 'System Admin',
-      email: 'system@admin.com',
-      role: 'System Admin',
-      status: 'Active',
-      lastLogin: '2024-01-14 3:15 PM',
-      permissions: 'System Management'
     },
   ];
 
@@ -84,8 +76,8 @@ const AdminPanel = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p><span className="font-medium">Total Users:</span> 156</p>
-              <p><span className="font-medium">Active Sessions:</span> 23</p>
+              <p><span className="font-medium">Total Users:</span> 1</p>
+              <p><span className="font-medium">Active Sessions:</span> 1</p>
               <p><span className="font-medium">System Health:</span> <Badge className="bg-green-100 text-green-800">Good</Badge></p>
             </div>
           </CardContent>
@@ -98,8 +90,8 @@ const AdminPanel = () => {
           <CardContent>
             <div className="space-y-2 text-sm">
               <p>User login detected</p>
-              <p>Order ORD-123 updated</p>
-              <p>System backup completed</p>
+              <p>System initialized</p>
+              <p>Authentication enabled</p>
             </div>
           </CardContent>
         </Card>
@@ -123,6 +115,9 @@ const AdminPanel = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Login Activity Logs */}
+      <LoginLogs />
 
       {/* Filters */}
       <Card>

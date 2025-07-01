@@ -4,6 +4,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import Layout from "@/components/Layout";
 import Dashboard from "@/pages/Dashboard";
 import OrderDashboard from "@/pages/Orders/OrderDashboard";
@@ -22,26 +24,32 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="orders" element={<OrderDashboard />} />
-            <Route path="dispatch" element={<DispatchDashboard />} />
-            <Route path="returns" element={<ReturnsDashboard />} />
-            <Route path="all-customers" element={<AllCustomers />} />
-            <Route path="suspicious-customers" element={<SuspiciousCustomers />} />
-            <Route path="address-verification" element={<AddressVerification />} />
-            <Route path="user-management" element={<UserManagement />} />
-            <Route path="admin-panel" element={<AdminPanel />} />
-            <Route path="settings" element={<Settings />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            }>
+              <Route index element={<Dashboard />} />
+              <Route path="orders" element={<OrderDashboard />} />
+              <Route path="dispatch" element={<DispatchDashboard />} />
+              <Route path="returns" element={<ReturnsDashboard />} />
+              <Route path="all-customers" element={<AllCustomers />} />
+              <Route path="suspicious-customers" element={<SuspiciousCustomers />} />
+              <Route path="address-verification" element={<AddressVerification />} />
+              <Route path="user-management" element={<UserManagement />} />
+              <Route path="admin-panel" element={<AdminPanel />} />
+              <Route path="settings" element={<Settings />} />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

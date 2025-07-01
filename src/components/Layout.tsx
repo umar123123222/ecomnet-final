@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
@@ -6,16 +7,22 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Home, Package, Truck, RotateCcw, Users, Settings, Search, Bell, Moon, Sun, Shield, MapPin, LogOut, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useAuth } from '@/contexts/AuthContext';
+
 const Layout = () => {
   const [isDark, setIsDark] = useState(false);
   const [isCustomersOpen, setIsCustomersOpen] = useState(false);
+  const { user, logout } = useAuth();
+
   const toggleTheme = () => {
     setIsDark(!isDark);
     document.documentElement.classList.toggle('dark');
   };
+
   const handleLogout = () => {
-    console.log('Logging out...');
+    logout();
   };
+
   const customerSubMenuItems = [{
     label: "All Customers",
     href: "/all-customers",
@@ -25,6 +32,7 @@ const Layout = () => {
     href: "/suspicious-customers",
     badge: "5"
   }];
+
   return <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900">
         <Sidebar className="border-r border-white/20 bg-gradient-to-b from-slate-900 via-purple-900/50 to-slate-900 dark:from-gray-950 dark:via-purple-950/50 dark:to-gray-950">
@@ -58,9 +66,6 @@ const Layout = () => {
                   <a href="/orders" className="flex items-center gap-3">
                     <Package className="h-5 w-5 group-hover:scale-110 transition-transform" />
                     <span className="font-medium">Orders</span>
-                    <Badge className="ml-auto bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 text-xs font-semibold">
-                      234
-                    </Badge>
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -76,7 +81,7 @@ const Layout = () => {
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <SidebarMenuSub className="ml-4 mt-3 space-y-3 pb-2">
+                    <SidebarMenuSub className="ml-4 mt-3 space-y-3 pb-8">
                       {customerSubMenuItems.map((subItem, subIndex) => <SidebarMenuSubItem key={subIndex}>
                           <SidebarMenuSubButton asChild className="w-full justify-start gap-3 rounded-xl text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/15 hover:to-pink-500/15 transition-all duration-300 my-0 py-[25px] mx-0 px-0">
                             <a href={subItem.href} className="flex items-center gap-3">
@@ -163,8 +168,8 @@ const Layout = () => {
                 <Users className="h-5 w-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">Admin User</p>
-                <p className="text-xs text-gray-300 truncate">admin@ecomnet.com</p>
+                <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
+                <p className="text-xs text-gray-300 truncate">{user?.role}</p>
               </div>
             </div>
           </SidebarFooter>
@@ -212,4 +217,5 @@ const Layout = () => {
       </div>
     </SidebarProvider>;
 };
+
 export default Layout;
