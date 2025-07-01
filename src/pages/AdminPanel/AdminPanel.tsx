@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Search, Filter, Download, Upload, Eye, Edit, Shield } from 'lucide-react';
+import { Search, Filter, UserPlus, Trash2, Eye, Edit } from 'lucide-react';
 
 const AdminPanel = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -65,13 +65,13 @@ const AdminPanel = () => {
           <p className="text-gray-600 mt-1">Manage system administrators and global actions</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline">
-            <Upload className="h-4 w-4 mr-2" />
-            Upload to Leopard
+          <Button>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add Admin
           </Button>
-          <Button variant="outline">
-            <Upload className="h-4 w-4 mr-2" />
-            Upload to PostEx
+          <Button variant="destructive" disabled={selectedAdmins.length === 0}>
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Selected
           </Button>
         </div>
       </div>
@@ -143,10 +143,6 @@ const AdminPanel = () => {
                 className="pl-10"
               />
             </div>
-            <Button variant="outline" disabled={selectedAdmins.length === 0}>
-              <Download className="h-4 w-4 mr-2" />
-              Export Selected
-            </Button>
           </div>
         </CardContent>
       </Card>
