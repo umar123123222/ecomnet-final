@@ -12,7 +12,7 @@ export type Database = {
       activity_logs: {
         Row: {
           action: string
-          created_at: string
+          created_at: string | null
           details: Json | null
           entity_id: string
           entity_type: string
@@ -21,7 +21,7 @@ export type Database = {
         }
         Insert: {
           action: string
-          created_at?: string
+          created_at?: string | null
           details?: Json | null
           entity_id: string
           entity_type: string
@@ -30,7 +30,7 @@ export type Database = {
         }
         Update: {
           action?: string
-          created_at?: string
+          created_at?: string | null
           details?: Json | null
           entity_id?: string
           entity_type?: string
@@ -47,99 +47,278 @@ export type Database = {
           },
         ]
       }
+      address_verifications: {
+        Row: {
+          created_at: string
+          flagged_reason: string | null
+          gpt_score: number | null
+          id: string
+          order_id: string
+          verification_notes: string | null
+          verified: boolean | null
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          flagged_reason?: string | null
+          gpt_score?: number | null
+          id?: string
+          order_id: string
+          verification_notes?: string | null
+          verified?: boolean | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          flagged_reason?: string | null
+          gpt_score?: number | null
+          id?: string
+          order_id?: string
+          verification_notes?: string | null
+          verified?: boolean | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "address_verifications_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "address_verifications_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           address: string
           city: string
-          created_at: string
+          created_at: string | null
           email: string | null
           id: string
-          is_suspicious: boolean
+          is_suspicious: boolean | null
           name: string
           phone: string | null
-          return_count: number
-          total_orders: number
-          updated_at: string
+          return_count: number | null
+          suspicious_reason: string | null
+          total_orders: number | null
+          updated_at: string | null
         }
         Insert: {
           address: string
           city: string
-          created_at?: string
+          created_at?: string | null
           email?: string | null
           id?: string
-          is_suspicious?: boolean
+          is_suspicious?: boolean | null
           name: string
           phone?: string | null
-          return_count?: number
-          total_orders?: number
-          updated_at?: string
+          return_count?: number | null
+          suspicious_reason?: string | null
+          total_orders?: number | null
+          updated_at?: string | null
         }
         Update: {
           address?: string
           city?: string
-          created_at?: string
+          created_at?: string | null
           email?: string | null
           id?: string
-          is_suspicious?: boolean
+          is_suspicious?: boolean | null
           name?: string
           phone?: string | null
-          return_count?: number
-          total_orders?: number
-          updated_at?: string
+          return_count?: number | null
+          suspicious_reason?: string | null
+          total_orders?: number | null
+          updated_at?: string | null
         }
         Relationships: []
       }
-      orders: {
+      dispatches: {
         Row: {
-          assigned_to: string | null
-          courier: Database["public"]["Enums"]["courier_type"]
+          courier: string
           created_at: string
-          customer_id: string
-          delivered_at: string | null
-          dispatched_at: string | null
+          dispatch_date: string | null
+          dispatched_by: string | null
           id: string
-          items: Json
           notes: string | null
-          shipping_address: string
-          status: Database["public"]["Enums"]["order_status"]
-          tags: string[] | null
-          total_amount: number
+          order_id: string
+          status: string | null
           tracking_id: string | null
           updated_at: string
         }
         Insert: {
-          assigned_to?: string | null
-          courier: Database["public"]["Enums"]["courier_type"]
+          courier: string
           created_at?: string
-          customer_id: string
-          delivered_at?: string | null
-          dispatched_at?: string | null
+          dispatch_date?: string | null
+          dispatched_by?: string | null
           id?: string
-          items: Json
           notes?: string | null
-          shipping_address: string
-          status?: Database["public"]["Enums"]["order_status"]
-          tags?: string[] | null
-          total_amount: number
+          order_id: string
+          status?: string | null
           tracking_id?: string | null
           updated_at?: string
         }
         Update: {
-          assigned_to?: string | null
-          courier?: Database["public"]["Enums"]["courier_type"]
+          courier?: string
           created_at?: string
-          customer_id?: string
+          dispatch_date?: string | null
+          dispatched_by?: string | null
+          id?: string
+          notes?: string | null
+          order_id?: string
+          status?: string | null
+          tracking_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispatches_dispatched_by_fkey"
+            columns: ["dispatched_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatches_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_items: {
+        Row: {
+          created_at: string
+          id: string
+          item_name: string
+          order_id: string
+          price: number
+          quantity: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_name: string
+          order_id: string
+          price: number
+          quantity?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_name?: string
+          order_id?: string
+          price?: number
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          assigned_to: string | null
+          city: string
+          courier: Database["public"]["Enums"]["courier_type"]
+          created_at: string | null
+          customer_address: string
+          customer_id: string
+          customer_name: string
+          customer_phone: string
+          delivered_at: string | null
+          dispatched_at: string | null
+          gpt_score: number | null
+          id: string
+          items: Json
+          notes: string | null
+          order_number: string
+          order_type: string | null
+          status: Database["public"]["Enums"]["order_status"] | null
+          tags: string[] | null
+          total_amount: number
+          tracking_id: string | null
+          updated_at: string | null
+          verification_notes: string | null
+          verification_status:
+            | Database["public"]["Enums"]["verification_status"]
+            | null
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          city: string
+          courier: Database["public"]["Enums"]["courier_type"]
+          created_at?: string | null
+          customer_address: string
+          customer_id: string
+          customer_name: string
+          customer_phone: string
           delivered_at?: string | null
           dispatched_at?: string | null
+          gpt_score?: number | null
+          id?: string
+          items: Json
+          notes?: string | null
+          order_number: string
+          order_type?: string | null
+          status?: Database["public"]["Enums"]["order_status"] | null
+          tags?: string[] | null
+          total_amount: number
+          tracking_id?: string | null
+          updated_at?: string | null
+          verification_notes?: string | null
+          verification_status?:
+            | Database["public"]["Enums"]["verification_status"]
+            | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          city?: string
+          courier?: Database["public"]["Enums"]["courier_type"]
+          created_at?: string | null
+          customer_address?: string
+          customer_id?: string
+          customer_name?: string
+          customer_phone?: string
+          delivered_at?: string | null
+          dispatched_at?: string | null
+          gpt_score?: number | null
           id?: string
           items?: Json
           notes?: string | null
-          shipping_address?: string
-          status?: Database["public"]["Enums"]["order_status"]
+          order_number?: string
+          order_type?: string | null
+          status?: Database["public"]["Enums"]["order_status"] | null
           tags?: string[] | null
           total_amount?: number
           tracking_id?: string | null
-          updated_at?: string
+          updated_at?: string | null
+          verification_notes?: string | null
+          verification_status?:
+            | Database["public"]["Enums"]["verification_status"]
+            | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: [
           {
@@ -156,65 +335,87 @@ export type Database = {
             referencedRelation: "customers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "orders_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles: {
         Row: {
-          created_at: string
+          created_at: string | null
           email: string
           full_name: string
           id: string
           is_active: boolean
           role: Database["public"]["Enums"]["user_role"]
-          updated_at: string
+          updated_at: string | null
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           email: string
           full_name: string
           id: string
           is_active?: boolean
           role?: Database["public"]["Enums"]["user_role"]
-          updated_at?: string
+          updated_at?: string | null
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           email?: string
           full_name?: string
           id?: string
           is_active?: boolean
           role?: Database["public"]["Enums"]["user_role"]
-          updated_at?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
       returns: {
         Row: {
-          created_at: string
+          created_at: string | null
           id: string
+          notes: string | null
           order_id: string
           reason: string | null
           received_at: string | null
           received_by: string | null
-          return_status: Database["public"]["Enums"]["return_status"]
+          return_status: Database["public"]["Enums"]["return_status"] | null
+          tags: string[] | null
+          tracking_id: string
+          updated_at: string | null
+          worth: number | null
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           id?: string
+          notes?: string | null
           order_id: string
           reason?: string | null
           received_at?: string | null
           received_by?: string | null
-          return_status?: Database["public"]["Enums"]["return_status"]
+          return_status?: Database["public"]["Enums"]["return_status"] | null
+          tags?: string[] | null
+          tracking_id: string
+          updated_at?: string | null
+          worth?: number | null
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           id?: string
+          notes?: string | null
           order_id?: string
           reason?: string | null
           received_at?: string | null
           received_by?: string | null
-          return_status?: Database["public"]["Enums"]["return_status"]
+          return_status?: Database["public"]["Enums"]["return_status"] | null
+          tags?: string[] | null
+          tracking_id?: string
+          updated_at?: string | null
+          worth?: number | null
         }
         Relationships: [
           {
@@ -233,29 +434,97 @@ export type Database = {
           },
         ]
       }
-      user_performance: {
+      roles: {
         Row: {
           created_at: string
-          date: string
-          dispatched_count: number
           id: string
-          returns_handled: number
-          user_id: string
+          name: string
+          permissions: Json | null
         }
         Insert: {
           created_at?: string
-          date?: string
-          dispatched_count?: number
           id?: string
-          returns_handled?: number
-          user_id: string
+          name: string
+          permissions?: Json | null
         }
         Update: {
           created_at?: string
-          date?: string
-          dispatched_count?: number
           id?: string
-          returns_handled?: number
+          name?: string
+          permissions?: Json | null
+        }
+        Relationships: []
+      }
+      suspicious_customers: {
+        Row: {
+          created_at: string
+          customer_id: string
+          flag_reason: string
+          id: string
+          is_verified: boolean | null
+          last_contacted_at: string | null
+          message_log: Json | null
+          risk_score: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          flag_reason: string
+          id?: string
+          is_verified?: boolean | null
+          last_contacted_at?: string | null
+          message_log?: Json | null
+          risk_score?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          flag_reason?: string
+          id?: string
+          is_verified?: boolean | null
+          last_contacted_at?: string | null
+          message_log?: Json | null
+          risk_score?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suspicious_customers_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_performance: {
+        Row: {
+          addresses_verified: number | null
+          created_at: string | null
+          date: string | null
+          id: string
+          orders_processed: number | null
+          returns_handled: number | null
+          user_id: string
+        }
+        Insert: {
+          addresses_verified?: number | null
+          created_at?: string | null
+          date?: string | null
+          id?: string
+          orders_processed?: number | null
+          returns_handled?: number | null
+          user_id: string
+        }
+        Update: {
+          addresses_verified?: number | null
+          created_at?: string | null
+          date?: string | null
+          id?: string
+          orders_processed?: number | null
+          returns_handled?: number | null
           user_id?: string
         }
         Relationships: [
@@ -264,6 +533,47 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+          phone: string | null
+          role_id: string
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          phone?: string | null
+          role_id: string
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          role_id?: string
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "users_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
             referencedColumns: ["id"]
           },
         ]
@@ -284,8 +594,14 @@ export type Database = {
         | "delivered"
         | "cancelled"
         | "returned"
-      return_status: "in_transit" | "received" | "processed"
-      user_role: "admin" | "dispatch" | "order_handler"
+      return_status: "in_transit" | "received" | "processed" | "completed"
+      user_role:
+        | "owner"
+        | "store_manager"
+        | "dispatch_manager"
+        | "returns_manager"
+        | "staff"
+      verification_status: "pending" | "approved" | "disapproved"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -410,8 +726,15 @@ export const Constants = {
         "cancelled",
         "returned",
       ],
-      return_status: ["in_transit", "received", "processed"],
-      user_role: ["admin", "dispatch", "order_handler"],
+      return_status: ["in_transit", "received", "processed", "completed"],
+      user_role: [
+        "owner",
+        "store_manager",
+        "dispatch_manager",
+        "returns_manager",
+        "staff",
+      ],
+      verification_status: ["pending", "approved", "disapproved"],
     },
   },
 } as const
