@@ -114,7 +114,7 @@ const Layout = () => {
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <SidebarMenuSub className="ml-4 mt-3 space-y-3 pb-6">
+                    <SidebarMenuSub className="ml-4 mt-3 space-y-3 pb-8">
                       {customerSubMenuItems.map((subItem, subIndex) => (
                         <SidebarMenuSubItem key={subIndex}>
                           <SidebarMenuSubButton 
