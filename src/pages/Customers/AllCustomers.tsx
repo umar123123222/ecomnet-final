@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,6 +28,8 @@ const AllCustomers = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [editingCustomer, setEditingCustomer] = useState<any>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [customers, setCustomers] = useState([
     {
       id: 'CUST-001',
@@ -127,7 +128,33 @@ const AllCustomers = () => {
 
   const handleEditCustomer = (customer: any) => {
     console.log('Edit customer:', customer);
-    // Implement edit functionality
+    setEditingCustomer({ ...customer });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveCustomer = () => {
+    if (!editingCustomer) return;
+    
+    const updatedCustomers = customers.map(customer => 
+      customer.id === editingCustomer.id ? editingCustomer : customer
+    );
+    setCustomers(updatedCustomers);
+    
+    // Update selected customer if it's currently being viewed
+    if (selectedCustomer && selectedCustomer.id === editingCustomer.id) {
+      setSelectedCustomer(editingCustomer);
+    }
+    
+    setIsEditDialogOpen(false);
+    setEditingCustomer(null);
+  };
+
+  const handleEditInputChange = (field: string, value: string) => {
+    if (!editingCustomer) return;
+    setEditingCustomer({
+      ...editingCustomer,
+      [field]: value
+    });
   };
 
   const handleAddTag = (customerId: string, tag: string) => {
@@ -326,6 +353,7 @@ const AllCustomers = () => {
                   <TableCell>{customer.joinDate}</TableCell>
                   <TableCell>
                     <div className="flex gap-2">
+                      {/* View Customer Dialog */}
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button 
@@ -470,13 +498,82 @@ const AllCustomers = () => {
                           </Tabs>
                         </DialogContent>
                       </Dialog>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleEditCustomer(customer)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
+
+                      {/* Edit Customer Dialog */}
+                      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleEditCustomer(customer)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                          <DialogHeader>
+                            <DialogTitle>Edit Customer - {editingCustomer?.name}</DialogTitle>
+                            <DialogDescription>
+                              Update customer information
+                            </DialogDescription>
+                          </DialogHeader>
+                          
+                          {editingCustomer && (
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-sm font-medium">Name</label>
+                                  <Input
+                                    value={editingCustomer.name}
+                                    onChange={(e) => handleEditInputChange('name', e.target.value)}
+                                    placeholder="Customer name"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">Phone</label>
+                                  <Input
+                                    value={editingCustomer.phone}
+                                    onChange={(e) => handleEditInputChange('phone', e.target.value)}
+                                    placeholder="Phone number"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">Email</label>
+                                  <Input
+                                    value={editingCustomer.email}
+                                    onChange={(e) => handleEditInputChange('email', e.target.value)}
+                                    placeholder="Email address"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium">Status</label>
+                                  <select
+                                    value={editingCustomer.status}
+                                    onChange={(e) => handleEditInputChange('status', e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  >
+                                    <option value="Active">Active</option>
+                                    <option value="Inactive">Inactive</option>
+                                  </select>
+                                </div>
+                              </div>
+                              
+                              <div className="flex justify-end gap-2">
+                                <Button 
+                                  variant="outline" 
+                                  onClick={() => setIsEditDialogOpen(false)}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button onClick={handleSaveCustomer}>
+                                  Save Changes
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </DialogContent>
+                      </Dialog>
+
                       <Button
                         variant="outline"
                         size="sm"
