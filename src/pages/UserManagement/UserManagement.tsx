@@ -20,46 +20,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Search, Plus, Filter, Download, ChevronDown, ChevronUp, UserPlus, Trash2, Edit } from 'lucide-react';
+import { Search, Plus, Filter, Download, UserPlus, Trash2, Edit } from 'lucide-react';
 
 const UserManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  const [expandedRows, setExpandedRows] = useState<string[]>([]);
 
   const users = [
     {
-      id: 'USER-001',
-      name: 'John Admin',
-      email: 'john@admin.com',
-      role: 'Admin',
+      id: 'SA-001',
+      name: 'Muhammad Umar',
+      email: 'umaridmpaksitan@gmail.com',
+      role: 'Owner/SuperAdmin',
       status: 'Active',
-      lastLogin: '2024-01-15 10:30 AM',
-      permissions: ['Dashboard', 'Orders', 'Users', 'Admin Panel'],
+      lastLogin: new Date().toLocaleString(),
+      permissions: ['All'],
       activities: [
-        { action: 'Login', timestamp: '2024-01-15 10:30 AM' },
-        { action: 'Updated order ORD-001', timestamp: '2024-01-15 10:45 AM' },
-        { action: 'Created user USER-005', timestamp: '2024-01-15 11:00 AM' },
-      ]
-    },
-    {
-      id: 'USER-002',
-      name: 'Jane Manager',
-      email: 'jane@manager.com',
-      role: 'Manager',
-      status: 'Active',
-      lastLogin: '2024-01-14 2:15 PM',
-      permissions: ['Dashboard', 'Orders', 'Dispatch', 'Returns'],
-      activities: [
-        { action: 'Login', timestamp: '2024-01-14 2:15 PM' },
-        { action: 'Dispatched order ORD-002', timestamp: '2024-01-14 2:30 PM' },
-        { action: 'Processed return RTN-001', timestamp: '2024-01-14 3:00 PM' },
+        { action: 'Login', timestamp: new Date().toLocaleString() },
+        { action: 'System initialized', timestamp: new Date().toLocaleString() },
       ]
     },
   ];
 
-  const roles = ['Admin', 'Manager', 'Operator', 'Viewer'];
+  const roles = ['Owner/SuperAdmin', 'Store Manager', 'Dispatch Manager', 'Returns Manager', 'Staff'];
 
   const handleSelectUser = (userId: string) => {
     setSelectedUsers(prev => 
@@ -74,14 +57,6 @@ const UserManagement = () => {
       selectedUsers.length === users.length 
         ? [] 
         : users.map(u => u.id)
-    );
-  };
-
-  const toggleExpanded = (userId: string) => {
-    setExpandedRows(prev => 
-      prev.includes(userId)
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
     );
   };
 
@@ -111,10 +86,10 @@ const UserManagement = () => {
           <CardTitle>Role Management</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {roles.map((role) => (
               <div key={role} className="p-4 border rounded-lg flex items-center justify-between">
-                <span className="font-medium">{role}</span>
+                <span className="font-medium text-sm">{role}</span>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm">
                     <Edit className="h-4 w-4" />
@@ -196,84 +171,39 @@ const UserManagement = () => {
                 <TableHead>Status</TableHead>
                 <TableHead>Last Login</TableHead>
                 <TableHead>Actions</TableHead>
-                <TableHead>Details</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {users.map((user) => (
-                <React.Fragment key={user.id}>
-                  <TableRow>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedUsers.includes(user.id)}
-                        onCheckedChange={() => handleSelectUser(user.id)}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <Badge className="bg-blue-100 text-blue-800">{user.role}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={user.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                        {user.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{user.lastLogin}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => toggleExpanded(user.id)}
-                      >
-                        {expandedRows.includes(user.id) ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
+                <TableRow key={user.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedUsers.includes(user.id)}
+                      onCheckedChange={() => handleSelectUser(user.id)}
+                    />
+                  </TableCell>
+                  <TableCell className="font-medium">{user.name}</TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>
+                    <Badge className="bg-purple-100 text-purple-800">{user.role}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge className={user.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                      {user.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{user.lastLogin}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm">
+                        <Edit className="h-4 w-4" />
                       </Button>
-                    </TableCell>
-                  </TableRow>
-                  {expandedRows.includes(user.id) && (
-                    <TableRow>
-                      <TableCell colSpan={8} className="bg-gray-50 p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div>
-                            <h4 className="font-semibold mb-2">Permissions</h4>
-                            <div className="flex flex-wrap gap-2">
-                              {user.permissions.map((permission) => (
-                                <Badge key={permission} variant="outline">
-                                  {permission}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                          <div>
-                            <h4 className="font-semibold mb-2">Recent Activity</h4>
-                            <div className="space-y-2">
-                              {user.activities.map((activity, index) => (
-                                <div key={index} className="text-sm">
-                                  <span className="font-medium">{activity.action}</span>
-                                  <span className="text-gray-500 ml-2">{activity.timestamp}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </React.Fragment>
+                      <Button variant="outline" size="sm">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
               ))}
             </TableBody>
           </Table>
