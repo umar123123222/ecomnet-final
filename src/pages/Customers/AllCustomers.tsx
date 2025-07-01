@@ -13,11 +13,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Search, Filter, Download, Eye, Edit, MessageCircle } from 'lucide-react';
 
 const AllCustomers = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
 
   const customers = [
     {
@@ -72,6 +81,15 @@ const AllCustomers = () => {
     window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}`, '_blank');
   };
 
+  const handleViewCustomer = (customer: any) => {
+    setSelectedCustomer(customer);
+  };
+
+  const handleEditCustomer = (customer: any) => {
+    console.log('Edit customer:', customer);
+    // Implement edit functionality
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -82,8 +100,8 @@ const AllCustomers = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Stats Cards - Removed Total Revenue */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Total Customers</CardTitle>
@@ -108,48 +126,15 @@ const AllCustomers = () => {
             <div className="text-2xl font-bold text-blue-600">156</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Revenue</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-600">Rs. 2.5M</div>
-          </CardContent>
-        </Card>
       </div>
 
-      {/* Filters */}
+      {/* Combined Filters and Customer List */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filters & Actions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
-                placeholder="Search by name, phone, email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Button variant="outline" disabled={selectedCustomers.length === 0}>
-              <Download className="h-4 w-4 mr-2" />
-              Export Selected
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Customers Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Customer List</span>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <CardTitle className="flex items-center gap-2">
+              Customer List
+            </CardTitle>
             <div className="flex items-center gap-2">
               <Checkbox
                 checked={selectedCustomers.length === customers.length}
@@ -157,7 +142,24 @@ const AllCustomers = () => {
               />
               <span className="text-sm text-gray-600">Select All</span>
             </div>
-          </CardTitle>
+          </div>
+          
+          {/* Filters Row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search by tracking ID, customer, order ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button variant="outline" disabled={selectedCustomers.length === 0}>
+              <Download className="h-4 w-4 mr-2" />
+              Download Selected
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -198,10 +200,62 @@ const AllCustomers = () => {
                   <TableCell>{customer.joinDate}</TableCell>
                   <TableCell>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleViewCustomer(customer)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Customer Details</DialogTitle>
+                            <DialogDescription>
+                              View customer information and order history
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="text-sm font-medium">Name</label>
+                                <p className="text-sm text-gray-600">{customer.name}</p>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium">Phone</label>
+                                <p className="text-sm text-gray-600">{customer.phone}</p>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium">Email</label>
+                                <p className="text-sm text-gray-600">{customer.email}</p>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium">Status</label>
+                                <Badge className={
+                                  customer.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                }>
+                                  {customer.status}
+                                </Badge>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium">Total Orders</label>
+                                <p className="text-sm text-gray-600">{customer.totalOrders}</p>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium">Total Spent</label>
+                                <p className="text-sm text-gray-600">{customer.totalSpent}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleEditCustomer(customer)}
+                      >
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button
