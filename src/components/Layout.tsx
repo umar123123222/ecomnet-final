@@ -88,27 +88,34 @@ const Layout = () => {
           
           <SidebarContent className="p-4">
             <SidebarMenu className="space-y-2">
-              {mainMenuItems.map((item, index) => {
-                const Icon = item.icon;
-                return (
-                  <SidebarMenuItem key={index}>
-                    <SidebarMenuButton 
-                      asChild 
-                      className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group"
-                    >
-                      <a href={item.href} className="flex items-center gap-3">
-                        <Icon className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                        <span className="font-medium">{item.label}</span>
-                        {item.badge && (
-                          <Badge className="ml-auto bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 text-xs">
-                            {item.badge}
-                          </Badge>
-                        )}
-                      </a>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              {/* Dashboard */}
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group"
+                >
+                  <a href="/" className="flex items-center gap-3">
+                    <Home className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                    <span className="font-medium">Dashboard</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* Orders */}
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group"
+                >
+                  <a href="/orders" className="flex items-center gap-3">
+                    <Package className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                    <span className="font-medium">Orders</span>
+                    <Badge className="ml-auto bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 text-xs">
+                      234
+                    </Badge>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               
               {/* Customers Menu with Sub-items */}
               <SidebarMenuItem>
@@ -142,6 +149,87 @@ const Layout = () => {
                     </SidebarMenuSub>
                   </CollapsibleContent>
                 </Collapsible>
+              </SidebarMenuItem>
+
+              {/* Dispatch */}
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group"
+                >
+                  <a href="/dispatch" className="flex items-center gap-3">
+                    <Truck className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                    <span className="font-medium">Dispatch</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* Returns */}
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group"
+                >
+                  <a href="/returns" className="flex items-center gap-3">
+                    <RotateCcw className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                    <span className="font-medium">Returns</span>
+                    <Badge className="ml-auto bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 text-xs">
+                      12
+                    </Badge>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* Address Verification */}
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group"
+                >
+                  <a href="/address-verification" className="flex items-center gap-3">
+                    <MapPin className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                    <span className="font-medium">Address Verification</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* User Management */}
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group"
+                >
+                  <a href="/user-management" className="flex items-center gap-3">
+                    <Users className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                    <span className="font-medium">User Management</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* Admin Panel */}
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group"
+                >
+                  <a href="/admin-panel" className="flex items-center gap-3">
+                    <Shield className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                    <span className="font-medium">Admin Panel</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* Settings */}
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group"
+                >
+                  <a href="/settings" className="flex items-center gap-3">
+                    <Settings className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                    <span className="font-medium">Settings</span>
+                  </a>
+                </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarContent>
