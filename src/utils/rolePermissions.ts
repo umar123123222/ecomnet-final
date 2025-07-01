@@ -1,0 +1,168 @@
+
+import { UserRole } from '@/types/auth';
+
+export interface NavigationItem {
+  label: string;
+  href: string;
+  icon: string;
+  badge?: string;
+  subItems?: NavigationItem[];
+}
+
+export const getRolePermissions = (role: UserRole) => {
+  const permissions = {
+    canAccessDashboard: false,
+    canAccessOrders: false,
+    canAccessCustomers: false,
+    canAccessDispatch: false,
+    canAccessReturns: false,
+    canAccessAddressVerification: false,
+    canAccessUserManagement: false,
+    canAccessAdminPanel: false,
+    canAccessSettings: false,
+    canAddUsers: false,
+    canEditUsers: false,
+    canDeleteUsers: false,
+  };
+
+  switch (role) {
+    case 'Owner/SuperAdmin':
+      return {
+        ...permissions,
+        canAccessDashboard: true,
+        canAccessOrders: true,
+        canAccessCustomers: true,
+        canAccessDispatch: true,
+        canAccessReturns: true,
+        canAccessAddressVerification: true,
+        canAccessUserManagement: true,
+        canAccessAdminPanel: true,
+        canAccessSettings: true,
+        canAddUsers: true,
+        canEditUsers: true,
+        canDeleteUsers: true,
+      };
+    
+    case 'Store Manager':
+      return {
+        ...permissions,
+        canAccessDashboard: true,
+        canAccessOrders: true,
+        canAccessCustomers: true,
+        canAccessDispatch: true,
+        canAccessReturns: true,
+        canAccessAddressVerification: true,
+        canAccessUserManagement: true,
+        canAccessSettings: true,
+        canAddUsers: true,
+        canEditUsers: true,
+        canDeleteUsers: true,
+      };
+    
+    case 'Dispatch Manager':
+      return {
+        ...permissions,
+        canAccessDispatch: true,
+      };
+    
+    case 'Returns Manager':
+      return {
+        ...permissions,
+        canAccessReturns: true,
+      };
+    
+    case 'Staff':
+      return {
+        ...permissions,
+        // Staff permissions will be customizable per user
+        canAccessDashboard: true,
+      };
+    
+    default:
+      return permissions;
+  }
+};
+
+export const getNavigationItems = (role: UserRole): NavigationItem[] => {
+  const permissions = getRolePermissions(role);
+  const items: NavigationItem[] = [];
+
+  if (permissions.canAccessDashboard) {
+    items.push({
+      label: 'Dashboard',
+      href: '/',
+      icon: 'Home'
+    });
+  }
+
+  if (permissions.canAccessOrders) {
+    items.push({
+      label: 'Orders',
+      href: '/orders',
+      icon: 'Package'
+    });
+  }
+
+  if (permissions.canAccessCustomers) {
+    items.push({
+      label: 'Customers',
+      href: '/customers',
+      icon: 'Users',
+      subItems: [
+        { label: 'All Customers', href: '/all-customers', icon: '' },
+        { label: 'Suspicious Customers', href: '/suspicious-customers', icon: '', badge: '5' }
+      ]
+    });
+  }
+
+  if (permissions.canAccessDispatch) {
+    items.push({
+      label: 'Dispatch',
+      href: '/dispatch',
+      icon: 'Truck'
+    });
+  }
+
+  if (permissions.canAccessReturns) {
+    items.push({
+      label: 'Returns',
+      href: '/returns',
+      icon: 'RotateCcw',
+      badge: '12'
+    });
+  }
+
+  if (permissions.canAccessAddressVerification) {
+    items.push({
+      label: 'Address Verification',
+      href: '/address-verification',
+      icon: 'MapPin'
+    });
+  }
+
+  if (permissions.canAccessUserManagement) {
+    items.push({
+      label: 'User Management',
+      href: '/user-management',
+      icon: 'Users'
+    });
+  }
+
+  if (permissions.canAccessAdminPanel) {
+    items.push({
+      label: 'Admin Panel',
+      href: '/admin-panel',
+      icon: 'Shield'
+    });
+  }
+
+  if (permissions.canAccessSettings) {
+    items.push({
+      label: 'Settings',
+      href: '/settings',
+      icon: 'Settings'
+    });
+  }
+
+  return items;
+};

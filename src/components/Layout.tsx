@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Home, Package, Truck, RotateCcw, Users, Settings, Search, Bell, Moon, Sun, Shield, MapPin, LogOut, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from '@/contexts/AuthContext';
+import { getNavigationItems } from '@/utils/rolePermissions';
 
 const Layout = () => {
   const [isDark, setIsDark] = useState(false);
@@ -23,15 +24,15 @@ const Layout = () => {
     logout();
   };
 
-  const customerSubMenuItems = [{
-    label: "All Customers",
-    href: "/all-customers",
-    badge: null
-  }, {
-    label: "Suspicious Customers",
-    href: "/suspicious-customers",
-    badge: "5"
-  }];
+  const navigationItems = user ? getNavigationItems(user.role) : [];
+  const customerItem = navigationItems.find(item => item.label === 'Customers');
+
+  const getIcon = (iconName: string) => {
+    const icons = {
+      Home, Package, Truck, RotateCcw, Users, Settings, Shield, MapPin
+    };
+    return icons[iconName as keyof typeof icons] || Home;
+  };
 
   return <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900">
@@ -50,115 +51,59 @@ const Layout = () => {
           
           <SidebarContent className="spacing-sm">
             <SidebarMenu className="space-y-2">
-              {/* Dashboard */}
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
-                  <a href="/" className="flex items-center gap-3">
-                    <Home className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                    <span className="font-medium">Dashboard</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {navigationItems.map((item) => {
+                const IconComponent = getIcon(item.icon);
+                
+                if (item.subItems && item.subItems.length > 0) {
+                  return (
+                    <SidebarMenuItem key={item.label}>
+                      <Collapsible open={isCustomersOpen} onOpenChange={setIsCustomersOpen}>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
+                            <IconComponent className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                            <span className="font-medium">{item.label}</span>
+                            <ChevronDown className={`ml-auto h-4 w-4 transition-transform duration-300 ${isCustomersOpen ? 'rotate-180' : ''}`} />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <SidebarMenuSub className="ml-4 mt-3 space-y-3 pb-8">
+                            {item.subItems.map((subItem, subIndex) => (
+                              <SidebarMenuSubItem key={subIndex}>
+                                <SidebarMenuSubButton asChild className="w-full justify-start gap-3 rounded-xl text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/15 hover:to-pink-500/15 transition-all duration-300 my-0 py-[25px] mx-0 px-0">
+                                  <a href={subItem.href} className="flex items-center gap-3">
+                                    <span className="font-medium">{subItem.label}</span>
+                                    {subItem.badge && (
+                                      <Badge className="ml-auto bg-gradient-to-r from-red-500 to-pink-500 text-white border-0 text-xs font-semibold">
+                                        {subItem.badge}
+                                      </Badge>
+                                    )}
+                                  </a>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            ))}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </SidebarMenuItem>
+                  );
+                }
 
-              {/* Orders */}
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
-                  <a href="/orders" className="flex items-center gap-3">
-                    <Package className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                    <span className="font-medium">Orders</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              
-              {/* Customers Menu with Sub-items */}
-              <SidebarMenuItem>
-                <Collapsible open={isCustomersOpen} onOpenChange={setIsCustomersOpen}>
-                  <CollapsibleTrigger asChild>
-                    <SidebarMenuButton className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
-                      <Users className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                      <span className="font-medium">Customers</span>
-                      <ChevronDown className={`ml-auto h-4 w-4 transition-transform duration-300 ${isCustomersOpen ? 'rotate-180' : ''}`} />
+                return (
+                  <SidebarMenuItem key={item.label}>
+                    <SidebarMenuButton asChild className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
+                      <a href={item.href} className="flex items-center gap-3">
+                        <IconComponent className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                        <span className="font-medium">{item.label}</span>
+                        {item.badge && (
+                          <Badge className="ml-auto bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 text-xs font-semibold">
+                            {item.badge}
+                          </Badge>
+                        )}
+                      </a>
                     </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub className="ml-4 mt-3 space-y-3 pb-8">
-                      {customerSubMenuItems.map((subItem, subIndex) => <SidebarMenuSubItem key={subIndex}>
-                          <SidebarMenuSubButton asChild className="w-full justify-start gap-3 rounded-xl text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/15 hover:to-pink-500/15 transition-all duration-300 my-0 py-[25px] mx-0 px-0">
-                            <a href={subItem.href} className="flex items-center gap-3">
-                              <span className="font-medium">{subItem.label}</span>
-                              {subItem.badge && <Badge className="ml-auto bg-gradient-to-r from-red-500 to-pink-500 text-white border-0 text-xs font-semibold">
-                                  {subItem.badge}
-                                </Badge>}
-                            </a>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>)}
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </Collapsible>
-              </SidebarMenuItem>
-
-              {/* Dispatch */}
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
-                  <a href="/dispatch" className="flex items-center gap-3">
-                    <Truck className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                    <span className="font-medium">Dispatch</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              {/* Returns */}
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
-                  <a href="/returns" className="flex items-center gap-3">
-                    <RotateCcw className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                    <span className="font-medium">Returns</span>
-                    <Badge className="ml-auto bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 text-xs font-semibold">
-                      12
-                    </Badge>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              {/* Address Verification */}
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
-                  <a href="/address-verification" className="flex items-center gap-3">
-                    <MapPin className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                    <span className="font-medium">Address Verification</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              {/* User Management */}
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
-                  <a href="/user-management" className="flex items-center gap-3">
-                    <Users className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                    <span className="font-medium">User Management</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              {/* Admin Panel */}
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
-                  <a href="/admin-panel" className="flex items-center gap-3">
-                    <Shield className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                    <span className="font-medium">Admin Panel</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              {/* Settings */}
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
-                  <a href="/settings" className="flex items-center gap-3">
-                    <Settings className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                    <span className="font-medium">Settings</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarContent>
           

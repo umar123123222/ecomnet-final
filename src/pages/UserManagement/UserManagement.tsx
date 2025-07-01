@@ -21,11 +21,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Search, Plus, Filter, Download, UserPlus, Trash2, Edit } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { getRolePermissions } from '@/utils/rolePermissions';
 
 const UserManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [roleFilter, setRoleFilter] = useState('all');
+  const { user: currentUser } = useAuth();
 
   const users = useMemo(() => [
     {
@@ -66,49 +69,38 @@ const UserManagement = () => {
     );
   };
 
+  const permissions = currentUser ? getRolePermissions(currentUser.role) : null;
+
+  if (!permissions?.canAccessUserManagement) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="p-8 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+            <p className="text-gray-600">You don't have permission to access user management.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
-          <p className="text-gray-600 mt-1">Manage users, roles, and permissions</p>
+          <p className="text-gray-600 mt-1">Manage users and their permissions</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Add User
-          </Button>
-          <Button variant="outline">
-            <Plus className="h-4 w-4 mr-2" />
-            Create Role
-          </Button>
+          {permissions.canAddUsers && (
+            <Button>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Add User
+            </Button>
+          )}
         </div>
       </div>
-
-      {/* Role Management */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Role Management</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {roles.map((role) => (
-              <div key={role} className="p-4 border rounded-lg flex items-center justify-between">
-                <span className="font-medium text-sm">{role}</span>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm">
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Filters */}
       <Card>
@@ -140,10 +132,12 @@ const UserManagement = () => {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" disabled={selectedUsers.length === 0}>
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete Selected
-            </Button>
+            {permissions.canDeleteUsers && (
+              <Button variant="outline" disabled={selectedUsers.length === 0}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Selected
+              </Button>
+            )}
             <Button variant="outline" disabled={selectedUsers.length === 0}>
               <Download className="h-4 w-4 mr-2" />
               Export Users
@@ -201,12 +195,16 @@ const UserManagement = () => {
                   <TableCell>{user.lastLogin}</TableCell>
                   <TableCell>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {permissions.canEditUsers && (
+                        <Button variant="outline" size="sm">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {permissions.canDeleteUsers && user.id !== currentUser?.id && (
+                        <Button variant="outline" size="sm">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
