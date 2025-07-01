@@ -115,12 +115,12 @@ const Layout = () => {
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <SidebarMenuSub className="ml-4 mt-2 space-y-1">
+                    <SidebarMenuSub className="ml-4 mt-3 space-y-3 pb-2">
                       {customerSubMenuItems.map((subItem, subIndex) => (
                         <SidebarMenuSubItem key={subIndex}>
                           <SidebarMenuSubButton 
                             asChild 
-                            className="w-full justify-start gap-3 px-4 py-2 rounded-xl text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/15 hover:to-pink-500/15 transition-all duration-300"
+                            className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/15 hover:to-pink-500/15 transition-all duration-300"
                           >
                             <a href={subItem.href} className="flex items-center gap-3">
                               <span className="font-medium">{subItem.label}</span>
