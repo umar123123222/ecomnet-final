@@ -12,7 +12,7 @@ export type Database = {
       activity_logs: {
         Row: {
           action: string
-          created_at: string
+          created_at: string | null
           details: Json | null
           entity_id: string
           entity_type: string
@@ -21,7 +21,7 @@ export type Database = {
         }
         Insert: {
           action: string
-          created_at?: string
+          created_at?: string | null
           details?: Json | null
           entity_id: string
           entity_type: string
@@ -30,7 +30,7 @@ export type Database = {
         }
         Update: {
           action?: string
-          created_at?: string
+          created_at?: string | null
           details?: Json | null
           entity_id?: string
           entity_type?: string
@@ -51,95 +51,131 @@ export type Database = {
         Row: {
           address: string
           city: string
-          created_at: string
+          created_at: string | null
           email: string | null
           id: string
-          is_suspicious: boolean
+          is_suspicious: boolean | null
           name: string
           phone: string | null
-          return_count: number
-          total_orders: number
-          updated_at: string
+          return_count: number | null
+          suspicious_reason: string | null
+          total_orders: number | null
+          updated_at: string | null
         }
         Insert: {
           address: string
           city: string
-          created_at?: string
+          created_at?: string | null
           email?: string | null
           id?: string
-          is_suspicious?: boolean
+          is_suspicious?: boolean | null
           name: string
           phone?: string | null
-          return_count?: number
-          total_orders?: number
-          updated_at?: string
+          return_count?: number | null
+          suspicious_reason?: string | null
+          total_orders?: number | null
+          updated_at?: string | null
         }
         Update: {
           address?: string
           city?: string
-          created_at?: string
+          created_at?: string | null
           email?: string | null
           id?: string
-          is_suspicious?: boolean
+          is_suspicious?: boolean | null
           name?: string
           phone?: string | null
-          return_count?: number
-          total_orders?: number
-          updated_at?: string
+          return_count?: number | null
+          suspicious_reason?: string | null
+          total_orders?: number | null
+          updated_at?: string | null
         }
         Relationships: []
       }
       orders: {
         Row: {
           assigned_to: string | null
+          city: string
           courier: Database["public"]["Enums"]["courier_type"]
-          created_at: string
+          created_at: string | null
+          customer_address: string
           customer_id: string
+          customer_name: string
+          customer_phone: string
           delivered_at: string | null
           dispatched_at: string | null
+          gpt_score: number | null
           id: string
           items: Json
           notes: string | null
-          shipping_address: string
-          status: Database["public"]["Enums"]["order_status"]
+          order_number: string
+          status: Database["public"]["Enums"]["order_status"] | null
           tags: string[] | null
           total_amount: number
           tracking_id: string | null
-          updated_at: string
+          updated_at: string | null
+          verification_notes: string | null
+          verification_status:
+            | Database["public"]["Enums"]["verification_status"]
+            | null
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           assigned_to?: string | null
+          city: string
           courier: Database["public"]["Enums"]["courier_type"]
-          created_at?: string
+          created_at?: string | null
+          customer_address: string
           customer_id: string
+          customer_name: string
+          customer_phone: string
           delivered_at?: string | null
           dispatched_at?: string | null
+          gpt_score?: number | null
           id?: string
           items: Json
           notes?: string | null
-          shipping_address: string
-          status?: Database["public"]["Enums"]["order_status"]
+          order_number: string
+          status?: Database["public"]["Enums"]["order_status"] | null
           tags?: string[] | null
           total_amount: number
           tracking_id?: string | null
-          updated_at?: string
+          updated_at?: string | null
+          verification_notes?: string | null
+          verification_status?:
+            | Database["public"]["Enums"]["verification_status"]
+            | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           assigned_to?: string | null
+          city?: string
           courier?: Database["public"]["Enums"]["courier_type"]
-          created_at?: string
+          created_at?: string | null
+          customer_address?: string
           customer_id?: string
+          customer_name?: string
+          customer_phone?: string
           delivered_at?: string | null
           dispatched_at?: string | null
+          gpt_score?: number | null
           id?: string
           items?: Json
           notes?: string | null
-          shipping_address?: string
-          status?: Database["public"]["Enums"]["order_status"]
+          order_number?: string
+          status?: Database["public"]["Enums"]["order_status"] | null
           tags?: string[] | null
           total_amount?: number
           tracking_id?: string | null
-          updated_at?: string
+          updated_at?: string | null
+          verification_notes?: string | null
+          verification_status?:
+            | Database["public"]["Enums"]["verification_status"]
+            | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: [
           {
@@ -156,65 +192,87 @@ export type Database = {
             referencedRelation: "customers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "orders_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles: {
         Row: {
-          created_at: string
+          created_at: string | null
           email: string
           full_name: string
           id: string
           is_active: boolean
           role: Database["public"]["Enums"]["user_role"]
-          updated_at: string
+          updated_at: string | null
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           email: string
           full_name: string
           id: string
           is_active?: boolean
           role?: Database["public"]["Enums"]["user_role"]
-          updated_at?: string
+          updated_at?: string | null
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           email?: string
           full_name?: string
           id?: string
           is_active?: boolean
           role?: Database["public"]["Enums"]["user_role"]
-          updated_at?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
       returns: {
         Row: {
-          created_at: string
+          created_at: string | null
           id: string
+          notes: string | null
           order_id: string
           reason: string | null
           received_at: string | null
           received_by: string | null
-          return_status: Database["public"]["Enums"]["return_status"]
+          return_status: Database["public"]["Enums"]["return_status"] | null
+          tags: string[] | null
+          tracking_id: string
+          updated_at: string | null
+          worth: number | null
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           id?: string
+          notes?: string | null
           order_id: string
           reason?: string | null
           received_at?: string | null
           received_by?: string | null
-          return_status?: Database["public"]["Enums"]["return_status"]
+          return_status?: Database["public"]["Enums"]["return_status"] | null
+          tags?: string[] | null
+          tracking_id: string
+          updated_at?: string | null
+          worth?: number | null
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           id?: string
+          notes?: string | null
           order_id?: string
           reason?: string | null
           received_at?: string | null
           received_by?: string | null
-          return_status?: Database["public"]["Enums"]["return_status"]
+          return_status?: Database["public"]["Enums"]["return_status"] | null
+          tags?: string[] | null
+          tracking_id?: string
+          updated_at?: string | null
+          worth?: number | null
         }
         Relationships: [
           {
@@ -235,27 +293,30 @@ export type Database = {
       }
       user_performance: {
         Row: {
-          created_at: string
-          date: string
-          dispatched_count: number
+          addresses_verified: number | null
+          created_at: string | null
+          date: string | null
           id: string
-          returns_handled: number
+          orders_processed: number | null
+          returns_handled: number | null
           user_id: string
         }
         Insert: {
-          created_at?: string
-          date?: string
-          dispatched_count?: number
+          addresses_verified?: number | null
+          created_at?: string | null
+          date?: string | null
           id?: string
-          returns_handled?: number
+          orders_processed?: number | null
+          returns_handled?: number | null
           user_id: string
         }
         Update: {
-          created_at?: string
-          date?: string
-          dispatched_count?: number
+          addresses_verified?: number | null
+          created_at?: string | null
+          date?: string | null
           id?: string
-          returns_handled?: number
+          orders_processed?: number | null
+          returns_handled?: number | null
           user_id?: string
         }
         Relationships: [
@@ -284,8 +345,14 @@ export type Database = {
         | "delivered"
         | "cancelled"
         | "returned"
-      return_status: "in_transit" | "received" | "processed"
-      user_role: "admin" | "dispatch" | "order_handler"
+      return_status: "in_transit" | "received" | "processed" | "completed"
+      user_role:
+        | "owner"
+        | "store_manager"
+        | "dispatch_manager"
+        | "returns_manager"
+        | "staff"
+      verification_status: "pending" | "approved" | "disapproved"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -410,8 +477,15 @@ export const Constants = {
         "cancelled",
         "returned",
       ],
-      return_status: ["in_transit", "received", "processed"],
-      user_role: ["admin", "dispatch", "order_handler"],
+      return_status: ["in_transit", "received", "processed", "completed"],
+      user_role: [
+        "owner",
+        "store_manager",
+        "dispatch_manager",
+        "returns_manager",
+        "staff",
+      ],
+      verification_status: ["pending", "approved", "disapproved"],
     },
   },
 } as const
