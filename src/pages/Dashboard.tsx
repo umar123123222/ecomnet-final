@@ -1,5 +1,5 @@
-
 import React, { useState } from 'react';
+import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GradientCard } from "@/components/ui/gradient-card";
 import { ModernButton } from "@/components/ui/modern-button";
@@ -10,10 +10,7 @@ import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import { Calendar, Package, Truck, CheckCircle, XCircle, RotateCcw, TrendingUp, TrendingDown, Users, BarChart3 } from "lucide-react";
 
 const Dashboard = () => {
-  const [dateRange, setDateRange] = useState<{from: Date | undefined; to: Date | undefined}>({
-    from: undefined,
-    to: undefined
-  });
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   const summaryData = [
     { title: "Total Orders", value: "2,847", change: "+12.5%", trend: "up", icon: Package, color: "from-blue-500 to-cyan-500" },
