@@ -1,184 +1,165 @@
-
 import React, { useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import {
-  LayoutDashboard,
-  Package,
-  Truck,
-  RotateCcw,
-  Users,
-  Flag,
-  MapPin,
-  Settings,
-  Bell,
-  Search,
-  Menu,
+import { Outlet } from 'react-router-dom';
+import { 
+  Sidebar, 
+  SidebarContent, 
+  SidebarFooter, 
+  SidebarHeader, 
+  SidebarMenu, 
+  SidebarMenuButton, 
+  SidebarMenuItem, 
+  SidebarProvider, 
+  SidebarTrigger 
+} from "@/components/ui/sidebar";
+import { ModernButton } from "@/components/ui/modern-button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Home, 
+  Package, 
+  Truck, 
+  RotateCcw, 
+  Users, 
+  Settings, 
+  Search, 
+  Bell, 
+  Moon, 
   Sun,
-  Moon,
-  ChevronDown,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+  BarChart3,
+  Shield,
+  MapPin,
+  FileText,
+  AlertTriangle
+} from "lucide-react";
 
 const Layout = () => {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
-  const navigate = useNavigate();
+  const [isDark, setIsDark] = useState(false);
 
-  const navigationItems = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { 
-      name: 'Orders', 
-      icon: Package,
-      children: [
-        { name: 'Order Dashboard', href: '/orders' },
-        { name: 'Shipper Advice', href: '/orders/shipper-advice' },
-        { name: 'Dispatch Portal', href: '/orders/dispatch' },
-      ]
-    },
-    { name: 'Returns', href: '/returns', icon: RotateCcw },
-    { name: 'Suspicious Customers', href: '/suspicious', icon: Flag },
-    { name: 'Address Verification', href: '/address-verification', icon: MapPin },
-    { name: 'User Management', href: '/users', icon: Users },
-    { name: 'Settings', href: '/settings', icon: Settings },
-  ];
-
-  const NavItem = ({ item, isChild = false }: { item: any; isChild?: boolean }) => {
-    const [expanded, setExpanded] = useState(false);
-    
-    if (item.children) {
-      return (
-        <div className="space-y-1">
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className={`w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-100 text-gray-700 ${
-              sidebarCollapsed ? 'justify-center' : ''
-            }`}
-          >
-            <div className="flex items-center">
-              <item.icon className="h-5 w-5 mr-3" />
-              {!sidebarCollapsed && <span>{item.name}</span>}
-            </div>
-            {!sidebarCollapsed && (
-              <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-            )}
-          </button>
-          {expanded && !sidebarCollapsed && (
-            <div className="ml-8 space-y-1">
-              {item.children.map((child: any) => (
-                <NavItem key={child.href} item={child} isChild={true} />
-              ))}
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <NavLink
-        to={item.href}
-        className={({ isActive }) =>
-          `flex items-center px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-100 ${
-            isActive ? 'bg-blue-100 text-blue-700' : 'text-gray-700'
-          } ${sidebarCollapsed && !isChild ? 'justify-center' : ''}`
-        }
-      >
-        {!isChild && <item.icon className="h-5 w-5 mr-3" />}
-        {(!sidebarCollapsed || isChild) && <span>{item.name}</span>}
-      </NavLink>
-    );
+  const toggleTheme = () => {
+    setIsDark(!isDark);
+    document.documentElement.classList.toggle('dark');
   };
 
-  return (
-    <div className={`min-h-screen bg-gray-50 ${darkMode ? 'dark' : ''}`}>
-      {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 ${sidebarCollapsed ? 'w-16' : 'w-64'} bg-white shadow-lg transition-all duration-300`}>
-        <div className="flex items-center justify-between p-4 border-b">
-          {!sidebarCollapsed && (
-            <h1 className="text-xl font-bold text-gray-900">Ecomnet Portal</h1>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-        </div>
-        
-        <nav className="p-4 space-y-2">
-          {navigationItems.map((item) => (
-            <NavItem key={item.name} item={item} />
-          ))}
-        </nav>
-      </div>
+  const menuItems = [
+    { icon: Home, label: "Dashboard", href: "/", badge: null },
+    { icon: Package, label: "Orders", href: "/orders", badge: "234" },
+    { icon: Truck, label: "Dispatch", href: "/dispatch", badge: null },
+    { icon: RotateCcw, label: "Returns", href: "/returns", badge: "12" },
+    { icon: BarChart3, label: "Analytics", href: "/analytics", badge: null },
+    { icon: AlertTriangle, label: "Suspicious", href: "/suspicious", badge: "5" },
+    { icon: MapPin, label: "Address Verification", href: "/address", badge: null },
+    { icon: FileText, label: "Reports", href: "/reports", badge: null },
+    { icon: Users, label: "User Management", href: "/users", badge: null },
+    { icon: Shield, label: "Admin Panel", href: "/admin", badge: null },
+    { icon: Settings, label: "Settings", href: "/settings", badge: null },
+  ];
 
-      {/* Main Content */}
-      <div className={`${sidebarCollapsed ? 'ml-16' : 'ml-64'} transition-all duration-300`}>
-        {/* Top Bar */}
-        <header className="bg-white shadow-sm border-b px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="relative w-96">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search orders, customers, tracking IDs..."
-                  className="pl-10"
-                />
+  return (
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900">
+        <Sidebar className="border-r border-white/20 bg-gradient-to-b from-slate-900 via-purple-900/50 to-slate-900 dark:from-gray-950 dark:via-purple-950/50 dark:to-gray-950">
+          <SidebarHeader className="p-6 border-b border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+                <Package className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Ecomnet Portal</h2>
+                <p className="text-xs text-gray-300">Order Management</p>
               </div>
             </div>
-            
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setDarkMode(!darkMode)}
-              >
-                {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-              </Button>
-              
-              <Button variant="ghost" size="icon">
-                <Bell className="h-5 w-5" />
-              </Button>
-              
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                      A
-                    </div>
-                    <span>Admin User</span>
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => navigate('/profile')}>
-                    Profile
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/settings')}>
-                    Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    Logout
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+          </SidebarHeader>
+          
+          <SidebarContent className="p-4">
+            <SidebarMenu className="space-y-2">
+              {menuItems.map((item, index) => {
+                const Icon = item.icon;
+                return (
+                  <SidebarMenuItem key={index}>
+                    <SidebarMenuButton 
+                      asChild 
+                      className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group"
+                    >
+                      <a href={item.href} className="flex items-center gap-3">
+                        <Icon className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                        <span className="font-medium">{item.label}</span>
+                        {item.badge && (
+                          <Badge className="ml-auto bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 text-xs">
+                            {item.badge}
+                          </Badge>
+                        )}
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarContent>
+          
+          <SidebarFooter className="p-4 border-t border-white/10">
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10">
+              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                <Users className="h-4 w-4 text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-white">Admin User</p>
+                <p className="text-xs text-gray-300">admin@ecomnet.com</p>
+              </div>
             </div>
-          </div>
-        </header>
+          </SidebarFooter>
+        </Sidebar>
 
-        {/* Page Content */}
-        <main className="min-h-screen">
-          <Outlet />
-        </main>
+        <div className="flex-1 flex flex-col">
+          {/* Top Navigation */}
+          <header className="bg-white/70 dark:bg-gray-900/70 backdrop-blur-lg border-b border-white/20 dark:border-gray-800/20 sticky top-0 z-50">
+            <div className="flex items-center justify-between p-4 lg:px-6">
+              <div className="flex items-center gap-4">
+                <SidebarTrigger className="lg:hidden" />
+                <div className="hidden md:flex items-center gap-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input 
+                      placeholder="Search orders, customers..." 
+                      className="pl-10 w-80 bg-white/50 dark:bg-gray-800/50 border-white/20 dark:border-gray-700/20 focus:bg-white dark:focus:bg-gray-800 transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <ModernButton 
+                  variant="ghost" 
+                  size="icon"
+                  className="relative"
+                >
+                  <Bell className="h-5 w-5" />
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-r from-red-500 to-pink-500 rounded-full flex items-center justify-center">
+                    <span className="text-[8px] text-white font-bold">3</span>
+                  </span>
+                </ModernButton>
+                
+                <ModernButton 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={toggleTheme}
+                >
+                  {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                </ModernButton>
+                
+                <ModernButton variant="default" size="sm">
+                  Profile
+                </ModernButton>
+              </div>
+            </div>
+          </header>
+
+          {/* Main Content */}
+          <main className="flex-1 overflow-auto">
+            <Outlet />
+          </main>
+        </div>
       </div>
-    </div>
+    </SidebarProvider>
   );
 };
 
