@@ -41,7 +41,6 @@ const Settings = () => {
   };
 
   const handleSaveProfile = () => {
-    // Add profile save logic here
     toast({
       title: "Profile Updated",
       description: "Your profile information has been updated successfully.",
@@ -58,13 +57,11 @@ const Settings = () => {
       return;
     }
     
-    // Add password change logic here
     toast({
       title: "Password Changed",
       description: "Your password has been updated successfully.",
     });
     
-    // Clear password fields
     setFormData(prev => ({
       ...prev,
       currentPassword: "",
@@ -103,19 +100,6 @@ const Settings = () => {
                 </AvatarFallback>
               </Avatar>
               <div>
-                <Label htmlFor="profile-image" className="cursor-pointer">
-                  <ModernButton 
-                    variant="outline" 
-                    size="sm" 
-                    className="gap-2"
-                    asChild
-                  >
-                    <span>
-                      <Camera className="h-4 w-4" />
-                      Change Photo
-                    </span>
-                  </ModernButton>
-                </Label>
                 <input
                   id="profile-image"
                   type="file"
@@ -123,6 +107,15 @@ const Settings = () => {
                   className="hidden"
                   onChange={handleImageUpload}
                 />
+                <ModernButton 
+                  variant="outline" 
+                  size="sm" 
+                  className="gap-2"
+                  onClick={() => document.getElementById('profile-image')?.click()}
+                >
+                  <Camera className="h-4 w-4" />
+                  Change Photo
+                </ModernButton>
                 <p className="text-sm text-gray-500 mt-1">
                   JPG, PNG or GIF (max 5MB)
                 </p>
