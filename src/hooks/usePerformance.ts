@@ -40,11 +40,15 @@ export const useWebVitals = () => {
         console.log(`[WebVitals] LCP: ${lastEntry.startTime.toFixed(2)}ms`);
       });
 
-      // Observe first input delay
+      // Observe first input delay with proper typing
       const fidObserver = new PerformanceObserver((list) => {
         const entries = list.getEntries();
         entries.forEach((entry) => {
-          console.log(`[WebVitals] FID: ${entry.processingStart - entry.startTime}ms`);
+          // Type guard to check if entry has processingStart property
+          if ('processingStart' in entry && 'startTime' in entry) {
+            const fidEntry = entry as PerformanceEventTiming;
+            console.log(`[WebVitals] FID: ${fidEntry.processingStart - fidEntry.startTime}ms`);
+          }
         });
       });
 
