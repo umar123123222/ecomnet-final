@@ -14,6 +14,13 @@ export interface Customer {
   updated_at: string;
 }
 
+export interface OrderItem {
+  id: string;
+  name: string;
+  quantity: number;
+  price: number;
+}
+
 export interface Order {
   id: string;
   order_number: string;
@@ -26,12 +33,7 @@ export interface Order {
   courier: 'postex' | 'leopard' | 'tcs' | 'other';
   tracking_id?: string;
   total_amount: number;
-  items: Array<{
-    id: string;
-    name: string;
-    quantity: number;
-    price: number;
-  }>;
+  items: OrderItem[];
   tags?: string[];
   notes?: string;
   gpt_score?: number;

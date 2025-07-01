@@ -20,7 +20,7 @@ export function useSupabaseData<T>(
         setLoading(true);
         setError(null);
 
-        let query = supabase.from(table).select(selectQuery);
+        let query = supabase.from(table as any).select(selectQuery);
 
         // Apply filters
         if (filters) {
@@ -39,7 +39,7 @@ export function useSupabaseData<T>(
         if (queryError) throw queryError;
 
         if (isMounted) {
-          setData(result || []);
+          setData((result as T[]) || []);
         }
       } catch (err) {
         if (isMounted) {

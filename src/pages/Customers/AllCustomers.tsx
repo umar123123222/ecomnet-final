@@ -8,6 +8,7 @@ import { LoadingSpinner, LoadingTable } from '@/components/ui/loading-spinner';
 import { useRealtimeData } from '@/hooks/useSupabaseData';
 import { customerService } from '@/services/supabaseService';
 import { useToast } from '@/hooks/use-toast';
+import { Customer } from '@/types/database';
 import {
   Table,
   TableBody,
@@ -28,17 +29,17 @@ import { Search, Plus, Edit, Trash2, AlertTriangle, Users } from 'lucide-react';
 const AllCustomers = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [processing, setProcessing] = useState(false);
   const { toast } = useToast();
 
-  const { data: customers, loading, refetch } = useRealtimeData(
+  const { data: customers, loading, refetch } = useRealtimeData<Customer>(
     'customers',
     '*',
     undefined
   );
 
-  const filteredCustomers = customers.filter((customer: any) =>
+  const filteredCustomers = customers.filter((customer: Customer) =>
     customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     customer.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     customer.phone?.includes(searchTerm) ||
@@ -50,7 +51,7 @@ const AllCustomers = () => {
     try {
       await customerService.update(customerId, {
         is_suspicious: !isSuspicious,
-        suspicious_reason: !isSuspicious ? 'Marked as suspicious' : null
+        suspicious_reason: !isSuspicious ? 'Marked as suspicious' : undefined
       });
 
       toast({
@@ -100,6 +101,11 @@ const AllCustomers = () => {
       : 'bg-green-100 text-green-800';
   };
 
+  // Calculate average orders per customer safely
+  const avgOrdersPerCustomer = customers.length > 0 
+    ? Math.round(customers.reduce((sum: number, c: Customer) => sum + (c.total_orders || 0), 0) / customers.length)
+    : 0;
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -133,7 +139,7 @@ const AllCustomers = () => {
               <div>
                 <p className="text-sm text-gray-600 mb-1">Suspicious Customers</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {customers.filter((c: any) => c.is_suspicious).length}
+                  {customers.filter((c: Customer) => c.is_suspicious).length}
                 </p>
               </div>
               <AlertTriangle className="h-8 w-8 text-red-600" />
@@ -145,12 +151,7 @@ const AllCustomers = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600 mb-1">Avg Orders/Customer</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {customers.length > 0 
-                    ? Math.round(customers.reduce((sum: number, c: any) => sum + c.total_orders, 0) / customers.length)
-                    : 0
-                  }
-                </p>
+                <p className="text-2xl font-bold text-gray-900">{avgOrdersPerCustomer}</p>
               </div>
               <Users className="h-8 w-8 text-green-600" />
             </div>
@@ -194,7 +195,7 @@ const AllCustomers = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCustomers.map((customer: any) => (
+                {filteredCustomers.map((customer: Customer) => (
                   <TableRow key={customer.id}>
                     <TableCell>
                       <div>
@@ -214,10 +215,10 @@ const AllCustomers = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{customer.total_orders}</Badge>
+                      <Badge variant="outline">{customer.total_orders || 0}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{customer.return_count}</Badge>
+                      <Badge variant="outline">{customer.return_count || 0}</Badge>
                     </TableCell>
                     <TableCell>
                       <Badge className={getSuspiciousBadge(customer.is_suspicious)}>

@@ -1,6 +1,21 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { Customer, Order, Return, Profile, ActivityLog, UserPerformance } from '@/types/database';
+import { Customer, Order, Return, Profile, ActivityLog, UserPerformance, OrderItem } from '@/types/database';
+
+// Helper function to parse JSON items safely
+const parseOrderItems = (items: any): OrderItem[] => {
+  try {
+    if (typeof items === 'string') {
+      return JSON.parse(items);
+    }
+    if (Array.isArray(items)) {
+      return items;
+    }
+    return [];
+  } catch {
+    return [];
+  }
+};
 
 // Customer Service
 export const customerService = {
@@ -11,7 +26,7 @@ export const customerService = {
       .order('created_at', { ascending: false });
     
     if (error) throw error;
-    return data || [];
+    return (data || []) as Customer[];
   },
 
   async getSuspicious(): Promise<Customer[]> {
@@ -22,7 +37,7 @@ export const customerService = {
       .order('created_at', { ascending: false });
     
     if (error) throw error;
-    return data || [];
+    return (data || []) as Customer[];
   },
 
   async create(customer: Omit<Customer, 'id' | 'created_at' | 'updated_at'>): Promise<Customer> {
@@ -33,7 +48,7 @@ export const customerService = {
       .single();
     
     if (error) throw error;
-    return data;
+    return data as Customer;
   },
 
   async update(id: string, updates: Partial<Customer>): Promise<Customer> {
@@ -45,7 +60,7 @@ export const customerService = {
       .single();
     
     if (error) throw error;
-    return data;
+    return data as Customer;
   },
 
   async delete(id: string): Promise<void> {
@@ -67,7 +82,10 @@ export const orderService = {
       .order('created_at', { ascending: false });
     
     if (error) throw error;
-    return data || [];
+    return (data || []).map((order: any) => ({
+      ...order,
+      items: parseOrderItems(order.items)
+    })) as Order[];
   },
 
   async getByStatus(status: Order['status']): Promise<Order[]> {
@@ -78,7 +96,10 @@ export const orderService = {
       .order('created_at', { ascending: false });
     
     if (error) throw error;
-    return data || [];
+    return (data || []).map((order: any) => ({
+      ...order,
+      items: parseOrderItems(order.items)
+    })) as Order[];
   },
 
   async getForVerification(): Promise<Order[]> {
@@ -89,30 +110,47 @@ export const orderService = {
       .order('created_at', { ascending: false });
     
     if (error) throw error;
-    return data || [];
+    return (data || []).map((order: any) => ({
+      ...order,
+      items: parseOrderItems(order.items)
+    })) as Order[];
   },
 
   async create(order: Omit<Order, 'id' | 'created_at' | 'updated_at'>): Promise<Order> {
     const { data, error } = await supabase
       .from('orders')
-      .insert(order)
+      .insert({
+        ...order,
+        items: JSON.stringify(order.items)
+      })
       .select()
       .single();
     
     if (error) throw error;
-    return data;
+    return {
+      ...data,
+      items: parseOrderItems(data.items)
+    } as Order;
   },
 
   async update(id: string, updates: Partial<Order>): Promise<Order> {
+    const updateData = { ...updates };
+    if (updateData.items) {
+      (updateData as any).items = JSON.stringify(updateData.items);
+    }
+
     const { data, error } = await supabase
       .from('orders')
-      .update(updates)
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();
     
     if (error) throw error;
-    return data;
+    return {
+      ...data,
+      items: parseOrderItems(data.items)
+    } as Order;
   },
 
   async updateVerificationStatus(
@@ -134,7 +172,10 @@ export const orderService = {
       .single();
     
     if (error) throw error;
-    return data;
+    return {
+      ...data,
+      items: parseOrderItems(data.items)
+    } as Order;
   }
 };
 
@@ -150,7 +191,13 @@ export const returnService = {
       .order('created_at', { ascending: false });
     
     if (error) throw error;
-    return data || [];
+    return (data || []).map((returnItem: any) => ({
+      ...returnItem,
+      order: returnItem.order ? {
+        ...returnItem.order,
+        items: parseOrderItems(returnItem.order.items)
+      } : undefined
+    })) as Return[];
   },
 
   async create(returnData: Omit<Return, 'id' | 'created_at' | 'updated_at'>): Promise<Return> {
@@ -161,7 +208,7 @@ export const returnService = {
       .single();
     
     if (error) throw error;
-    return data;
+    return data as Return;
   },
 
   async update(id: string, updates: Partial<Return>): Promise<Return> {
@@ -173,7 +220,7 @@ export const returnService = {
       .single();
     
     if (error) throw error;
-    return data;
+    return data as Return;
   }
 };
 
@@ -186,7 +233,7 @@ export const profileService = {
       .order('created_at', { ascending: false });
     
     if (error) throw error;
-    return data || [];
+    return (data || []) as Profile[];
   },
 
   async getCurrent(): Promise<Profile | null> {
@@ -200,7 +247,7 @@ export const profileService = {
       .single();
     
     if (error) throw error;
-    return data;
+    return data as Profile;
   },
 
   async update(id: string, updates: Partial<Profile>): Promise<Profile> {
@@ -212,7 +259,7 @@ export const profileService = {
       .single();
     
     if (error) throw error;
-    return data;
+    return data as Profile;
   }
 };
 
@@ -237,7 +284,7 @@ export const activityLogService = {
       .limit(limit);
     
     if (error) throw error;
-    return data || [];
+    return (data || []) as ActivityLog[];
   }
 };
 
@@ -252,7 +299,7 @@ export const performanceService = {
       .order('date', { ascending: false });
     
     if (error) throw error;
-    return data || [];
+    return (data || []) as UserPerformance[];
   },
 
   async updateDaily(userId: string, updates: Partial<Pick<UserPerformance, 'orders_processed' | 'returns_handled' | 'addresses_verified'>>): Promise<void> {
