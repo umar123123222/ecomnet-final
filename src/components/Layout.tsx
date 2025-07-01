@@ -10,7 +10,13 @@ import {
   SidebarMenuButton, 
   SidebarMenuItem, 
   SidebarProvider, 
-  SidebarTrigger 
+  SidebarTrigger,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton
 } from "@/components/ui/sidebar";
 import { ModernButton } from "@/components/ui/modern-button";
 import { Input } from "@/components/ui/input";
@@ -29,11 +35,14 @@ import {
   Shield,
   MapPin,
   AlertTriangle,
-  LogOut
+  LogOut,
+  ChevronDown
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const Layout = () => {
   const [isDark, setIsDark] = useState(false);
+  const [isCustomersOpen, setIsCustomersOpen] = useState(false);
 
   const toggleTheme = () => {
     setIsDark(!isDark);
@@ -45,16 +54,20 @@ const Layout = () => {
     console.log('Logging out...');
   };
 
-  const menuItems = [
+  const mainMenuItems = [
     { icon: Home, label: "Dashboard", href: "/", badge: null },
     { icon: Package, label: "Orders", href: "/orders", badge: "234" },
     { icon: Truck, label: "Dispatch", href: "/dispatch", badge: null },
     { icon: RotateCcw, label: "Returns", href: "/returns", badge: "12" },
-    { icon: AlertTriangle, label: "Suspicious Customers", href: "/suspicious-customers", badge: "5" },
     { icon: MapPin, label: "Address Verification", href: "/address-verification", badge: null },
     { icon: Users, label: "User Management", href: "/user-management", badge: null },
     { icon: Shield, label: "Admin Panel", href: "/admin-panel", badge: null },
     { icon: Settings, label: "Settings", href: "/settings", badge: null },
+  ];
+
+  const customerSubMenuItems = [
+    { label: "All Customers", href: "/all-customers", badge: null },
+    { label: "Suspicious Customers", href: "/suspicious-customers", badge: "5" },
   ];
 
   return (
@@ -75,7 +88,7 @@ const Layout = () => {
           
           <SidebarContent className="p-4">
             <SidebarMenu className="space-y-2">
-              {menuItems.map((item, index) => {
+              {mainMenuItems.map((item, index) => {
                 const Icon = item.icon;
                 return (
                   <SidebarMenuItem key={index}>
@@ -96,6 +109,40 @@ const Layout = () => {
                   </SidebarMenuItem>
                 );
               })}
+              
+              {/* Customers Menu with Sub-items */}
+              <SidebarMenuItem>
+                <Collapsible open={isCustomersOpen} onOpenChange={setIsCustomersOpen}>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton className="w-full justify-start gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
+                      <Users className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                      <span className="font-medium">Customers</span>
+                      <ChevronDown className={`ml-auto h-4 w-4 transition-transform ${isCustomersOpen ? 'rotate-180' : ''}`} />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub className="ml-4 mt-2 space-y-1">
+                      {customerSubMenuItems.map((subItem, subIndex) => (
+                        <SidebarMenuSubItem key={subIndex}>
+                          <SidebarMenuSubButton 
+                            asChild 
+                            className="w-full justify-start gap-3 px-4 py-2 rounded-xl text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/15 hover:to-pink-500/15 transition-all duration-300"
+                          >
+                            <a href={subItem.href} className="flex items-center gap-3">
+                              <span className="font-medium">{subItem.label}</span>
+                              {subItem.badge && (
+                                <Badge className="ml-auto bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 text-xs">
+                                  {subItem.badge}
+                                </Badge>
+                              )}
+                            </a>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </Collapsible>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarContent>
           

@@ -9,6 +9,7 @@ import Dashboard from "@/pages/Dashboard";
 import OrderDashboard from "@/pages/Orders/OrderDashboard";
 import DispatchDashboard from "@/pages/Dispatch/DispatchDashboard";
 import ReturnsDashboard from "@/pages/Returns/ReturnsDashboard";
+import AllCustomers from "@/pages/Customers/AllCustomers";
 import SuspiciousCustomers from "@/pages/SuspiciousCustomers/SuspiciousCustomers";
 import AddressVerification from "@/pages/AddressVerification/AddressVerification";
 import UserManagement from "@/pages/UserManagement/UserManagement";
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="orders" element={<OrderDashboard />} />
             <Route path="dispatch" element={<DispatchDashboard />} />
             <Route path="returns" element={<ReturnsDashboard />} />
+            <Route path="all-customers" element={<AllCustomers />} />
             <Route path="suspicious-customers" element={<SuspiciousCustomers />} />
             <Route path="address-verification" element={<AddressVerification />} />
             <Route path="user-management" element={<UserManagement />} />
