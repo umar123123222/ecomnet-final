@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -249,16 +250,31 @@ const OrderDashboard = () => {
         ))}
       </div>
 
-      {/* Filters */}
+      {/* Orders Table with Integrated Filters */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filters & Search
+          <CardTitle className="flex items-center justify-between">
+            <span>Orders</span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={selectedOrders.length === orders.length}
+                  onCheckedChange={handleSelectAllCurrentPage}
+                />
+                <span className="text-sm text-gray-600">Select All (Current Page)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={selectAllPages}
+                  onCheckedChange={handleSelectAllPages}
+                />
+                <span className="text-sm text-gray-600">Select All Pages</span>
+              </div>
+            </div>
           </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          
+          {/* Integrated Filters Section */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
@@ -289,39 +305,17 @@ const OrderDashboard = () => {
                 <SelectItem value="all">All Couriers</SelectItem>
                 <SelectItem value="leopard">Leopard</SelectItem>
                 <SelectItem value="postex">PostEx</SelectItem>
-                <SelectItem value="tcs">TCS</SelectItem>
-                <SelectItem value="bluex">BlueEx</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline">
+              <Filter className="h-4 w-4 mr-2" />
+              More Filters
+            </Button>
+            <Button variant="outline">
+              <Download className="h-4 w-4 mr-2" />
               Export Data
             </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Orders Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Orders</span>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={selectedOrders.length === orders.length}
-                  onCheckedChange={handleSelectAllCurrentPage}
-                />
-                <span className="text-sm text-gray-600">Select All (Current Page)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={selectAllPages}
-                  onCheckedChange={handleSelectAllPages}
-                />
-                <span className="text-sm text-gray-600">Select All Pages</span>
-              </div>
-            </div>
-          </CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
