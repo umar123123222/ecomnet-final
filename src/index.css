@@ -13,7 +13,7 @@
     --card-foreground: 30 41 59;
     --popover: 255 255 255;
     --popover-foreground: 30 41 59;
-    --primary: 14 165 233;
+    --primary: 71 85 105;
     --primary-foreground: 255 255 255;
     --secondary: 248 250 252;
     --secondary-foreground: 30 41 59;
@@ -21,13 +21,13 @@
     --muted-foreground: 100 116 139;
     --accent: 248 250 252;
     --accent-foreground: 30 41 59;
-    --destructive: 239 68 68;
+    --destructive: 220 38 38;
     --destructive-foreground: 255 255 255;
     --border: 226 232 240;
     --input: 226 232 240;
-    --ring: 14 165 233;
-    --radius: 0.75rem;
-    --chart-1: 14 165 233;
+    --ring: 71 85 105;
+    --radius: 0.5rem;
+    --chart-1: 71 85 105;
     --chart-2: 34 197 94;
     --chart-3: 251 146 60;
     --chart-4: 168 85 247;
@@ -41,7 +41,7 @@
     --card-foreground: 248 250 252;
     --popover: 30 41 59;
     --popover-foreground: 248 250 252;
-    --primary: 56 189 248;
+    --primary: 148 163 184;
     --primary-foreground: 15 23 42;
     --secondary: 51 65 85;
     --secondary-foreground: 248 250 252;
@@ -49,12 +49,12 @@
     --muted-foreground: 148 163 184;
     --accent: 51 65 85;
     --accent-foreground: 248 250 252;
-    --destructive: 239 68 68;
+    --destructive: 220 38 38;
     --destructive-foreground: 248 250 252;
     --border: 51 65 85;
     --input: 51 65 85;
-    --ring: 56 189 248;
-    --chart-1: 56 189 248;
+    --ring: 148 163 184;
+    --chart-1: 148 163 184;
     --chart-2: 34 197 94;
     --chart-3: 251 146 60;
     --chart-4: 168 85 247;
@@ -72,6 +72,19 @@
   }
 }
 
+/* Responsive text sizes */
+.text-responsive-xl {
+  @apply text-xl sm:text-2xl lg:text-3xl;
+}
+
+.text-responsive-lg {
+  @apply text-base sm:text-lg lg:text-xl;
+}
+
+.text-responsive-sm {
+  @apply text-sm sm:text-base;
+}
+
 /* Performance Optimizations */
 .optimized-scroll {
   -webkit-overflow-scrolling: touch;
@@ -83,14 +96,14 @@
   will-change: transform;
 }
 
-/* Enhanced Hover States */
+/* Subtle Hover States */
 .hover-lift {
   transition: all 0.2s ease;
 }
 
 .hover-lift:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.1);
 }
 
 /* Loading Indicators */
@@ -129,7 +142,7 @@
 
 /* Keyboard Navigation */
 .keyboard-focus:focus-visible {
-  outline: 2px solid #0ea5e9;
+  outline: 2px solid #475569;
   outline-offset: 2px;
   border-radius: 4px;
 }
