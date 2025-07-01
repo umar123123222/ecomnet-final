@@ -192,9 +192,11 @@ const ReturnsDashboard = () => {
                 <DialogTitle>Scan Return</DialogTitle>
               </DialogHeader>
               <div className="p-4 text-center">
-                <p>Camera functionality would be implemented here</p>
-                <Button onClick={() => setIsScanDialogOpen(false)} className="mt-4">
-                  Close
+                <div className="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
+                  <p className="text-gray-500">Camera view would appear here</p>
+                </div>
+                <Button onClick={() => setIsScanDialogOpen(false)}>
+                  Close Camera
                 </Button>
               </div>
             </DialogContent>
@@ -307,7 +309,6 @@ const ReturnsDashboard = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Select</TableHead>
-                <TableHead>Return ID</TableHead>
                 <TableHead>Order ID</TableHead>
                 <TableHead>Tracking ID</TableHead>
                 <TableHead>Customer</TableHead>
@@ -327,7 +328,6 @@ const ReturnsDashboard = () => {
                       onCheckedChange={() => handleSelectReturn(returnItem.id)}
                     />
                   </TableCell>
-                  <TableCell className="font-medium">{returnItem.id}</TableCell>
                   <TableCell className="font-medium">{returnItem.orderId}</TableCell>
                   <TableCell>{returnItem.trackingId}</TableCell>
                   <TableCell>{returnItem.customer}</TableCell>
