@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -167,7 +166,7 @@ const OrderDashboard = () => {
           <h1 className="text-3xl font-bold text-gray-900">Order Management</h1>
           <p className="text-gray-600 mt-1">Manage and track all your orders</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Button variant="outline">
             <Upload className="h-4 w-4 mr-2" />
             Bulk Upload
@@ -175,6 +174,37 @@ const OrderDashboard = () => {
           <Button>
             <Plus className="h-4 w-4 mr-2" />
             New Order
+          </Button>
+          <Button 
+            variant="outline" 
+            disabled={selectedOrders.length === 0}
+            onClick={() => handleBulkAction('recommender')}
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Upload to Recommender
+          </Button>
+          <Button 
+            variant="outline" 
+            disabled={selectedOrders.length === 0}
+            onClick={() => handleBulkAction('leopard')}
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Upload to Leopard
+          </Button>
+          <Button 
+            variant="outline" 
+            disabled={selectedOrders.length === 0}
+            onClick={() => handleBulkAction('postex')}
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Upload to PostEx
+          </Button>
+          <Button 
+            variant="outline" 
+            disabled={selectedOrders.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Download Selected
           </Button>
         </div>
       </div>
@@ -194,51 +224,6 @@ const OrderDashboard = () => {
           </Card>
         ))}
       </div>
-
-      {/* Bulk Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Bulk Actions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3 mb-4">
-            <Button 
-              variant="outline" 
-              disabled={selectedOrders.length === 0}
-              onClick={() => handleBulkAction('recommender')}
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Upload to Recommender Portals
-            </Button>
-            <Button 
-              variant="outline" 
-              disabled={selectedOrders.length === 0}
-              onClick={() => handleBulkAction('leopard')}
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Upload to Leopard
-            </Button>
-            <Button 
-              variant="outline" 
-              disabled={selectedOrders.length === 0}
-              onClick={() => handleBulkAction('postex')}
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Upload to PostEx
-            </Button>
-            <Button 
-              variant="outline" 
-              disabled={selectedOrders.length === 0}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Download Selected Orders
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Filters */}
       <Card>
