@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -86,6 +87,8 @@ const ReturnsDashboard = () => {
       worth: 'PKR 1,800',
       status: 'processing',
       date: '2024-01-14',
+      tags: [],
+      notes: []
     },
     {
       id: 'RTN-003',
@@ -97,6 +100,8 @@ const ReturnsDashboard = () => {
       worth: 'PKR 3,200',
       status: 'received',
       date: '2024-01-16',
+      tags: [],
+      notes: []
     },
     {
       id: 'RTN-004',
@@ -108,6 +113,8 @@ const ReturnsDashboard = () => {
       worth: 'PKR 1,500',
       status: 'processing',
       date: '2024-01-13',
+      tags: [],
+      notes: []
     },
   ], []);
 
@@ -161,10 +168,8 @@ const ReturnsDashboard = () => {
   };
 
   const handleScanReturn = () => {
-    // Open camera/scanner
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       setIsScanDialogOpen(true);
-      // Camera logic would go here
       console.log('Opening camera for scanning return...');
     } else {
       alert('Camera not available on this device');
@@ -181,7 +186,6 @@ const ReturnsDashboard = () => {
 
   const onManualEntrySubmit = (values: z.infer<typeof manualEntrySchema>) => {
     console.log('Manual entry tracking IDs:', values.trackingIds);
-    // Process the tracking IDs here
     setIsManualEntryOpen(false);
     form.reset();
   };
@@ -197,7 +201,7 @@ const ReturnsDashboard = () => {
         <div className="flex items-center gap-3">
           <Dialog open={isScanDialogOpen} onOpenChange={setIsScanDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" onClick={handleScanReturn}>
                 <Scan className="h-4 w-4 mr-2" />
                 Scan Return
               </Button>
@@ -229,7 +233,7 @@ const ReturnsDashboard = () => {
                 <DialogTitle>Manual Entry</DialogTitle>
               </DialogHeader>
               <Form {...form}>
-                <form onSubmit={form.handleSubmit((data) => console.log(data))} className="space-y-4">
+                <form onSubmit={form.handleSubmit(onManualEntrySubmit)} className="space-y-4">
                   <FormField
                     control={form.control}
                     name="trackingIds"
@@ -291,7 +295,7 @@ const ReturnsDashboard = () => {
             <div className="flex items-center gap-2">
               <Checkbox
                 checked={selectedReturns.length === filteredReturns.length && filteredReturns.length > 0}
-                onCheckedChange={() => {}} // handleSelectAll
+                onCheckedChange={handleSelectAll}
               />
               <span className="text-sm text-gray-600">Select All</span>
             </div>
@@ -342,7 +346,7 @@ const ReturnsDashboard = () => {
                     <TableCell>
                       <Checkbox
                         checked={selectedReturns.includes(returnItem.id)}
-                        onCheckedChange={() => {}} // handleSelectReturn
+                        onCheckedChange={() => handleSelectReturn(returnItem.id)}
                       />
                     </TableCell>
                     <TableCell className="font-medium">{returnItem.orderId}</TableCell>
@@ -375,8 +379,8 @@ const ReturnsDashboard = () => {
                       <TableCell colSpan={10} className="bg-gray-50 p-4">
                         <TagsNotes
                           itemId={returnItem.id}
-                          tags={returnItem.tags}
-                          notes={returnItem.notes}
+                          tags={returnItem.tags || []}
+                          notes={returnItem.notes || []}
                           onAddTag={(tag) => console.log('Add tag:', tag)}
                           onAddNote={(note) => console.log('Add note:', note)}
                           onDeleteTag={(tagId) => console.log('Delete tag:', tagId)}
