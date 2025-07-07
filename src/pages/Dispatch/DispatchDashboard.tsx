@@ -38,7 +38,7 @@ import TagsNotes from '@/components/TagsNotes';
 const DispatchDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDispatches, setSelectedDispatches] = useState<string[]>([]);
-  const [statusFilter, setStatusFilter] = useState('all');
+  
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(),
     to: addDays(new Date(), 7),
@@ -125,11 +125,9 @@ const DispatchDashboard = () => {
         dispatch.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
         dispatch.courier.toLowerCase().includes(searchTerm.toLowerCase());
       
-      const matchesStatus = statusFilter === 'all' || dispatch.status === statusFilter;
-      
-      return matchesSearch && matchesStatus;
+      return matchesSearch;
     });
-  }, [filteredByDate, searchTerm, statusFilter]);
+  }, [filteredByDate, searchTerm]);
 
   const metrics = useMemo(() => {
     const totalDispatches = filteredByDate.length;
@@ -334,7 +332,7 @@ const DispatchDashboard = () => {
         </CardHeader>
         <CardContent>
           {/* Search and Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
@@ -349,17 +347,6 @@ const DispatchDashboard = () => {
               setDate={setDateRange}
               className="w-full"
             />
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="in-transit">In Transit</SelectItem>
-                <SelectItem value="delivered">Delivered</SelectItem>
-              </SelectContent>
-            </Select>
             <Button variant="outline" disabled={selectedDispatches.length === 0}>
               <Download className="h-4 w-4 mr-2" />
               Download Selected
