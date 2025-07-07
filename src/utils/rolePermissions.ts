@@ -99,7 +99,11 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     items.push({
       label: 'Orders',
       href: '/orders',
-      icon: 'Package'
+      icon: 'Package',
+      subItems: [
+        { label: 'All Orders', href: '/orders', icon: '' },
+        { label: 'Shipper Advice', href: '/shipper-advice', icon: '' }
+      ]
     });
   }
 
@@ -128,7 +132,11 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       label: 'Returns',
       href: '/returns',
       icon: 'RotateCcw',
-      badge: '12'
+      badge: '12',
+      subItems: [
+        { label: 'All Returns', href: '/returns', icon: '' },
+        { label: 'Returns Not Received', href: '/returns-not-received', icon: '' }
+      ]
     });
   }
 

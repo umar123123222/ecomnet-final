@@ -41,6 +41,12 @@ const AdminPanel = lazy(() =>
 const Settings = lazy(() => 
   import("@/pages/Settings/Settings").then(module => ({ default: module.default }))
 );
+const ShipperAdvice = lazy(() => 
+  import("@/pages/Orders/ShipperAdvice").then(module => ({ default: module.default }))
+);
+const ReturnsNotReceived = lazy(() => 
+  import("@/pages/Returns/ReturnsNotReceived").then(module => ({ default: module.default }))
+);
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Optimized QueryClient configuration for performance
@@ -142,6 +148,16 @@ const App = () => {
                 <Route path="settings" element={
                   <Suspense fallback={<PageLoader />}>
                     <Settings />
+                  </Suspense>
+                } />
+                <Route path="shipper-advice" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <ShipperAdvice />
+                  </Suspense>
+                } />
+                <Route path="returns-not-received" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <ReturnsNotReceived />
                   </Suspense>
                 } />
                 <Route path="*" element={
