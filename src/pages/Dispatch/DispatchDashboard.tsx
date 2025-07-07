@@ -132,16 +132,15 @@ const DispatchDashboard = () => {
   }, [filteredByDate, searchTerm, statusFilter]);
 
   const metrics = useMemo(() => {
-    const pendingCount = filteredByDate.filter(d => d.status === 'pending').length;
-    const inTransitCount = filteredByDate.filter(d => d.status === 'in-transit').length;
-    const deliveredCount = filteredByDate.filter(d => d.status === 'delivered').length;
     const totalDispatches = filteredByDate.length;
+    const worthOfDispatches = filteredByDate.reduce((total, dispatch) => {
+      // Assuming a default worth per dispatch or you can add amount to dispatch data
+      return total + 2500; // Default amount per dispatch
+    }, 0);
 
     return {
-      pendingCount,
-      inTransitCount,
-      deliveredCount,
       totalDispatches,
+      worthOfDispatches,
     };
   }, [filteredByDate]);
 
@@ -296,7 +295,7 @@ const DispatchDashboard = () => {
       </Dialog>
 
       {/* Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
@@ -310,31 +309,11 @@ const DispatchDashboard = () => {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Pending Dispatches
+              Worth of Dispatches
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{metrics.pendingCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              In Transit
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{metrics.inTransitCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Delivered
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{metrics.deliveredCount}</div>
+            <div className="text-2xl font-bold text-green-600">Rs. {metrics.worthOfDispatches.toLocaleString()}</div>
           </CardContent>
         </Card>
       </div>
