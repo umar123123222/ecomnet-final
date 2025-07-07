@@ -100,6 +100,40 @@ const ReturnsNotReceived = () => {
     }
   };
 
+  const handleExportSelected = () => {
+    const selectedData = filteredReturns.filter(returnItem => selectedReturns.includes(returnItem.id));
+    const csvContent = [
+      ['Order Number', 'Customer Name', 'Phone', 'Return Reason', 'Courier', 'Tracking ID', 'Marked Date', 'Days Overdue', 'Value'],
+      ...selectedData.map(returnItem => [
+        returnItem.orderNumber,
+        returnItem.customerName,
+        returnItem.customerPhone,
+        returnItem.returnReason,
+        returnItem.courier,
+        returnItem.trackingId,
+        returnItem.markedReturnedDate,
+        returnItem.daysSinceMarked.toString(),
+        `₨${returnItem.returnValue.toLocaleString()}`
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `returns-not-received-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
+  const handleViewReturn = (returnId: string) => {
+    // For now, we'll show an alert. In a real app, this would navigate to return details
+    alert(`Viewing return details for ${returnId}`);
+  };
+
+  const handleCallCustomer = (phone: string) => {
+    // Open phone dialer
+    window.open(`tel:${phone}`, '_self');
+  };
+
   const getPriorityColor = (daysSinceMarked: number) => {
     if (daysSinceMarked >= 10) return 'text-red-600 font-bold';
     if (daysSinceMarked >= 7) return 'text-orange-600 font-semibold';
@@ -122,7 +156,7 @@ const ReturnsNotReceived = () => {
           <h1 className="text-3xl font-bold text-gray-900">Returns Not Received</h1>
           <p className="text-gray-600 mt-1">Orders marked as returned but not received at warehouse for more than 3 days</p>
         </div>
-        <Button variant="outline" disabled={selectedReturns.length === 0}>
+        <Button variant="outline" disabled={selectedReturns.length === 0} onClick={handleExportSelected}>
           <Download className="h-4 w-4 mr-2" />
           Export Selected
         </Button>
@@ -271,16 +305,16 @@ const ReturnsNotReceived = () => {
                          returnItem.daysSinceMarked >= 3 ? 'Medium' : 'Low'}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-3 w-3" />
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          <Phone className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                     <TableCell>
+                       <div className="flex gap-2">
+                         <Button variant="outline" size="sm" onClick={() => handleViewReturn(returnItem.id)}>
+                           <Eye className="h-3 w-3" />
+                         </Button>
+                         <Button variant="outline" size="sm" onClick={() => handleCallCustomer(returnItem.customerPhone)}>
+                           <Phone className="h-3 w-3" />
+                         </Button>
+                       </div>
+                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

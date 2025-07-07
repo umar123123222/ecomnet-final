@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, Link } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { ModernButton } from "@/components/ui/modern-button";
 import { Badge } from "@/components/ui/badge";
@@ -67,16 +67,16 @@ const Layout = () => {
                           <SidebarMenuSub className="ml-2 mt-2 space-y-2">
                             {item.subItems.map((subItem, subIndex) => (
                               <SidebarMenuSubItem key={subIndex}>
-                                <SidebarMenuSubButton asChild className="w-full justify-start gap-2 rounded-lg text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/15 hover:to-pink-500/15 transition-all duration-300 py-2">
-                                  <a href={subItem.href} className="flex items-center gap-2">
+                                 <SidebarMenuSubButton asChild className="w-full justify-start gap-2 rounded-lg text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/15 hover:to-pink-500/15 transition-all duration-300 py-2">
+                                   <Link to={subItem.href} className="flex items-center gap-2">
                                     <span className="font-medium">{subItem.label}</span>
                                     {subItem.badge && (
                                       <Badge className="ml-auto bg-gradient-to-r from-red-500 to-pink-500 text-white border-0 text-xs font-semibold">
                                         {subItem.badge}
                                       </Badge>
-                                    )}
-                                  </a>
-                                </SidebarMenuSubButton>
+                                     )}
+                                   </Link>
+                                 </SidebarMenuSubButton>
                               </SidebarMenuSubItem>
                             ))}
                           </SidebarMenuSub>
@@ -88,17 +88,17 @@ const Layout = () => {
 
                 return (
                   <SidebarMenuItem key={item.label}>
-                    <SidebarMenuButton asChild className="w-full justify-start gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
-                      <a href={item.href} className="flex items-center gap-2">
+                     <SidebarMenuButton asChild className="w-full justify-start gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
+                       <Link to={item.href} className="flex items-center gap-2">
                         <IconComponent className="h-4 w-4 group-hover:scale-110 transition-transform" />
                         <span className="font-medium group-data-[collapsible=icon]:hidden">{item.label}</span>
                         {item.badge && (
                           <Badge className="ml-auto bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 text-xs font-semibold group-data-[collapsible=icon]:hidden">
                             {item.badge}
                           </Badge>
-                        )}
-                      </a>
-                    </SidebarMenuButton>
+                         )}
+                       </Link>
+                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
               })}

@@ -81,6 +81,39 @@ const ShipperAdvice = () => {
     }
   };
 
+  const handleExportSelected = () => {
+    const selectedData = filteredOrders.filter(order => selectedOrders.includes(order.id));
+    const csvContent = [
+      ['Order Number', 'Customer Name', 'Phone', 'Status', 'Courier', 'Attempts', 'Days Stuck', 'Amount'],
+      ...selectedData.map(order => [
+        order.orderNumber,
+        order.customerName,
+        order.customerPhone,
+        order.status,
+        order.courier,
+        order.attemptCount.toString(),
+        order.daysStuck.toString(),
+        `₨${order.totalAmount.toLocaleString()}`
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `shipper-advice-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
+  const handleViewOrder = (orderId: string) => {
+    // For now, we'll show an alert. In a real app, this would navigate to order details
+    alert(`Viewing order details for ${orderId}`);
+  };
+
+  const handleCallCustomer = (phone: string) => {
+    // Open phone dialer
+    window.open(`tel:${phone}`, '_self');
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'attempted':
@@ -106,7 +139,7 @@ const ShipperAdvice = () => {
           <h1 className="text-3xl font-bold text-gray-900">Shipper Advice</h1>
           <p className="text-gray-600 mt-1">Orders that need attention or are stuck in delivery</p>
         </div>
-        <Button variant="outline" disabled={selectedOrders.length === 0}>
+        <Button variant="outline" disabled={selectedOrders.length === 0} onClick={handleExportSelected}>
           <Download className="h-4 w-4 mr-2" />
           Export Selected
         </Button>
@@ -256,16 +289,16 @@ const ShipperAdvice = () => {
                       </span>
                     </TableCell>
                     <TableCell>₨{order.totalAmount.toLocaleString()}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-3 w-3" />
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          <Phone className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                     <TableCell>
+                       <div className="flex gap-2">
+                         <Button variant="outline" size="sm" onClick={() => handleViewOrder(order.id)}>
+                           <Eye className="h-3 w-3" />
+                         </Button>
+                         <Button variant="outline" size="sm" onClick={() => handleCallCustomer(order.customerPhone)}>
+                           <Phone className="h-3 w-3" />
+                         </Button>
+                       </div>
+                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
