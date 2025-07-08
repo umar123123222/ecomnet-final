@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet, Link } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { ModernButton } from "@/components/ui/modern-button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ const Layout = () => {
   const [isDark, setIsDark] = useState(false);
   const [isCustomersOpen, setIsCustomersOpen] = useState(false);
   const { user, logout } = useAuth();
+  const location = useLocation();
 
   const toggleTheme = () => {
     setIsDark(!isDark);
@@ -30,6 +31,10 @@ const Layout = () => {
     };
     return icons[iconName as keyof typeof icons] || Home;
   };
+
+  // Check if current route matches any navigation item
+  const isActiveRoute = (href: string) => location.pathname === href;
+  const hasActiveSubItem = (subItems: any[]) => subItems.some(subItem => isActiveRoute(subItem.href));
 
   return (
     <SidebarProvider>
@@ -53,11 +58,16 @@ const Layout = () => {
                 const IconComponent = getIcon(item.icon);
                 
                 if (item.subItems && item.subItems.length > 0) {
+                  const hasActiveSub = hasActiveSubItem(item.subItems);
                   return (
                     <SidebarMenuItem key={item.label}>
                       <Collapsible open={isCustomersOpen} onOpenChange={setIsCustomersOpen}>
                         <CollapsibleTrigger asChild>
-                          <SidebarMenuButton className="w-full justify-start gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
+                          <SidebarMenuButton className={`w-full justify-start gap-2 px-3 py-2 rounded-lg transition-all duration-300 group ${
+                            hasActiveSub 
+                              ? 'text-white bg-gradient-to-r from-purple-500/30 to-pink-500/30 border border-purple-400/30' 
+                              : 'text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20'
+                          }`}>
                             <IconComponent className="h-4 w-4 group-hover:scale-110 transition-transform" />
                             <span className="font-medium group-data-[collapsible=icon]:hidden">{item.label}</span>
                             <ChevronDown className={`ml-auto h-3 w-3 transition-transform duration-300 group-data-[collapsible=icon]:hidden ${isCustomersOpen ? 'rotate-180' : ''}`} />
@@ -67,7 +77,11 @@ const Layout = () => {
                           <SidebarMenuSub className="ml-2 mt-2 space-y-2">
                             {item.subItems.map((subItem, subIndex) => (
                               <SidebarMenuSubItem key={subIndex}>
-                                 <SidebarMenuSubButton asChild className="w-full justify-start gap-2 rounded-lg text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/15 hover:to-pink-500/15 transition-all duration-300 py-2">
+                                 <SidebarMenuSubButton asChild className={`w-full justify-start gap-2 rounded-lg transition-all duration-300 py-2 ${
+                                   isActiveRoute(subItem.href)
+                                     ? 'text-white bg-gradient-to-r from-purple-500/25 to-pink-500/25 border border-purple-400/25'
+                                     : 'text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/15 hover:to-pink-500/15'
+                                 }`}>
                                    <Link to={subItem.href} className="flex items-center gap-2">
                                     <span className="font-medium">{subItem.label}</span>
                                     {subItem.badge && (
@@ -88,7 +102,11 @@ const Layout = () => {
 
                 return (
                   <SidebarMenuItem key={item.label}>
-                     <SidebarMenuButton asChild className="w-full justify-start gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20 transition-all duration-300 group">
+                     <SidebarMenuButton asChild className={`w-full justify-start gap-2 px-3 py-2 rounded-lg transition-all duration-300 group ${
+                       isActiveRoute(item.href) 
+                         ? 'text-white bg-gradient-to-r from-purple-500/30 to-pink-500/30 border border-purple-400/30' 
+                         : 'text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20'
+                     }`}>
                        <Link to={item.href} className="flex items-center gap-2">
                         <IconComponent className="h-4 w-4 group-hover:scale-110 transition-transform" />
                         <span className="font-medium group-data-[collapsible=icon]:hidden">{item.label}</span>
