@@ -10,7 +10,7 @@ import { getNavigationItems } from '@/utils/rolePermissions';
 
 const Layout = () => {
   const [isDark, setIsDark] = useState(false);
-  const [isCustomersOpen, setIsCustomersOpen] = useState(false);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
   const { user, logout } = useAuth();
   const location = useLocation();
 
@@ -36,6 +36,11 @@ const Layout = () => {
   const isActiveRoute = (href: string) => location.pathname === href;
   const hasActiveSubItem = (subItems: any[]) => subItems.some(subItem => isActiveRoute(subItem.href));
 
+  // Handle menu toggle - only one menu can be open at a time
+  const handleMenuToggle = (menuLabel: string) => {
+    setOpenMenu(openMenu === menuLabel ? null : menuLabel);
+  };
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900">
@@ -59,9 +64,10 @@ const Layout = () => {
                 
                 if (item.subItems && item.subItems.length > 0) {
                   const hasActiveSub = hasActiveSubItem(item.subItems);
+                  const isMenuOpen = openMenu === item.label || hasActiveSub;
                   return (
                     <SidebarMenuItem key={item.label}>
-                      <Collapsible open={isCustomersOpen} onOpenChange={setIsCustomersOpen}>
+                      <Collapsible open={isMenuOpen} onOpenChange={() => handleMenuToggle(item.label)}>
                         <CollapsibleTrigger asChild>
                           <SidebarMenuButton className={`w-full justify-start gap-2 px-3 py-2 rounded-lg transition-all duration-300 group ${
                             hasActiveSub 
@@ -70,7 +76,7 @@ const Layout = () => {
                           }`}>
                             <IconComponent className="h-4 w-4 group-hover:scale-110 transition-transform" />
                             <span className="font-medium group-data-[collapsible=icon]:hidden">{item.label}</span>
-                            <ChevronDown className={`ml-auto h-3 w-3 transition-transform duration-300 group-data-[collapsible=icon]:hidden ${isCustomersOpen ? 'rotate-180' : ''}`} />
+                            <ChevronDown className={`ml-auto h-3 w-3 transition-transform duration-300 group-data-[collapsible=icon]:hidden ${isMenuOpen ? 'rotate-180' : ''}`} />
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
                         <CollapsibleContent className="group-data-[collapsible=icon]:hidden">
