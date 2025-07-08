@@ -1,4 +1,3 @@
-
 import React, { useState, memo, useMemo } from 'react';
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,12 +11,16 @@ import { usePerformanceLogger, useWebVitals } from "@/hooks/usePerformance";
 import { Calendar, Package, Truck, CheckCircle, XCircle, RotateCcw, TrendingUp, TrendingDown, Users, BarChart3 } from "lucide-react";
 
 // Memoized summary card component for better performance
-const SummaryCard = memo(({ item, index }: { item: any; index: number }) => {
+const SummaryCard = memo(({
+  item,
+  index
+}: {
+  item: any;
+  index: number;
+}) => {
   const Icon = item.icon;
   const isPositive = item.trend === "up";
-  
-  return (
-    <GradientCard key={index} className="p-0 overflow-hidden hover:scale-105 transition-transform duration-300">
+  return <GradientCard key={index} className="p-0 overflow-hidden hover:scale-105 transition-transform duration-300">
       <div className={`h-2 bg-gradient-to-r ${item.color}`}></div>
       <CardContent className="p-4 sm:p-6">
         <div className="flex items-start justify-between">
@@ -29,14 +32,8 @@ const SummaryCard = memo(({ item, index }: { item: any; index: number }) => {
               {item.value}
             </p>
             <div className="flex items-center gap-2">
-              {isPositive ? (
-                <TrendingUp className="h-4 w-4 text-green-500" />
-              ) : (
-                <TrendingDown className="h-4 w-4 text-red-500" />
-              )}
-              <span className={`text-sm font-medium ${
-                isPositive ? 'text-green-600' : 'text-red-600'
-              }`}>
+              {isPositive ? <TrendingUp className="h-4 w-4 text-green-500" /> : <TrendingDown className="h-4 w-4 text-red-500" />}
+              <span className={`text-sm font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
                 {item.change}
               </span>
             </div>
@@ -46,37 +43,82 @@ const SummaryCard = memo(({ item, index }: { item: any; index: number }) => {
           </div>
         </div>
       </CardContent>
-    </GradientCard>
-  );
+    </GradientCard>;
 });
-
 SummaryCard.displayName = 'SummaryCard';
-
 const Dashboard = () => {
   usePerformanceLogger('Dashboard');
   useWebVitals();
-  
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   // Memoize static data to prevent unnecessary re-renders
-  const summaryData = useMemo(() => [
-    { title: "Total Orders", value: "2,847", change: "+12.5%", trend: "up", icon: Package, color: "from-blue-500 to-cyan-500" },
-    { title: "Booked Orders", value: "1,234", change: "+8.2%", trend: "up", icon: Calendar, color: "from-purple-500 to-pink-500" },
-    { title: "Dispatched Orders", value: "987", change: "+15.7%", trend: "up", icon: Truck, color: "from-orange-500 to-yellow-500" },
-    { title: "Delivered Orders", value: "856", change: "+18.3%", trend: "up", icon: CheckCircle, color: "from-green-500 to-emerald-500" },
-    { title: "Cancelled Orders", value: "45", change: "-23.1%", trend: "down", icon: XCircle, color: "from-red-500 to-pink-500" },
-    { title: "Returns in Transit", value: "23", change: "+5.4%", trend: "up", icon: RotateCcw, color: "from-indigo-500 to-purple-500" },
-    { title: "Returned Orders", value: "12", change: "-12.8%", trend: "down", icon: Package, color: "from-gray-500 to-gray-600" },
-    { title: "Customers", value: "156", change: "+9.7%", trend: "up", icon: Users, color: "from-teal-500 to-blue-500" },
-  ], []);
-
-  const courierData = useMemo(() => [
-    { name: "Leopard Success Rate", rate: "94.2%", status: "success" },
-    { name: "PostEx Success Rate", rate: "91.5%", status: "success" },
-  ], []);
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900">
+  const summaryData = useMemo(() => [{
+    title: "Total Orders",
+    value: "2,847",
+    change: "+12.5%",
+    trend: "up",
+    icon: Package,
+    color: "from-blue-500 to-cyan-500"
+  }, {
+    title: "Booked Orders",
+    value: "1,234",
+    change: "+8.2%",
+    trend: "up",
+    icon: Calendar,
+    color: "from-purple-500 to-pink-500"
+  }, {
+    title: "Dispatched Orders",
+    value: "987",
+    change: "+15.7%",
+    trend: "up",
+    icon: Truck,
+    color: "from-orange-500 to-yellow-500"
+  }, {
+    title: "Delivered Orders",
+    value: "856",
+    change: "+18.3%",
+    trend: "up",
+    icon: CheckCircle,
+    color: "from-green-500 to-emerald-500"
+  }, {
+    title: "Cancelled Orders",
+    value: "45",
+    change: "-23.1%",
+    trend: "down",
+    icon: XCircle,
+    color: "from-red-500 to-pink-500"
+  }, {
+    title: "Returns in Transit",
+    value: "23",
+    change: "+5.4%",
+    trend: "up",
+    icon: RotateCcw,
+    color: "from-indigo-500 to-purple-500"
+  }, {
+    title: "Returned Orders",
+    value: "12",
+    change: "-12.8%",
+    trend: "down",
+    icon: Package,
+    color: "from-gray-500 to-gray-600"
+  }, {
+    title: "Customers",
+    value: "156",
+    change: "+9.7%",
+    trend: "up",
+    icon: Users,
+    color: "from-teal-500 to-blue-500"
+  }], []);
+  const courierData = useMemo(() => [{
+    name: "Leopard Success Rate",
+    rate: "94.2%",
+    status: "success"
+  }, {
+    name: "PostEx Success Rate",
+    rate: "91.5%",
+    status: "success"
+  }], []);
+  return <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900">
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -99,29 +141,22 @@ const Dashboard = () => {
 
         {/* Summary Cards Grid - Optimized rendering */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-          {summaryData.map((item, index) => (
-            <SummaryCard key={item.title} item={item} index={index} />
-          ))}
+          {summaryData.map((item, index) => <SummaryCard key={item.title} item={item} index={index} />)}
         </div>
 
         {/* Courier Performance Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {courierData.map((courier, index) => (
-            <GradientCard key={courier.name} variant="glass" className="p-4 sm:p-6 text-center">
+          {courierData.map((courier, index) => <GradientCard key={courier.name} variant="glass" className="p-4 sm:p-6 text-center">
               <h3 className="font-semibold text-sm sm:text-base mb-2 text-foreground">
                 {courier.name}
               </h3>
               <p className="text-xl sm:text-2xl font-bold mb-2 text-foreground">
                 {courier.rate}
               </p>
-              <StatusBadge 
-                variant={courier.status as "success" | "destructive"} 
-                className="mx-auto"
-              >
+              <StatusBadge variant={courier.status as "success" | "destructive"} className="mx-auto">
                 Excellent
               </StatusBadge>
-            </GradientCard>
-          ))}
+            </GradientCard>)}
         </div>
 
         {/* Charts Section - Lazy loaded */}
@@ -148,7 +183,7 @@ const Dashboard = () => {
         </div>
 
         {/* Quick Actions */}
-        <GradientCard variant="primary" className="p-6 text-center">
+        <GradientCard variant="primary" className="p-6 text-center bg-zinc-950">
           <h2 className="text-responsive-lg font-bold text-white mb-4">
             Quick Actions
           </h2>
@@ -168,8 +203,6 @@ const Dashboard = () => {
           </div>
         </GradientCard>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default Dashboard;
