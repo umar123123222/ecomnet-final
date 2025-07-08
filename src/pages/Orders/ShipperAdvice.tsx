@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Filter, Download, Eye, Phone, MessageSquare } from "lucide-react";
+import { Search, Filter, Download, Eye, MessageSquare } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import TagsNotes from "@/components/TagsNotes";
 
 // Mock data for demonstration
 const mockOrders = [
@@ -56,6 +57,7 @@ const mockOrders = [
 const ShipperAdvice = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [expandedRows, setExpandedRows] = useState<string[]>([]);
 
   const filteredOrders = useMemo(() => {
     return mockOrders.filter(order =>
@@ -109,9 +111,18 @@ const ShipperAdvice = () => {
     alert(`Viewing order details for ${orderId}`);
   };
 
-  const handleCallCustomer = (phone: string) => {
-    // Open phone dialer
-    window.open(`tel:${phone}`, '_self');
+  const handleWhatsApp = (phone: string) => {
+    // Open WhatsApp with phone number
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    window.open(`https://wa.me/${cleanPhone}`, '_blank');
+  };
+
+  const toggleRowExpansion = (orderId: string) => {
+    setExpandedRows(prev => 
+      prev.includes(orderId) 
+        ? prev.filter(id => id !== orderId)
+        : [...prev, orderId]
+    );
   };
 
   const getStatusColor = (status: string) => {
@@ -187,7 +198,7 @@ const ShipperAdvice = () => {
                 </p>
               </div>
               <div className="h-8 w-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                <Phone className="h-4 w-4 text-orange-600" />
+                <MessageSquare className="h-4 w-4 text-orange-600" />
               </div>
             </div>
           </CardContent>
@@ -252,56 +263,75 @@ const ShipperAdvice = () => {
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                {filteredOrders.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedOrders.includes(order.id)}
-                        onCheckedChange={(checked) => handleSelectOrder(order.id, checked as boolean)}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">{order.orderNumber}</TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{order.customerName}</p>
-                        <p className="text-xs text-gray-500 truncate max-w-[150px]">{order.address}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>{order.customerPhone}</TableCell>
-                    <TableCell>
-                      <Badge className={`${getStatusColor(order.status)} capitalize`}>
-                        {order.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{order.courier}</TableCell>
-                    <TableCell>
-                      <span className={order.attemptCount > 2 ? 'text-red-600 font-semibold' : ''}>
-                        {order.attemptCount}
-                      </span>
-                    </TableCell>
-                    <TableCell className="max-w-[120px] truncate">
-                      {order.lastAttemptReason}
-                    </TableCell>
-                    <TableCell>
-                      <span className={getPriorityColor(order.daysStuck)}>
-                        {order.daysStuck} days
-                      </span>
-                    </TableCell>
-                    <TableCell>₨{order.totalAmount.toLocaleString()}</TableCell>
-                     <TableCell>
-                       <div className="flex gap-2">
-                         <Button variant="outline" size="sm" onClick={() => handleViewOrder(order.id)}>
-                           <Eye className="h-3 w-3" />
-                         </Button>
-                         <Button variant="outline" size="sm" onClick={() => handleCallCustomer(order.customerPhone)}>
-                           <Phone className="h-3 w-3" />
-                         </Button>
-                       </div>
-                     </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
+               <TableBody>
+                 {filteredOrders.map((order) => (
+                   <React.Fragment key={order.id}>
+                     <TableRow>
+                       <TableCell>
+                         <Checkbox
+                           checked={selectedOrders.includes(order.id)}
+                           onCheckedChange={(checked) => handleSelectOrder(order.id, checked as boolean)}
+                         />
+                       </TableCell>
+                       <TableCell className="font-medium">{order.orderNumber}</TableCell>
+                       <TableCell>
+                         <div>
+                           <p className="font-medium">{order.customerName}</p>
+                           <p className="text-xs text-gray-500 truncate max-w-[150px]">{order.address}</p>
+                         </div>
+                       </TableCell>
+                       <TableCell>{order.customerPhone}</TableCell>
+                       <TableCell>
+                         <Badge className={`${getStatusColor(order.status)} capitalize`}>
+                           {order.status}
+                         </Badge>
+                       </TableCell>
+                       <TableCell>{order.courier}</TableCell>
+                       <TableCell>
+                         <span className={order.attemptCount > 2 ? 'text-red-600 font-semibold' : ''}>
+                           {order.attemptCount}
+                         </span>
+                       </TableCell>
+                       <TableCell className="max-w-[120px] truncate">
+                         {order.lastAttemptReason}
+                       </TableCell>
+                       <TableCell>
+                         <span className={getPriorityColor(order.daysStuck)}>
+                           {order.daysStuck} days
+                         </span>
+                       </TableCell>
+                       <TableCell>₨{order.totalAmount.toLocaleString()}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => toggleRowExpansion(order.id)}>
+                              <Eye className="h-3 w-3" />
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleWhatsApp(order.customerPhone)}>
+                              <MessageSquare className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {expandedRows.includes(order.id) && (
+                        <TableRow>
+                          <TableCell colSpan={11}>
+                            <div className="p-4 bg-gray-50 rounded-lg">
+                              <TagsNotes
+                                itemId={order.id}
+                                tags={[]}
+                                notes={[]}
+                                onAddTag={(tag) => console.log('Add tag:', tag)}
+                                onAddNote={(note) => console.log('Add note:', note)}
+                                onDeleteTag={(tagId) => console.log('Delete tag:', tagId)}
+                                onDeleteNote={(noteId) => console.log('Delete note:', noteId)}
+                              />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                   </React.Fragment>
+                 ))}
+               </TableBody>
             </Table>
           </div>
 
