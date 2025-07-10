@@ -26,8 +26,20 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from '@/components/ui/command';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Search, UserPlus, Download, Edit, Trash2, Eye } from 'lucide-react';
+import { Search, UserPlus, Download, Edit, Trash2, Eye, Check, ChevronsUpDown, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getRolePermissions } from '@/utils/rolePermissions';
 import { useForm } from 'react-hook-form';
@@ -199,25 +211,77 @@ const UserManagement = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Roles</FormLabel>
-                          <FormControl>
-                            <div className="space-y-2 max-h-32 overflow-y-auto">
-                              {roles.map(role => (
-                                <div key={role} className="flex items-center space-x-2">
-                                  <Checkbox
-                                    checked={field.value.includes(role)}
-                                    onCheckedChange={(checked) => {
-                                      if (checked) {
-                                        field.onChange([...field.value, role]);
-                                      } else {
-                                        field.onChange(field.value.filter((r: string) => r !== role));
-                                      }
-                                    }}
-                                  />
-                                  <label className="text-sm">{role}</label>
-                                </div>
-                              ))}
-                            </div>
-                          </FormControl>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  className="w-full justify-between h-auto min-h-10"
+                                >
+                                  <div className="flex flex-wrap gap-1">
+                                    {field.value.length > 0 ? (
+                                      field.value.map((role) => (
+                                        <Badge
+                                          key={role}
+                                          variant="secondary"
+                                          className="mr-1 mb-1"
+                                        >
+                                          {role}
+                                          <button
+                                            className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter") {
+                                                field.onChange(field.value.filter((r) => r !== role));
+                                              }
+                                            }}
+                                            onMouseDown={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                            }}
+                                            onClick={() => field.onChange(field.value.filter((r) => r !== role))}
+                                          >
+                                            <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                                          </button>
+                                        </Badge>
+                                      ))
+                                    ) : (
+                                      <span className="text-muted-foreground">Select roles...</span>
+                                    )}
+                                  </div>
+                                  <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-full p-0">
+                              <Command>
+                                <CommandInput placeholder="Search roles..." />
+                                <CommandEmpty>No role found.</CommandEmpty>
+                                <CommandGroup>
+                                  {roles.map((role) => (
+                                    <CommandItem
+                                      key={role}
+                                      value={role}
+                                      onSelect={() => {
+                                        if (field.value.includes(role)) {
+                                          field.onChange(field.value.filter((r) => r !== role));
+                                        } else {
+                                          field.onChange([...field.value, role]);
+                                        }
+                                      }}
+                                    >
+                                      <Check
+                                        className={`mr-2 h-4 w-4 ${
+                                          field.value.includes(role) ? "opacity-100" : "opacity-0"
+                                        }`}
+                                      />
+                                      {role}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -379,25 +443,77 @@ const UserManagement = () => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Roles</FormLabel>
-                    <FormControl>
-                      <div className="space-y-2 max-h-32 overflow-y-auto">
-                        {roles.map(role => (
-                          <div key={role} className="flex items-center space-x-2">
-                            <Checkbox
-                              checked={field.value.includes(role)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  field.onChange([...field.value, role]);
-                                } else {
-                                  field.onChange(field.value.filter((r: string) => r !== role));
-                                }
-                              }}
-                            />
-                            <label className="text-sm">{role}</label>
-                          </div>
-                        ))}
-                      </div>
-                    </FormControl>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className="w-full justify-between h-auto min-h-10"
+                          >
+                            <div className="flex flex-wrap gap-1">
+                              {field.value.length > 0 ? (
+                                field.value.map((role) => (
+                                  <Badge
+                                    key={role}
+                                    variant="secondary"
+                                    className="mr-1 mb-1"
+                                  >
+                                    {role}
+                                    <button
+                                      className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          field.onChange(field.value.filter((r) => r !== role));
+                                        }
+                                      }}
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                      }}
+                                      onClick={() => field.onChange(field.value.filter((r) => r !== role))}
+                                    >
+                                      <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                                    </button>
+                                  </Badge>
+                                ))
+                              ) : (
+                                <span className="text-muted-foreground">Select roles...</span>
+                              )}
+                            </div>
+                            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0">
+                        <Command>
+                          <CommandInput placeholder="Search roles..." />
+                          <CommandEmpty>No role found.</CommandEmpty>
+                          <CommandGroup>
+                            {roles.map((role) => (
+                              <CommandItem
+                                key={role}
+                                value={role}
+                                onSelect={() => {
+                                  if (field.value.includes(role)) {
+                                    field.onChange(field.value.filter((r) => r !== role));
+                                  } else {
+                                    field.onChange([...field.value, role]);
+                                  }
+                                }}
+                              >
+                                <Check
+                                  className={`mr-2 h-4 w-4 ${
+                                    field.value.includes(role) ? "opacity-100" : "opacity-0"
+                                  }`}
+                                />
+                                {role}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                     <FormMessage />
                   </FormItem>
                 )}
