@@ -37,7 +37,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 const userSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email'),
-  role: z.string().min(1, 'Role is required'),
+  roles: z.array(z.string()).min(1, 'At least one role is required'),
 });
 
 const UserManagement = () => {
@@ -55,7 +55,7 @@ const UserManagement = () => {
     defaultValues: {
       name: '',
       email: '',
-      role: '',
+      roles: [],
     },
   });
 
@@ -64,7 +64,7 @@ const UserManagement = () => {
       id: 'SA-001',
       name: 'Muhammad Umar',
       email: 'umaridmpaksitan@gmail.com',
-      role: 'Owner/SuperAdmin',
+      roles: ['Owner/SuperAdmin'],
       status: 'Active',
       lastLogin: new Date().toLocaleString(),
       permissions: ['All'],
@@ -77,7 +77,7 @@ const UserManagement = () => {
     return users.filter(user => {
       const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            user.email.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+      const matchesRole = roleFilter === 'all' || user.roles.includes(roleFilter);
       return matchesSearch && matchesRole;
     });
   }, [users, searchTerm, roleFilter]);
@@ -125,7 +125,7 @@ const UserManagement = () => {
     setSelectedUser(user);
     form.setValue('name', user.name);
     form.setValue('email', user.email);
-    form.setValue('role', user.role);
+    form.setValue('roles', user.roles);
     setIsEditUserOpen(true);
   };
 
@@ -195,22 +195,29 @@ const UserManagement = () => {
                     />
                     <FormField
                       control={form.control}
-                      name="role"
+                      name="roles"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Role</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select role" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
+                          <FormLabel>Roles</FormLabel>
+                          <FormControl>
+                            <div className="space-y-2 max-h-32 overflow-y-auto">
                               {roles.map(role => (
-                                <SelectItem key={role} value={role}>{role}</SelectItem>
+                                <div key={role} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    checked={field.value.includes(role)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        field.onChange([...field.value, role]);
+                                      } else {
+                                        field.onChange(field.value.filter((r: string) => r !== role));
+                                      }
+                                    }}
+                                  />
+                                  <label className="text-sm">{role}</label>
+                                </div>
                               ))}
-                            </SelectContent>
-                          </Select>
+                            </div>
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -296,7 +303,11 @@ const UserManagement = () => {
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell>{user.email}</TableCell>
                   <TableCell>
-                    <Badge className="bg-purple-100 text-purple-800">{user.role}</Badge>
+                    <div className="flex flex-wrap gap-1">
+                      {user.roles.map(role => (
+                        <Badge key={role} className="bg-purple-100 text-purple-800 text-xs">{role}</Badge>
+                      ))}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <Badge className={user.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
@@ -364,22 +375,29 @@ const UserManagement = () => {
               />
               <FormField
                 control={form.control}
-                name="role"
+                name="roles"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Role</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select role" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
+                    <FormLabel>Roles</FormLabel>
+                    <FormControl>
+                      <div className="space-y-2 max-h-32 overflow-y-auto">
                         {roles.map(role => (
-                          <SelectItem key={role} value={role}>{role}</SelectItem>
+                          <div key={role} className="flex items-center space-x-2">
+                            <Checkbox
+                              checked={field.value.includes(role)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  field.onChange([...field.value, role]);
+                                } else {
+                                  field.onChange(field.value.filter((r: string) => r !== role));
+                                }
+                              }}
+                            />
+                            <label className="text-sm">{role}</label>
+                          </div>
                         ))}
-                      </SelectContent>
-                    </Select>
+                      </div>
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -412,8 +430,12 @@ const UserManagement = () => {
                 <p className="text-sm">{selectedUser.email}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-600">Role</label>
-                <p className="text-sm">{selectedUser.role}</p>
+                <label className="text-sm font-medium text-gray-600">Roles</label>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {selectedUser.roles.map((role: string) => (
+                    <Badge key={role} className="bg-purple-100 text-purple-800 text-xs">{role}</Badge>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-600">Status</label>
