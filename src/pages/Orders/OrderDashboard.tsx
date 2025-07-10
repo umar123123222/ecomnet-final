@@ -20,7 +20,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Upload, Plus, Filter, Download, ChevronDown, ChevronUp, Package, Send } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Label } from '@/components/ui/label';
+import { Search, Upload, Plus, Filter, Download, ChevronDown, ChevronUp, Package, Send, Edit, Trash2 } from 'lucide-react';
 import TagsNotes from '@/components/TagsNotes';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -31,6 +50,8 @@ const OrderDashboard = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [selectAllPages, setSelectAllPages] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
+  const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ email: '', address: '' });
   const [orders, setOrders] = useState([
     {
       id: 'ORD-001',
@@ -243,6 +264,31 @@ const OrderDashboard = () => {
           : order
       )
     );
+  };
+
+  const handleEditOrder = (order: any) => {
+    setEditingOrder(order);
+    setEditForm({ email: order.email, address: order.address });
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingOrder) return;
+    
+    setOrders(prevOrders => 
+      prevOrders.map(order => 
+        order.id === editingOrder.id 
+          ? { ...order, email: editForm.email, address: editForm.address }
+          : order
+      )
+    );
+    setEditingOrder(null);
+    setEditForm({ email: '', address: '' });
+  };
+
+  const handleDeleteOrder = (orderId: string) => {
+    setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
+    setSelectedOrders(prev => prev.filter(id => id !== orderId));
+    setExpandedRows(prev => prev.filter(id => id !== orderId));
   };
 
   // Filter orders based on search and filters
@@ -458,14 +504,9 @@ const OrderDashboard = () => {
                     <TableCell>{order.amount}</TableCell>
                     <TableCell>{order.date}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm">
-                          View
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          Track
-                        </Button>
-                      </div>
+                      <Button variant="outline" size="sm">
+                        Track
+                      </Button>
                     </TableCell>
                     <TableCell>
                       <Button
@@ -511,17 +552,93 @@ const OrderDashboard = () => {
                               </div>
                             </div>
                           </div>
-                          <div>
-                            <h4 className="font-semibold mb-4">Tags & Notes</h4>
-                            <TagsNotes
-                              itemId={order.id}
-                              tags={order.tags}
-                              notes={order.notes}
-                              onAddTag={(tag) => handleAddTag(order.id, tag)}
-                              onAddNote={(note) => handleAddNote(order.id, note)}
-                              onDeleteTag={(tagId) => handleDeleteTag(order.id, tagId)}
-                              onDeleteNote={(noteId) => handleDeleteNote(order.id, noteId)}
-                            />
+                          <div className="space-y-6">
+                            <div>
+                              <h4 className="font-semibold mb-4">Tags & Notes</h4>
+                              <TagsNotes
+                                itemId={order.id}
+                                tags={order.tags}
+                                notes={order.notes}
+                                onAddTag={(tag) => handleAddTag(order.id, tag)}
+                                onAddNote={(note) => handleAddNote(order.id, note)}
+                                onDeleteTag={(tagId) => handleDeleteTag(order.id, tagId)}
+                                onDeleteNote={(noteId) => handleDeleteNote(order.id, noteId)}
+                              />
+                            </div>
+                            <div>
+                              <h4 className="font-semibold mb-4">Order Actions</h4>
+                              <div className="flex gap-3">
+                                <Dialog open={editingOrder?.id === order.id} onOpenChange={(open) => !open && setEditingOrder(null)}>
+                                  <DialogTrigger asChild>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => handleEditOrder(order)}
+                                    >
+                                      <Edit className="h-4 w-4 mr-2" />
+                                      Edit Order
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent>
+                                    <DialogHeader>
+                                      <DialogTitle>Edit Order {order.id}</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="space-y-4">
+                                      <div>
+                                        <Label htmlFor="email">Email</Label>
+                                        <Input
+                                          id="email"
+                                          value={editForm.email}
+                                          onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label htmlFor="address">Address</Label>
+                                        <Input
+                                          id="address"
+                                          value={editForm.address}
+                                          onChange={(e) => setEditForm(prev => ({ ...prev, address: e.target.value }))}
+                                        />
+                                      </div>
+                                      <div className="flex justify-end gap-2">
+                                        <Button variant="outline" onClick={() => setEditingOrder(null)}>
+                                          Cancel
+                                        </Button>
+                                        <Button onClick={handleSaveEdit}>
+                                          Save Changes
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
+
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" size="sm">
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete Order
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete Order</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Are you sure you want to delete order {order.id}? This action cannot be undone.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction 
+                                        onClick={() => handleDeleteOrder(order.id)}
+                                        className="bg-red-600 hover:bg-red-700"
+                                      >
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </TableCell>
