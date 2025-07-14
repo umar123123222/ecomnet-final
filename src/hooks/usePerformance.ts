@@ -17,13 +17,13 @@ export const usePerformanceLogger = (componentName: string) => {
     if (renderCount.current === 1) {
       // Log first render time
       const renderTime = Date.now() - mountTime.current;
-      console.log(`[Performance] ${componentName} mounted in ${renderTime}ms`);
+      // Performance logging removed for production
     }
   });
 
   return {
     logRender: () => {
-      console.log(`[Performance] ${componentName} rendered (count: ${renderCount.current})`);
+      // Performance logging removed for production
     },
     getRenderCount: () => renderCount.current,
   };
@@ -37,7 +37,7 @@ export const useWebVitals = () => {
       const lcpObserver = new PerformanceObserver((list) => {
         const entries = list.getEntries();
         const lastEntry = entries[entries.length - 1];
-        console.log(`[WebVitals] LCP: ${lastEntry.startTime.toFixed(2)}ms`);
+        // WebVitals logging removed for production
       });
 
       // Observe first input delay with proper typing
@@ -47,7 +47,7 @@ export const useWebVitals = () => {
           // Type guard to check if entry has processingStart property
           if ('processingStart' in entry && 'startTime' in entry) {
             const fidEntry = entry as PerformanceEventTiming;
-            console.log(`[WebVitals] FID: ${fidEntry.processingStart - fidEntry.startTime}ms`);
+            // WebVitals logging removed for production
           }
         });
       });
@@ -57,7 +57,7 @@ export const useWebVitals = () => {
         fidObserver.observe({ entryTypes: ['first-input'] });
       } catch (e) {
         // Fallback for older browsers
-        console.log('[WebVitals] Performance Observer not fully supported');
+        // Performance Observer not supported warning removed
       }
 
       return () => {

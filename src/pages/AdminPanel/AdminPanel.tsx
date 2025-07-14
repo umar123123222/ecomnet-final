@@ -96,7 +96,7 @@ const AdminPanel = () => {
     setAdmins(prev => [...prev, newAdmin]);
     setIsAddAdminOpen(false);
     form.reset();
-    console.log('New admin added:', newAdmin);
+    // Add admin functionality would be implemented here
   };
 
   const handleViewAdmin = (admin: any) => {
@@ -123,7 +123,7 @@ const AdminPanel = () => {
       ));
       setIsEditAdminOpen(false);
       editForm.reset();
-      console.log('Admin updated:', { ...selectedAdmin, ...values });
+      // Update admin functionality would be implemented here
     }
   };
 

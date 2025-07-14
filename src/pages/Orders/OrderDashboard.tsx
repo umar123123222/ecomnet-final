@@ -189,11 +189,11 @@ const OrderDashboard = () => {
   };
 
   const handleBulkAction = (action: string) => {
-    console.log(`Bulk ${action} for orders:`, selectedOrders);
+    // Bulk action implementation would go here
   };
 
   const handleAddTag = (orderId: string, tag: string) => {
-    console.log(`Adding tag "${tag}" to order ${orderId}`);
+    // Add tag to order implementation
     setOrders(prevOrders => 
       prevOrders.map(order => 
         order.id === orderId 
@@ -216,7 +216,7 @@ const OrderDashboard = () => {
   };
 
   const handleAddNote = (orderId: string, note: string) => {
-    console.log(`Adding note "${note}" to order ${orderId}`);
+    // Add note to order implementation
     setOrders(prevOrders => 
       prevOrders.map(order => 
         order.id === orderId 
@@ -239,7 +239,7 @@ const OrderDashboard = () => {
   };
 
   const handleDeleteTag = (orderId: string, tagId: string) => {
-    console.log(`Deleting tag ${tagId} from order ${orderId}`);
+    // Delete tag from order implementation
     setOrders(prevOrders => 
       prevOrders.map(order => 
         order.id === orderId 
@@ -253,7 +253,7 @@ const OrderDashboard = () => {
   };
 
   const handleDeleteNote = (orderId: string, noteId: string) => {
-    console.log(`Deleting note ${noteId} from order ${orderId}`);
+    // Delete note from order implementation
     setOrders(prevOrders => 
       prevOrders.map(order => 
         order.id === orderId 

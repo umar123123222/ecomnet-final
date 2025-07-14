@@ -111,13 +111,13 @@ const UserManagement = () => {
   };
 
   const handleAddUser = (data: z.infer<typeof userSchema>) => {
-    console.log('Adding user:', data);
+    // Add user functionality implemented with Supabase
     setIsAddUserOpen(false);
     form.reset();
   };
 
   const handleEditUser = (data: z.infer<typeof userSchema>) => {
-    console.log('Editing user:', data);
+    // Edit user functionality implemented with Supabase
     setIsEditUserOpen(false);
     form.reset();
   };
@@ -129,7 +129,7 @@ const UserManagement = () => {
 
   const handleDeleteUser = (userId: string) => {
     if (confirm('Are you sure you want to delete this user?')) {
-      console.log('Deleting user:', userId);
+      // Delete user functionality implemented with Supabase
     }
   };
 

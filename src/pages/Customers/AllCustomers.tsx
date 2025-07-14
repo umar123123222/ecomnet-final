@@ -127,7 +127,7 @@ const AllCustomers = () => {
   };
 
   const handleEditCustomer = (customer: any) => {
-    console.log('Edit customer:', customer);
+    // Edit customer functionality would be implemented here
     setEditingCustomer({ ...customer });
     setIsEditDialogOpen(true);
   };
@@ -158,7 +158,7 @@ const AllCustomers = () => {
   };
 
   const handleAddTag = (customerId: string, tag: string) => {
-    console.log('Adding tag to customer:', customerId, tag);
+    // Add tag to customer functionality would be implemented here
     const updatedCustomers = customers.map(customer => {
       if (customer.id === customerId) {
         const newTag = {
@@ -185,7 +185,7 @@ const AllCustomers = () => {
   };
 
   const handleAddNote = (customerId: string, note: string) => {
-    console.log('Adding note to customer:', customerId, note);
+    // Add note to customer functionality would be implemented here
     const updatedCustomers = customers.map(customer => {
       if (customer.id === customerId) {
         const newNote = {
@@ -212,7 +212,7 @@ const AllCustomers = () => {
   };
 
   const handleDeleteTag = (customerId: string, tagId: string) => {
-    console.log('Deleting tag from customer:', customerId, tagId);
+    // Delete tag from customer functionality would be implemented here
     const updatedCustomers = customers.map(customer => {
       if (customer.id === customerId) {
         return {
@@ -232,7 +232,7 @@ const AllCustomers = () => {
   };
 
   const handleDeleteNote = (customerId: string, noteId: string) => {
-    console.log('Deleting note from customer:', customerId, noteId);
+    // Delete note from customer functionality would be implemented here
     const updatedCustomers = customers.map(customer => {
       if (customer.id === customerId) {
         return {

@@ -182,24 +182,24 @@ const DispatchDashboard = () => {
       });
       
       // For now, we'll just log that camera is accessed
-      console.log('Camera access granted', stream);
+      // Camera access granted
       
       // In a real implementation, you would integrate with a barcode scanning library
       // For demo purposes, we'll simulate a scan result after 3 seconds
       setTimeout(() => {
-        console.log('Simulated scan result: TRK-SCANNED-123');
+        // Simulated scan successful
         stream.getTracks().forEach(track => track.stop()); // Stop camera
         setIsScanningOpen(false);
       }, 3000);
       
     } catch (error) {
-      console.error('Camera access denied or not available:', error);
+      // Camera access denied or not available
       setIsScanningOpen(false);
     }
   };
 
   const handleManualEntry = (data: { trackingIds: string }) => {
-    console.log('Manual entry tracking IDs:', data.trackingIds);
+    // Manual entry tracking IDs processed
     setIsManualEntryOpen(false);
     form.reset();
   };
@@ -237,7 +237,7 @@ const DispatchDashboard = () => {
                 <DialogTitle>Manual Tracking ID Entry</DialogTitle>
               </DialogHeader>
               <Form {...form}>
-                <form onSubmit={form.handleSubmit((data) => console.log(data))} className="space-y-4">
+                <form onSubmit={form.handleSubmit(() => {})} className="space-y-4">
                   <FormField
                     control={form.control}
                     name="trackingIds"
@@ -415,10 +415,10 @@ const DispatchDashboard = () => {
                           itemId={dispatch.id}
                           tags={dispatch.tags}
                           notes={dispatch.notes}
-                          onAddTag={(tag) => console.log('Add tag:', tag)}
-                          onAddNote={(note) => console.log('Add note:', note)}
-                          onDeleteTag={(tagId) => console.log('Delete tag:', tagId)}
-                          onDeleteNote={(noteId) => console.log('Delete note:', noteId)}
+                          onAddTag={(tag) => {/* Add tag functionality */}}
+                          onAddNote={(note) => {/* Add note functionality */}}
+                          onDeleteTag={(tagId) => {/* Delete tag functionality */}}
+                          onDeleteNote={(noteId) => {/* Delete note functionality */}}
                         />
                       </TableCell>
                     </TableRow>

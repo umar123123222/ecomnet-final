@@ -170,7 +170,7 @@ const ReturnsDashboard = () => {
   const handleScanReturn = () => {
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       setIsScanDialogOpen(true);
-      console.log('Opening camera for scanning return...');
+      // Opening camera for scanning return
     } else {
       alert('Camera not available on this device');
     }
@@ -185,7 +185,7 @@ const ReturnsDashboard = () => {
   };
 
   const onManualEntrySubmit = (values: z.infer<typeof manualEntrySchema>) => {
-    console.log('Manual entry tracking IDs:', values.trackingIds);
+    // Manual entry tracking IDs processed
     setIsManualEntryOpen(false);
     form.reset();
   };
@@ -381,10 +381,10 @@ const ReturnsDashboard = () => {
                           itemId={returnItem.id}
                           tags={returnItem.tags || []}
                           notes={returnItem.notes || []}
-                          onAddTag={(tag) => console.log('Add tag:', tag)}
-                          onAddNote={(note) => console.log('Add note:', note)}
-                          onDeleteTag={(tagId) => console.log('Delete tag:', tagId)}
-                          onDeleteNote={(noteId) => console.log('Delete note:', noteId)}
+                          onAddTag={(tag) => {/* Add tag functionality */}}
+                          onAddNote={(note) => {/* Add note functionality */}}
+                          onDeleteTag={(tagId) => {/* Delete tag functionality */}}
+                          onDeleteNote={(noteId) => {/* Delete note functionality */}}
                         />
                       </TableCell>
                     </TableRow>

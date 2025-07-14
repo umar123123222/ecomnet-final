@@ -326,10 +326,10 @@ const ShipperAdvice = () => {
                                   { id: '1', text: 'Customer requested express delivery', addedBy: 'Agent', addedAt: '2024-01-15', canDelete: true },
                                   { id: '2', text: 'Fragile items - handle with care', addedBy: 'Dispatch', addedAt: '2024-01-14', canDelete: true }
                                 ]}
-                                onAddTag={(tag) => console.log('Add tag:', tag)}
-                                onAddNote={(note) => console.log('Add note:', note)}
-                                onDeleteTag={(tagId) => console.log('Delete tag:', tagId)}
-                                onDeleteNote={(noteId) => console.log('Delete note:', noteId)}
+                                onAddTag={(tag) => {/* Add tag functionality */}}
+                                onAddNote={(note) => {/* Add note functionality */}}
+                                onDeleteTag={(tagId) => {/* Delete tag functionality */}}
+                                onDeleteNote={(noteId) => {/* Delete note functionality */}}
                               />
                             </div>
                           </TableCell>

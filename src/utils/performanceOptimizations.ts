@@ -70,7 +70,7 @@ export const createCleanupManager = () => {
         try {
           task();
         } catch (error) {
-          console.warn('Cleanup task failed:', error);
+          // Cleanup task failed silently in production
         }
       });
       cleanupTasks.length = 0;
@@ -78,9 +78,4 @@ export const createCleanupManager = () => {
   };
 };
 
-// Bundle size analyzer helper (development only)
-export const logBundleSize = (componentName: string) => {
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[Bundle] ${componentName} loaded`);
-  }
-};
+// Bundle size analyzer helper (removed for production optimization)
