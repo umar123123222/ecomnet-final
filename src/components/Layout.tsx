@@ -88,8 +88,8 @@ const Layout = () => {
                                      ? 'text-white bg-gradient-to-r from-purple-500/25 to-pink-500/25 border border-purple-400/25'
                                      : 'text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/15 hover:to-pink-500/15'
                                  }`}>
-                                   <Link to={subItem.href} className="flex items-center gap-2">
-                                    <span className="font-medium">{subItem.label}</span>
+                                    <Link to={subItem.href} className="flex items-center gap-2">
+                                     <span className="font-medium whitespace-nowrap">{subItem.label}</span>
                                     {subItem.badge && (
                                       <Badge className="ml-auto bg-gradient-to-r from-red-500 to-pink-500 text-white border-0 text-xs font-semibold">
                                         {subItem.badge}
