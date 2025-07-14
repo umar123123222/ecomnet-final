@@ -1,4 +1,5 @@
 import React, { useState, memo, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GradientCard } from "@/components/ui/gradient-card";
@@ -8,7 +9,8 @@ import { OptimizedSalesChart } from "@/components/charts/OptimizedSalesChart";
 import { CourierPerformanceChart } from "@/components/charts/CourierPerformanceChart";
 import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import { usePerformanceLogger, useWebVitals } from "@/hooks/usePerformance";
-import { Calendar, Package, Truck, CheckCircle, XCircle, RotateCcw, TrendingUp, TrendingDown, Users, BarChart3 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Calendar, Package, Truck, CheckCircle, XCircle, RotateCcw, TrendingUp, TrendingDown, Users, BarChart3, Upload, FileText, Settings, UserCog } from "lucide-react";
 
 // Memoized summary card component for better performance
 const SummaryCard = memo(({
@@ -49,6 +51,8 @@ SummaryCard.displayName = 'SummaryCard';
 const Dashboard = () => {
   usePerformanceLogger('Dashboard');
   useWebVitals();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   // Memoize static data to prevent unnecessary re-renders
@@ -109,6 +113,61 @@ const Dashboard = () => {
     icon: Users,
     color: "from-teal-500 to-blue-500"
   }], []);
+
+  // Handler functions for button actions
+  const handleExportReport = () => {
+    const startDate = dateRange?.from?.toLocaleDateString() || 'all-time';
+    const endDate = dateRange?.to?.toLocaleDateString() || 'current';
+    
+    // Generate CSV content
+    const csvData = [
+      ['Metric', 'Value', 'Change'],
+      ...summaryData.map(item => [item.title, item.value, item.change])
+    ];
+    
+    const csvContent = csvData.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `dashboard-report-${startDate}-to-${endDate}.csv`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+    
+    toast({
+      title: "Report Exported",
+      description: `Dashboard report for ${startDate} to ${endDate} has been downloaded.`,
+    });
+  };
+
+  const handleBulkUpload = () => {
+    navigate('/orders');
+    toast({
+      title: "Bulk Upload",
+      description: "Redirecting to orders page for bulk upload functionality.",
+    });
+  };
+
+  const handleGenerateReport = () => {
+    handleExportReport();
+  };
+
+  const handleManageUsers = () => {
+    navigate('/user-management');
+    toast({
+      title: "User Management",
+      description: "Redirecting to user management page.",
+    });
+  };
+
+  const handleSystemSettings = () => {
+    navigate('/settings');
+    toast({
+      title: "System Settings",
+      description: "Redirecting to system settings page.",
+    });
+  };
+
   const courierData = useMemo(() => [{
     name: "Leopard Success Rate",
     rate: "94.2%",
@@ -132,7 +191,11 @@ const Dashboard = () => {
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
             <DatePickerWithRange date={dateRange} setDate={setDateRange} />
-            <ModernButton variant="default" className="whitespace-nowrap">
+            <ModernButton 
+              variant="default" 
+              className="whitespace-nowrap"
+              onClick={handleExportReport}
+            >
               <BarChart3 className="h-4 w-4" />
               Export Report
             </ModernButton>
@@ -188,16 +251,36 @@ const Dashboard = () => {
             Quick Actions
           </h2>
           <div className="flex flex-wrap justify-center gap-3">
-            <ModernButton variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20">
+            <ModernButton 
+              variant="outline" 
+              className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+              onClick={handleBulkUpload}
+            >
+              <Upload className="h-4 w-4 mr-2" />
               Bulk Upload Orders
             </ModernButton>
-            <ModernButton variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20">
+            <ModernButton 
+              variant="outline" 
+              className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+              onClick={handleGenerateReport}
+            >
+              <FileText className="h-4 w-4 mr-2" />
               Generate Report
             </ModernButton>
-            <ModernButton variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20">
+            <ModernButton 
+              variant="outline" 
+              className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+              onClick={handleManageUsers}
+            >
+              <UserCog className="h-4 w-4 mr-2" />
               Manage Users
             </ModernButton>
-            <ModernButton variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20">
+            <ModernButton 
+              variant="outline" 
+              className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+              onClick={handleSystemSettings}
+            >
+              <Settings className="h-4 w-4 mr-2" />
               System Settings
             </ModernButton>
           </div>
