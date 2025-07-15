@@ -103,47 +103,97 @@ export type Database = {
           },
         ]
       }
+      conversations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          id: string
+          message_content: string
+          message_type: string
+          order_id: string
+          sender_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          id?: string
+          message_content: string
+          message_type: string
+          order_id: string
+          sender_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          id?: string
+          message_content?: string
+          message_type?: string
+          order_id?: string
+          sender_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           address: string
           city: string
           created_at: string | null
+          delivered_count: number | null
           email: string | null
           id: string
           is_suspicious: boolean | null
           name: string
           phone: string | null
+          phone_last_5_chr: string | null
           return_count: number | null
           suspicious_reason: string | null
           total_orders: number | null
+          Type: string | null
           updated_at: string | null
         }
         Insert: {
           address: string
           city: string
           created_at?: string | null
+          delivered_count?: number | null
           email?: string | null
           id?: string
           is_suspicious?: boolean | null
           name: string
           phone?: string | null
+          phone_last_5_chr?: string | null
           return_count?: number | null
           suspicious_reason?: string | null
           total_orders?: number | null
+          Type?: string | null
           updated_at?: string | null
         }
         Update: {
           address?: string
           city?: string
           created_at?: string | null
+          delivered_count?: number | null
           email?: string | null
           id?: string
           is_suspicious?: boolean | null
           name?: string
           phone?: string | null
+          phone_last_5_chr?: string | null
           return_count?: number | null
           suspicious_reason?: string | null
           total_orders?: number | null
+          Type?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -244,10 +294,14 @@ export type Database = {
           courier: Database["public"]["Enums"]["courier_type"]
           created_at: string | null
           customer_address: string
+          customer_email: string | null
           customer_id: string
           customer_name: string
+          customer_new_address: string | null
           customer_phone: string
+          customer_phone_last_5_chr: string | null
           delivered_at: string | null
+          delivery_notes: string | null
           dispatched_at: string | null
           gpt_score: number | null
           id: string
@@ -258,6 +312,7 @@ export type Database = {
           status: Database["public"]["Enums"]["order_status"] | null
           tags: string[] | null
           total_amount: number
+          total_items: string | null
           tracking_id: string | null
           updated_at: string | null
           verification_notes: string | null
@@ -273,10 +328,14 @@ export type Database = {
           courier: Database["public"]["Enums"]["courier_type"]
           created_at?: string | null
           customer_address: string
+          customer_email?: string | null
           customer_id: string
           customer_name: string
+          customer_new_address?: string | null
           customer_phone: string
+          customer_phone_last_5_chr?: string | null
           delivered_at?: string | null
+          delivery_notes?: string | null
           dispatched_at?: string | null
           gpt_score?: number | null
           id?: string
@@ -287,6 +346,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["order_status"] | null
           tags?: string[] | null
           total_amount: number
+          total_items?: string | null
           tracking_id?: string | null
           updated_at?: string | null
           verification_notes?: string | null
@@ -302,10 +362,14 @@ export type Database = {
           courier?: Database["public"]["Enums"]["courier_type"]
           created_at?: string | null
           customer_address?: string
+          customer_email?: string | null
           customer_id?: string
           customer_name?: string
+          customer_new_address?: string | null
           customer_phone?: string
+          customer_phone_last_5_chr?: string | null
           delivered_at?: string | null
+          delivery_notes?: string | null
           dispatched_at?: string | null
           gpt_score?: number | null
           id?: string
@@ -316,6 +380,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["order_status"] | null
           tags?: string[] | null
           total_amount?: number
+          total_items?: string | null
           tracking_id?: string | null
           updated_at?: string | null
           verification_notes?: string | null
