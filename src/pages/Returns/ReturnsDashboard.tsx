@@ -36,6 +36,8 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import TagsNotes from '@/components/TagsNotes';
+import { Scanner } from '@/components/Scanner';
+import { useToast } from '@/hooks/use-toast';
 
 const manualEntrySchema = z.object({
   trackingIds: z.string().min(1, 'Please enter at least one tracking ID'),
@@ -51,6 +53,7 @@ const ReturnsDashboard = () => {
   const [isScanDialogOpen, setIsScanDialogOpen] = useState(false);
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof manualEntrySchema>>({
     resolver: zodResolver(manualEntrySchema),
@@ -167,12 +170,27 @@ const ReturnsDashboard = () => {
     );
   };
 
-  const handleScanReturn = () => {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      setIsScanDialogOpen(true);
-      // Opening camera for scanning return
+  const handleScanReturn = (scanData: { orderId?: string; trackingId?: string; rawData: string }) => {
+    const { orderId, trackingId, rawData } = scanData;
+    
+    if (orderId || trackingId) {
+      toast({
+        title: "Return Scanned Successfully",
+        description: `Order ID: ${orderId || 'Not found'}, Tracking ID: ${trackingId || 'Not found'}`,
+      });
+      
+      // Auto-fill the search with the scanned tracking ID or order ID
+      if (trackingId) {
+        setSearchTerm(trackingId);
+      } else if (orderId) {
+        setSearchTerm(orderId);
+      }
     } else {
-      alert('Camera not available on this device');
+      toast({
+        title: "No Order Information Found",
+        description: `Scanned: ${rawData.substring(0, 50)}${rawData.length > 50 ? '...' : ''}`,
+        variant: "destructive",
+      });
     }
   };
 
@@ -199,27 +217,10 @@ const ReturnsDashboard = () => {
           <p className="text-gray-600 mt-1">Track and manage returned orders</p>
         </div>
         <div className="flex items-center gap-3">
-          <Dialog open={isScanDialogOpen} onOpenChange={setIsScanDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" onClick={handleScanReturn}>
-                <Scan className="h-4 w-4 mr-2" />
-                Scan Return
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Scan Return</DialogTitle>
-              </DialogHeader>
-              <div className="p-4 text-center">
-                <div className="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-                  <p className="text-gray-500">Camera view would appear here</p>
-                </div>
-                <Button onClick={() => setIsScanDialogOpen(false)}>
-                  Close Camera
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button variant="outline" onClick={() => setIsScanDialogOpen(true)}>
+            <Scan className="h-4 w-4 mr-2" />
+            Scan Return
+          </Button>
 
           <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
             <DialogTrigger asChild>
@@ -262,6 +263,15 @@ const ReturnsDashboard = () => {
           </Dialog>
         </div>
       </div>
+
+      {/* Scanner Component */}
+      <Scanner
+        isOpen={isScanDialogOpen}
+        onClose={() => setIsScanDialogOpen(false)}
+        onScan={handleScanReturn}
+        title="Scan Return QR Code"
+        scanType="return"
+      />
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

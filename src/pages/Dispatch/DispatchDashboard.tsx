@@ -34,6 +34,8 @@ import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import TagsNotes from '@/components/TagsNotes';
+import { Scanner } from '@/components/Scanner';
+import { useToast } from '@/hooks/use-toast';
 
 const DispatchDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -46,6 +48,7 @@ const DispatchDashboard = () => {
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [isScanningOpen, setIsScanningOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
+  const { toast } = useToast();
 
   const form = useForm({
     defaultValues: {
@@ -171,30 +174,27 @@ const DispatchDashboard = () => {
     }
   };
 
-  const handleScanDispatch = async () => {
-    setIsScanningOpen(true);
-    try {
-      // Check if we're on mobile or desktop and request camera access
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'environment' // Use back camera on mobile
-        } 
+  const handleScanDispatch = (scanData: { orderId?: string; trackingId?: string; rawData: string }) => {
+    const { orderId, trackingId, rawData } = scanData;
+    
+    if (orderId || trackingId) {
+      toast({
+        title: "Dispatch Scanned Successfully",
+        description: `Order ID: ${orderId || 'Not found'}, Tracking ID: ${trackingId || 'Not found'}`,
       });
       
-      // For now, we'll just log that camera is accessed
-      // Camera access granted
-      
-      // In a real implementation, you would integrate with a barcode scanning library
-      // For demo purposes, we'll simulate a scan result after 3 seconds
-      setTimeout(() => {
-        // Simulated scan successful
-        stream.getTracks().forEach(track => track.stop()); // Stop camera
-        setIsScanningOpen(false);
-      }, 3000);
-      
-    } catch (error) {
-      // Camera access denied or not available
-      setIsScanningOpen(false);
+      // Auto-fill the search with the scanned tracking ID or order ID
+      if (trackingId) {
+        setSearchTerm(trackingId);
+      } else if (orderId) {
+        setSearchTerm(orderId);
+      }
+    } else {
+      toast({
+        title: "No Order Information Found",
+        description: `Scanned: ${rawData.substring(0, 50)}${rawData.length > 50 ? '...' : ''}`,
+        variant: "destructive",
+      });
     }
   };
 
@@ -268,29 +268,14 @@ const DispatchDashboard = () => {
         </div>
       </div>
 
-      {/* Scanning Dialog */}
-      <Dialog open={isScanningOpen} onOpenChange={setIsScanningOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Scanning for Tracking ID</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col items-center justify-center py-8">
-            <div className="w-48 h-48 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-              <Scan className="h-12 w-12 text-gray-400 animate-pulse" />
-            </div>
-            <p className="text-gray-600 text-center">
-              Point your camera at the tracking ID barcode or QR code
-            </p>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsScanningOpen(false)}
-              className="mt-4"
-            >
-              Cancel Scan
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Scanner Component */}
+      <Scanner
+        isOpen={isScanningOpen}
+        onClose={() => setIsScanningOpen(false)}
+        onScan={handleScanDispatch}
+        title="Scan Dispatch QR Code"
+        scanType="dispatch"
+      />
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
