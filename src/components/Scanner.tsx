@@ -134,9 +134,10 @@ export const Scanner: React.FC<ScannerProps> = ({
             const scannedText = result.getText();
             const { orderId, trackingId } = extractOrderData(scannedText);
             
-            // Store scan result in conversations table if we have order/customer data
+            // Check if we found at least one ID
             if (orderId || trackingId) {
               try {
+                // Store scan result in conversations table
                 await supabase.from('conversations').insert({
                   order_id: orderId || 'unknown',
                   customer_id: 'unknown', // You might want to pass this as a prop
@@ -144,24 +145,35 @@ export const Scanner: React.FC<ScannerProps> = ({
                   message_type: 'incoming',
                   sender_name: 'Scanner Device'
                 });
+
+                onScan({
+                  orderId,
+                  trackingId,
+                  rawData: scannedText
+                });
+
+                toast({
+                  title: "Scanned & Added",
+                  description: `Found: ${orderId ? `Order ID: ${orderId}` : `Tracking ID: ${trackingId}`}`,
+                });
+
+                stopScanning();
+                onClose();
               } catch (error) {
                 console.error('Failed to save scan record:', error);
+                toast({
+                  title: "Scan Failed",
+                  description: "Failed to save scan data",
+                  variant: "destructive",
+                });
               }
+            } else {
+              toast({
+                title: "Not Found",
+                description: "No Order ID or Tracking ID found in scan",
+                variant: "destructive",
+              });
             }
-            
-            onScan({
-              orderId,
-              trackingId,
-              rawData: scannedText
-            });
-
-            toast({
-              title: "Scan Successful",
-              description: `Scanned: ${orderId || trackingId || scannedText.substring(0, 50)}`,
-            });
-
-            stopScanning();
-            onClose();
           } else if (error && !(error instanceof NotFoundException)) {
             console.error('Scanning error:', error);
           }
