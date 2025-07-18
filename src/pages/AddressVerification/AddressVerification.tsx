@@ -1,5 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,28 +35,59 @@ interface Address {
 const AddressVerification = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAddresses, setSelectedAddresses] = useState<string[]>([]);
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { toast } = useToast();
 
-  const [addresses, setAddresses] = useState<Address[]>([
-    {
-      id: 'ADDR-001',
-      orderId: 'ORD-001',
-      customerName: 'John Doe',
-      phone: '+92-300-1234567',
-      address: 'House 123, Street 45, Block F, Gulberg, Lahore',
-      gptScore: 85,
-      status: 'pending'
-    },
-    {
-      id: 'ADDR-002',
-      orderId: 'ORD-002',
-      customerName: 'Jane Smith',
-      phone: '+92-301-9876543',
-      address: 'Flat 7, Building 12, Main Road, Karachi',
-      gptScore: 45,
-      status: 'pending'
-    },
-  ]);
+  useEffect(() => {
+    const fetchAddressVerifications = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('address_verifications')
+          .select(`
+            *,
+            orders (
+              order_number,
+              customer_name,
+              customer_phone,
+              customer_address
+            )
+          `)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching address verifications:', error);
+          toast({
+            title: "Error",
+            description: "Failed to fetch address verifications",
+            variant: "destructive",
+          });
+        } else {
+          const formattedAddresses = (data || []).map(addr => ({
+            id: addr.id,
+            orderId: addr.orders?.order_number || 'N/A',
+            customerName: addr.orders?.customer_name || 'N/A',
+            phone: addr.orders?.customer_phone || 'N/A',
+            address: addr.orders?.customer_address || 'N/A',
+            gptScore: addr.gpt_score || 0,
+            status: (addr.verified === true ? 'approved' : addr.verified === false ? 'disapproved' : 'pending') as 'pending' | 'approved' | 'disapproved',
+            approvedBy: addr.verified_by || undefined,
+            approvedAt: addr.verified_at || undefined
+          }));
+
+          setAddresses(formattedAddresses);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAddressVerifications();
+  }, [toast]);
 
   const handleSelectAddress = (addressId: string) => {
     setSelectedAddresses(prev => 
@@ -227,7 +260,16 @@ const AddressVerification = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {addresses.map((address) => (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center">Loading address verifications...</TableCell>
+                </TableRow>
+              ) : addresses.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center">No address verifications found</TableCell>
+                </TableRow>
+              ) : (
+                addresses.map((address) => (
                 <TableRow key={address.id}>
                   <TableCell>
                     <Checkbox
@@ -289,7 +331,8 @@ const AddressVerification = () => {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

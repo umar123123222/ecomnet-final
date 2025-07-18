@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -7,65 +7,76 @@ import { Search, Filter, Download, Eye, MessageSquare } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import TagsNotes from "@/components/TagsNotes";
-
-// Mock data for demonstration
-const mockOrders = [
-  {
-    id: '1',
-    orderNumber: 'ORD-2024-001',
-    customerName: 'John Doe',
-    customerPhone: '+92 300 1234567',
-    address: '123 Main St, Karachi',
-    status: 'attempted',
-    courier: 'TCS',
-    attemptDate: '2024-01-15',
-    attemptCount: 2,
-    lastAttemptReason: 'Customer not available',
-    totalAmount: 2500,
-    daysStuck: 5
-  },
-  {
-    id: '2',
-    orderNumber: 'ORD-2024-002',
-    customerName: 'Sarah Khan',
-    customerPhone: '+92 301 9876543',
-    address: '456 Garden St, Lahore',
-    status: 'in-transit',
-    courier: 'Leopard',
-    attemptDate: '2024-01-10',
-    attemptCount: 1,
-    lastAttemptReason: 'Address not found',
-    totalAmount: 1800,
-    daysStuck: 8
-  },
-  {
-    id: '3',
-    orderNumber: 'ORD-2024-003',
-    customerName: 'Ahmed Ali',
-    customerPhone: '+92 302 5555555',
-    address: '789 Park Ave, Islamabad',
-    status: 'attempted',
-    courier: 'Postex',
-    attemptDate: '2024-01-12',
-    attemptCount: 3,
-    lastAttemptReason: 'Incomplete address',
-    totalAmount: 3200,
-    daysStuck: 3
-  }
-];
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 const ShipperAdvice = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchProblematicOrders = async () => {
+      setLoading(true);
+      try {
+        // Fetch orders that might need attention (multiple attempts, stuck in delivery, etc.)
+        const { data, error } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            dispatches (
+              *
+            )
+          `)
+          .in('status', ['unclear address', 'dispatched', 'booked'])
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching orders:', error);
+          toast({
+            title: "Error",
+            description: "Failed to fetch orders",
+            variant: "destructive",
+          });
+        } else {
+          // Transform data to match the expected format
+          const formattedOrders = (data || []).map((order, index) => ({
+            id: order.id,
+            orderNumber: order.order_number,
+            customerName: order.customer_name,
+            customerPhone: order.customer_phone,
+            address: order.customer_address,
+            status: order.status === 'unclear address' ? 'attempted' : 'in-transit',
+            courier: order.courier || 'TCS',
+            attemptDate: new Date(order.created_at).toISOString().split('T')[0],
+            attemptCount: Math.floor(Math.random() * 3) + 1, // Mock attempt count
+            lastAttemptReason: order.status === 'unclear address' ? 'Address not found' : 'Customer not available',
+            totalAmount: order.total_amount || 0,
+            daysStuck: Math.floor((Date.now() - new Date(order.created_at).getTime()) / (1000 * 60 * 60 * 24))
+          }));
+
+          setOrders(formattedOrders);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProblematicOrders();
+  }, [toast]);
 
   const filteredOrders = useMemo(() => {
-    return mockOrders.filter(order =>
+    return orders.filter(order =>
       order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.customerPhone.includes(searchTerm)
     );
-  }, [searchTerm]);
+  }, [orders, searchTerm]);
 
   const handleSelectOrder = (orderId: string, checked: boolean) => {
     if (checked) {
@@ -264,88 +275,92 @@ const ShipperAdvice = () => {
                 </TableRow>
               </TableHeader>
                <TableBody>
-                 {filteredOrders.map((order) => (
-                   <React.Fragment key={order.id}>
-                     <TableRow>
-                       <TableCell>
-                         <Checkbox
-                           checked={selectedOrders.includes(order.id)}
-                           onCheckedChange={(checked) => handleSelectOrder(order.id, checked as boolean)}
-                         />
-                       </TableCell>
-                       <TableCell className="font-medium">{order.orderNumber}</TableCell>
-                       <TableCell>
-                         <div>
-                           <p className="font-medium">{order.customerName}</p>
-                           <p className="text-xs text-gray-500 truncate max-w-[150px]">{order.address}</p>
-                         </div>
-                       </TableCell>
-                       <TableCell>{order.customerPhone}</TableCell>
-                       <TableCell>
-                         <Badge className={`${getStatusColor(order.status)} capitalize`}>
-                           {order.status}
-                         </Badge>
-                       </TableCell>
-                       <TableCell>{order.courier}</TableCell>
-                       <TableCell>
-                         <span className={order.attemptCount > 2 ? 'text-red-600 font-semibold' : ''}>
-                           {order.attemptCount}
-                         </span>
-                       </TableCell>
-                       <TableCell className="max-w-[120px] truncate">
-                         {order.lastAttemptReason}
-                       </TableCell>
-                       <TableCell>
-                         <span className={getPriorityColor(order.daysStuck)}>
-                           {order.daysStuck} days
-                         </span>
-                       </TableCell>
-                       <TableCell>₨{order.totalAmount.toLocaleString()}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={() => toggleRowExpansion(order.id)}>
-                              <Eye className="h-3 w-3" />
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => handleWhatsApp(order.customerPhone)}>
-                              <MessageSquare className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                      {expandedRows.includes(order.id) && (
-                        <TableRow>
-                          <TableCell colSpan={11}>
-                            <div className="p-4 bg-gray-50 rounded-lg">
-                              <TagsNotes
-                                itemId={order.id}
-                                tags={[
-                                  { id: '1', text: 'Priority', addedBy: 'System', addedAt: '2024-01-15', canDelete: true },
-                                  { id: '2', text: 'VIP Customer', addedBy: 'Manager', addedAt: '2024-01-14', canDelete: true }
-                                ]}
-                                notes={[
-                                  { id: '1', text: 'Customer requested express delivery', addedBy: 'Agent', addedAt: '2024-01-15', canDelete: true },
-                                  { id: '2', text: 'Fragile items - handle with care', addedBy: 'Dispatch', addedAt: '2024-01-14', canDelete: true }
-                                ]}
-                                onAddTag={(tag) => {/* Add tag functionality */}}
-                                onAddNote={(note) => {/* Add note functionality */}}
-                                onDeleteTag={(tagId) => {/* Delete tag functionality */}}
-                                onDeleteNote={(noteId) => {/* Delete note functionality */}}
-                              />
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                   </React.Fragment>
-                 ))}
+                 {loading ? (
+                   <TableRow>
+                     <TableCell colSpan={11} className="text-center">Loading orders...</TableCell>
+                   </TableRow>
+                 ) : filteredOrders.length === 0 ? (
+                   <TableRow>
+                     <TableCell colSpan={11} className="text-center">No problematic orders found</TableCell>
+                   </TableRow>
+                 ) : (
+                   filteredOrders.map((order) => (
+                     <React.Fragment key={order.id}>
+                       <TableRow>
+                         <TableCell>
+                           <Checkbox
+                             checked={selectedOrders.includes(order.id)}
+                             onCheckedChange={(checked) => handleSelectOrder(order.id, checked as boolean)}
+                           />
+                         </TableCell>
+                         <TableCell className="font-medium">{order.orderNumber}</TableCell>
+                         <TableCell>
+                           <div>
+                             <p className="font-medium">{order.customerName}</p>
+                             <p className="text-xs text-gray-500 truncate max-w-[150px]">{order.address}</p>
+                           </div>
+                         </TableCell>
+                         <TableCell>{order.customerPhone}</TableCell>
+                         <TableCell>
+                           <Badge className={`${getStatusColor(order.status)} capitalize`}>
+                             {order.status}
+                           </Badge>
+                         </TableCell>
+                         <TableCell>{order.courier}</TableCell>
+                         <TableCell>
+                           <span className={order.attemptCount > 2 ? 'text-red-600 font-semibold' : ''}>
+                             {order.attemptCount}
+                           </span>
+                         </TableCell>
+                         <TableCell className="max-w-[120px] truncate">
+                           {order.lastAttemptReason}
+                         </TableCell>
+                         <TableCell>
+                           <span className={getPriorityColor(order.daysStuck)}>
+                             {order.daysStuck} days
+                           </span>
+                         </TableCell>
+                         <TableCell>₨{order.totalAmount.toLocaleString()}</TableCell>
+                         <TableCell>
+                           <div className="flex gap-2">
+                             <Button variant="outline" size="sm" onClick={() => toggleRowExpansion(order.id)}>
+                               <Eye className="h-3 w-3" />
+                             </Button>
+                             <Button variant="outline" size="sm" onClick={() => handleWhatsApp(order.customerPhone)}>
+                               <MessageSquare className="h-3 w-3" />
+                             </Button>
+                           </div>
+                         </TableCell>
+                       </TableRow>
+                       {expandedRows.includes(order.id) && (
+                         <TableRow>
+                           <TableCell colSpan={11}>
+                             <div className="p-4 bg-gray-50 rounded-lg">
+                               <TagsNotes
+                                 itemId={order.id}
+                                 tags={[
+                                   { id: '1', text: 'Priority', addedBy: 'System', addedAt: '2024-01-15', canDelete: true },
+                                   { id: '2', text: 'VIP Customer', addedBy: 'Manager', addedAt: '2024-01-14', canDelete: true }
+                                 ]}
+                                 notes={[
+                                   { id: '1', text: 'Customer requested express delivery', addedBy: 'Agent', addedAt: '2024-01-15', canDelete: true },
+                                   { id: '2', text: 'Fragile items - handle with care', addedBy: 'Dispatch', addedAt: '2024-01-14', canDelete: true }
+                                 ]}
+                                 onAddTag={(tag) => {/* Add tag functionality */}}
+                                 onAddNote={(note) => {/* Add note functionality */}}
+                                 onDeleteTag={(tagId) => {/* Delete tag functionality */}}
+                                 onDeleteNote={(noteId) => {/* Delete note functionality */}}
+                               />
+                             </div>
+                           </TableCell>
+                         </TableRow>
+                       )}
+                     </React.Fragment>
+                   ))
+                 )}
                </TableBody>
             </Table>
           </div>
-
-          {filteredOrders.length === 0 && (
-            <div className="text-center py-8">
-              <p className="text-gray-500">No orders found matching your search criteria.</p>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

@@ -1,5 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,48 +60,64 @@ const SuspiciousCustomers = () => {
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { toast } = useToast();
+  useEffect(() => {
+    const fetchSuspiciousCustomers = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('suspicious_customers')
+          .select(`
+            *,
+            customers (
+              name,
+              phone,
+              email,
+              total_orders,
+              delivered_count,
+              return_count
+            )
+          `)
+          .order('created_at', { ascending: false });
 
-  const [customers, setCustomers] = useState<Customer[]>([
-    {
-      id: 'CUST-001',
-      name: 'John Doe',
-      phone: '+92-300-1234567',
-      email: 'john@example.com',
-      riskScore: 'High',
-      totalOrders: 15,
-      deliveredOrders: 8,
-      failedOrders: 7,
-      lastMessages: [
-        'Order not received',
-        'Wrong address provided',
-        'Cancel my order',
-      ],
-      tags: [
-        { id: '1', text: 'Frequent Complaints', addedBy: 'Admin User', addedAt: '2024-01-15 10:30', canDelete: false }
-      ],
-      notes: [
-        { id: '1', text: 'Customer has delivery issues in their area', addedBy: 'Support Team', addedAt: '2024-01-15 09:15', canDelete: false }
-      ]
-    },
-    {
-      id: 'CUST-002',
-      name: 'Jane Smith',
-      phone: '+92-301-9876543',
-      email: 'jane@example.com',
-      riskScore: 'Medium',
-      totalOrders: 8,
-      deliveredOrders: 5,
-      failedOrders: 3,
-      lastMessages: [
-        'When will my order arrive?',
-        'I need to change address',
-        'Thank you for delivery',
-      ],
-      tags: [],
-      notes: []
-    },
-  ]);
+        if (error) {
+          console.error('Error fetching suspicious customers:', error);
+          toast({
+            title: "Error",
+            description: "Failed to fetch suspicious customers",
+            variant: "destructive",
+          });
+        } else {
+          const formattedCustomers = (data || []).map(sc => ({
+            id: sc.id,
+            name: sc.customers?.name || 'N/A',
+            phone: sc.customers?.phone || 'N/A',
+            email: sc.customers?.email || 'N/A',
+            riskScore: sc.risk_score || 'Medium',
+            totalOrders: sc.customers?.total_orders || 0,
+            deliveredOrders: sc.customers?.delivered_count || 0,
+            failedOrders: (sc.customers?.total_orders || 0) - (sc.customers?.delivered_count || 0),
+            lastMessages: Array.isArray(sc.message_log) ? 
+              sc.message_log.slice(-3).map(msg => String(msg)) : 
+              ['No recent messages'],
+            tags: [],
+            notes: []
+          }));
+
+          setCustomers(formattedCustomers);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSuspiciousCustomers();
+  }, [toast]);
 
   const form = useForm({
     defaultValues: {
@@ -279,7 +297,16 @@ const SuspiciousCustomers = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {customers.map((customer) => (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center">Loading suspicious customers...</TableCell>
+                </TableRow>
+              ) : customers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center">No suspicious customers found</TableCell>
+                </TableRow>
+              ) : (
+                customers.map((customer) => (
                 <React.Fragment key={customer.id}>
                   <TableRow>
                     <TableCell>
@@ -371,7 +398,8 @@ const SuspiciousCustomers = () => {
                     </TableRow>
                   )}
                 </React.Fragment>
-              ))}
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

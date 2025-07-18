@@ -1,4 +1,4 @@
-import React, { useState, memo, useMemo } from 'react';
+import React, { useState, memo, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import { usePerformanceLogger, useWebVitals } from "@/hooks/usePerformance";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar, Package, Truck, CheckCircle, XCircle, RotateCcw, TrendingUp, TrendingDown, Users, BarChart3, Upload, FileText, Settings, UserCog } from "lucide-react";
+import { supabase } from '@/integrations/supabase/client';
 
 // Memoized summary card component for better performance
 const SummaryCard = memo(({
@@ -54,65 +55,128 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [dashboardData, setDashboardData] = useState<any>({
+    totalOrders: 0,
+    bookedOrders: 0,
+    dispatchedOrders: 0,
+    deliveredOrders: 0,
+    cancelledOrders: 0,
+    returnsInTransit: 0,
+    returnedOrders: 0,
+    customers: 0
+  });
+  const [loading, setLoading] = useState(true);
 
-  // Memoize static data to prevent unnecessary re-renders
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      setLoading(true);
+      try {
+        // Fetch orders data
+        const { data: orders, error: ordersError } = await supabase
+          .from('orders')
+          .select('*');
+
+        // Fetch returns data
+        const { data: returns, error: returnsError } = await supabase
+          .from('returns')
+          .select('*');
+
+        // Fetch customers data
+        const { data: customers, error: customersError } = await supabase
+          .from('customers')
+          .select('*');
+
+        if (ordersError || returnsError || customersError) {
+          console.error('Error fetching dashboard data:', { ordersError, returnsError, customersError });
+          toast({
+            title: "Error",
+            description: "Failed to fetch dashboard data",
+            variant: "destructive",
+          });
+        } else {
+          const orderData = orders || [];
+          const returnData = returns || [];
+          const customerData = customers || [];
+
+          setDashboardData({
+            totalOrders: orderData.length,
+            bookedOrders: orderData.filter(o => o.status === 'booked').length,
+            dispatchedOrders: orderData.filter(o => o.status === 'dispatched').length,
+            deliveredOrders: orderData.filter(o => o.status === 'delivered').length,
+            cancelledOrders: orderData.filter(o => o.status === 'cancelled').length,
+            returnsInTransit: returnData.filter(r => r.return_status === 'in_transit').length,
+            returnedOrders: returnData.filter(r => r.return_status === 'received').length,
+            customers: customerData.length
+          });
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [toast]);
+
+  // Memoize summary data with real data
   const summaryData = useMemo(() => [{
     title: "Total Orders",
-    value: "2,847",
+    value: loading ? "..." : dashboardData.totalOrders.toLocaleString(),
     change: "+12.5%",
     trend: "up",
     icon: Package,
     color: "from-blue-500 to-cyan-500"
   }, {
     title: "Booked Orders",
-    value: "1,234",
+    value: loading ? "..." : dashboardData.bookedOrders.toLocaleString(),
     change: "+8.2%",
     trend: "up",
     icon: Calendar,
     color: "from-purple-500 to-pink-500"
   }, {
     title: "Dispatched Orders",
-    value: "987",
+    value: loading ? "..." : dashboardData.dispatchedOrders.toLocaleString(),
     change: "+15.7%",
     trend: "up",
     icon: Truck,
     color: "from-orange-500 to-yellow-500"
   }, {
     title: "Delivered Orders",
-    value: "856",
+    value: loading ? "..." : dashboardData.deliveredOrders.toLocaleString(),
     change: "+18.3%",
     trend: "up",
     icon: CheckCircle,
     color: "from-green-500 to-emerald-500"
   }, {
     title: "Cancelled Orders",
-    value: "45",
+    value: loading ? "..." : dashboardData.cancelledOrders.toLocaleString(),
     change: "-23.1%",
     trend: "down",
     icon: XCircle,
     color: "from-red-500 to-pink-500"
   }, {
     title: "Returns in Transit",
-    value: "23",
+    value: loading ? "..." : dashboardData.returnsInTransit.toLocaleString(),
     change: "+5.4%",
     trend: "up",
     icon: RotateCcw,
     color: "from-indigo-500 to-purple-500"
   }, {
     title: "Returned Orders",
-    value: "12",
+    value: loading ? "..." : dashboardData.returnedOrders.toLocaleString(),
     change: "-12.8%",
     trend: "down",
     icon: Package,
     color: "from-gray-500 to-gray-600"
   }, {
     title: "Customers",
-    value: "156",
+    value: loading ? "..." : dashboardData.customers.toLocaleString(),
     change: "+9.7%",
     trend: "up",
     icon: Users,
     color: "from-teal-500 to-blue-500"
-  }], []);
+  }], [dashboardData, loading]);
 
   // Handler functions for button actions
   const handleExportReport = () => {

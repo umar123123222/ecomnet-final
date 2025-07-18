@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,77 +32,69 @@ const AllCustomers = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [customers, setCustomers] = useState([
-    {
-      id: 'CUST-001',
-      name: 'John Doe',
-      phone: '+92-300-1234567',
-      email: 'john@example.com',
-      status: 'Active',
-      totalOrders: 15,
-      totalSpent: 'Rs. 25,000',
-      joinDate: '2023-12-15',
-      ordersDelivered: 12,
-      ordersCancelled: 2,
-      ordersReturned: 1,
-      tags: [
-        { id: 'tag1', text: 'VIP Customer', addedBy: 'Muhammad Umar', addedAt: '2024-01-15 10:30', canDelete: true },
-        { id: 'tag2', text: 'Regular Buyer', addedBy: 'Store Manager', addedAt: '2024-01-10 14:20', canDelete: false }
-      ],
-      notes: [
-        { id: 'note1', text: 'Customer prefers morning delivery', addedBy: 'Muhammad Umar', addedAt: '2024-01-20 09:15', canDelete: true },
-        { id: 'note2', text: 'Lives in apartment complex, building 3', addedBy: 'Delivery Staff', addedAt: '2024-01-18 16:45', canDelete: false }
-      ],
-      orders: [
-        { id: 'ORD-001', date: '2024-01-20', status: 'Delivered', amount: 'Rs. 2,500' },
-        { id: 'ORD-002', date: '2024-01-18', status: 'Delivered', amount: 'Rs. 1,800' },
-        { id: 'ORD-003', date: '2024-01-15', status: 'Cancelled', amount: 'Rs. 3,200' },
-        { id: 'ORD-004', date: '2024-01-12', status: 'Returned', amount: 'Rs. 1,500' },
-      ]
-    },
-    {
-      id: 'CUST-002',
-      name: 'Jane Smith',
-      phone: '+92-301-9876543',
-      email: 'jane@example.com',
-      status: 'Active',
-      totalOrders: 8,
-      totalSpent: 'Rs. 15,500',
-      joinDate: '2024-01-10',
-      ordersDelivered: 7,
-      ordersCancelled: 1,
-      ordersReturned: 0,
-      tags: [
-        { id: 'tag3', text: 'New Customer', addedBy: 'Store Manager', addedAt: '2024-01-10 11:00', canDelete: true }
-      ],
-      notes: [],
-      orders: [
-        { id: 'ORD-005', date: '2024-01-19', status: 'Delivered', amount: 'Rs. 2,200' },
-        { id: 'ORD-006', date: '2024-01-16', status: 'Delivered', amount: 'Rs. 1,900' },
-      ]
-    },
-    {
-      id: 'CUST-003',
-      name: 'Ali Hassan',
-      phone: '+92-302-5555555',
-      email: 'ali@example.com',
-      status: 'Inactive',
-      totalOrders: 3,
-      totalSpent: 'Rs. 5,200',
-      joinDate: '2023-11-20',
-      ordersDelivered: 2,
-      ordersCancelled: 0,
-      ordersReturned: 1,
-      tags: [],
-      notes: [
-        { id: 'note3', text: 'Customer requested no calls after 8 PM', addedBy: 'Customer Service', addedAt: '2023-12-01 13:30', canDelete: true }
-      ],
-      orders: [
-        { id: 'ORD-007', date: '2023-12-15', status: 'Delivered', amount: 'Rs. 2,800' },
-        { id: 'ORD-008', date: '2023-12-10', status: 'Returned', amount: 'Rs. 1,400' },
-      ]
-    },
-  ]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [summaryData, setSummaryData] = useState({
+    activeCustomers: 0,
+    newThisMonth: 0
+  });
+  const { toast } = useToast();
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('customers')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching customers:', error);
+          toast({
+            title: "Error",
+            description: "Failed to fetch customers",
+            variant: "destructive",
+          });
+        } else {
+          const formattedCustomers = (data || []).map(customer => ({
+            id: customer.id,
+            name: customer.name,
+            phone: customer.phone || 'N/A',
+            email: customer.email || 'N/A',
+            status: 'Active', // Default to active
+            totalOrders: customer.total_orders || 0,
+            totalSpent: `Rs. ${(customer.total_orders * 2500).toLocaleString()}`, // Estimated
+            joinDate: new Date(customer.created_at).toLocaleDateString(),
+            ordersDelivered: customer.delivered_count || 0,
+            ordersCancelled: 0, // Not in schema
+            ordersReturned: customer.return_count || 0,
+            tags: [],
+            notes: [],
+            orders: [] // Would need separate query for order history
+          }));
+
+          setCustomers(formattedCustomers);
+
+          // Calculate summary data
+          const currentMonth = new Date().getMonth();
+          const newThisMonth = formattedCustomers.filter(c => 
+            new Date(c.joinDate).getMonth() === currentMonth
+          ).length;
+
+          setSummaryData({
+            activeCustomers: formattedCustomers.length,
+            newThisMonth
+          });
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCustomers();
+  }, [toast]);
 
   const handleSelectCustomer = (customerId: string) => {
     setSelectedCustomers(prev => 
@@ -268,7 +262,9 @@ const AllCustomers = () => {
             <CardTitle className="text-sm font-medium text-gray-600">Active Customers</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">1,089</div>
+            <div className="text-2xl font-bold text-green-600">
+              {loading ? "..." : summaryData.activeCustomers.toLocaleString()}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -276,7 +272,9 @@ const AllCustomers = () => {
             <CardTitle className="text-sm font-medium text-gray-600">New This Month</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">156</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {loading ? "..." : summaryData.newThisMonth.toLocaleString()}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -330,7 +328,16 @@ const AllCustomers = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {customers.map((customer) => (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center">Loading customers...</TableCell>
+                </TableRow>
+              ) : customers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center">No customers found</TableCell>
+                </TableRow>
+              ) : (
+                customers.map((customer) => (
                 <TableRow key={customer.id}>
                   <TableCell>
                     <Checkbox
@@ -584,7 +591,8 @@ const AllCustomers = () => {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

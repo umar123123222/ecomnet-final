@@ -1,5 +1,6 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,79 +53,77 @@ const OrderDashboard = () => {
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [editingOrder, setEditingOrder] = useState<any>(null);
   const [editForm, setEditForm] = useState({ email: '', address: '' });
-  const [orders, setOrders] = useState([
-    {
-      id: 'ORD-001',
-      trackingId: 'TRK-123456',
-      customer: 'John Doe',
-      email: 'john@example.com',
-      phone: '+92-300-1234567',
-      courier: 'Leopard',
-      status: 'delivered',
-      amount: 'PKR 2,500',
-      date: '2024-01-15',
-      address: 'House 123, Street 45, Block F, Gulberg, Lahore',
-      gptScore: 85,
-      totalPrice: 2500,
-      orderType: 'COD',
-      city: 'Lahore',
-      items: [
-        { name: 'T-Shirt', quantity: 2, price: 1000 },
-        { name: 'Jeans', quantity: 1, price: 1500 }
-      ],
-      tags: [
-        { id: 'tag1', text: 'Priority', addedBy: 'Muhammad Umar', addedAt: '2024-01-15 10:30', canDelete: true },
-        { id: 'tag2', text: 'VIP Customer', addedBy: 'Staff Member', addedAt: '2024-01-15 11:00', canDelete: false }
-      ],
-      notes: [
-        { id: 'note1', text: 'Customer requested express delivery', addedBy: 'Muhammad Umar', addedAt: '2024-01-15 10:30', canDelete: true },
-        { id: 'note2', text: 'Fragile items - handle with care', addedBy: 'Staff Member', addedAt: '2024-01-15 11:00', canDelete: false }
-      ]
-    },
-    {
-      id: 'ORD-002',
-      trackingId: 'TRK-789012',
-      customer: 'Jane Smith',
-      email: 'jane@example.com',
-      phone: '+92-301-9876543',
-      courier: 'PostEx',
-      status: 'dispatched',
-      amount: 'PKR 1,800',
-      date: '2024-01-14',
-      address: 'Flat 7, Building 12, Main Road, Karachi',
-      gptScore: 92,
-      totalPrice: 1800,
-      orderType: 'Prepaid',
-      city: 'Karachi',
-      items: [
-        { name: 'Shoes', quantity: 1, price: 1800 }
-      ],
-      tags: [],
-      notes: []
-    },
-    {
-      id: 'ORD-003',
-      trackingId: 'TRK-345678',
-      customer: 'Ahmed Ali',
-      email: 'ahmed@example.com',
-      phone: '+92-302-5555555',
-      courier: 'Leopard',
-      status: 'booked',
-      amount: 'PKR 3,200',
-      date: '2024-01-13',
-      address: 'Plot 45, Sector 12, Islamabad',
-      gptScore: 78,
-      totalPrice: 3200,
-      orderType: 'COD',
-      city: 'Islamabad',
-      items: [
-        { name: 'Laptop Case', quantity: 1, price: 2000 },
-        { name: 'Mouse', quantity: 1, price: 1200 }
-      ],
-      tags: [],
-      notes: []
-    },
-  ]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [summaryData, setSummaryData] = useState({
+    totalOrders: 0,
+    booked: 0,
+    dispatched: 0,
+    delivered: 0,
+    cancelled: 0,
+    returns: 0
+  });
+  useEffect(() => {
+    const fetchOrders = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            items,
+            order_items (
+              item_name,
+              quantity,
+              price
+            )
+          `)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching orders:', error);
+        } else {
+          const formattedOrders = (data || []).map(order => ({
+            id: order.id,
+            trackingId: order.tracking_id || 'N/A',
+            customer: order.customer_name,
+            email: order.customer_email || 'N/A',
+            phone: order.customer_phone,
+            courier: order.courier || 'N/A',
+            status: order.status,
+            amount: `PKR ${order.total_amount?.toLocaleString() || '0'}`,
+            date: new Date(order.created_at || '').toLocaleDateString(),
+            address: order.customer_address,
+            gptScore: order.gpt_score || 0,
+            totalPrice: order.total_amount || 0,
+            orderType: order.order_type || 'COD',
+            city: order.city,
+            items: order.order_items || [],
+            tags: [],
+            notes: []
+          }));
+
+          setOrders(formattedOrders);
+
+          // Calculate summary data
+          setSummaryData({
+            totalOrders: formattedOrders.length,
+            booked: formattedOrders.filter(o => o.status === 'booked').length,
+            dispatched: formattedOrders.filter(o => o.status === 'dispatched').length,
+            delivered: formattedOrders.filter(o => o.status === 'delivered').length,
+            cancelled: formattedOrders.filter(o => o.status === 'cancelled').length,
+            returns: formattedOrders.filter(o => o.status === 'returned').length
+          });
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, []);
 
   const { user } = useAuth();
 
@@ -147,12 +146,12 @@ const OrderDashboard = () => {
   };
 
   const summaryCards = [
-    { title: 'Total Orders', value: '2,847', color: 'bg-blue-500' },
-    { title: 'Booked', value: '1,234', color: 'bg-orange-500' },
-    { title: 'Dispatched', value: '987', color: 'bg-purple-500' },
-    { title: 'Delivered', value: '2,156', color: 'bg-green-500' },
-    { title: 'Cancelled', value: '89', color: 'bg-red-500' },
-    { title: 'Returns', value: '168', color: 'bg-gray-500' },
+    { title: 'Total Orders', value: summaryData.totalOrders.toLocaleString(), color: 'bg-blue-500' },
+    { title: 'Booked', value: summaryData.booked.toLocaleString(), color: 'bg-orange-500' },
+    { title: 'Dispatched', value: summaryData.dispatched.toLocaleString(), color: 'bg-purple-500' },
+    { title: 'Delivered', value: summaryData.delivered.toLocaleString(), color: 'bg-green-500' },
+    { title: 'Cancelled', value: summaryData.cancelled.toLocaleString(), color: 'bg-red-500' },
+    { title: 'Returns', value: summaryData.returns.toLocaleString(), color: 'bg-gray-500' },
   ];
 
   const handleSelectOrder = (orderId: string) => {
@@ -481,7 +480,16 @@ const OrderDashboard = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredOrders.map((order) => (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={11} className="text-center">Loading orders...</TableCell>
+                </TableRow>
+              ) : filteredOrders.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={11} className="text-center">No orders found</TableCell>
+                </TableRow>
+              ) : (
+                filteredOrders.map((order) => (
                 <React.Fragment key={order.id}>
                   <TableRow>
                     <TableCell>
@@ -645,7 +653,8 @@ const OrderDashboard = () => {
                     </TableRow>
                   )}
                 </React.Fragment>
-              ))}
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
