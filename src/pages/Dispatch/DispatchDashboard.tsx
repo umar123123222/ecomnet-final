@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Table,
   TableBody,
@@ -40,6 +41,8 @@ import { useToast } from '@/hooks/use-toast';
 const DispatchDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDispatches, setSelectedDispatches] = useState<string[]>([]);
+  const [dispatches, setDispatches] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(),
@@ -56,58 +59,43 @@ const DispatchDashboard = () => {
     },
   });
 
-  const dispatches = useMemo(() => [
-    {
-      id: 'DISP-001',
-      orderId: 'ORD-123456',
-      trackingId: 'TRK-123456',
-      customer: 'John Doe',
-      phone: '+92-300-1234567',
-      address: '123 Main St, Karachi',
-      status: 'pending',
-      date: '2024-01-15',
-      courier: 'TCS',
-      tags: [
-        { id: '1', text: 'Urgent', addedBy: 'John Admin', addedAt: '2024-01-15 10:30', canDelete: true }
-      ],
-      notes: [
-        { id: '1', text: 'Customer requested morning delivery', addedBy: 'Jane Staff', addedAt: '2024-01-15 09:15', canDelete: false }
-      ]
-    },
-    {
-      id: 'DISP-002',
-      orderId: 'ORD-789012',
-      trackingId: 'TRK-789012',
-      customer: 'Jane Smith',
-      phone: '+92-301-9876543',
-      address: '456 Oak Ave, Lahore',
-      status: 'in-transit',
-      date: '2024-01-14',
-      courier: 'Leopards',
-    },
-    {
-      id: 'DISP-003',
-      orderId: 'ORD-345678',
-      trackingId: 'TRK-345678',
-      customer: 'Ali Khan',
-      phone: '+92-302-5556789',
-      address: '789 Pine Rd, Islamabad',
-      status: 'delivered',
-      date: '2024-01-16',
-      courier: 'PostEx',
-    },
-    {
-      id: 'DISP-004',
-      orderId: 'ORD-901234',
-      trackingId: 'TRK-901234',
-      customer: 'Sara Ahmed',
-      phone: '+92-303-7778888',
-      address: '321 Elm St, Faisalabad',
-      status: 'pending',
-      date: '2024-01-13',
-      courier: 'TCS',
-    },
-  ], []);
+  useEffect(() => {
+    const fetchDispatches = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('dispatches')
+          .select(`
+            *,
+            orders:order_id (
+              order_number,
+              customer_name,
+              customer_phone,
+              customer_address,
+              status
+            )
+          `)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching dispatches:', error);
+          toast({
+            title: "Error",
+            description: "Failed to fetch dispatches",
+            variant: "destructive",
+          });
+        } else {
+          setDispatches(data || []);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDispatches();
+  }, [toast]);
 
   const filteredByDate = useMemo(() => {
     if (!dateRange?.from) return dispatches;
@@ -123,10 +111,11 @@ const DispatchDashboard = () => {
 
   const filteredDispatches = useMemo(() => {
     return filteredByDate.filter(dispatch => {
-      const matchesSearch = dispatch.trackingId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        dispatch.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        dispatch.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        dispatch.courier.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = 
+        (dispatch.tracking_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (dispatch.orders?.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (dispatch.orders?.order_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (dispatch.courier || '').toLowerCase().includes(searchTerm.toLowerCase());
       
       return matchesSearch;
     });
@@ -134,8 +123,8 @@ const DispatchDashboard = () => {
 
   const metrics = useMemo(() => {
     const totalDispatches = filteredByDate.length;
+    // Since we don't have worth data in dispatches table, we'll estimate
     const worthOfDispatches = filteredByDate.reduce((total, dispatch) => {
-      // Assuming a default worth per dispatch or you can add amount to dispatch data
       return total + 2500; // Default amount per dispatch
     }, 0);
 
@@ -354,62 +343,67 @@ const DispatchDashboard = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredDispatches.map((dispatch) => (
-                <React.Fragment key={dispatch.id}>
-                  <TableRow>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedDispatches.includes(dispatch.id)}
-                        onCheckedChange={() => {}} // handleSelectDispatch
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">{dispatch.orderId}</TableCell>
-                    <TableCell>{dispatch.trackingId}</TableCell>
-                    <TableCell>{dispatch.customer}</TableCell>
-                    <TableCell>{dispatch.phone}</TableCell>
-                    <TableCell className="max-w-xs truncate">{dispatch.address}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Truck className="h-4 w-4 text-gray-500" />
-                        {dispatch.courier}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={dispatch.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : dispatch.status === 'in-transit' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}>
-                        {dispatch.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{dispatch.date}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => toggleRowExpansion(dispatch.id)}
-                      >
-                        {expandedRows.includes(dispatch.id) ? 
-                          <ChevronUp className="h-4 w-4" /> : 
-                          <ChevronDown className="h-4 w-4" />
-                        }
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                  {expandedRows.includes(dispatch.id) && (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={10} className="text-center">Loading...</TableCell>
+                </TableRow>
+              ) : filteredDispatches.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={10} className="text-center">No dispatches found</TableCell>
+                </TableRow>
+              ) : (
+                filteredDispatches.map((dispatch) => (
+                  <React.Fragment key={dispatch.id}>
                     <TableRow>
-                      <TableCell colSpan={10} className="bg-gray-50 p-4">
-                        <TagsNotes
-                          itemId={dispatch.id}
-                          tags={dispatch.tags}
-                          notes={dispatch.notes}
-                          onAddTag={(tag) => {/* Add tag functionality */}}
-                          onAddNote={(note) => {/* Add note functionality */}}
-                          onDeleteTag={(tagId) => {/* Delete tag functionality */}}
-                          onDeleteNote={(noteId) => {/* Delete note functionality */}}
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedDispatches.includes(dispatch.id)}
+                          onCheckedChange={() => handleSelectDispatch(dispatch.id)}
                         />
                       </TableCell>
+                      <TableCell className="font-medium">{dispatch.orders?.order_number || 'N/A'}</TableCell>
+                      <TableCell>{dispatch.tracking_id || 'N/A'}</TableCell>
+                      <TableCell>{dispatch.orders?.customer_name || 'N/A'}</TableCell>
+                      <TableCell>{dispatch.orders?.customer_phone || 'N/A'}</TableCell>
+                      <TableCell className="max-w-xs truncate">{dispatch.orders?.customer_address || 'N/A'}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Truck className="h-4 w-4 text-gray-500" />
+                          {dispatch.courier || 'N/A'}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getStatusColor(dispatch.status || 'pending')}>
+                          {dispatch.status || 'pending'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{new Date(dispatch.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleRowExpansion(dispatch.id)}
+                        >
+                          {expandedRows.includes(dispatch.id) ? 
+                            <ChevronUp className="h-4 w-4" /> : 
+                            <ChevronDown className="h-4 w-4" />
+                          }
+                        </Button>
+                      </TableCell>
                     </TableRow>
-                  )}
-                </React.Fragment>
-              ))}
+                    {expandedRows.includes(dispatch.id) && (
+                      <TableRow>
+                        <TableCell colSpan={10} className="bg-gray-50 p-4">
+                          <div className="space-y-2">
+                            <p><strong>Notes:</strong> {dispatch.notes || 'No notes available'}</p>
+                            <p><strong>Dispatch Date:</strong> {dispatch.dispatch_date ? new Date(dispatch.dispatch_date).toLocaleDateString() : 'Not set'}</p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

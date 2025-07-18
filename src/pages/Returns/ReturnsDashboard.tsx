@@ -1,5 +1,6 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,6 +47,8 @@ const manualEntrySchema = z.object({
 const ReturnsDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedReturns, setSelectedReturns] = useState<string[]>([]);
+  const [returns, setReturns] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(),
     to: addDays(new Date(), 7),
@@ -62,64 +65,41 @@ const ReturnsDashboard = () => {
     },
   });
 
-  const returns = useMemo(() => [
-    {
-      id: 'RTN-001',
-      orderId: 'ORD-123456',
-      trackingId: 'TRK-123456',
-      customer: 'John Doe',
-      phone: '+92-300-1234567',
-      reason: 'Damaged',
-      worth: 'PKR 2,500',
-      status: 'received',
-      date: '2024-01-15',
-      tags: [
-        { id: '1', text: 'Priority', addedBy: 'Store Manager', addedAt: '2024-01-15 11:00', canDelete: true }
-      ],
-      notes: [
-        { id: '1', text: 'Package damaged during transit', addedBy: 'Staff Member', addedAt: '2024-01-15 10:45', canDelete: false }
-      ]
-    },
-    {
-      id: 'RTN-002',
-      orderId: 'ORD-789012',
-      trackingId: 'TRK-789012',
-      customer: 'Jane Smith',
-      phone: '+92-301-9876543',
-      reason: 'Wrong Item',
-      worth: 'PKR 1,800',
-      status: 'processing',
-      date: '2024-01-14',
-      tags: [],
-      notes: []
-    },
-    {
-      id: 'RTN-003',
-      orderId: 'ORD-345678',
-      trackingId: 'TRK-345678',
-      customer: 'Ali Khan',
-      phone: '+92-302-5556789',
-      reason: 'Defective',
-      worth: 'PKR 3,200',
-      status: 'received',
-      date: '2024-01-16',
-      tags: [],
-      notes: []
-    },
-    {
-      id: 'RTN-004',
-      orderId: 'ORD-901234',
-      trackingId: 'TRK-901234',
-      customer: 'Sara Ahmed',
-      phone: '+92-303-7778888',
-      reason: 'Size Issue',
-      worth: 'PKR 1,500',
-      status: 'processing',
-      date: '2024-01-13',
-      tags: [],
-      notes: []
-    },
-  ], []);
+  useEffect(() => {
+    const fetchReturns = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('returns')
+          .select(`
+            *,
+            orders:order_id (
+              order_number,
+              customer_name,
+              customer_phone
+            )
+          `)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching returns:', error);
+          toast({
+            title: "Error",
+            description: "Failed to fetch returns",
+            variant: "destructive",
+          });
+        } else {
+          setReturns(data || []);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchReturns();
+  }, [toast]);
 
   const filteredByDate = useMemo(() => {
     if (!dateRange?.from) return returns;
@@ -135,17 +115,16 @@ const ReturnsDashboard = () => {
 
   const filteredReturns = useMemo(() => {
     return filteredByDate.filter(returnItem => 
-      returnItem.trackingId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      returnItem.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      returnItem.orderId.toLowerCase().includes(searchTerm.toLowerCase())
+      (returnItem.tracking_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (returnItem.orders?.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (returnItem.orders?.order_number || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [filteredByDate, searchTerm]);
 
   const metrics = useMemo(() => {
     const returnedCount = filteredByDate.length;
     const returnedWorth = filteredByDate.reduce((sum, returnItem) => {
-      const worth = parseInt(returnItem.worth.replace('PKR ', '').replace(',', ''));
-      return sum + worth;
+      return sum + (returnItem.worth || 0);
     }, 0);
 
     return {
@@ -350,57 +329,63 @@ const ReturnsDashboard = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredReturns.map((returnItem) => (
-                <React.Fragment key={returnItem.id}>
-                  <TableRow>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedReturns.includes(returnItem.id)}
-                        onCheckedChange={() => handleSelectReturn(returnItem.id)}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">{returnItem.orderId}</TableCell>
-                    <TableCell>{returnItem.trackingId}</TableCell>
-                    <TableCell>{returnItem.customer}</TableCell>
-                    <TableCell>{returnItem.phone}</TableCell>
-                    <TableCell>{returnItem.reason}</TableCell>
-                    <TableCell>{returnItem.worth}</TableCell>
-                    <TableCell>
-                      <Badge className={returnItem.status === 'received' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}>
-                        {returnItem.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{returnItem.date}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => toggleRowExpansion(returnItem.id)}
-                      >
-                        {expandedRows.includes(returnItem.id) ? 
-                          <ChevronUp className="h-4 w-4" /> : 
-                          <ChevronDown className="h-4 w-4" />
-                        }
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                  {expandedRows.includes(returnItem.id) && (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={10} className="text-center">Loading...</TableCell>
+                </TableRow>
+              ) : filteredReturns.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={10} className="text-center">No returns found</TableCell>
+                </TableRow>
+              ) : (
+                filteredReturns.map((returnItem) => (
+                  <React.Fragment key={returnItem.id}>
                     <TableRow>
-                      <TableCell colSpan={10} className="bg-gray-50 p-4">
-                        <TagsNotes
-                          itemId={returnItem.id}
-                          tags={returnItem.tags || []}
-                          notes={returnItem.notes || []}
-                          onAddTag={(tag) => {/* Add tag functionality */}}
-                          onAddNote={(note) => {/* Add note functionality */}}
-                          onDeleteTag={(tagId) => {/* Delete tag functionality */}}
-                          onDeleteNote={(noteId) => {/* Delete note functionality */}}
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedReturns.includes(returnItem.id)}
+                          onCheckedChange={() => handleSelectReturn(returnItem.id)}
                         />
                       </TableCell>
+                      <TableCell className="font-medium">{returnItem.orders?.order_number || 'N/A'}</TableCell>
+                      <TableCell>{returnItem.tracking_id || 'N/A'}</TableCell>
+                      <TableCell>{returnItem.orders?.customer_name || 'N/A'}</TableCell>
+                      <TableCell>{returnItem.orders?.customer_phone || 'N/A'}</TableCell>
+                      <TableCell>{returnItem.reason || 'N/A'}</TableCell>
+                      <TableCell>PKR {(returnItem.worth || 0).toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Badge className={returnItem.return_status === 'received' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}>
+                          {returnItem.return_status || 'in_transit'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{new Date(returnItem.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleRowExpansion(returnItem.id)}
+                        >
+                          {expandedRows.includes(returnItem.id) ? 
+                            <ChevronUp className="h-4 w-4" /> : 
+                            <ChevronDown className="h-4 w-4" />
+                          }
+                        </Button>
+                      </TableCell>
                     </TableRow>
-                  )}
-                </React.Fragment>
-              ))}
+                    {expandedRows.includes(returnItem.id) && (
+                      <TableRow>
+                        <TableCell colSpan={10} className="bg-gray-50 p-4">
+                          <div className="space-y-2">
+                            <p><strong>Notes:</strong> {returnItem.notes || 'No notes available'}</p>
+                            <p><strong>Received Date:</strong> {returnItem.received_at ? new Date(returnItem.received_at).toLocaleDateString() : 'Not received yet'}</p>
+                            <p><strong>Tags:</strong> {returnItem.tags ? returnItem.tags.join(', ') : 'No tags'}</p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

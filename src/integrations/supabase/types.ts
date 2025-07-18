@@ -252,6 +252,48 @@ export type Database = {
           },
         ]
       }
+      leopard_table: {
+        Row: {
+          created_at: string
+          customer_address: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          customer_phone_last_5_chr: string | null
+          id: number
+          merchant: string | null
+          no_of_items: string | null
+          order_id: string | null
+          order_status: string | null
+          tracking: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_address?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          customer_phone_last_5_chr?: string | null
+          id?: number
+          merchant?: string | null
+          no_of_items?: string | null
+          order_id?: string | null
+          order_status?: string | null
+          tracking?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_address?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          customer_phone_last_5_chr?: string | null
+          id?: number
+          merchant?: string | null
+          no_of_items?: string | null
+          order_id?: string | null
+          order_status?: string | null
+          tracking?: string | null
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           created_at: string
@@ -291,11 +333,11 @@ export type Database = {
         Row: {
           assigned_to: string | null
           city: string
-          courier: Database["public"]["Enums"]["courier_type"]
+          courier: Database["public"]["Enums"]["courier_type"] | null
           created_at: string | null
           customer_address: string
           customer_email: string | null
-          customer_id: string
+          customer_id: string | null
           customer_name: string
           customer_new_address: string | null
           customer_phone: string
@@ -311,6 +353,7 @@ export type Database = {
           order_type: string | null
           status: Database["public"]["Enums"]["order_status"] | null
           tags: string[] | null
+          timestamp: string | null
           total_amount: number
           total_items: string | null
           tracking_id: string | null
@@ -325,11 +368,11 @@ export type Database = {
         Insert: {
           assigned_to?: string | null
           city: string
-          courier: Database["public"]["Enums"]["courier_type"]
+          courier?: Database["public"]["Enums"]["courier_type"] | null
           created_at?: string | null
           customer_address: string
           customer_email?: string | null
-          customer_id: string
+          customer_id?: string | null
           customer_name: string
           customer_new_address?: string | null
           customer_phone: string
@@ -345,6 +388,7 @@ export type Database = {
           order_type?: string | null
           status?: Database["public"]["Enums"]["order_status"] | null
           tags?: string[] | null
+          timestamp?: string | null
           total_amount: number
           total_items?: string | null
           tracking_id?: string | null
@@ -359,11 +403,11 @@ export type Database = {
         Update: {
           assigned_to?: string | null
           city?: string
-          courier?: Database["public"]["Enums"]["courier_type"]
+          courier?: Database["public"]["Enums"]["courier_type"] | null
           created_at?: string | null
           customer_address?: string
           customer_email?: string | null
-          customer_id?: string
+          customer_id?: string | null
           customer_name?: string
           customer_new_address?: string | null
           customer_phone?: string
@@ -379,6 +423,7 @@ export type Database = {
           order_type?: string | null
           status?: Database["public"]["Enums"]["order_status"] | null
           tags?: string[] | null
+          timestamp?: string | null
           total_amount?: number
           total_items?: string | null
           tracking_id?: string | null
@@ -411,6 +456,56 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      postex_table: {
+        Row: {
+          created_at: string
+          customer_address: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          customer_phone_last_5_chr: string | null
+          id: number
+          merchant: string | null
+          no_of_items: string | null
+          order_id: string | null
+          order_status: string | null
+          tracking: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_address?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          customer_phone_last_5_chr?: string | null
+          id?: number
+          merchant?: string | null
+          no_of_items?: string | null
+          order_id?: string | null
+          order_status?: string | null
+          tracking?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_address?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          customer_phone_last_5_chr?: string | null
+          id?: number
+          merchant?: string | null
+          no_of_items?: string | null
+          order_id?: string | null
+          order_status?: string | null
+          tracking?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "postex_table_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["order_number"]
           },
         ]
       }
@@ -715,6 +810,8 @@ export type Database = {
         | "delivered"
         | "cancelled"
         | "returned"
+        | "unclear address"
+        | "address clear"
       return_status: "in_transit" | "received" | "processed" | "completed"
       user_role:
         | "owner"
@@ -858,6 +955,8 @@ export const Constants = {
         "delivered",
         "cancelled",
         "returned",
+        "unclear address",
+        "address clear",
       ],
       return_status: ["in_transit", "received", "processed", "completed"],
       user_role: [
