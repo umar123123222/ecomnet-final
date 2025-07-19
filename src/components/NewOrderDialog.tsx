@@ -36,6 +36,7 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
+  const [availableProducts, setAvailableProducts] = useState<any[]>([]);
   const { toast } = useToast();
 
   // Form state
@@ -45,52 +46,60 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
   const [customerAddress, setCustomerAddress] = useState('');
   const [city, setCity] = useState('');
   const [createdBy, setCreatedBy] = useState('');
-  const [products, setProducts] = useState<Product[]>([
-    { id: '1', name: '', quantity: 1, price: 0 }
-  ]);
+  const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
+  const [orderNotes, setOrderNotes] = useState('');
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      const { data, error } = await supabase
+    const fetchData = async () => {
+      // Fetch users
+      const { data: usersData, error: usersError } = await supabase
         .from('profiles')
         .select('id, full_name, email')
         .eq('is_active', true)
         .order('full_name');
 
-      if (!error && data) {
-        setUsers(data);
+      if (!usersError && usersData) {
+        setUsers(usersData);
       }
+
+      // For now, use sample products until database is fixed
+      setAvailableProducts([
+        { id: 1, name: 'Sample Product 1', price: '1500' },
+        { id: 2, name: 'Sample Product 2', price: '2500' },
+        { id: 3, name: 'Sample Product 3', price: '3500' }
+      ]);
     };
 
     if (open) {
-      fetchUsers();
+      fetchData();
     }
   }, [open]);
 
-  const handleAddProduct = () => {
-    const newProduct: Product = {
-      id: Date.now().toString(),
-      name: '',
-      quantity: 1,
-      price: 0
-    };
-    setProducts([...products, newProduct]);
-  };
-
-  const handleRemoveProduct = (id: string) => {
-    if (products.length > 1) {
-      setProducts(products.filter(p => p.id !== id));
+  const handleAddProduct = (productId: string) => {
+    const product = availableProducts.find(p => p.id.toString() === productId);
+    if (product && !selectedProducts.find(p => p.id === productId)) {
+      const newProduct: Product = {
+        id: productId,
+        name: product.name,
+        quantity: 1,
+        price: parseFloat(product.price) || 0
+      };
+      setSelectedProducts([...selectedProducts, newProduct]);
     }
   };
 
-  const handleProductChange = (id: string, field: keyof Product, value: string | number) => {
-    setProducts(products.map(p => 
-      p.id === id ? { ...p, [field]: value } : p
+  const handleRemoveProduct = (id: string) => {
+    setSelectedProducts(selectedProducts.filter(p => p.id !== id));
+  };
+
+  const handleQuantityChange = (id: string, quantity: number) => {
+    setSelectedProducts(selectedProducts.map(p => 
+      p.id === id ? { ...p, quantity: quantity } : p
     ));
   };
 
   const calculateTotal = () => {
-    return products.reduce((total, product) => total + (product.quantity * product.price), 0);
+    return selectedProducts.reduce((total, product) => total + (product.quantity * product.price), 0);
   };
 
   const generateOrderNumber = () => {
@@ -106,7 +115,8 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
     setCustomerAddress('');
     setCity('');
     setCreatedBy('');
-    setProducts([{ id: '1', name: '', quantity: 1, price: 0 }]);
+    setSelectedProducts([]);
+    setOrderNotes('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -121,8 +131,7 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
       return;
     }
 
-    const validProducts = products.filter(p => p.name && p.quantity > 0 && p.price > 0);
-    if (validProducts.length === 0) {
+    if (selectedProducts.length === 0) {
       toast({
         title: "Invalid Products",
         description: "Please add at least one valid product",
@@ -150,14 +159,15 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
           city: city,
           total_amount: totalAmount,
           customer_phone_last_5_chr: phoneLastFiveChr,
-          total_items: validProducts.length.toString(),
+          total_items: selectedProducts.length.toString(),
           status: 'pending',
           order_type: 'standard',
-          items: validProducts.map(p => ({
+          items: selectedProducts.map(p => ({
             name: p.name,
             quantity: p.quantity,
             price: p.price
-          }))
+          })),
+          notes: orderNotes
         })
         .select()
         .single();
@@ -166,7 +176,7 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
 
       // Create order items
       if (orderData) {
-        const orderItems = validProducts.map(product => ({
+        const orderItems = selectedProducts.map(product => ({
           order_id: orderData.id,
           item_name: product.name,
           quantity: product.quantity,
@@ -270,23 +280,32 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Order Details</h3>
-              <Button type="button" onClick={handleAddProduct} variant="outline" size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Product
-              </Button>
+              <div className="flex gap-2">
+                <Select onValueChange={handleAddProduct}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Select product" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableProducts.map((product) => (
+                      <SelectItem 
+                        key={product.id} 
+                        value={product.id.toString()}
+                        disabled={selectedProducts.some(p => p.id === product.id.toString())}
+                      >
+                        {product.name} - PKR {product.price}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             
             <div className="space-y-3">
-              {products.map((product, index) => (
-                <div key={product.id} className="grid grid-cols-1 md:grid-cols-5 gap-3 p-3 border rounded-lg">
+              {selectedProducts.map((product) => (
+                <div key={product.id} className="grid grid-cols-1 md:grid-cols-4 gap-3 p-3 border rounded-lg">
                   <div className="md:col-span-2">
-                    <Label htmlFor={`product-name-${product.id}`}>Product Name</Label>
-                    <Input
-                      id={`product-name-${product.id}`}
-                      value={product.name}
-                      onChange={(e) => handleProductChange(product.id, 'name', e.target.value)}
-                      placeholder="Enter product name"
-                    />
+                    <Label>Product Name</Label>
+                    <Input value={product.name} readOnly />
                   </div>
                   <div>
                     <Label htmlFor={`product-quantity-${product.id}`}>Quantity</Label>
@@ -295,35 +314,32 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
                       type="number"
                       min="1"
                       value={product.quantity}
-                      onChange={(e) => handleProductChange(product.id, 'quantity', parseInt(e.target.value) || 1)}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor={`product-price-${product.id}`}>Price (PKR)</Label>
-                    <Input
-                      id={`product-price-${product.id}`}
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={product.price}
-                      onChange={(e) => handleProductChange(product.id, 'price', parseFloat(e.target.value) || 0)}
+                      onChange={(e) => handleQuantityChange(product.id, parseInt(e.target.value) || 1)}
                     />
                   </div>
                   <div className="flex items-end">
-                    {products.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRemoveProduct(product.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRemoveProduct(product.id)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div>
+              <Label htmlFor="orderNotes">Order Notes</Label>
+              <Textarea
+                id="orderNotes"
+                value={orderNotes}
+                onChange={(e) => setOrderNotes(e.target.value)}
+                placeholder="Add any special notes for this order..."
+              />
             </div>
             
             <div className="text-right">
