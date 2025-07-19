@@ -62,12 +62,22 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
         setUsers(usersData);
       }
 
-      // For now, use sample products until database is fixed
-      setAvailableProducts([
-        { id: 1, name: 'Sample Product 1', price: '1500' },
-        { id: 2, name: 'Sample Product 2', price: '2500' },
-        { id: 3, name: 'Sample Product 3', price: '3500' }
-      ]);
+      // Fetch products from database
+      const { data: productsData, error: productsError } = await supabase
+        .from('product')
+        .select('id, name, price')
+        .order('name');
+
+      if (!productsError && productsData) {
+        setAvailableProducts(productsData);
+      } else {
+        // Fallback to sample products if fetch fails
+        setAvailableProducts([
+          { id: 1, name: 'Sample Product 1', price: '1500' },
+          { id: 2, name: 'Sample Product 2', price: '2500' },
+          { id: 3, name: 'Sample Product 3', price: '3500' }
+        ]);
+      }
     };
 
     if (open) {
