@@ -42,6 +42,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Search, Upload, Plus, Filter, Download, ChevronDown, ChevronUp, Package, Send, Edit, Trash2 } from 'lucide-react';
 import TagsNotes from '@/components/TagsNotes';
+import NewOrderDialog from '@/components/NewOrderDialog';
 import { useAuth } from '@/contexts/AuthContext';
 
 const OrderDashboard = () => {
@@ -63,65 +64,65 @@ const OrderDashboard = () => {
     cancelled: 0,
     returns: 0
   });
-  useEffect(() => {
-    const fetchOrders = async () => {
-      setLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('orders')
-          .select(`
-            *,
-            items,
-            order_items (
-              item_name,
-              quantity,
-              price
-            )
-          `)
-          .order('created_at', { ascending: false });
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          items,
+          order_items (
+            item_name,
+            quantity,
+            price
+          )
+        `)
+        .order('created_at', { ascending: false });
 
-        if (error) {
-          console.error('Error fetching orders:', error);
-        } else {
-          const formattedOrders = (data || []).map(order => ({
-            id: order.id,
-            trackingId: order.tracking_id || 'N/A',
-            customer: order.customer_name,
-            email: order.customer_email || 'N/A',
-            phone: order.customer_phone,
-            courier: order.courier || 'N/A',
-            status: order.status,
-            amount: `PKR ${order.total_amount?.toLocaleString() || '0'}`,
-            date: new Date(order.created_at || '').toLocaleDateString(),
-            address: order.customer_address,
-            gptScore: order.gpt_score || 0,
-            totalPrice: order.total_amount || 0,
-            orderType: order.order_type || 'COD',
-            city: order.city,
-            items: order.order_items || [],
-            tags: [],
-            notes: []
-          }));
+      if (error) {
+        console.error('Error fetching orders:', error);
+      } else {
+        const formattedOrders = (data || []).map(order => ({
+          id: order.id,
+          trackingId: order.tracking_id || 'N/A',
+          customer: order.customer_name,
+          email: order.customer_email || 'N/A',
+          phone: order.customer_phone,
+          courier: order.courier || 'N/A',
+          status: order.status,
+          amount: `PKR ${order.total_amount?.toLocaleString() || '0'}`,
+          date: new Date(order.created_at || '').toLocaleDateString(),
+          address: order.customer_address,
+          gptScore: order.gpt_score || 0,
+          totalPrice: order.total_amount || 0,
+          orderType: order.order_type || 'COD',
+          city: order.city,
+          items: order.order_items || [],
+          tags: [],
+          notes: []
+        }));
 
-          setOrders(formattedOrders);
+        setOrders(formattedOrders);
 
-          // Calculate summary data
-          setSummaryData({
-            totalOrders: formattedOrders.length,
-            booked: formattedOrders.filter(o => o.status === 'booked').length,
-            dispatched: formattedOrders.filter(o => o.status === 'dispatched').length,
-            delivered: formattedOrders.filter(o => o.status === 'delivered').length,
-            cancelled: formattedOrders.filter(o => o.status === 'cancelled').length,
-            returns: formattedOrders.filter(o => o.status === 'returned').length
-          });
-        }
-      } catch (error) {
-        console.error('Error:', error);
-      } finally {
-        setLoading(false);
+        // Calculate summary data
+        setSummaryData({
+          totalOrders: formattedOrders.length,
+          booked: formattedOrders.filter(o => o.status === 'booked').length,
+          dispatched: formattedOrders.filter(o => o.status === 'dispatched').length,
+          delivered: formattedOrders.filter(o => o.status === 'delivered').length,
+          cancelled: formattedOrders.filter(o => o.status === 'cancelled').length,
+          returns: formattedOrders.filter(o => o.status === 'returned').length
+        });
       }
-    };
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchOrders();
   }, []);
 
@@ -314,10 +315,7 @@ const OrderDashboard = () => {
             <p className="text-gray-600 mt-1">Manage and track all your orders</p>
           </div>
           <div className="flex items-center gap-3">
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              New Order
-            </Button>
+            <NewOrderDialog onOrderCreated={fetchOrders} />
             <Button variant="outline">
               <Upload className="h-4 w-4 mr-2" />
               Bulk Upload
