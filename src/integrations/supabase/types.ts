@@ -146,8 +146,8 @@ export type Database = {
       }
       customers: {
         Row: {
-          address: string
-          city: string
+          address: string | null
+          city: string | null
           created_at: string | null
           delivered_count: number | null
           email: string | null
@@ -163,8 +163,8 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          address: string
-          city: string
+          address?: string | null
+          city?: string | null
           created_at?: string | null
           delivered_count?: number | null
           email?: string | null
@@ -180,8 +180,8 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          address?: string
-          city?: string
+          address?: string | null
+          city?: string | null
           created_at?: string | null
           delivered_count?: number | null
           email?: string | null
@@ -508,6 +508,33 @@ export type Database = {
             referencedColumns: ["order_number"]
           },
         ]
+      }
+      product: {
+        Row: {
+          compared_price: string | null
+          id: number
+          name: string | null
+          price: string | null
+          shopify_id: number
+          type: string | null
+        }
+        Insert: {
+          compared_price?: string | null
+          id?: number
+          name?: string | null
+          price?: string | null
+          shopify_id: number
+          type?: string | null
+        }
+        Update: {
+          compared_price?: string | null
+          id?: number
+          name?: string | null
+          price?: string | null
+          shopify_id?: number
+          type?: string | null
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
