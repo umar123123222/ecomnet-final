@@ -288,26 +288,25 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
 
           {/* Order Details */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Order Details</h3>
-              <div className="flex gap-2">
-                <Select onValueChange={handleAddProduct}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Select product" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableProducts.map((product) => (
-                      <SelectItem 
-                        key={product.id} 
-                        value={product.id.toString()}
-                        disabled={selectedProducts.some(p => p.id === product.id.toString())}
-                      >
-                        {product.name} - PKR {product.price}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <h3 className="text-lg font-semibold">Order Details</h3>
+            
+            <div className="flex gap-2">
+              <Select onValueChange={handleAddProduct}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select product to add" />
+                </SelectTrigger>
+                <SelectContent className="bg-background border shadow-lg z-50">
+                  {availableProducts.map((product) => (
+                    <SelectItem 
+                      key={product.id} 
+                      value={product.id.toString()}
+                      disabled={selectedProducts.some(p => p.id === product.id.toString())}
+                    >
+                      {product.name} - PKR {product.price}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             
             <div className="space-y-3">
