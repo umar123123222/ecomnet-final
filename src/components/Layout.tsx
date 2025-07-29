@@ -47,11 +47,11 @@ const Layout = () => {
         <Sidebar className="border-r border-white/20 bg-gradient-to-b from-slate-900 via-purple-900/50 to-slate-900 dark:from-gray-950 dark:via-purple-950/50 dark:to-gray-950" collapsible="icon">
           <SidebarHeader className="p-4 border-b border-white/10">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center shadow-lg group-data-[collapsible=icon]:mx-auto">
-                <Package className="h-4 w-4 text-white" />
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-lg group-data-[collapsible=icon]:mx-auto overflow-hidden">
+                <img src="/lovable-uploads/16f7bf51-0496-44ab-846f-048636e7cc5d.png" alt="CORE47.AI" className="w-full h-full object-contain" />
               </div>
               <div className="group-data-[collapsible=icon]:hidden">
-                <h2 className="text-sm font-bold text-white">Ecomnet Portal</h2>
+                <h2 className="text-sm font-bold text-white">CORE47.AI</h2>
                 <p className="text-xs text-gray-300">Order Management</p>
               </div>
             </div>
