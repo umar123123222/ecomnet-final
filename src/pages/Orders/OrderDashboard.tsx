@@ -67,11 +67,12 @@ const OrderDashboard = () => {
   const fetchOrders = async () => {
     setLoading(true);
     try {
+      console.log('Fetching orders...');
+      
       const { data, error } = await supabase
         .from('orders')
         .select(`
           *,
-          items,
           order_items (
             item_name,
             quantity,
@@ -80,10 +81,16 @@ const OrderDashboard = () => {
         `)
         .order('created_at', { ascending: false });
 
+      console.log('Supabase response:', { data, error });
+
       if (error) {
         console.error('Error fetching orders:', error);
-      } else {
-        const formattedOrders = (data || []).map(order => ({
+        // Still try to show any data we got
+      }
+      
+      // Process data even if empty array to show proper state
+      console.log('Processing orders:', data?.length || 0);
+      const formattedOrders = (data || []).map(order => ({
           id: order.id,
           trackingId: order.tracking_id || 'N/A',
           customer: order.customer_name,
@@ -114,7 +121,6 @@ const OrderDashboard = () => {
           cancelled: formattedOrders.filter(o => o.status === 'cancelled').length,
           returns: formattedOrders.filter(o => o.status === 'returned').length
         });
-      }
     } catch (error) {
       console.error('Error:', error);
     } finally {
