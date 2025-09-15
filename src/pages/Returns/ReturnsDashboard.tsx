@@ -37,7 +37,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import TagsNotes from '@/components/TagsNotes';
-import { Scanner } from '@/components/Scanner';
+import OCRScanner from '@/components/OCRScanner';
 import { useToast } from '@/hooks/use-toast';
 
 const manualEntrySchema = z.object({
@@ -244,11 +244,11 @@ const ReturnsDashboard = () => {
       </div>
 
       {/* Scanner Component */}
-      <Scanner
+      <OCRScanner
         isOpen={isScanDialogOpen}
         onClose={() => setIsScanDialogOpen(false)}
         onScan={handleScanReturn}
-        title="Scan Return QR Code"
+        title="Scan Return Package"
         scanType="return"
       />
 

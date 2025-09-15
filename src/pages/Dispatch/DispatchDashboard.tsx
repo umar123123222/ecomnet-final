@@ -35,7 +35,7 @@ import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import TagsNotes from '@/components/TagsNotes';
-import { Scanner } from '@/components/Scanner';
+import OCRScanner from '@/components/OCRScanner';
 import { useToast } from '@/hooks/use-toast';
 
 const DispatchDashboard = () => {
@@ -258,11 +258,11 @@ const DispatchDashboard = () => {
       </div>
 
       {/* Scanner Component */}
-      <Scanner
+      <OCRScanner
         isOpen={isScanningOpen}
         onClose={() => setIsScanningOpen(false)}
         onScan={handleScanDispatch}
-        title="Scan Dispatch QR Code"
+        title="Scan Dispatch Package"
         scanType="dispatch"
       />
 
