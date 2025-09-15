@@ -69,6 +69,7 @@ const UserManagement = () => {
       email: '',
       roles: [],
     },
+    mode: 'onChange',
   });
 
   const users = useMemo(() => [
@@ -220,7 +221,7 @@ const UserManagement = () => {
                                   className="w-full justify-between h-auto min-h-10"
                                 >
                                   <div className="flex flex-wrap gap-1">
-                                    {field.value.length > 0 ? (
+                                    {field.value && field.value.length > 0 ? (
                                       field.value.map((role) => (
                                         <Badge
                                           key={role}
@@ -230,16 +231,16 @@ const UserManagement = () => {
                                           {role}
                                           <button
                                             className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                                            onKeyDown={(e) => {
-                                              if (e.key === "Enter") {
-                                                field.onChange(field.value.filter((r) => r !== role));
-                                              }
-                                            }}
+                                           onKeyDown={(e) => {
+                                             if (e.key === "Enter") {
+                                               field.onChange((field.value || []).filter((r) => r !== role));
+                                             }
+                                           }}
                                             onMouseDown={(e) => {
                                               e.preventDefault();
                                               e.stopPropagation();
                                             }}
-                                            onClick={() => field.onChange(field.value.filter((r) => r !== role))}
+                                            onClick={() => field.onChange((field.value || []).filter((r) => r !== role))}
                                           >
                                             <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
                                           </button>
@@ -263,16 +264,17 @@ const UserManagement = () => {
                                       key={role}
                                       value={role}
                                       onSelect={() => {
-                                        if (field.value.includes(role)) {
-                                          field.onChange(field.value.filter((r) => r !== role));
+                                        const currentValue = field.value || [];
+                                        if (currentValue.includes(role)) {
+                                          field.onChange(currentValue.filter((r) => r !== role));
                                         } else {
-                                          field.onChange([...field.value, role]);
+                                          field.onChange([...currentValue, role]);
                                         }
                                       }}
                                     >
                                       <Check
                                         className={`mr-2 h-4 w-4 ${
-                                          field.value.includes(role) ? "opacity-100" : "opacity-0"
+                                          field.value && field.value.includes(role) ? "opacity-100" : "opacity-0"
                                         }`}
                                       />
                                       {role}
@@ -452,7 +454,7 @@ const UserManagement = () => {
                             className="w-full justify-between h-auto min-h-10"
                           >
                             <div className="flex flex-wrap gap-1">
-                              {field.value.length > 0 ? (
+                              {field.value && field.value.length > 0 ? (
                                 field.value.map((role) => (
                                   <Badge
                                     key={role}
@@ -464,14 +466,14 @@ const UserManagement = () => {
                                       className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                                       onKeyDown={(e) => {
                                         if (e.key === "Enter") {
-                                          field.onChange(field.value.filter((r) => r !== role));
+                                          field.onChange((field.value || []).filter((r) => r !== role));
                                         }
                                       }}
                                       onMouseDown={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
                                       }}
-                                      onClick={() => field.onChange(field.value.filter((r) => r !== role))}
+                                      onClick={() => field.onChange((field.value || []).filter((r) => r !== role))}
                                     >
                                       <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
                                     </button>
@@ -495,16 +497,17 @@ const UserManagement = () => {
                                 key={role}
                                 value={role}
                                 onSelect={() => {
-                                  if (field.value.includes(role)) {
-                                    field.onChange(field.value.filter((r) => r !== role));
+                                  const currentValue = field.value || [];
+                                  if (currentValue.includes(role)) {
+                                    field.onChange(currentValue.filter((r) => r !== role));
                                   } else {
-                                    field.onChange([...field.value, role]);
+                                    field.onChange([...currentValue, role]);
                                   }
                                 }}
                               >
                                 <Check
                                   className={`mr-2 h-4 w-4 ${
-                                    field.value.includes(role) ? "opacity-100" : "opacity-0"
+                                    field.value && field.value.includes(role) ? "opacity-100" : "opacity-0"
                                   }`}
                                 />
                                 {role}
