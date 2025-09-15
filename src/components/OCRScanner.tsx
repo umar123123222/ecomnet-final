@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { BrowserMultiFormatReader } from '@zxing/library';
 import { createWorker } from 'tesseract.js';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,30 +40,45 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
-  
+  const [lastOcrText, setLastOcrText] = useState('');
+
   const { toast } = useToast();
 
-  // Order ID extraction patterns
+  // Order ID extraction patterns (improved)
   const extractOrderId = (text: string): string | null => {
-    const patterns = [
-      /order[_\s]*id[:\s]*([a-z0-9\-]+)/i,
-      /ord[:\s]*([a-z0-9\-]+)/i,
-      /#([0-9]{4,})/g,
-      /([A-Z]{2,}[0-9]{4,})/g,
-      /order[:\s]*([0-9]+)/i,
-      /([0-9]{6,})/g
+    // Normalize OCR quirks before matching
+    const normalize = (s: string) => {
+      let t = s
+        .replace(/[\u2010-\u2015]/g, '-') // hyphen variants
+        .replace(/[|]/g, 'I') // pipe to I
+        .replace(/\s+/g, ' ') // collapse spaces
+        .toUpperCase();
+      // Common OCR confusions around "ORD"
+      t = t.replace(/0RD/g, 'ORD'); // zero -> O
+      t = t.replace(/ORDI/g, 'ORD1');
+      return t;
+    };
+
+    const cleanText = normalize(text).replace(/[^A-Z0-9#:_\-\s]/g, ' ').trim();
+
+    // Try several robust patterns
+    const patterns: RegExp[] = [
+      /(?:ORDER(?:\s*ID)?|ORD)[:\s#\-]*([A-Z0-9\-]{4,})/i, // ORDER ID: XYZ, ORD-12345
+      /(?:ORD)[\s:_\-]*([0-9]{4,})/i,                      // ORD 12345, ORD-12345
+      /#\s*([0-9]{4,})/i,                                   // #12345
+      /([A-Z]{2,}[0-9]{4,})/i,                               // ORD123456, AB1234
     ];
 
-    const cleanText = text.replace(/[^\w\s\-#:]/g, ' ').trim();
-    
     for (const pattern of patterns) {
-      const matches = cleanText.match(pattern);
-      if (matches) {
-        let orderId = matches[1] || matches[0];
-        orderId = orderId.replace(/[^a-z0-9\-]/gi, '');
-        if (orderId.length >= 4) {
-          return orderId.toUpperCase();
+      const m = cleanText.match(pattern);
+      if (m) {
+        let id = m[1] || m[0];
+        id = id.replace(/[^A-Z0-9\-]/g, '');
+        // If it looks like just digits and we saw an ORD prefix nearby, prefix it
+        if (/^[0-9]{4,}$/.test(id) && /ORD[\s:_\-]*[0-9]{4,}/.test(cleanText)) {
+          id = `ORD${id}`;
         }
+        if (id.length >= 4) return id.toUpperCase();
       }
     }
     return null;
@@ -82,7 +97,9 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
         });
         await ocrWorker.current.setParameters({
           tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#:-_',
-          tessedit_pageseg_mode: '8'
+          tessedit_pageseg_mode: '7', // Treat image as a single text line
+          preserve_interword_spaces: '1',
+          user_defined_dpi: '300'
         });
       }
     } catch (error) {
@@ -91,31 +108,53 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
     }
   };
 
-  // Process OCR frame
   const processOCRFrame = async () => {
     if (!videoRef.current || !canvasRef.current || !ocrWorker.current) return;
 
     try {
-      const canvas = canvasRef.current;
       const video = videoRef.current;
-      const ctx = canvas.getContext('2d');
-      
-      if (!ctx) return;
 
-      // Set canvas size to match video
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      
-      // Draw current video frame to canvas
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      // Get image data for OCR
-      const imageData = canvas.toDataURL('image/png');
-      
-      // Process with OCR
+      // Define a centered region of interest (ROI) where users place the text
+      const roiW = Math.floor(video.videoWidth * 0.8);
+      const roiH = Math.floor(video.videoHeight * 0.28);
+      const roiX = Math.floor((video.videoWidth - roiW) / 2);
+      const roiY = Math.floor((video.videoHeight - roiH) / 2);
+
+      // Create an offscreen canvas and upscale a bit for better OCR
+      const scale = 1.5;
+      const roiCanvas = document.createElement('canvas');
+      roiCanvas.width = Math.max(640, Math.floor(roiW * scale));
+      roiCanvas.height = Math.max(200, Math.floor(roiH * scale));
+      const rctx = roiCanvas.getContext('2d');
+      if (!rctx) return;
+
+      // Draw ROI from video to canvas with scaling
+      rctx.drawImage(video, roiX, roiY, roiW, roiH, 0, 0, roiCanvas.width, roiCanvas.height);
+
+      // Simple preprocessing: grayscale + mean threshold to increase contrast
+      const imgData = rctx.getImageData(0, 0, roiCanvas.width, roiCanvas.height);
+      const d = imgData.data;
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        sum += gray;
+      }
+      const mean = sum / (d.length / 4);
+      const threshold = mean * 0.9; // tweakable
+      for (let i = 0; i < d.length; i += 4) {
+        const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        const v = gray > threshold ? 255 : 0;
+        d[i] = d[i + 1] = d[i + 2] = v;
+      }
+      rctx.putImageData(imgData, 0, 0);
+
+      const imageData = roiCanvas.toDataURL('image/png');
+
+      // OCR the ROI
       const { data: { text } } = await ocrWorker.current.recognize(imageData);
-      
+
       if (text) {
+        setLastOcrText(text.trim().slice(0, 160));
         const orderId = extractOrderId(text);
         if (orderId) {
           setDetectedOrderId(orderId);
@@ -254,7 +293,7 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
         }
 
         // Start OCR processing at intervals
-        scanIntervalRef.current = setInterval(processOCRFrame, 2000);
+        scanIntervalRef.current = setInterval(processOCRFrame, 1200);
       }
     } catch (error) {
       console.error('Error starting OCR scanning:', error);
@@ -347,12 +386,15 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {scanMode === 'qr' ? <QrCode className="h-5 w-5" /> : <Type className="h-5 w-5" />}
-            {title}
-          </DialogTitle>
-        </DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {scanMode === 'qr' ? <QrCode className="h-5 w-5" /> : <Type className="h-5 w-5" />}
+              {title}
+            </DialogTitle>
+            <DialogDescription>
+              Aim the camera at the printed Order ID inside the box. Good light helps. Works best over HTTPS.
+            </DialogDescription>
+          </DialogHeader>
         
         <div className="space-y-4">
           {/* Scan Mode Toggle */}
@@ -392,26 +434,33 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
             />
             
             {/* Scanning overlay */}
-            {isScanning && (
-              <div className="absolute inset-0 border-2 border-primary">
-                <div className="absolute inset-4 border border-white/50 rounded">
-                  {scanMode === 'ocr' && (
-                    <div className="absolute top-2 left-2 text-white text-xs bg-black/50 px-2 py-1 rounded">
-                      Position text clearly in frame
+              {isScanning && (
+                <div className="absolute inset-0 border-2 border-primary">
+                  <div className="absolute inset-4 border border-white/50 rounded">
+                    {scanMode === 'ocr' && (
+                      <div className="absolute top-2 left-2 text-white text-xs bg-black/50 px-2 py-1 rounded">
+                        Position text clearly in frame
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* OCR Progress */}
+              {scanMode === 'ocr' && (ocrProgress > 0 || lastOcrText) && (
+                <div className="absolute bottom-2 left-2 right-2 space-y-1">
+                  {ocrProgress > 0 && (
+                    <div className="bg-black/50 text-white text-xs px-2 py-1 rounded">
+                      Processing: {ocrProgress}%
+                    </div>
+                  )}
+                  {lastOcrText && (
+                    <div className="bg-black/50 text-white text-xs px-2 py-1 rounded line-clamp-2">
+                      {lastOcrText}
                     </div>
                   )}
                 </div>
-              </div>
-            )}
-
-            {/* OCR Progress */}
-            {scanMode === 'ocr' && ocrProgress > 0 && (
-              <div className="absolute bottom-2 left-2 right-2">
-                <div className="bg-black/50 text-white text-xs px-2 py-1 rounded">
-                  Processing: {ocrProgress}%
-                </div>
-              </div>
-            )}
+              )}
           </div>
 
           {/* Detected Order ID */}
