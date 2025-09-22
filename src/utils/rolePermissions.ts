@@ -69,7 +69,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessSettings: true,
       };
     
-    case 'Staff':
+    case 'staff':
       return {
         ...permissions,
         canAccessDashboard: true,

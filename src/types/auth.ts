@@ -1,5 +1,5 @@
 
-export type UserRole = 'SuperAdmin' | 'Manager' | 'Dispatch/Returns Manager' | 'Staff';
+export type UserRole = 'SuperAdmin' | 'Manager' | 'Dispatch/Returns Manager' | 'staff';
 
 export interface User {
   id: string;
