@@ -14,6 +14,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Select,
   SelectContent,
@@ -92,6 +94,7 @@ const OrderDashboard = () => {
       console.log('Processing orders:', data?.length || 0);
       const formattedOrders = (data || []).map(order => ({
           id: order.id,
+          customerId: order.customer_id || 'N/A',
           trackingId: order.tracking_id || 'N/A',
           customer: order.customer_name,
           email: order.customer_email || 'N/A',
@@ -106,6 +109,9 @@ const OrderDashboard = () => {
           orderType: order.order_type || 'COD',
           city: order.city,
           items: order.order_items || [],
+          dispatchedAt: order.dispatched_at ? new Date(order.dispatched_at).toLocaleString() : 'N/A',
+          deliveredAt: order.delivered_at ? new Date(order.delivered_at).toLocaleString() : 'N/A',
+          orderNotes: order.notes || 'No notes',
           tags: [],
           notes: []
         }));
@@ -471,26 +477,22 @@ const OrderDashboard = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Select</TableHead>
+                <TableHead>Customer ID</TableHead>
                 <TableHead>Order ID</TableHead>
                 <TableHead>Tracking ID</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Courier</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Actions</TableHead>
-                <TableHead>Details</TableHead>
+                <TableHead>Order Status</TableHead>
+                <TableHead>Assigned Courier</TableHead>
+                <TableHead>Expand</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center">Loading orders...</TableCell>
+                  <TableCell colSpan={7} className="text-center">Loading orders...</TableCell>
                 </TableRow>
               ) : filteredOrders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center">No orders found</TableCell>
+                  <TableCell colSpan={7} className="text-center">No orders found</TableCell>
                 </TableRow>
               ) : (
                 filteredOrders.map((order) => (
@@ -502,24 +504,11 @@ const OrderDashboard = () => {
                         onCheckedChange={() => handleSelectOrder(order.id)}
                       />
                     </TableCell>
+                    <TableCell className="font-medium">{order.customerId}</TableCell>
                     <TableCell className="font-medium">{order.id}</TableCell>
                     <TableCell>{order.trackingId}</TableCell>
-                    <TableCell>{order.customer}</TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <div>{order.email}</div>
-                        <div className="text-gray-500">{order.phone}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{order.courier}</TableCell>
                     <TableCell>{getStatusBadge(order.status)}</TableCell>
-                    <TableCell>{order.amount}</TableCell>
-                    <TableCell>{order.date}</TableCell>
-                    <TableCell>
-                      <Button variant="outline" size="sm">
-                        Track
-                      </Button>
-                    </TableCell>
+                    <TableCell>{order.courier}</TableCell>
                     <TableCell>
                       <Button
                         variant="outline"
@@ -536,123 +525,71 @@ const OrderDashboard = () => {
                   </TableRow>
                   {expandedRows.includes(order.id) && (
                     <TableRow>
-                      <TableCell colSpan={11} className="bg-gray-50 p-6">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                          <div className="space-y-6">
-                            <div>
-                              <h4 className="font-semibold mb-2">Customer Address</h4>
-                              <p className="text-sm text-gray-600">{order.address}</p>
-                            </div>
-                            <div>
-                              <h4 className="font-semibold mb-2">Order Details</h4>
-                              <div className="space-y-1 text-sm">
-                                <p><span className="font-medium">GPT Score:</span> {order.gptScore}%</p>
-                                <p><span className="font-medium">Total Price:</span> PKR {order.totalPrice}</p>
-                                <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
-                                <p><span className="font-medium">City:</span> {order.city}</p>
-                              </div>
-                            </div>
-                            <div>
-                              <h4 className="font-semibold mb-2">Items</h4>
-                              <div className="space-y-1">
-                                {order.items.map((item, index) => (
-                                  <div key={index} className="text-sm">
-                                    <span className="font-medium">{item.name}</span>
-                                    <span className="text-gray-500 ml-2">x{item.quantity} - PKR {item.price}</span>
+                      <TableCell colSpan={7} className="bg-gray-50 p-6">
+                        <Tabs defaultValue="additional-details" className="w-full">
+                          <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="additional-details">Additional Details</TabsTrigger>
+                            <TabsTrigger value="second-tab">Second Tab</TabsTrigger>
+                          </TabsList>
+                          
+                          <TabsContent value="additional-details" className="mt-4">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="font-semibold mb-3">Customer Information</h4>
+                                  <div className="space-y-2 text-sm">
+                                    <p><span className="font-medium">Customer Name:</span> {order.customer}</p>
+                                    <p><span className="font-medium">Customer Phone:</span> {order.phone}</p>
+                                    <p><span className="font-medium">Customer Email:</span> {order.email}</p>
+                                    <p><span className="font-medium">Customer Address:</span> {order.address}</p>
                                   </div>
-                                ))}
+                                </div>
+                                
+                                <div>
+                                  <h4 className="font-semibold mb-3">Order Information</h4>
+                                  <div className="space-y-2 text-sm">
+                                    <p><span className="font-medium">Customer Order Total Worth:</span> {order.amount}</p>
+                                    <p><span className="font-medium">Assigned Courier:</span> {order.courier}</p>
+                                    <p><span className="font-medium">Dispatched At:</span> {order.dispatchedAt}</p>
+                                    <p><span className="font-medium">Delivered At:</span> {order.deliveredAt}</p>
+                                    <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
+                                    <p><span className="font-medium">City:</span> {order.city}</p>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="font-semibold mb-3">Order Items</h4>
+                                  <div className="space-y-2">
+                                    {order.items.length > 0 ? order.items.map((item, index) => (
+                                      <div key={index} className="text-sm border-b pb-2">
+                                        <p><span className="font-medium">Item:</span> {item.item_name}</p>
+                                        <p><span className="font-medium">Quantity:</span> {item.quantity}</p>
+                                        <p><span className="font-medium">Price:</span> PKR {item.price}</p>
+                                      </div>
+                                    )) : (
+                                      <p className="text-sm text-gray-500">No items available</p>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                <div>
+                                  <h4 className="font-semibold mb-3">Internal Notes</h4>
+                                  <div className="text-sm">
+                                    <p className="bg-gray-100 p-3 rounded">{order.orderNotes}</p>
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <div className="space-y-6">
-                            <div>
-                              <h4 className="font-semibold mb-4">Tags & Notes</h4>
-                              <TagsNotes
-                                itemId={order.id}
-                                tags={order.tags}
-                                notes={order.notes}
-                                onAddTag={(tag) => handleAddTag(order.id, tag)}
-                                onAddNote={(note) => handleAddNote(order.id, note)}
-                                onDeleteTag={(tagId) => handleDeleteTag(order.id, tagId)}
-                                onDeleteNote={(noteId) => handleDeleteNote(order.id, noteId)}
-                              />
+                          </TabsContent>
+                          
+                          <TabsContent value="second-tab" className="mt-4">
+                            <div className="p-4 bg-gray-100 rounded">
+                              <p className="text-gray-600">Second tab content - please specify what should be shown here.</p>
                             </div>
-                            <div>
-                              <h4 className="font-semibold mb-4">Order Actions</h4>
-                              <div className="flex gap-3">
-                                <Dialog open={editingOrder?.id === order.id} onOpenChange={(open) => !open && setEditingOrder(null)}>
-                                  <DialogTrigger asChild>
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm"
-                                      onClick={() => handleEditOrder(order)}
-                                    >
-                                      <Edit className="h-4 w-4 mr-2" />
-                                      Edit Order
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent>
-                                    <DialogHeader>
-                                      <DialogTitle>Edit Order {order.id}</DialogTitle>
-                                    </DialogHeader>
-                                    <div className="space-y-4">
-                                      <div>
-                                        <Label htmlFor="email">Email</Label>
-                                        <Input
-                                          id="email"
-                                          value={editForm.email}
-                                          onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
-                                        />
-                                      </div>
-                                      <div>
-                                        <Label htmlFor="address">Address</Label>
-                                        <Input
-                                          id="address"
-                                          value={editForm.address}
-                                          onChange={(e) => setEditForm(prev => ({ ...prev, address: e.target.value }))}
-                                        />
-                                      </div>
-                                      <div className="flex justify-end gap-2">
-                                        <Button variant="outline" onClick={() => setEditingOrder(null)}>
-                                          Cancel
-                                        </Button>
-                                        <Button onClick={handleSaveEdit}>
-                                          Save Changes
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  </DialogContent>
-                                </Dialog>
-
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" size="sm">
-                                      <Trash2 className="h-4 w-4 mr-2" />
-                                      Delete Order
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Delete Order</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Are you sure you want to delete order {order.id}? This action cannot be undone.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction 
-                                        onClick={() => handleDeleteOrder(order.id)}
-                                        className="bg-red-600 hover:bg-red-700"
-                                      >
-                                        Delete
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                          </TabsContent>
+                        </Tabs>
                       </TableCell>
                     </TableRow>
                   )}
