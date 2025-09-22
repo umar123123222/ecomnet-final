@@ -26,7 +26,7 @@ export const getRolePermissions = (role: UserRole) => {
   };
 
   switch (role) {
-    case 'Owner/SuperAdmin':
+    case 'SuperAdmin':
       return {
         ...permissions,
         canAccessDashboard: true,
@@ -43,7 +43,7 @@ export const getRolePermissions = (role: UserRole) => {
         canDeleteUsers: true,
       };
     
-    case 'Store Manager':
+    case 'Manager':
       return {
         ...permissions,
         canAccessDashboard: true,
@@ -57,25 +57,29 @@ export const getRolePermissions = (role: UserRole) => {
         canAddUsers: true,
         canEditUsers: true,
         canDeleteUsers: true,
+        // No admin panel access
       };
     
-    case 'Dispatch Manager':
+    case 'Dispatch/Returns Manager':
       return {
         ...permissions,
+        canAccessDashboard: true,
         canAccessDispatch: true,
-      };
-    
-    case 'Returns Manager':
-      return {
-        ...permissions,
         canAccessReturns: true,
+        canAccessSettings: true,
       };
     
     case 'Staff':
       return {
         ...permissions,
-        // Staff permissions will be customizable per user
         canAccessDashboard: true,
+        canAccessOrders: true,
+        canAccessCustomers: true,
+        canAccessDispatch: true,
+        canAccessReturns: true,
+        canAccessAddressVerification: true,
+        canAccessSettings: true,
+        // No admin panel and user management access
       };
     
     default:

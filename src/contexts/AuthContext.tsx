@@ -9,7 +9,7 @@ const defaultSuperAdmin: User = {
   id: 'SA-001',
   name: 'Muhammad Umar',
   email: 'umaridmpaksitan@gmail.com',
-  role: 'Owner/SuperAdmin',
+  role: 'SuperAdmin',
   createdAt: new Date().toISOString(),
   lastLogin: undefined
 };

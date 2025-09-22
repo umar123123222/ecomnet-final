@@ -61,7 +61,7 @@ const TagsNotes: React.FC<TagsNotesProps> = ({
     }
   };
   const canDeleteItem = (addedBy: string) => {
-    return user?.role === 'Owner/SuperAdmin' || user?.role === 'Store Manager' || user?.name === addedBy;
+    return user?.role === 'SuperAdmin' || user?.role === 'Manager' || user?.name === addedBy;
   };
   return <div className="space-y-4">
       {/* Tags Section */}
