@@ -525,71 +525,67 @@ const OrderDashboard = () => {
                   </TableRow>
                   {expandedRows.includes(order.id) && (
                     <TableRow>
-                      <TableCell colSpan={7} className="bg-gray-50 p-6">
-                        <Tabs defaultValue="additional-details" className="w-full">
-                          <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="additional-details">Additional Details</TabsTrigger>
-                            <TabsTrigger value="second-tab">Second Tab</TabsTrigger>
-                          </TabsList>
-                          
-                          <TabsContent value="additional-details" className="mt-4">
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                              <div className="space-y-4">
-                                <div>
-                                  <h4 className="font-semibold mb-3">Customer Information</h4>
-                                  <div className="space-y-2 text-sm">
-                                    <p><span className="font-medium">Customer Name:</span> {order.customer}</p>
-                                    <p><span className="font-medium">Customer Phone:</span> {order.phone}</p>
-                                    <p><span className="font-medium">Customer Email:</span> {order.email}</p>
-                                    <p><span className="font-medium">Customer Address:</span> {order.address}</p>
-                                  </div>
-                                </div>
-                                
-                                <div>
-                                  <h4 className="font-semibold mb-3">Order Information</h4>
-                                  <div className="space-y-2 text-sm">
-                                    <p><span className="font-medium">Customer Order Total Worth:</span> {order.amount}</p>
-                                    <p><span className="font-medium">Assigned Courier:</span> {order.courier}</p>
-                                    <p><span className="font-medium">Dispatched At:</span> {order.dispatchedAt}</p>
-                                    <p><span className="font-medium">Delivered At:</span> {order.deliveredAt}</p>
-                                    <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
-                                    <p><span className="font-medium">City:</span> {order.city}</p>
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              <div className="space-y-4">
-                                <div>
-                                  <h4 className="font-semibold mb-3">Order Items</h4>
-                                  <div className="space-y-2">
-                                    {order.items.length > 0 ? order.items.map((item, index) => (
-                                      <div key={index} className="text-sm border-b pb-2">
-                                        <p><span className="font-medium">Item:</span> {item.item_name}</p>
-                                        <p><span className="font-medium">Quantity:</span> {item.quantity}</p>
-                                        <p><span className="font-medium">Price:</span> PKR {item.price}</p>
-                                      </div>
-                                    )) : (
-                                      <p className="text-sm text-gray-500">No items available</p>
-                                    )}
-                                  </div>
-                                </div>
-                                
-                                <div>
-                                  <h4 className="font-semibold mb-3">Internal Notes</h4>
-                                  <div className="text-sm">
-                                    <p className="bg-gray-100 p-3 rounded">{order.orderNotes}</p>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </TabsContent>
-                          
-                          <TabsContent value="second-tab" className="mt-4">
-                            <div className="p-4 bg-gray-100 rounded">
-                              <p className="text-gray-600">Second tab content - please specify what should be shown here.</p>
-                            </div>
-                          </TabsContent>
-                        </Tabs>
+                       <TableCell colSpan={7} className="bg-gray-50 p-6">
+                         <Tabs defaultValue="customer-details" className="w-full">
+                           <TabsList className="grid w-full grid-cols-2">
+                             <TabsTrigger value="customer-details">Customer Details</TabsTrigger>
+                             <TabsTrigger value="order-details">Order Details</TabsTrigger>
+                           </TabsList>
+                           
+                           <TabsContent value="customer-details" className="mt-4">
+                             <div className="space-y-4">
+                               <h4 className="font-semibold mb-3">Customer Information</h4>
+                               <div className="space-y-3 text-sm">
+                                 <p><span className="font-medium">Customer Name:</span> {order.customer}</p>
+                                 <p><span className="font-medium">Customer Phone:</span> {order.phone}</p>
+                                 <p><span className="font-medium">Customer Email:</span> {order.email}</p>
+                                 <p><span className="font-medium">Customer Address:</span> {order.address}</p>
+                                 <p><span className="font-medium">City:</span> {order.city}</p>
+                               </div>
+                             </div>
+                           </TabsContent>
+                           
+                           <TabsContent value="order-details" className="mt-4">
+                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                               <div className="space-y-4">
+                                 <div>
+                                   <h4 className="font-semibold mb-3">Order Information</h4>
+                                   <div className="space-y-2 text-sm">
+                                     <p><span className="font-medium">Customer Order Total Worth:</span> {order.amount}</p>
+                                     <p><span className="font-medium">Assigned Courier:</span> {order.courier}</p>
+                                     <p><span className="font-medium">Dispatched At:</span> {order.dispatchedAt}</p>
+                                     <p><span className="font-medium">Delivered At:</span> {order.deliveredAt}</p>
+                                     <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
+                                   </div>
+                                 </div>
+                                 
+                                 <div>
+                                   <h4 className="font-semibold mb-3">Internal Notes</h4>
+                                   <div className="text-sm">
+                                     <p className="bg-gray-100 p-3 rounded">{order.orderNotes}</p>
+                                   </div>
+                                 </div>
+                               </div>
+                               
+                               <div className="space-y-4">
+                                 <div>
+                                   <h4 className="font-semibold mb-3">Order Items</h4>
+                                   <div className="space-y-2">
+                                     {order.items.length > 0 ? order.items.map((item, index) => (
+                                       <div key={index} className="text-sm border-b pb-2">
+                                         <p><span className="font-medium">Item:</span> {item.item_name}</p>
+                                         <p><span className="font-medium">Quantity:</span> {item.quantity}</p>
+                                         <p><span className="font-medium">Price:</span> PKR {item.price}</p>
+                                       </div>
+                                     )) : (
+                                       <p className="text-sm text-gray-500">No items available</p>
+                                     )}
+                                   </div>
+                                 </div>
+                               </div>
+                             </div>
+                           </TabsContent>
+                         </Tabs>
                       </TableCell>
                     </TableRow>
                   )}
