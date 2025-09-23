@@ -8,7 +8,6 @@ interface SupabaseAuthContextType {
   user: SupabaseUser | null;
   session: Session | null;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   isLoading: boolean;
 }
@@ -50,24 +49,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error };
   };
 
-  const signUp = async (email: string, password: string, fullName: string) => {
-    setIsLoading(true);
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          full_name: fullName,
-        }
-      }
-    });
-    setIsLoading(false);
-    return { error };
-  };
-
   const signOut = async () => {
     setIsLoading(true);
     await supabase.auth.signOut();
@@ -75,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, signIn, signUp, signOut, isLoading }}>
+    <AuthContext.Provider value={{ user, session, signIn, signOut, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
