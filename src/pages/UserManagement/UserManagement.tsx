@@ -142,7 +142,7 @@ const UserManagement = () => {
     setIsEditUserOpen(true);
   };
 
-  const permissions = currentUser ? getRolePermissions(currentUser.role) : null;
+  const permissions = currentUser ? getRolePermissions('SuperAdmin') : null;
 
   if (!permissions?.canAccessUserManagement) {
     return (

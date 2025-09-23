@@ -112,7 +112,7 @@ const AddressVerification = () => {
         ? {
             ...address,
             status: 'approved' as const,
-            approvedBy: user?.name || 'Current User',
+            approvedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
             approvedAt: currentTime
           }
         : address
@@ -127,7 +127,7 @@ const AddressVerification = () => {
         ? {
             ...address,
             status: 'disapproved' as const,
-            disapprovedBy: user?.name || 'Current User',
+            disapprovedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
             disapprovedAt: currentTime
           }
         : address
@@ -142,7 +142,7 @@ const AddressVerification = () => {
         ? {
             ...address,
             status: 'approved' as const,
-            approvedBy: user?.name || 'Current User',
+            approvedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
             approvedAt: currentTime
           }
         : address
@@ -156,7 +156,7 @@ const AddressVerification = () => {
         ? {
             ...address,
             status: 'disapproved' as const,
-            disapprovedBy: user?.name || 'Current User',
+            disapprovedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
             disapprovedAt: currentTime
           }
         : address

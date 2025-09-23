@@ -216,7 +216,7 @@ const OrderDashboard = () => {
                 {
                   id: `tag_${Date.now()}`,
                   text: tag,
-                  addedBy: user?.name || 'Current User',
+                  addedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
                   addedAt: new Date().toLocaleString(),
                   canDelete: true
                 }
@@ -239,7 +239,7 @@ const OrderDashboard = () => {
                 {
                   id: `note_${Date.now()}`,
                   text: note,
-                  addedBy: user?.name || 'Current User',
+                  addedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
                   addedAt: new Date().toLocaleString(),
                   canDelete: true
                 }

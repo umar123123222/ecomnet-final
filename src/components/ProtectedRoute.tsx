@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import Login from '@/components/Login';
+import AuthPage from '@/pages/AuthPage';
 import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
@@ -23,7 +23,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   }
 
   if (!user) {
-    return <Login />;
+    return <AuthPage />;
   }
 
   return <>{children}</>;

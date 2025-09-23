@@ -189,7 +189,7 @@ const SuspiciousCustomers = () => {
               {
                 id: Date.now().toString(),
                 text: tag,
-                addedBy: user?.name || 'Current User',
+                addedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
                 addedAt: new Date().toLocaleString(),
                 canDelete: true
               }
@@ -209,7 +209,7 @@ const SuspiciousCustomers = () => {
               {
                 id: Date.now().toString(),
                 text: note,
-                addedBy: user?.name || 'Current User',
+                addedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
                 addedAt: new Date().toLocaleString(),
                 canDelete: true
               }

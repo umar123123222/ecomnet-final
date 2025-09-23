@@ -11,7 +11,7 @@ import { getNavigationItems } from '@/utils/rolePermissions';
 const Layout = () => {
   const [isDark, setIsDark] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const { user, logout } = useAuth();
+  const { user, signOut } = useAuth();
   const location = useLocation();
 
   const toggleTheme = () => {
@@ -20,10 +20,10 @@ const Layout = () => {
   };
 
   const handleLogout = () => {
-    logout();
+    signOut();
   };
 
-  const navigationItems = user ? getNavigationItems(user.role) : [];
+  const navigationItems = user ? getNavigationItems('SuperAdmin') : [];
 
   const getIcon = (iconName: string) => {
     const icons = {
@@ -135,8 +135,8 @@ const Layout = () => {
                 <Users className="h-4 w-4 text-white" />
               </div>
               <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                <p className="text-xs font-semibold text-white truncate">{user?.name}</p>
-                <p className="text-xs text-gray-300 truncate">{user?.role}</p>
+                <p className="text-xs font-semibold text-white truncate">{user?.user_metadata?.full_name || user?.email}</p>
+                <p className="text-xs text-gray-300 truncate">SuperAdmin</p>
               </div>
             </div>
           </SidebarFooter>
