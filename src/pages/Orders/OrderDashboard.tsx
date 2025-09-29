@@ -396,7 +396,8 @@ const OrderDashboard = () => {
                   <TableCell colSpan={7} className="text-center">Loading orders...</TableCell>
                 </TableRow> : filteredOrders.length === 0 ? <TableRow>
                   <TableCell colSpan={7} className="text-center">No orders found</TableCell>
-                </TableRow> : filteredOrders.map(order => <React.Fragment key={order.id}>
+                </TableRow> : filteredOrders.map(order => (
+                  <React.Fragment key={order.id}>
                   <TableRow>
                     <TableCell>
                       <Checkbox checked={selectedOrders.includes(order.id)} onCheckedChange={() => handleSelectOrder(order.id)} />
@@ -447,12 +448,15 @@ const OrderDashboard = () => {
                                    </div>
                                  </div>
                                  
-                                 <div>
-                                   <h4 className="font-semibold mb-3">Internal Notes</h4>
-                                   <div className="text-sm">
-                                     <p className="bg-gray-100 p-3 rounded">{order.orderNotes}</p>
-                                   </div>
-                                 </div>
+                  <div>
+                    <h4 className="font-semibold mb-3">Internal Notes</h4>
+                    <TagsNotes
+                      itemId={order.id}
+                      notes={order.notes}
+                      onAddNote={(note) => handleAddNote(order.id, note)}
+                      onDeleteNote={(noteId) => handleDeleteNote(order.id, noteId)}
+                    />
+                  </div>
                                </div>
                                
                                <div className="space-y-4">
@@ -472,7 +476,8 @@ const OrderDashboard = () => {
                          </Tabs>
                       </TableCell>
                     </TableRow>}
-                </React.Fragment>)}
+                 </React.Fragment>
+                ))}
             </TableBody>
           </Table>
         </CardContent>
