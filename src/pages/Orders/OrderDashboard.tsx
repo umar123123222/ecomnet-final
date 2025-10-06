@@ -16,6 +16,7 @@ import { Search, Upload, Plus, Filter, Download, ChevronDown, ChevronUp, Package
 import TagsNotes from '@/components/TagsNotes';
 import NewOrderDialog from '@/components/NewOrderDialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { logActivity } from '@/utils/activityLogger';
 const OrderDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -66,29 +67,44 @@ const OrderDashboard = () => {
 
       // Process data even if empty array to show proper state
       console.log('Processing orders:', data?.length || 0);
-      const formattedOrders = (data || []).map(order => ({
-        id: order.id,
-        customerId: order.customer_id || 'N/A',
-        trackingId: order.tracking_id || 'N/A',
-        customer: order.customer_name,
-        email: order.customer_email || 'N/A',
-        phone: order.customer_phone,
-        courier: order.courier || 'N/A',
-        status: order.status,
-        amount: `PKR ${order.total_amount?.toLocaleString() || '0'}`,
-        date: new Date(order.created_at || '').toLocaleDateString(),
-        address: order.customer_address,
-        gptScore: order.gpt_score || 0,
-        totalPrice: order.total_amount || 0,
-        orderType: order.order_type || 'COD',
-        city: order.city,
-        items: order.order_items || [],
-        dispatchedAt: order.dispatched_at ? new Date(order.dispatched_at).toLocaleString() : 'N/A',
-        deliveredAt: order.delivered_at ? new Date(order.delivered_at).toLocaleString() : 'N/A',
-        orderNotes: order.notes || 'No notes',
-        tags: [],
-        notes: []
-      }));
+      const formattedOrders = (data || []).map(order => {
+        // Parse notes if they're stored as JSON string
+        let parsedNotes = [];
+        try {
+          if (order.notes && typeof order.notes === 'string') {
+            parsedNotes = JSON.parse(order.notes);
+          } else if (Array.isArray(order.notes)) {
+            parsedNotes = order.notes;
+          }
+        } catch (e) {
+          console.error('Error parsing notes:', e);
+          parsedNotes = [];
+        }
+        
+        return {
+          id: order.id,
+          customerId: order.customer_id || 'N/A',
+          trackingId: order.tracking_id || 'N/A',
+          customer: order.customer_name,
+          email: order.customer_email || 'N/A',
+          phone: order.customer_phone,
+          courier: order.courier || 'N/A',
+          status: order.status,
+          amount: `PKR ${order.total_amount?.toLocaleString() || '0'}`,
+          date: new Date(order.created_at || '').toLocaleDateString(),
+          address: order.customer_address,
+          gptScore: order.gpt_score || 0,
+          totalPrice: order.total_amount || 0,
+          orderType: order.order_type || 'COD',
+          city: order.city,
+          items: order.order_items || [],
+          dispatchedAt: order.dispatched_at ? new Date(order.dispatched_at).toLocaleString() : 'N/A',
+          deliveredAt: order.delivered_at ? new Date(order.delivered_at).toLocaleString() : 'N/A',
+          orderNotes: typeof order.notes === 'string' && order.notes ? order.notes : 'No notes',
+          tags: [],
+          notes: parsedNotes
+        };
+      });
       setOrders(formattedOrders);
 
       // Calculate summary data
@@ -198,19 +214,48 @@ const OrderDashboard = () => {
       }]
     } : order));
   };
-  const handleAddNote = (orderId: string, note: string) => {
-    // Add note to order implementation
-    setOrders(prevOrders => prevOrders.map(order => order.id === orderId ? {
-      ...order,
-      notes: [...order.notes, {
+  const handleAddNote = async (orderId: string, note: string) => {
+    try {
+      // Get current order notes
+      const order = orders.find(o => o.id === orderId);
+      const currentNotes = order?.notes || [];
+      
+      const newNote = {
         id: `note_${Date.now()}`,
         text: note,
         addedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
-        addedAt: new Date().toLocaleString(),
+        addedAt: new Date().toISOString(),
         canDelete: true
-      }]
-    } : order));
+      };
+      
+      const updatedNotes = [...currentNotes, newNote];
+      
+      // Save to Supabase
+      const { error } = await supabase
+        .from('orders')
+        .update({ notes: JSON.stringify(updatedNotes) })
+        .eq('id', orderId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? {
+        ...o,
+        notes: updatedNotes
+      } : o));
+      
+      // Log activity
+      await logActivity({
+        action: 'order_updated',
+        entityType: 'order',
+        entityId: orderId,
+        details: { noteAdded: note },
+      });
+    } catch (error) {
+      console.error('Error adding note:', error);
+    }
   };
+  
   const handleDeleteTag = (orderId: string, tagId: string) => {
     // Delete tag from order implementation
     setOrders(prevOrders => prevOrders.map(order => order.id === orderId ? {
@@ -218,12 +263,29 @@ const OrderDashboard = () => {
       tags: order.tags.filter(tag => tag.id !== tagId)
     } : order));
   };
-  const handleDeleteNote = (orderId: string, noteId: string) => {
-    // Delete note from order implementation
-    setOrders(prevOrders => prevOrders.map(order => order.id === orderId ? {
-      ...order,
-      notes: order.notes.filter(note => note.id !== noteId)
-    } : order));
+  
+  const handleDeleteNote = async (orderId: string, noteId: string) => {
+    try {
+      // Get current order notes
+      const order = orders.find(o => o.id === orderId);
+      const updatedNotes = order?.notes.filter(n => n.id !== noteId) || [];
+      
+      // Save to Supabase
+      const { error } = await supabase
+        .from('orders')
+        .update({ notes: JSON.stringify(updatedNotes) })
+        .eq('id', orderId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? {
+        ...o,
+        notes: updatedNotes
+      } : o));
+    } catch (error) {
+      console.error('Error deleting note:', error);
+    }
   };
   const handleEditOrder = (order: any) => {
     setEditingOrder(order);

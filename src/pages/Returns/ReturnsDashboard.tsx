@@ -37,8 +37,10 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import TagsNotes from '@/components/TagsNotes';
-import OCRScanner from '@/components/OCRScanner';
+import ContinuousOCRScanner from '@/components/ContinuousOCRScanner';
 import { useToast } from '@/hooks/use-toast';
+import { logActivity, updateUserPerformance } from '@/utils/activityLogger';
+import { useAuth } from '@/contexts/AuthContext';
 
 const manualEntrySchema = z.object({
   trackingIds: z.string().min(1, 'Please enter at least one tracking ID'),
@@ -57,6 +59,7 @@ const ReturnsDashboard = () => {
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const form = useForm<z.infer<typeof manualEntrySchema>>({
     resolver: zodResolver(manualEntrySchema),
@@ -149,27 +152,95 @@ const ReturnsDashboard = () => {
     );
   };
 
-  const handleScanReturn = (scanData: { orderId?: string; trackingId?: string; rawData: string }) => {
-    const { orderId, trackingId, rawData } = scanData;
-    
-    if (orderId || trackingId) {
+  const handleScanComplete = async (scannedParcels: Array<{
+    id: string;
+    trackingId?: string;
+    orderId?: string;
+    timestamp: Date;
+    status: 'success' | 'partial' | 'failed';
+  }>) => {
+    if (scannedParcels.length === 0) return;
+
+    try {
+      // Match scanned parcels with returns in database
+      const trackingIds = scannedParcels.map(p => p.trackingId).filter(Boolean);
+      const orderIds = scannedParcels.map(p => p.orderId).filter(Boolean);
+
+      // Query returns matching the scanned IDs
+      const { data: matchedReturns, error } = await supabase
+        .from('returns')
+        .select('*')
+        .or(`tracking_id.in.(${trackingIds.join(',')}),order_id.in.(${orderIds.join(',')})`);
+
+      if (error) throw error;
+
+      const matched = matchedReturns?.length || 0;
+      const notFound = scannedParcels.length - matched;
+
       toast({
-        title: "Return Scanned Successfully",
-        description: `Order ID: ${orderId || 'Not found'}, Tracking ID: ${trackingId || 'Not found'}`,
+        title: 'Batch Scan Complete',
+        description: `Scanned: ${scannedParcels.length} parcels. Matched: ${matched}. Not found: ${notFound}`,
       });
-      
-      // Auto-fill the search with the scanned tracking ID or order ID
-      if (trackingId) {
-        setSearchTerm(trackingId);
-      } else if (orderId) {
-        setSearchTerm(orderId);
+
+      // Update performance metrics
+      if (user?.id) {
+        await updateUserPerformance(user.id, 'returns_handled', matched);
       }
-    } else {
+
+      // Log activity for each matched return
+      for (const returnItem of matchedReturns || []) {
+        await logActivity({
+          action: 'return_received',
+          entityType: 'return',
+          entityId: returnItem.id,
+          details: { 
+            scannedAt: new Date().toISOString(),
+            trackingId: returnItem.tracking_id 
+          },
+        });
+      }
+
+      // Show details of not found items
+      if (notFound > 0) {
+        const notFoundIds = scannedParcels
+          .filter(p => !matchedReturns?.some(r => 
+            r.tracking_id === p.trackingId || r.order_id === p.orderId
+          ))
+          .map(p => p.trackingId || p.orderId)
+          .join(', ');
+
+        toast({
+          title: 'Some Parcels Not Found',
+          description: `IDs not found in system: ${notFoundIds}`,
+          variant: 'destructive',
+        });
+      }
+
+      // Refresh returns list
+      const { data: updatedReturns } = await supabase
+        .from('returns')
+        .select(`
+          *,
+          orders:order_id (
+            order_number,
+            customer_name,
+            customer_phone
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (updatedReturns) {
+        setReturns(updatedReturns);
+      }
+    } catch (error) {
+      console.error('Error processing scanned returns:', error);
       toast({
-        title: "No Order Information Found",
-        description: `Scanned: ${rawData.substring(0, 50)}${rawData.length > 50 ? '...' : ''}`,
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to process scanned returns',
+        variant: 'destructive',
       });
+    } finally {
+      setIsScanDialogOpen(false);
     }
   };
 
@@ -243,14 +314,13 @@ const ReturnsDashboard = () => {
         </div>
       </div>
 
-      {/* Scanner Component */}
-      <OCRScanner
-        isOpen={isScanDialogOpen}
-        onClose={() => setIsScanDialogOpen(false)}
-        onScan={handleScanReturn}
-        title="Scan Return Package"
-        scanType="return"
-      />
+      {/* Continuous Scanner Component */}
+      {isScanDialogOpen && (
+        <ContinuousOCRScanner
+          onScanComplete={handleScanComplete}
+          onClose={() => setIsScanDialogOpen(false)}
+        />
+      )}
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

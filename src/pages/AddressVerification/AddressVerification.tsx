@@ -48,7 +48,7 @@ const AddressVerification = () => {
           .from('address_verifications')
           .select(`
             *,
-            orders (
+            orders!fk_address_verifications_order (
               order_number,
               customer_name,
               customer_phone,

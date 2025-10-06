@@ -50,6 +50,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_activity_logs_user"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       address_verifications: {
@@ -101,6 +108,13 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_address_verifications_order"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
         ]
       }
       conversations: {
@@ -140,6 +154,20 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_conversations_customer"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_conversations_order"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -245,6 +273,13 @@ export type Database = {
           },
           {
             foreignKeyName: "dispatches_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_dispatches_order"
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
@@ -437,6 +472,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_orders_customer"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "orders_assigned_to_fkey"
             columns: ["assigned_to"]
             isOneToOne: false
@@ -611,6 +653,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_returns_order"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "returns_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -683,6 +732,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_suspicious_customers_customer"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "suspicious_customers_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
@@ -720,6 +776,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_user_performance_user"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "user_performance_user_id_fkey"
             columns: ["user_id"]

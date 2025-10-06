@@ -72,7 +72,7 @@ const SuspiciousCustomers = () => {
           .from('suspicious_customers')
           .select(`
             *,
-            customers (
+            customers!fk_suspicious_customers_customer (
               name,
               phone,
               email,
