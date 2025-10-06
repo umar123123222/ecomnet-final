@@ -39,18 +39,37 @@ import {
   CommandItem,
 } from '@/components/ui/command';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Search, UserPlus, Download, Edit, Trash2, Eye, Check, ChevronsUpDown, X } from 'lucide-react';
+import { Search, UserPlus, Download, Edit, Trash2, Eye, Check, ChevronsUpDown, X, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getRolePermissions } from '@/utils/rolePermissions';
+import { useUserRoles } from '@/hooks/useUserRoles';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { supabase } from '@/integrations/supabase/client';
+import { manageUser } from '@/integrations/supabase/functions';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/components/ui/use-toast';
+import { UserRole } from '@/types/auth';
 
 const userSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
+  full_name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email'),
+  password: z.string().min(8, 'Password must be at least 8 characters').optional(),
   roles: z.array(z.string()).min(1, 'At least one role is required'),
 });
+
+type UserFormData = z.infer<typeof userSchema>;
+
+interface UserWithRoles {
+  id: string;
+  email: string;
+  full_name: string;
+  role: UserRole;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  user_roles: Array<{ role: UserRole; is_active: boolean }>;
+}
 
 const UserManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -59,38 +78,147 @@ const UserManagement = () => {
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [isViewUserOpen, setIsViewUserOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<UserWithRoles | null>(null);
   const { user: currentUser } = useAuth();
+  const { permissions } = useUserRoles();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const form = useForm<z.infer<typeof userSchema>>({
+  const form = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
     defaultValues: {
-      name: '',
+      full_name: '',
       email: '',
+      password: '',
       roles: [],
     },
     mode: 'onChange',
   });
 
-  const users = useMemo(() => [
-    {
-      id: 'SA-001',
-      name: 'Muhammad Umar',
-      email: 'umaridmpaksitan@gmail.com',
-      roles: ['Owner/SuperAdmin'],
-      status: 'Active',
-      lastLogin: new Date().toLocaleString(),
-      permissions: ['All'],
-    },
-  ], []);
+  const availableRoles: UserRole[] = ['owner', 'store_manager', 'dispatch_manager', 'returns_manager', 'staff'];
 
-  const roles = useMemo(() => ['Owner/SuperAdmin', 'Store Manager', 'Dispatch Manager', 'Returns Manager', 'Staff'], []);
+  // Fetch users from Supabase
+  const { data: users = [], isLoading, error } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(`
+          id,
+          email,
+          full_name,
+          role,
+          is_active,
+          created_at,
+          updated_at,
+          user_roles (
+            role,
+            is_active
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data as UserWithRoles[];
+    },
+  });
+
+  // Add user mutation
+  const addUserMutation = useMutation({
+    mutationFn: async (userData: UserFormData) => {
+      return await manageUser({
+        action: 'create',
+        userData: {
+          email: userData.email,
+          full_name: userData.full_name,
+          password: userData.password,
+          roles: userData.roles,
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({
+        title: 'Success',
+        description: 'User created successfully',
+      });
+      setIsAddUserOpen(false);
+      form.reset();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to create user',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Update user mutation
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ userId, userData }: { userId: string; userData: UserFormData }) => {
+      return await manageUser({
+        action: 'update',
+        userData: {
+          userId,
+          email: userData.email,
+          full_name: userData.full_name,
+          roles: userData.roles,
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({
+        title: 'Success',
+        description: 'User updated successfully',
+      });
+      setIsEditUserOpen(false);
+      form.reset();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update user',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Delete user mutation
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return await manageUser({
+        action: 'delete',
+        userData: {
+          userId,
+          email: '', // Not used for delete
+          roles: [],
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({
+        title: 'Success',
+        description: 'User deleted successfully',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete user',
+        variant: 'destructive',
+      });
+    },
+  });
 
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
-      const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      const matchesSearch = user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            user.email.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesRole = roleFilter === 'all' || user.roles.includes(roleFilter);
+      const userRoles = user.user_roles?.map(ur => ur.role) || [user.role];
+      const matchesRole = roleFilter === 'all' || userRoles.includes(roleFilter as UserRole);
       return matchesSearch && matchesRole;
     });
   }, [users, searchTerm, roleFilter]);
@@ -111,38 +239,35 @@ const UserManagement = () => {
     );
   };
 
-  const handleAddUser = (data: z.infer<typeof userSchema>) => {
-    // Add user functionality implemented with Supabase
-    setIsAddUserOpen(false);
-    form.reset();
+  const handleAddUser = (data: UserFormData) => {
+    addUserMutation.mutate(data);
   };
 
-  const handleEditUser = (data: z.infer<typeof userSchema>) => {
-    // Edit user functionality implemented with Supabase
-    setIsEditUserOpen(false);
-    form.reset();
+  const handleEditUser = (data: UserFormData) => {
+    if (selectedUser) {
+      updateUserMutation.mutate({ userId: selectedUser.id, userData: data });
+    }
   };
 
-  const handleViewUser = (user: any) => {
+  const handleViewUser = (user: UserWithRoles) => {
     setSelectedUser(user);
     setIsViewUserOpen(true);
   };
 
   const handleDeleteUser = (userId: string) => {
-    if (confirm('Are you sure you want to delete this user?')) {
-      // Delete user functionality implemented with Supabase
+    if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      deleteUserMutation.mutate(userId);
     }
   };
 
-  const openEditDialog = (user: any) => {
+  const openEditDialog = (user: UserWithRoles) => {
     setSelectedUser(user);
-    form.setValue('name', user.name);
+    const userRoles = user.user_roles?.map(ur => ur.role) || [user.role];
+    form.setValue('full_name', user.full_name);
     form.setValue('email', user.email);
-    form.setValue('roles', user.roles);
+    form.setValue('roles', userRoles);
     setIsEditUserOpen(true);
   };
-
-  const permissions = currentUser ? getRolePermissions('SuperAdmin') : null;
 
   if (!permissions?.canAccessUserManagement) {
     return (
@@ -151,6 +276,27 @@ const UserManagement = () => {
           <CardContent className="p-8 text-center">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
             <p className="text-gray-600">You don't have permission to access user management.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="p-8 text-center">
+            <h2 className="text-2xl font-bold text-red-600 mb-2">Error Loading Users</h2>
+            <p className="text-gray-600">{error.message}</p>
           </CardContent>
         </Card>
       </div>
@@ -182,12 +328,12 @@ const UserManagement = () => {
                   <form onSubmit={form.handleSubmit(handleAddUser)} className="space-y-4">
                     <FormField
                       control={form.control}
-                      name="name"
+                      name="full_name"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Name</FormLabel>
+                          <FormLabel>Full Name</FormLabel>
                           <FormControl>
-                            <Input placeholder="Enter name" {...field} />
+                            <Input placeholder="Enter full name" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -201,6 +347,19 @@ const UserManagement = () => {
                           <FormLabel>Email</FormLabel>
                           <FormControl>
                             <Input placeholder="Enter email" type="email" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Password (optional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Auto-generated if empty" type="password" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -226,16 +385,16 @@ const UserManagement = () => {
                                         <Badge
                                           key={role}
                                           variant="secondary"
-                                          className="mr-1 mb-1"
+                                          className="mr-1 mb-1 capitalize"
                                         >
-                                          {role}
+                                          {role.replace('_', ' ')}
                                           <button
                                             className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                                           onKeyDown={(e) => {
-                                             if (e.key === "Enter") {
-                                               field.onChange((field.value || []).filter((r) => r !== role));
-                                             }
-                                           }}
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter") {
+                                                field.onChange((field.value || []).filter((r) => r !== role));
+                                              }
+                                            }}
                                             onMouseDown={(e) => {
                                               e.preventDefault();
                                               e.stopPropagation();
@@ -259,7 +418,7 @@ const UserManagement = () => {
                                 <CommandInput placeholder="Search roles..." />
                                 <CommandEmpty>No role found.</CommandEmpty>
                                 <CommandGroup>
-                                  {roles.map((role) => (
+                                  {availableRoles.map((role) => (
                                     <CommandItem
                                       key={role}
                                       value={role}
@@ -277,7 +436,7 @@ const UserManagement = () => {
                                           field.value && field.value.includes(role) ? "opacity-100" : "opacity-0"
                                         }`}
                                       />
-                                      {role}
+                                      <span className="capitalize">{role.replace('_', ' ')}</span>
                                     </CommandItem>
                                   ))}
                                 </CommandGroup>
@@ -292,7 +451,16 @@ const UserManagement = () => {
                       <Button type="button" variant="outline" onClick={() => setIsAddUserOpen(false)}>
                         Cancel
                       </Button>
-                      <Button type="submit">Add User</Button>
+                      <Button type="submit" disabled={addUserMutation.isPending}>
+                        {addUserMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Adding...
+                          </>
+                        ) : (
+                          'Add User'
+                        )}
+                      </Button>
                     </div>
                   </form>
                 </Form>
@@ -334,8 +502,10 @@ const UserManagement = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
-                {roles.map((role) => (
-                  <SelectItem key={role} value={role}>{role}</SelectItem>
+                {availableRoles.map((role) => (
+                  <SelectItem key={role} value={role} className="capitalize">
+                    {role.replace('_', ' ')}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -351,55 +521,65 @@ const UserManagement = () => {
                 <TableHead>Select</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
+                <TableHead>Roles</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Last Login</TableHead>
+                <TableHead>Created</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <Checkbox
-                      checked={selectedUsers.includes(user.id)}
-                      onCheckedChange={() => handleSelectUser(user.id)}
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium">{user.name}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {user.roles.map(role => (
-                        <Badge key={role} className="bg-purple-100 text-purple-800 text-xs">{role}</Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={user.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                      {user.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{user.lastLogin}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="outline" size="sm" onClick={() => handleViewUser(user)}>
-                        <Eye className="h-3 w-3" />
-                      </Button>
-                      {permissions.canEditUsers && (
-                        <Button variant="outline" size="sm" onClick={() => openEditDialog(user)}>
-                          <Edit className="h-3 w-3" />
+              {filteredUsers.map((user) => {
+                const userRoles = user.user_roles?.map(ur => ur.role) || [user.role];
+                return (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedUsers.includes(user.id)}
+                        onCheckedChange={() => handleSelectUser(user.id)}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">{user.full_name}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {userRoles.map(role => (
+                          <Badge key={role} className="bg-purple-100 text-purple-800 text-xs capitalize">
+                            {role.replace('_', ' ')}
+                          </Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                        {user.is_active ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="outline" size="sm" onClick={() => handleViewUser(user)}>
+                          <Eye className="h-3 w-3" />
                         </Button>
-                      )}
-                      {permissions.canDeleteUsers && user.id !== currentUser?.id && (
-                        <Button variant="outline" size="sm" onClick={() => handleDeleteUser(user.id)}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                        {permissions.canEditUsers && (
+                          <Button variant="outline" size="sm" onClick={() => openEditDialog(user)}>
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                        )}
+                        {permissions.canDeleteUsers && user.id !== currentUser?.id && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleDeleteUser(user.id)}
+                            disabled={deleteUserMutation.isPending}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
@@ -415,12 +595,12 @@ const UserManagement = () => {
             <form onSubmit={form.handleSubmit(handleEditUser)} className="space-y-4">
               <FormField
                 control={form.control}
-                name="name"
+                name="full_name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Name</FormLabel>
+                    <FormLabel>Full Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter name" {...field} />
+                      <Input placeholder="Enter full name" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -459,9 +639,9 @@ const UserManagement = () => {
                                   <Badge
                                     key={role}
                                     variant="secondary"
-                                    className="mr-1 mb-1"
+                                    className="mr-1 mb-1 capitalize"
                                   >
-                                    {role}
+                                    {role.replace('_', ' ')}
                                     <button
                                       className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                                       onKeyDown={(e) => {
@@ -492,7 +672,7 @@ const UserManagement = () => {
                           <CommandInput placeholder="Search roles..." />
                           <CommandEmpty>No role found.</CommandEmpty>
                           <CommandGroup>
-                            {roles.map((role) => (
+                            {availableRoles.map((role) => (
                               <CommandItem
                                 key={role}
                                 value={role}
@@ -510,7 +690,7 @@ const UserManagement = () => {
                                     field.value && field.value.includes(role) ? "opacity-100" : "opacity-0"
                                   }`}
                                 />
-                                {role}
+                                <span className="capitalize">{role.replace('_', ' ')}</span>
                               </CommandItem>
                             ))}
                           </CommandGroup>
@@ -525,7 +705,16 @@ const UserManagement = () => {
                 <Button type="button" variant="outline" onClick={() => setIsEditUserOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit">Save Changes</Button>
+                <Button type="submit" disabled={updateUserMutation.isPending}>
+                  {updateUserMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </Button>
               </div>
             </form>
           </Form>
@@ -542,7 +731,7 @@ const UserManagement = () => {
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium text-gray-600">Name</label>
-                <p className="text-sm">{selectedUser.name}</p>
+                <p className="text-sm">{selectedUser.full_name}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-600">Email</label>
@@ -551,18 +740,24 @@ const UserManagement = () => {
               <div>
                 <label className="text-sm font-medium text-gray-600">Roles</label>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {selectedUser.roles.map((role: string) => (
-                    <Badge key={role} className="bg-purple-100 text-purple-800 text-xs">{role}</Badge>
+                  {(selectedUser.user_roles?.map(ur => ur.role) || [selectedUser.role]).map((role: string) => (
+                    <Badge key={role} className="bg-purple-100 text-purple-800 text-xs capitalize">
+                      {role.replace('_', ' ')}
+                    </Badge>
                   ))}
                 </div>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-600">Status</label>
-                <p className="text-sm">{selectedUser.status}</p>
+                <p className="text-sm">{selectedUser.is_active ? 'Active' : 'Inactive'}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-600">Last Login</label>
-                <p className="text-sm">{selectedUser.lastLogin}</p>
+                <label className="text-sm font-medium text-gray-600">Created</label>
+                <p className="text-sm">{new Date(selectedUser.created_at).toLocaleString()}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Last Updated</label>
+                <p className="text-sm">{new Date(selectedUser.updated_at).toLocaleString()}</p>
               </div>
             </div>
           )}
