@@ -113,7 +113,7 @@ const AuthPage = () => {
           
           <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md mt-4">
             <p className="font-medium mb-1">Demo Credentials:</p>
-            <p>Email: umaridmpaksitan@gmail.com</p>
+            <p>Email: umaridmpakistan@gmail.com</p>
             <p>Password: admin123</p>
           </div>
         </CardContent>

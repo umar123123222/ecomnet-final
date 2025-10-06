@@ -27,6 +27,7 @@ export const getRolePermissions = (role: UserRole) => {
 
   switch (role) {
     case 'SuperAdmin':
+    case 'owner': // New role system
       return {
         ...permissions,
         canAccessDashboard: true,
@@ -44,6 +45,7 @@ export const getRolePermissions = (role: UserRole) => {
       };
     
     case 'Manager':
+    case 'store_manager': // New role system
       return {
         ...permissions,
         canAccessDashboard: true,
@@ -61,11 +63,13 @@ export const getRolePermissions = (role: UserRole) => {
       };
     
     case 'Dispatch/Returns Manager':
+    case 'dispatch_manager': // New role system - dispatch focus
+    case 'returns_manager': // New role system - returns focus
       return {
         ...permissions,
         canAccessDashboard: true,
-        canAccessDispatch: true,
-        canAccessReturns: true,
+        canAccessDispatch: role === 'dispatch_manager' || role === 'Dispatch/Returns Manager',
+        canAccessReturns: role === 'returns_manager' || role === 'Dispatch/Returns Manager',
         canAccessSettings: true,
       };
     

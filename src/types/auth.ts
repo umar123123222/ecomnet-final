@@ -1,5 +1,13 @@
 
-export type UserRole = 'SuperAdmin' | 'Manager' | 'Dispatch/Returns Manager' | 'staff';
+export type UserRole = 
+  | 'owner' 
+  | 'store_manager' 
+  | 'dispatch_manager' 
+  | 'returns_manager' 
+  | 'staff'
+  | 'SuperAdmin' 
+  | 'Manager' 
+  | 'Dispatch/Returns Manager'; // Legacy roles for backward compatibility
 
 export interface User {
   id: string;

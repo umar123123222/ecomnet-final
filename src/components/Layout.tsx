@@ -11,7 +11,7 @@ import { getNavigationItems } from '@/utils/rolePermissions';
 const Layout = () => {
   const [isDark, setIsDark] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const { user, signOut } = useAuth();
+  const { user, profile, userRoles, signOut } = useAuth();
   const location = useLocation();
 
   const toggleTheme = () => {
@@ -23,7 +23,14 @@ const Layout = () => {
     signOut();
   };
 
-  const navigationItems = user ? getNavigationItems('SuperAdmin') : [];
+  // Get user's primary role - prefer owner > store_manager > others
+  const primaryRole = userRoles.includes('owner' as any) 
+    ? 'owner' 
+    : userRoles.includes('store_manager' as any)
+    ? 'store_manager'
+    : userRoles[0] || profile?.role || 'staff';
+
+  const navigationItems = user ? getNavigationItems(primaryRole as any) : [];
 
   const getIcon = (iconName: string) => {
     const icons = {
@@ -135,8 +142,8 @@ const Layout = () => {
                 <Users className="h-4 w-4 text-white" />
               </div>
               <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                <p className="text-xs font-semibold text-white truncate">{user?.user_metadata?.full_name || user?.email}</p>
-                <p className="text-xs text-gray-300 truncate">SuperAdmin</p>
+                <p className="text-xs font-semibold text-white truncate">{profile?.full_name || user?.email}</p>
+                <p className="text-xs text-gray-300 truncate capitalize">{primaryRole.replace('_', ' ')}</p>
               </div>
             </div>
           </SidebarFooter>
