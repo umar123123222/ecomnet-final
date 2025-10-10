@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { ModernButton } from "@/components/ui/modern-button";
 import { Badge } from "@/components/ui/badge";
-import { Home, Package, Truck, RotateCcw, Users, Settings, Bell, Moon, Sun, Shield, MapPin, LogOut, ChevronDown, Box, Building2, ArrowRightLeft, UserCog, Ship, User, UserCircle, MapPinned, BellRing, Lock, PackagePlus, PackageCheck, PackageX, TruckIcon, PackageSearch, Plus, ArrowLeftRight } from "lucide-react";
+import { Home, Package, Truck, RotateCcw, Users, Settings, Bell, Moon, Sun, Shield, MapPin, LogOut, ChevronDown, Box, Building2, ArrowRightLeft } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from '@/contexts/AuthContext';
 import { getNavigationItems } from '@/utils/rolePermissions';
@@ -34,8 +34,7 @@ const Layout = () => {
 
   const getIcon = (iconName: string) => {
     const icons = {
-      Home, Package, Truck, RotateCcw, Users, Settings, Shield, MapPin, Box, Building2, ArrowRightLeft, UserCog,
-      Ship, User, UserCircle, MapPinned, BellRing, Lock, PackagePlus, PackageCheck, PackageX, TruckIcon, PackageSearch, Plus, ArrowLeftRight
+      Home, Package, Truck, RotateCcw, Users, Settings, Shield, MapPin, Box, Building2, ArrowRightLeft
     };
     return icons[iconName as keyof typeof icons] || Home;
   };

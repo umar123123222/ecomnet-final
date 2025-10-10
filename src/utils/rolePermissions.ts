@@ -27,7 +27,6 @@ export const getRolePermissions = (role: UserRole) => {
     canAccessOutlets: false,
     canAccessProducts: false,
     canAccessStockTransfer: false,
-    canAccessShipments: false,
   };
 
   switch (role) {
@@ -50,7 +49,6 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessOutlets: true,
         canAccessProducts: true,
         canAccessStockTransfer: true,
-        canAccessShipments: true,
       };
     
     case 'super_manager':
@@ -71,7 +69,6 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessOutlets: true,
         canAccessProducts: true,
         canAccessStockTransfer: true,
-        canAccessShipments: true,
         // No admin panel access
       };
     
@@ -89,7 +86,6 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessProducts: true,
         canAccessStockTransfer: true,
         canAccessSettings: true,
-        canAccessShipments: true,
       };
     
     case 'warehouse_manager':
@@ -110,7 +106,6 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessOrders: true,
         canAccessDispatch: true,
         canAccessSettings: true,
-        canAccessShipments: true,
       };
     
     case 'returns_manager':
@@ -159,11 +154,6 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       icon: 'Package',
       subItems: [
         { label: 'All Orders', href: '/orders', icon: '' },
-        { label: 'New Orders', href: '/orders/new', icon: '' },
-        { label: 'Processing', href: '/orders/processing', icon: '' },
-        { label: 'Shipped', href: '/orders/shipped', icon: '' },
-        { label: 'Delivered', href: '/orders/delivered', icon: '' },
-        { label: 'Returned', href: '/orders/returned', icon: '' },
         { label: 'Shipper Advice', href: '/shipper-advice', icon: '' }
       ]
     });
@@ -172,20 +162,12 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
   if (permissions.canAccessCustomers) {
     items.push({
       label: 'Customers',
-      href: '/all-customers',
+      href: '/customers',
       icon: 'Users',
       subItems: [
         { label: 'All Customers', href: '/all-customers', icon: '' },
         { label: 'Suspicious Customers', href: '/suspicious-customers', icon: '', badge: '5' }
       ]
-    });
-  }
-
-  if (permissions.canAccessShipments) {
-    items.push({
-      label: 'Shipments',
-      href: '/shipments',
-      icon: 'Ship'
     });
   }
 
@@ -222,7 +204,7 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     items.push({
       label: 'User Management',
       href: '/user-management',
-      icon: 'UserCog'
+      icon: 'Users'
     });
   }
 
@@ -238,7 +220,7 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     const inventorySubItems: NavigationItem[] = [];
     
     if (permissions.canAccessInventory) {
-      inventorySubItems.push({ label: 'Inventory Dashboard', href: '/inventory', icon: '' });
+      inventorySubItems.push({ label: 'Inventory', href: '/inventory', icon: '' });
     }
     if (permissions.canAccessProducts) {
       inventorySubItems.push({ label: 'Products', href: '/products', icon: '' });
@@ -248,10 +230,6 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     }
     if (permissions.canAccessStockTransfer) {
       inventorySubItems.push({ label: 'Stock Transfers', href: '/stock-transfer', icon: '' });
-    }
-    if (permissions.canAccessInventory) {
-      inventorySubItems.push({ label: 'Add Inventory', href: '/inventory/add', icon: '' });
-      inventorySubItems.push({ label: 'Transfer Stock', href: '/inventory/transfer', icon: '' });
     }
 
     items.push({
@@ -266,15 +244,7 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     items.push({
       label: 'Settings',
       href: '/settings',
-      icon: 'Settings',
-      subItems: [
-        { label: 'General', href: '/settings', icon: '' },
-        { label: 'Profile', href: '/settings/profile', icon: '' },
-        { label: 'Roles', href: '/settings/roles', icon: '' },
-        { label: 'Locations', href: '/settings/locations', icon: '' },
-        { label: 'Notifications', href: '/settings/notifications', icon: '' },
-        { label: 'Security', href: '/settings/security', icon: '' }
-      ]
+      icon: 'Settings'
     });
   }
 
