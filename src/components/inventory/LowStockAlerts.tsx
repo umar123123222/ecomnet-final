@@ -11,21 +11,21 @@ export function LowStockAlerts() {
     queryKey: ["low-stock-alerts"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("inventory" as any)
+        .from("inventory")
         .select(`
           *,
-          product:products_new(*),
+          product:products(*),
           outlet:outlets(*)
         `)
         .order("available_quantity", { ascending: true });
 
       if (error) throw error;
 
-      const lowStock = (data as unknown as Inventory[]).filter(
-        (item) => item.available_quantity <= (item.product?.reorder_level || 10)
+      const lowStock = data.filter(
+        (item: any) => item.available_quantity <= (item.product?.reorder_level || 10)
       );
 
-      return lowStock.slice(0, 10);
+      return lowStock.slice(0, 10) as Inventory[];
     },
     refetchInterval: 30000, // Refresh every 30 seconds
   });

@@ -8,6 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useAuth } from '@/contexts/AuthContext';
 import { getNavigationItems } from '@/utils/rolePermissions';
 import { useUserRoles } from '@/hooks/useUserRoles';
+import { NotificationsPanel } from '@/components/NotificationsPanel';
 
 const Layout = () => {
   const [isDark, setIsDark] = useState(false);
@@ -156,12 +157,7 @@ const Layout = () => {
               </div>
               
               <div className="flex items-center gap-3">
-                <ModernButton variant="ghost" size="icon" className="relative">
-                  <Bell className="h-5 w-5" />
-                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-r from-red-500 to-pink-500 rounded-full flex items-center justify-center">
-                    <span className="text-[8px] text-white font-bold">3</span>
-                  </span>
-                </ModernButton>
+                <NotificationsPanel />
                 
                 <ModernButton variant="ghost" size="icon" onClick={toggleTheme}>
                   {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
