@@ -37,6 +37,7 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
 } from '@/components/ui/command';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Search, UserPlus, Download, Edit, Trash2, Eye, Check, ChevronsUpDown, X, Loader2 } from 'lucide-react';
@@ -418,30 +419,32 @@ const UserManagement = () => {
                               <PopoverContent className="w-full p-0">
                                 <Command key={`add-roles-${isAddUserOpen}`}>
                                   <CommandInput placeholder="Search roles..." />
-                                  <CommandEmpty>No role found.</CommandEmpty>
-                                  <CommandGroup>
-                                    {availableRoles.map((role) => (
-                                      <CommandItem
-                                        key={role}
-                                        value={role}
-                                        onSelect={() => {
-                                          const currentValue = selectedRoles;
-                                          if (currentValue.includes(role)) {
-                                            field.onChange(currentValue.filter((r) => r !== role));
-                                          } else {
-                                            field.onChange([...currentValue, role]);
-                                          }
-                                        }}
-                                      >
-                                        <Check
-                                          className={`mr-2 h-4 w-4 ${
-                                            selectedRoles.includes(role) ? "opacity-100" : "opacity-0"
-                                          }`}
-                                        />
-                                        <span className="capitalize">{role.replace('_', ' ')}</span>
-                                      </CommandItem>
-                                    ))}
-                                  </CommandGroup>
+                                  <CommandList>
+                                    <CommandEmpty>No role found.</CommandEmpty>
+                                    <CommandGroup>
+                                      {availableRoles.map((role) => (
+                                        <CommandItem
+                                          key={role}
+                                          value={role}
+                                          onSelect={() => {
+                                            const currentValue = selectedRoles;
+                                            if (currentValue.includes(role)) {
+                                              field.onChange(currentValue.filter((r) => r !== role));
+                                            } else {
+                                              field.onChange([...currentValue, role]);
+                                            }
+                                          }}
+                                        >
+                                          <Check
+                                            className={`mr-2 h-4 w-4 ${
+                                              selectedRoles.includes(role) ? "opacity-100" : "opacity-0"
+                                            }`}
+                                          />
+                                          <span className="capitalize">{role.replace('_', ' ')}</span>
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                  </CommandList>
                                 </Command>
                               </PopoverContent>
                             </Popover>
@@ -675,30 +678,32 @@ const UserManagement = () => {
                         <PopoverContent className="w-full p-0">
                           <Command key={`edit-roles-${isEditUserOpen}-${selectedUser?.id}`}>
                             <CommandInput placeholder="Search roles..." />
-                            <CommandEmpty>No role found.</CommandEmpty>
-                            <CommandGroup>
-                              {availableRoles.map((role) => (
-                                <CommandItem
-                                  key={role}
-                                  value={role}
-                                  onSelect={() => {
-                                    const currentValue = selectedRoles;
-                                    if (currentValue.includes(role)) {
-                                      field.onChange(currentValue.filter((r) => r !== role));
-                                    } else {
-                                      field.onChange([...currentValue, role]);
-                                    }
-                                  }}
-                                >
-                                  <Check
-                                    className={`mr-2 h-4 w-4 ${
-                                      selectedRoles.includes(role) ? "opacity-100" : "opacity-0"
-                                    }`}
-                                  />
-                                  <span className="capitalize">{role.replace('_', ' ')}</span>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
+                            <CommandList>
+                              <CommandEmpty>No role found.</CommandEmpty>
+                              <CommandGroup>
+                                {availableRoles.map((role) => (
+                                  <CommandItem
+                                    key={role}
+                                    value={role}
+                                    onSelect={() => {
+                                      const currentValue = selectedRoles;
+                                      if (currentValue.includes(role)) {
+                                        field.onChange(currentValue.filter((r) => r !== role));
+                                      } else {
+                                        field.onChange([...currentValue, role]);
+                                      }
+                                    }}
+                                  >
+                                    <Check
+                                      className={`mr-2 h-4 w-4 ${
+                                        selectedRoles.includes(role) ? "opacity-100" : "opacity-0"
+                                      }`}
+                                    />
+                                    <span className="capitalize">{role.replace('_', ' ')}</span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
                           </Command>
                         </PopoverContent>
                       </Popover>
