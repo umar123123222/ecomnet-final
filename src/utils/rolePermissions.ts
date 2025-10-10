@@ -210,7 +210,7 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
 
   if (permissions.canAccessUserManagement) {
     items.push({
-      label: 'Admin Panel',
+      label: 'User Management',
       href: '/user-management',
       icon: 'Shield'
     });
