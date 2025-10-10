@@ -380,6 +380,42 @@ export type Database = {
         }
         Relationships: []
       }
+      locations: {
+        Row: {
+          area: string
+          available_couriers: string[] | null
+          city: string
+          created_at: string
+          id: string
+          is_serviceable: boolean
+          name: string
+          postal_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          area: string
+          available_couriers?: string[] | null
+          city: string
+          created_at?: string
+          id?: string
+          is_serviceable?: boolean
+          name: string
+          postal_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          area?: string
+          available_couriers?: string[] | null
+          city?: string
+          created_at?: string
+          id?: string
+          is_serviceable?: boolean
+          name?: string
+          postal_code?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           action_url: string | null

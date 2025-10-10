@@ -17,10 +17,11 @@ interface Location {
   name: string;
   city: string;
   area: string;
-  postal_code?: string;
+  postal_code?: string | null;
   is_serviceable: boolean;
-  courier_availability: string[];
+  available_couriers: string[];
   created_at: string;
+  updated_at: string;
 }
 
 const LocationsDashboard = () => {
@@ -35,44 +36,89 @@ const LocationsDashboard = () => {
     area: "",
     postal_code: "",
     is_serviceable: true,
-    courier_availability: [] as string[],
+    available_couriers: [] as string[],
   });
 
-  // Mock data for demonstration - replace with actual database queries
-  const mockLocations: Location[] = [
-    {
-      id: "1",
-      name: "Gulberg",
-      city: "Lahore",
-      area: "Gulberg III",
-      postal_code: "54000",
-      is_serviceable: true,
-      courier_availability: ["leopard", "tcs", "postex"],
-      created_at: new Date().toISOString(),
+  // Fetch locations
+  const { data: locations = [], isLoading } = useQuery({
+    queryKey: ["locations"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("locations")
+        .select("*")
+        .order("name");
+      if (error) throw error;
+      return data as Location[];
     },
-    {
-      id: "2",
-      name: "DHA",
-      city: "Karachi",
-      area: "DHA Phase 5",
-      postal_code: "75500",
-      is_serviceable: true,
-      courier_availability: ["leopard", "tcs"],
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: "3",
-      name: "F-7",
-      city: "Islamabad",
-      area: "F-7 Markaz",
-      postal_code: "44000",
-      is_serviceable: true,
-      courier_availability: ["tcs", "postex"],
-      created_at: new Date().toISOString(),
-    },
-  ];
+  });
 
-  const locations = mockLocations;
+  // Create location mutation
+  const createLocationMutation = useMutation({
+    mutationFn: async (data: Omit<Location, "id" | "created_at" | "updated_at">) => {
+      const { error } = await supabase.from("locations").insert(data);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["locations"] });
+      toast({
+        title: "Location Added",
+        description: `Location "${formData.name}" has been added successfully.`,
+      });
+      setDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update location mutation
+  const updateLocationMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Location> }) => {
+      const { error } = await supabase.from("locations").update(data).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["locations"] });
+      toast({
+        title: "Location Updated",
+        description: `Location "${formData.name}" has been updated successfully.`,
+      });
+      setDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete location mutation
+  const deleteLocationMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("locations").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["locations"] });
+      toast({
+        title: "Location Deleted",
+        description: "Location has been removed successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const filteredLocations = locations.filter(
     (loc) =>
@@ -89,7 +135,7 @@ const LocationsDashboard = () => {
       area: "",
       postal_code: "",
       is_serviceable: true,
-      courier_availability: [],
+      available_couriers: [],
     });
     setDialogOpen(true);
   };
@@ -102,34 +148,44 @@ const LocationsDashboard = () => {
       area: location.area,
       postal_code: location.postal_code || "",
       is_serviceable: location.is_serviceable,
-      courier_availability: location.courier_availability,
+      available_couriers: location.available_couriers,
     });
     setDialogOpen(true);
   };
 
   const handleSaveLocation = () => {
-    toast({
-      title: selectedLocation ? "Location Updated" : "Location Added",
-      description: `Location "${formData.name}" has been ${selectedLocation ? "updated" : "added"} successfully.`,
-    });
-    setDialogOpen(false);
+    if (selectedLocation) {
+      updateLocationMutation.mutate({
+        id: selectedLocation.id,
+        data: formData,
+      });
+    } else {
+      createLocationMutation.mutate(formData);
+    }
   };
 
   const handleDeleteLocation = (id: string) => {
-    toast({
-      title: "Location Deleted",
-      description: "Location has been removed successfully.",
-    });
+    if (confirm("Are you sure you want to delete this location?")) {
+      deleteLocationMutation.mutate(id);
+    }
   };
 
   const toggleCourier = (courier: string) => {
     setFormData((prev) => ({
       ...prev,
-      courier_availability: prev.courier_availability.includes(courier)
-        ? prev.courier_availability.filter((c) => c !== courier)
-        : [...prev.courier_availability, courier],
+      available_couriers: prev.available_couriers.includes(courier)
+        ? prev.available_couriers.filter((c) => c !== courier)
+        : [...prev.available_couriers, courier],
     }));
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -231,7 +287,7 @@ const LocationsDashboard = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
-                      {location.courier_availability.map((courier) => (
+                      {location.available_couriers.map((courier) => (
                         <Badge key={courier} variant="outline" className="text-xs capitalize">
                           {courier}
                         </Badge>
@@ -319,7 +375,7 @@ const LocationsDashboard = () => {
                 {["leopard", "tcs", "postex"].map((courier) => (
                   <Badge
                     key={courier}
-                    variant={formData.courier_availability.includes(courier) ? "default" : "outline"}
+                    variant={formData.available_couriers.includes(courier) ? "default" : "outline"}
                     className="cursor-pointer capitalize"
                     onClick={() => toggleCourier(courier)}
                   >

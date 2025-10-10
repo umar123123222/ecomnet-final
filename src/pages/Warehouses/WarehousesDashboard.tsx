@@ -9,20 +9,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Warehouse, Plus, Edit, Trash2, Search, MapPin, Users, Package } from "lucide-react";
+import { Warehouse, Plus, Edit, Trash2, Search, MapPin, Users, Package, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
 interface WarehouseData {
   id: string;
   name: string;
-  location: string;
-  city: string;
-  capacity: number;
-  current_stock: number;
-  manager_name: string;
-  contact_phone: string;
-  status: "active" | "inactive" | "maintenance";
+  address: string | null;
+  city: string | null;
+  phone: string | null;
+  manager_id: string | null;
+  manager?: {
+    full_name: string;
+  };
+  is_active: boolean;
+  total_items?: number;
   created_at: string;
+  updated_at: string;
 }
 
 const WarehousesDashboard = () => {
@@ -33,79 +37,158 @@ const WarehousesDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [formData, setFormData] = useState({
     name: "",
-    location: "",
+    address: "",
     city: "",
-    capacity: 0,
-    current_stock: 0,
-    manager_name: "",
-    contact_phone: "",
-    status: "active" as "active" | "inactive" | "maintenance",
+    phone: "",
+    manager_id: "",
+    is_active: true,
   });
 
-  // Mock data for demonstration - replace with actual database queries
-  const mockWarehouses: WarehouseData[] = [
-    {
-      id: "1",
-      name: "Central Warehouse",
-      location: "Industrial Area",
-      city: "Lahore",
-      capacity: 10000,
-      current_stock: 7500,
-      manager_name: "Ali Khan",
-      contact_phone: "+92-300-1234567",
-      status: "active",
-      created_at: new Date().toISOString(),
+  // Fetch warehouses (outlets with type='warehouse')
+  const { data: warehouses = [], isLoading } = useQuery({
+    queryKey: ["warehouses"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("outlets")
+        .select(`
+          *,
+          manager:profiles!outlets_manager_id_fkey(full_name)
+        `)
+        .eq("outlet_type", "warehouse")
+        .order("name");
+      if (error) throw error;
+      return data as WarehouseData[];
     },
-    {
-      id: "2",
-      name: "North Distribution Center",
-      location: "Main Boulevard",
-      city: "Islamabad",
-      capacity: 8000,
-      current_stock: 5200,
-      manager_name: "Sara Ahmed",
-      contact_phone: "+92-301-9876543",
-      status: "active",
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: "3",
-      name: "South Hub",
-      location: "Port Area",
-      city: "Karachi",
-      capacity: 12000,
-      current_stock: 9800,
-      manager_name: "Ahmed Raza",
-      contact_phone: "+92-302-5556789",
-      status: "maintenance",
-      created_at: new Date().toISOString(),
-    },
-  ];
+  });
 
-  const warehouses = mockWarehouses;
+  // Fetch inventory stats for warehouses
+  const { data: inventoryStats = [] } = useQuery({
+    queryKey: ["warehouse-inventory-stats"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("inventory")
+        .select("outlet_id, quantity");
+      if (error) throw error;
+      
+      const stats = data.reduce((acc, item) => {
+        if (!acc[item.outlet_id]) {
+          acc[item.outlet_id] = 0;
+        }
+        acc[item.outlet_id] += item.quantity;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      return stats;
+    },
+  });
+
+  // Fetch available managers
+  const { data: managers = [] } = useQuery({
+    queryKey: ["managers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("role", ["super_admin", "super_manager", "warehouse_manager"])
+        .eq("is_active", true)
+        .order("full_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Create warehouse mutation
+  const createWarehouseMutation = useMutation({
+    mutationFn: async (data: { name: string; address: string; city: string; phone: string; manager_id: string; is_active: boolean }) => {
+      const { error } = await supabase.from("outlets").insert({
+        ...data,
+        outlet_type: "warehouse",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+      toast({
+        title: "Warehouse Added",
+        description: `Warehouse "${formData.name}" has been added successfully.`,
+      });
+      setDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update warehouse mutation
+  const updateWarehouseMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<WarehouseData> }) => {
+      const { error } = await supabase.from("outlets").update(data).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+      toast({
+        title: "Warehouse Updated",
+        description: `Warehouse "${formData.name}" has been updated successfully.`,
+      });
+      setDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete warehouse mutation
+  const deleteWarehouseMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("outlets").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+      toast({
+        title: "Warehouse Deleted",
+        description: "Warehouse has been removed successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const filteredWarehouses = warehouses.filter(
     (wh) =>
       wh.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      wh.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      wh.manager_name.toLowerCase().includes(searchTerm.toLowerCase())
+      (wh.city?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+      (wh.manager?.full_name?.toLowerCase() || "").includes(searchTerm.toLowerCase())
   );
 
-  const totalCapacity = warehouses.reduce((sum, wh) => sum + wh.capacity, 0);
-  const totalStock = warehouses.reduce((sum, wh) => sum + wh.current_stock, 0);
-  const utilizationRate = ((totalStock / totalCapacity) * 100).toFixed(1);
+  const totalStock = warehouses.reduce((sum, wh) => {
+    const stock = inventoryStats[wh.id] || 0;
+    return sum + stock;
+  }, 0);
 
   const handleAddWarehouse = () => {
     setSelectedWarehouse(null);
     setFormData({
       name: "",
-      location: "",
+      address: "",
       city: "",
-      capacity: 0,
-      current_stock: 0,
-      manager_name: "",
-      contact_phone: "",
-      status: "active",
+      phone: "",
+      manager_id: "",
+      is_active: true,
     });
     setDialogOpen(true);
   };
@@ -114,40 +197,39 @@ const WarehousesDashboard = () => {
     setSelectedWarehouse(warehouse);
     setFormData({
       name: warehouse.name,
-      location: warehouse.location,
-      city: warehouse.city,
-      capacity: warehouse.capacity,
-      current_stock: warehouse.current_stock,
-      manager_name: warehouse.manager_name,
-      contact_phone: warehouse.contact_phone,
-      status: warehouse.status,
+      address: warehouse.address || "",
+      city: warehouse.city || "",
+      phone: warehouse.phone || "",
+      manager_id: warehouse.manager_id || "",
+      is_active: warehouse.is_active,
     });
     setDialogOpen(true);
   };
 
   const handleSaveWarehouse = () => {
-    toast({
-      title: selectedWarehouse ? "Warehouse Updated" : "Warehouse Added",
-      description: `Warehouse "${formData.name}" has been ${selectedWarehouse ? "updated" : "added"} successfully.`,
-    });
-    setDialogOpen(false);
+    if (selectedWarehouse) {
+      updateWarehouseMutation.mutate({
+        id: selectedWarehouse.id,
+        data: formData,
+      });
+    } else {
+      createWarehouseMutation.mutate(formData);
+    }
   };
 
   const handleDeleteWarehouse = (id: string) => {
-    toast({
-      title: "Warehouse Deleted",
-      description: "Warehouse has been removed successfully.",
-    });
+    if (confirm("Are you sure you want to delete this warehouse?")) {
+      deleteWarehouseMutation.mutate(id);
+    }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusMap = {
-      active: "bg-green-100 text-green-800",
-      inactive: "bg-red-100 text-red-800",
-      maintenance: "bg-yellow-100 text-yellow-800",
-    };
-    return statusMap[status as keyof typeof statusMap] || statusMap.active;
-  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -167,7 +249,7 @@ const WarehousesDashboard = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Total Warehouses</CardTitle>
@@ -178,28 +260,21 @@ const WarehousesDashboard = () => {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Capacity</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Active Warehouses</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalCapacity.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">units</p>
+            <div className="text-2xl font-bold text-green-600">
+              {warehouses.filter(w => w.is_active).length}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Current Stock</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Total Stock</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">{totalStock.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">units</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Utilization Rate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{utilizationRate}%</div>
           </CardContent>
         </Card>
       </div>
@@ -225,46 +300,33 @@ const WarehousesDashboard = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Warehouse Name</TableHead>
-                <TableHead>Location</TableHead>
+                <TableHead>Address</TableHead>
                 <TableHead>City</TableHead>
-                <TableHead>Capacity</TableHead>
-                <TableHead>Current Stock</TableHead>
-                <TableHead>Utilization</TableHead>
+                <TableHead>Stock Items</TableHead>
                 <TableHead>Manager</TableHead>
+                <TableHead>Phone</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredWarehouses.map((warehouse) => {
-                const utilization = ((warehouse.current_stock / warehouse.capacity) * 100).toFixed(1);
+                const stockCount = inventoryStats[warehouse.id] || 0;
                 return (
                   <TableRow key={warehouse.id}>
                     <TableCell className="font-medium">{warehouse.name}</TableCell>
-                    <TableCell>{warehouse.location}</TableCell>
-                    <TableCell>{warehouse.city}</TableCell>
-                    <TableCell>{warehouse.capacity.toLocaleString()}</TableCell>
-                    <TableCell>{warehouse.current_stock.toLocaleString()}</TableCell>
+                    <TableCell>{warehouse.address || "N/A"}</TableCell>
+                    <TableCell>{warehouse.city || "N/A"}</TableCell>
+                    <TableCell>{stockCount.toLocaleString()}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-blue-600 h-2 rounded-full"
-                            style={{ width: `${utilization}%` }}
-                          />
-                        </div>
-                        <span className="text-xs">{utilization}%</span>
+                      <div className="font-medium text-sm">
+                        {warehouse.manager?.full_name || "Not assigned"}
                       </div>
                     </TableCell>
+                    <TableCell>{warehouse.phone || "N/A"}</TableCell>
                     <TableCell>
-                      <div>
-                        <div className="font-medium text-sm">{warehouse.manager_name}</div>
-                        <div className="text-xs text-muted-foreground">{warehouse.contact_phone}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusBadge(warehouse.status)}>
-                        {warehouse.status}
+                      <Badge className={warehouse.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+                        {warehouse.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -305,11 +367,11 @@ const WarehousesDashboard = () => {
               />
             </div>
             <div>
-              <Label>Location</Label>
-              <Input
-                placeholder="e.g., Industrial Area"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              <Label>Address</Label>
+              <Textarea
+                placeholder="e.g., Industrial Area, Sector 12"
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               />
             </div>
             <div>
@@ -320,41 +382,46 @@ const WarehousesDashboard = () => {
                 onChange={(e) => setFormData({ ...formData, city: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Capacity</Label>
-                <Input
-                  type="number"
-                  placeholder="10000"
-                  value={formData.capacity}
-                  onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) })}
-                />
-              </div>
-              <div>
-                <Label>Current Stock</Label>
-                <Input
-                  type="number"
-                  placeholder="7500"
-                  value={formData.current_stock}
-                  onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) })}
-                />
-              </div>
-            </div>
             <div>
-              <Label>Manager Name</Label>
-              <Input
-                placeholder="e.g., Ali Khan"
-                value={formData.manager_name}
-                onChange={(e) => setFormData({ ...formData, manager_name: e.target.value })}
-              />
+              <Label>Manager</Label>
+              <Select
+                value={formData.manager_id}
+                onValueChange={(value) => setFormData({ ...formData, manager_id: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a manager" />
+                </SelectTrigger>
+                <SelectContent>
+                  {managers.map((manager) => (
+                    <SelectItem key={manager.id} value={manager.id}>
+                      {manager.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Contact Phone</Label>
               <Input
                 placeholder="e.g., +92-300-1234567"
-                value={formData.contact_phone}
-                onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               />
+            </div>
+            <div>
+              <Label>Status</Label>
+              <Select
+                value={formData.is_active ? "active" : "inactive"}
+                onValueChange={(v) => setFormData({ ...formData, is_active: v === "active" })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
