@@ -287,6 +287,57 @@ export type Database = {
           },
         ]
       }
+      inventory: {
+        Row: {
+          available_quantity: number | null
+          created_at: string
+          id: string
+          last_restocked_at: string | null
+          outlet_id: string
+          product_id: string
+          quantity: number
+          reserved_quantity: number
+          updated_at: string
+        }
+        Insert: {
+          available_quantity?: number | null
+          created_at?: string
+          id?: string
+          last_restocked_at?: string | null
+          outlet_id: string
+          product_id: string
+          quantity?: number
+          reserved_quantity?: number
+          updated_at?: string
+        }
+        Update: {
+          available_quantity?: number | null
+          created_at?: string
+          id?: string
+          last_restocked_at?: string | null
+          outlet_id?: string
+          product_id?: string
+          quantity?: number
+          reserved_quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leopard_table: {
         Row: {
           created_at: string
@@ -501,6 +552,53 @@ export type Database = {
           },
         ]
       }
+      outlets: {
+        Row: {
+          address: string | null
+          city: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          manager_id: string | null
+          name: string
+          outlet_type: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          manager_id?: string | null
+          name: string
+          outlet_type: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          manager_id?: string | null
+          name?: string
+          outlet_type?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outlets_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       postex_table: {
         Row: {
           created_at: string
@@ -575,6 +673,48 @@ export type Database = {
           price?: string | null
           shopify_id?: number
           type?: string | null
+        }
+        Relationships: []
+      }
+      products: {
+        Row: {
+          category: string | null
+          cost: number | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          price: number
+          reorder_level: number
+          sku: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          cost?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          price: number
+          reorder_level?: number
+          sku: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          cost?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: number
+          reorder_level?: number
+          sku?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -695,6 +835,184 @@ export type Database = {
           permissions?: Json | null
         }
         Relationships: []
+      }
+      stock_movements: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          movement_type: string
+          notes: string | null
+          outlet_id: string
+          product_id: string
+          quantity: number
+          reference_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          movement_type: string
+          notes?: string | null
+          outlet_id: string
+          product_id: string
+          quantity: number
+          reference_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          movement_type?: string
+          notes?: string | null
+          outlet_id?: string
+          product_id?: string
+          quantity?: number
+          reference_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_movements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_transfer_items: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string
+          quantity_approved: number | null
+          quantity_received: number | null
+          quantity_requested: number
+          transfer_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id: string
+          quantity_approved?: number | null
+          quantity_received?: number | null
+          quantity_requested: number
+          transfer_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string
+          quantity_approved?: number | null
+          quantity_received?: number | null
+          quantity_requested?: number
+          transfer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_transfer_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_items_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "stock_transfer_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_transfer_requests: {
+        Row: {
+          approved_by: string | null
+          completed_by: string | null
+          created_at: string
+          from_outlet_id: string
+          id: string
+          notes: string | null
+          requested_by: string
+          status: string
+          to_outlet_id: string
+          updated_at: string
+        }
+        Insert: {
+          approved_by?: string | null
+          completed_by?: string | null
+          created_at?: string
+          from_outlet_id: string
+          id?: string
+          notes?: string | null
+          requested_by: string
+          status?: string
+          to_outlet_id: string
+          updated_at?: string
+        }
+        Update: {
+          approved_by?: string | null
+          completed_by?: string | null
+          created_at?: string
+          from_outlet_id?: string
+          id?: string
+          notes?: string | null
+          requested_by?: string
+          status?: string
+          to_outlet_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_transfer_requests_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_requests_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_requests_from_outlet_id_fkey"
+            columns: ["from_outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_requests_to_outlet_id_fkey"
+            columns: ["to_outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       suspicious_customers: {
         Row: {
@@ -840,7 +1158,7 @@ export type Database = {
           id: string
           name: string
           phone: string | null
-          role_id: string | null
+          role_id: string
           status: string | null
           updated_at: string
         }
@@ -850,7 +1168,7 @@ export type Database = {
           id?: string
           name: string
           phone?: string | null
-          role_id?: string | null
+          role_id: string
           status?: string | null
           updated_at?: string
         }
@@ -860,7 +1178,7 @@ export type Database = {
           id?: string
           name?: string
           phone?: string | null
-          role_id?: string | null
+          role_id?: string
           status?: string | null
           updated_at?: string
         }
