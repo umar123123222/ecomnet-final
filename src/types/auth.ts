@@ -1,13 +1,16 @@
 
 export type UserRole = 
-  | 'owner' 
-  | 'store_manager' 
-  | 'dispatch_manager' 
-  | 'returns_manager' 
+  | 'super_admin'
+  | 'super_manager'
+  | 'warehouse_manager'
+  | 'store_manager'
+  | 'dispatch_manager'
+  | 'returns_manager'
   | 'staff'
-  | 'SuperAdmin' 
-  | 'Manager' 
-  | 'Dispatch/Returns Manager'; // Legacy roles for backward compatibility
+  | 'owner'  // Legacy
+  | 'SuperAdmin'  // Legacy
+  | 'Manager'  // Legacy
+  | 'Dispatch/Returns Manager'; // Legacy
 
 export interface User {
   id: string;
