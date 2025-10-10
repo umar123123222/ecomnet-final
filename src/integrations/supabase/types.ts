@@ -908,17 +908,13 @@ export type Database = {
         | "address clear"
       return_status: "in_transit" | "received" | "processed" | "completed"
       user_role:
-        | "owner"
+        | "super_admin"
+        | "super_manager"
+        | "warehouse_manager"
         | "store_manager"
         | "dispatch_manager"
         | "returns_manager"
         | "staff"
-        | "SuperAdmin"
-        | "Manager"
-        | "Dispatch/Returns Manager"
-        | "super_admin"
-        | "super_manager"
-        | "warehouse_manager"
       verification_status: "pending" | "approved" | "disapproved"
     }
     CompositeTypes: {
@@ -1060,17 +1056,13 @@ export const Constants = {
       ],
       return_status: ["in_transit", "received", "processed", "completed"],
       user_role: [
-        "owner",
+        "super_admin",
+        "super_manager",
+        "warehouse_manager",
         "store_manager",
         "dispatch_manager",
         "returns_manager",
         "staff",
-        "SuperAdmin",
-        "Manager",
-        "Dispatch/Returns Manager",
-        "super_admin",
-        "super_manager",
-        "warehouse_manager",
       ],
       verification_status: ["pending", "approved", "disapproved"],
     },

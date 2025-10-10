@@ -95,7 +95,7 @@ const UserManagement = () => {
     mode: 'onChange',
   });
 
-  const availableRoles: UserRole[] = ['owner', 'store_manager', 'dispatch_manager', 'returns_manager', 'staff'];
+  const availableRoles: UserRole[] = ['super_admin', 'super_manager', 'warehouse_manager', 'store_manager', 'dispatch_manager', 'returns_manager', 'staff'];
 
   // Fetch users from Supabase
   const { data: users = [], isLoading, error } = useQuery({

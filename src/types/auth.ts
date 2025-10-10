@@ -6,11 +6,7 @@ export type UserRole =
   | 'store_manager'
   | 'dispatch_manager'
   | 'returns_manager'
-  | 'staff'
-  | 'owner'  // Legacy
-  | 'SuperAdmin'  // Legacy
-  | 'Manager'  // Legacy
-  | 'Dispatch/Returns Manager'; // Legacy
+  | 'staff';
 
 export interface User {
   id: string;

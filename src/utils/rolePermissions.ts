@@ -30,9 +30,7 @@ export const getRolePermissions = (role: UserRole) => {
   };
 
   switch (role) {
-    case 'SuperAdmin':
-    case 'owner': // New role system
-    case 'super_admin': // New standardized role
+    case 'super_admin':
       return {
         ...permissions,
         canAccessDashboard: true,
@@ -53,9 +51,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessStockTransfer: true,
       };
     
-    case 'Manager':
-    case 'store_manager': // New role system
-    case 'super_manager': // New standardized role
+    case 'super_manager':
       return {
         ...permissions,
         canAccessDashboard: true,
@@ -76,7 +72,23 @@ export const getRolePermissions = (role: UserRole) => {
         // No admin panel access
       };
     
-    case 'warehouse_manager': // New role system - warehouse/inventory focus
+    case 'store_manager':
+      return {
+        ...permissions,
+        canAccessDashboard: true,
+        canAccessOrders: true,
+        canAccessCustomers: true,
+        canAccessDispatch: true,
+        canAccessReturns: true,
+        canAccessAddressVerification: true,
+        canAccessInventory: true,
+        canAccessOutlets: true,
+        canAccessProducts: true,
+        canAccessStockTransfer: true,
+        canAccessSettings: true,
+      };
+    
+    case 'warehouse_manager':
       return {
         ...permissions,
         canAccessDashboard: true,
@@ -87,14 +99,21 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessSettings: true,
       };
     
-    case 'Dispatch/Returns Manager':
-    case 'dispatch_manager': // New role system - dispatch focus
-    case 'returns_manager': // New role system - returns focus
+    case 'dispatch_manager':
       return {
         ...permissions,
         canAccessDashboard: true,
-        canAccessDispatch: role === 'dispatch_manager' || role === 'Dispatch/Returns Manager',
-        canAccessReturns: role === 'returns_manager' || role === 'Dispatch/Returns Manager',
+        canAccessOrders: true,
+        canAccessDispatch: true,
+        canAccessSettings: true,
+      };
+    
+    case 'returns_manager':
+      return {
+        ...permissions,
+        canAccessDashboard: true,
+        canAccessOrders: true,
+        canAccessReturns: true,
         canAccessSettings: true,
       };
     

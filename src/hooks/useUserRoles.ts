@@ -9,10 +9,12 @@ import { UserRole } from '@/types/auth';
 export const useUserRoles = () => {
   const { profile, userRoles } = useAuth();
 
-  // Get user's primary role - prefer owner > store_manager > others
-  const primaryRole: UserRole = userRoles.includes('owner' as any)
-    ? 'owner'
-    : userRoles.includes('store_manager' as any)
+  // Get user's primary role - prefer super_admin > super_manager > store_manager > others
+  const primaryRole: UserRole = userRoles.includes('super_admin')
+    ? 'super_admin'
+    : userRoles.includes('super_manager')
+    ? 'super_manager'
+    : userRoles.includes('store_manager')
     ? 'store_manager'
     : (userRoles[0] || profile?.role || 'staff');
 
@@ -40,17 +42,24 @@ export const useUserRoles = () => {
   };
 
   /**
-   * Check if user is admin (owner or SuperAdmin)
+   * Check if user is admin (super_admin only)
    */
   const isAdmin = (): boolean => {
-    return hasAnyRole(['owner', 'SuperAdmin']);
+    return hasRole('super_admin');
   };
 
   /**
-   * Check if user is manager (store_manager, Manager, or admin)
+   * Check if user is manager (super_admin, super_manager, or store_manager)
    */
   const isManager = (): boolean => {
-    return hasAnyRole(['owner', 'SuperAdmin', 'store_manager', 'Manager']);
+    return hasAnyRole(['super_admin', 'super_manager', 'store_manager']);
+  };
+
+  /**
+   * Check if user is senior staff (warehouse_manager or above)
+   */
+  const isSeniorStaff = (): boolean => {
+    return hasAnyRole(['super_admin', 'super_manager', 'store_manager', 'warehouse_manager']);
   };
 
   return {
@@ -62,5 +71,6 @@ export const useUserRoles = () => {
     hasAllRoles,
     isAdmin,
     isManager,
+    isSeniorStaff,
   };
 };
