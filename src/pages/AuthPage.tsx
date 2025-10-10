@@ -7,13 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { setupSuperadmin } from '@/utils/setupSuperadmin';
 
 const AuthPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isSettingUp, setIsSettingUp] = useState(false);
   const { signIn, isLoading, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -50,25 +48,6 @@ const AuthPage = () => {
         title: 'Success',
         description: 'Logged in successfully!',
       });
-    }
-  };
-
-  const handleSetupSuperadmin = async () => {
-    setIsSettingUp(true);
-    try {
-      await setupSuperadmin('umaridmpakistan@gmail.com', 'admin123', 'Super Admin');
-      toast({
-        title: 'Success',
-        description: 'SuperAdmin account created! You can now login.',
-      });
-    } catch (error: any) {
-      toast({
-        title: 'Setup Error',
-        description: error.message || 'Failed to create SuperAdmin',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSettingUp(false);
     }
   };
 
@@ -137,23 +116,6 @@ const AuthPage = () => {
             <p>Email: umaridmpakistan@gmail.com</p>
             <p>Password: admin123</p>
           </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full mt-4"
-            onClick={handleSetupSuperadmin}
-            disabled={isSettingUp}
-          >
-            {isSettingUp ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating SuperAdmin...
-              </>
-            ) : (
-              'Create SuperAdmin Account'
-            )}
-          </Button>
         </CardContent>
       </Card>
     </div>
