@@ -35,9 +35,6 @@ const AddressVerification = lazy(() =>
 const UserManagement = lazy(() => 
   import("@/pages/UserManagement/UserManagement").then(module => ({ default: module.default }))
 );
-const AdminPanel = lazy(() => 
-  import("@/pages/AdminPanel/AdminPanel").then(module => ({ default: module.default }))
-);
 const Settings = lazy(() => 
   import("@/pages/Settings/Settings").then(module => ({ default: module.default }))
 );
@@ -156,11 +153,6 @@ const App = () => {
                 <Route path="user-management" element={
                   <Suspense fallback={<PageLoader />}>
                     <UserManagement />
-                  </Suspense>
-                } />
-                <Route path="admin-panel" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <AdminPanel />
                   </Suspense>
                 } />
                 <Route path="settings" element={

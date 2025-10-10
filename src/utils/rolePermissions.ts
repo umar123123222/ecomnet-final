@@ -18,7 +18,6 @@ export const getRolePermissions = (role: UserRole) => {
     canAccessReturns: false,
     canAccessAddressVerification: false,
     canAccessUserManagement: false,
-    canAccessAdminPanel: false,
     canAccessSettings: false,
     canAddUsers: false,
     canEditUsers: false,
@@ -42,7 +41,6 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessReturns: true,
         canAccessAddressVerification: true,
         canAccessUserManagement: true,
-        canAccessAdminPanel: true,
         canAccessSettings: true,
         canAddUsers: true,
         canEditUsers: true,
@@ -212,16 +210,8 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
 
   if (permissions.canAccessUserManagement) {
     items.push({
-      label: 'User Management',
-      href: '/user-management',
-      icon: 'Users'
-    });
-  }
-
-  if (permissions.canAccessAdminPanel) {
-    items.push({
       label: 'Admin Panel',
-      href: '/admin-panel',
+      href: '/user-management',
       icon: 'Shield'
     });
   }

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Table,
   TableBody,
@@ -12,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import LoginLogs from '@/components/LoginLogs';
 import {
   Select,
   SelectContent,
@@ -309,8 +311,8 @@ const UserManagement = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
-          <p className="text-gray-600 mt-1">Manage users and their permissions</p>
+          <h1 className="text-3xl font-bold text-gray-900">Admin & User Management</h1>
+          <p className="text-gray-600 mt-1">Manage system users, permissions, and monitor activities</p>
         </div>
         <div className="flex items-center gap-3">
           {permissions.canAddUsers && (
@@ -476,8 +478,64 @@ const UserManagement = () => {
         </div>
       </div>
 
-      {/* Users Table with integrated filters */}
-      <Card>
+      {/* System Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">System Overview</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <p><span className="font-medium">Total Users:</span> {users.length}</p>
+              <p><span className="font-medium">Active Users:</span> {users.filter(u => u.is_active).length}</p>
+              <p><span className="font-medium">System Health:</span> <Badge className="bg-green-100 text-green-800">Good</Badge></p>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">User Statistics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <p><span className="font-medium">Super Admins:</span> {users.filter(u => u.user_roles?.some(r => r.role === 'super_admin')).length}</p>
+              <p><span className="font-medium">Managers:</span> {users.filter(u => u.user_roles?.some(r => ['super_manager', 'store_manager'].includes(r.role))).length}</p>
+              <p><span className="font-medium">Staff:</span> {users.filter(u => u.user_roles?.some(r => r.role === 'staff')).length}</p>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Button variant="outline" size="sm" className="w-full" disabled>
+                Export User Data
+              </Button>
+              <Button variant="outline" size="sm" className="w-full" disabled>
+                Generate Report
+              </Button>
+              <Button variant="outline" size="sm" className="w-full" disabled>
+                View Audit Logs
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Content with Tabs */}
+      <Tabs defaultValue="users" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="users">User Management</TabsTrigger>
+          <TabsTrigger value="logs">Login Logs</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="users" className="space-y-4">
+          {/* Users Table with integrated filters */}
+          <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Users ({filteredUsers.length})</span>
@@ -590,6 +648,12 @@ const UserManagement = () => {
           </Table>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="logs">
+          <LoginLogs />
+        </TabsContent>
+      </Tabs>
 
       {/* Edit User Dialog */}
       <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
