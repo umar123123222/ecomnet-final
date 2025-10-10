@@ -35,14 +35,14 @@ serve(async (req) => {
       )
     }
 
-    // Check if user has permission (owner or store_manager)
-    const { data: userRoles } = await supabaseAdmin
-      .from('user_roles')
+    // Check if user has permission (super_admin, super_manager, or store_manager)
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
       .select('role')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
+      .eq('id', user.id)
+      .single()
 
-    const hasPermission = userRoles?.some(r => ['owner', 'store_manager'].includes(r.role))
+    const hasPermission = profile && ['super_admin', 'super_manager', 'store_manager'].includes(profile.role)
     if (!hasPermission) {
       return new Response(
         JSON.stringify({ error: 'Insufficient permissions' }),
@@ -78,12 +78,13 @@ serve(async (req) => {
 
         if (profileError) throw profileError
 
-        // Add roles
+        // Add roles with outlet assignment if provided
         const roleRecords = userData.roles.map((role: string) => ({
           user_id: authData.user.id,
           role: role,
           assigned_by: user.id,
           is_active: true,
+          outlet_id: userData.outlet_id || null,
         }))
 
         const { error: rolesError } = await supabaseAdmin
@@ -125,6 +126,7 @@ serve(async (req) => {
           role: role,
           assigned_by: user.id,
           is_active: true,
+          outlet_id: userData.outlet_id || null,
         }))
 
         const { error: rolesError } = await supabaseAdmin

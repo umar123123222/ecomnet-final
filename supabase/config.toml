@@ -1,1 +1,16 @@
 project_id = "lzitfcigdjbpymvebipp"
+
+[functions.manage-user]
+verify_jwt = true
+
+[functions.manage-stock]
+verify_jwt = true
+
+[functions.stock-transfer-request]
+verify_jwt = true
+
+[functions.inventory-reports]
+verify_jwt = true
+
+[functions.low-stock-alerts]
+verify_jwt = true
