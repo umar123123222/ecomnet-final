@@ -36,13 +36,27 @@ serve(async (req) => {
     }
 
     // Check if user has permission (super_admin, super_manager, or store_manager)
+    const allowedRoles = ['super_admin', 'super_manager', 'store_manager']
+
+    // Prefer checking roles from user_roles; fall back to profile.role for backward compatibility
+    const { data: rolesData } = await supabaseAdmin
+      .from('user_roles')
+      .select('role, is_active')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single()
 
-    const hasPermission = profile && ['super_admin', 'super_manager', 'store_manager'].includes(profile.role)
+    const effectiveRoles = [
+      ...(rolesData?.map((r: any) => r.role) ?? []),
+      profile?.role,
+    ].filter(Boolean)
+
+    const hasPermission = effectiveRoles.some((r: string) => allowedRoles.includes(r))
     if (!hasPermission) {
       return new Response(
         JSON.stringify({ error: 'Insufficient permissions' }),
