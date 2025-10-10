@@ -7,16 +7,24 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowRightLeft, Clock, CheckCircle, XCircle, Plus, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { StockTransferRequest } from "@/types/inventory";
+
+type TransferWithRelations = StockTransferRequest & {
+  product?: { name: string; sku: string };
+  from_outlet?: { name: string };
+  to_outlet?: { name: string };
+  requester?: { full_name: string };
+};
 
 const StockTransferDashboard = () => {
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
   // Fetch transfer requests
-  const { data: transfers, isLoading } = useQuery({
+  const { data: transfers, isLoading } = useQuery<TransferWithRelations[]>({
     queryKey: ["stock-transfers", filterStatus],
     queryFn: async () => {
       let query = supabase
-        .from("stock_transfer_requests")
+        .from("stock_transfer_requests" as any)
         .select(`
           *,
           product:products_new(name, sku),
@@ -32,7 +40,7 @@ const StockTransferDashboard = () => {
 
       const { data, error } = await query.limit(100);
       if (error) throw error;
-      return data;
+      return data as unknown as TransferWithRelations[];
     },
   });
 
@@ -177,7 +185,7 @@ const StockTransferDashboard = () => {
                         <TableCell>{transfer.from_outlet?.name}</TableCell>
                         <TableCell>{transfer.to_outlet?.name}</TableCell>
                         <TableCell className="text-right font-medium">
-                          {transfer.quantity_approved || transfer.quantity_requested}
+                          {(transfer as any).quantity_approved || (transfer as any).quantity_requested || 0}
                         </TableCell>
                         <TableCell>{transfer.requester?.full_name}</TableCell>
                         <TableCell>{getStatusBadge(transfer.status)}</TableCell>

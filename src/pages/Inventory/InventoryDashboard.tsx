@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { Inventory, Outlet } from "@/types/inventory";
 
 const InventoryDashboard = () => {
   const { user } = useAuth();
@@ -16,25 +17,25 @@ const InventoryDashboard = () => {
   const [selectedOutlet, setSelectedOutlet] = useState<string>("all");
 
   // Fetch outlets
-  const { data: outlets } = useQuery({
+  const { data: outlets } = useQuery<Outlet[]>({
     queryKey: ["outlets"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("outlets")
+        .from("outlets" as any)
         .select("*")
         .eq("is_active", true)
         .order("name");
       if (error) throw error;
-      return data;
+      return data as unknown as Outlet[];
     },
   });
 
   // Fetch inventory data
-  const { data: inventory, isLoading } = useQuery({
+  const { data: inventory, isLoading } = useQuery<Inventory[]>({
     queryKey: ["inventory", selectedOutlet],
     queryFn: async () => {
       let query = supabase
-        .from("inventory")
+        .from("inventory" as any)
         .select(`
           *,
           product:products_new(*),
@@ -47,7 +48,7 @@ const InventoryDashboard = () => {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+      return data as unknown as Inventory[];
     },
   });
 
@@ -135,7 +136,7 @@ const InventoryDashboard = () => {
               <SelectContent>
                 <SelectItem value="all">All Outlets</SelectItem>
                 {outlets?.map((outlet) => (
-                  <SelectItem key={outlet.id} value={outlet.id}>
+                  <SelectItem key={outlet.id} value={String(outlet.id)}>
                     {outlet.name}
                   </SelectItem>
                 ))}

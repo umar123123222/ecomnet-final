@@ -7,20 +7,21 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Package, Search, Plus, Loader2, Edit, AlertCircle } from "lucide-react";
+import { Product } from "@/types/inventory";
 
 const ProductManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
 
   // Fetch products
-  const { data: products, isLoading } = useQuery({
+  const { data: products, isLoading } = useQuery<Product[]>({
     queryKey: ["products"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("products_new")
+        .from("products_new" as any)
         .select("*")
         .order("name");
       if (error) throw error;
-      return data;
+      return data as unknown as Product[];
     },
   });
 
@@ -137,7 +138,7 @@ const ProductManagement = () => {
                           <Badge variant="outline">{product.category || 'Uncategorized'}</Badge>
                         </TableCell>
                         <TableCell className="text-right">Rs. {product.price?.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">Rs. {product.cost_price?.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">Rs. {product.cost?.toLocaleString()}</TableCell>
                         <TableCell className="text-right">{product.reorder_level || 10}</TableCell>
                         <TableCell>
                           {product.is_active ? (

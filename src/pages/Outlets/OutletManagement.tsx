@@ -6,38 +6,39 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Building2, MapPin, Plus, Loader2, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Outlet, Inventory } from "@/types/inventory";
 
 const OutletManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Fetch outlets
-  const { data: outlets, isLoading } = useQuery({
+  const { data: outlets, isLoading } = useQuery<(Outlet & { manager?: { full_name: string } })[]>({
     queryKey: ["outlets"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("outlets")
+        .from("outlets" as any)
         .select(`
           *,
           manager:profiles(full_name)
         `)
         .order("name");
       if (error) throw error;
-      return data;
+      return data as unknown as (Outlet & { manager?: { full_name: string } })[];
     },
   });
 
   // Fetch inventory stats for each outlet
-  const { data: outletStats } = useQuery({
+  const { data: outletStats } = useQuery<Record<string, { totalItems: number; availableItems: number }>>({
     queryKey: ["outlet-stats"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("inventory")
+        .from("inventory" as any)
         .select("outlet_id, quantity, available_quantity");
       
       if (error) throw error;
 
-      const stats = data.reduce((acc, item) => {
+      const stats = (data as any[]).reduce((acc: any, item: any) => {
         if (!acc[item.outlet_id]) {
           acc[item.outlet_id] = { totalItems: 0, availableItems: 0 };
         }
@@ -50,8 +51,8 @@ const OutletManagement = () => {
     },
   });
 
-  const warehouses = outlets?.filter(o => o.type === 'warehouse') || [];
-  const retailOutlets = outlets?.filter(o => o.type === 'outlet') || [];
+  const warehouses = outlets?.filter(o => o.outlet_type === 'warehouse') || [];
+  const retailOutlets = outlets?.filter(o => o.outlet_type === 'retail') || [];
 
   return (
     <div className="p-6 space-y-6">
@@ -107,7 +108,7 @@ const OutletManagement = () => {
                         <span className="text-muted-foreground">Available</span>
                         <span className="font-semibold text-green-600">{stats.availableItems}</span>
                       </div>
-                      {outlet.manager && (
+                      {outlet.manager && 'full_name' in outlet.manager && (
                         <div className="flex items-center gap-2 text-sm pt-2 border-t">
                           <Users className="h-3 w-3 text-muted-foreground" />
                           <span className="text-muted-foreground">Manager:</span>
@@ -162,7 +163,7 @@ const OutletManagement = () => {
                         <span className="text-muted-foreground">Available</span>
                         <span className="font-semibold text-green-600">{stats.availableItems}</span>
                       </div>
-                      {outlet.manager && (
+                      {outlet.manager && 'full_name' in outlet.manager && (
                         <div className="flex items-center gap-2 text-sm pt-2 border-t">
                           <Users className="h-3 w-3 text-muted-foreground" />
                           <span className="text-muted-foreground">Manager:</span>
