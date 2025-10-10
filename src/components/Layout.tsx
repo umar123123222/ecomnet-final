@@ -23,11 +23,15 @@ const Layout = () => {
     signOut();
   };
 
-  // Get user's primary role - prefer owner > store_manager > others
-  const primaryRole = userRoles.includes('owner' as any) 
-    ? 'owner' 
+  // Get user's primary role - prefer super_admin > super_manager > store_manager > warehouse_manager > others
+  const primaryRole = userRoles.includes('super_admin' as any) 
+    ? 'super_admin' 
+    : userRoles.includes('super_manager' as any)
+    ? 'super_manager'
     : userRoles.includes('store_manager' as any)
     ? 'store_manager'
+    : userRoles.includes('warehouse_manager' as any)
+    ? 'warehouse_manager'
     : userRoles[0] || profile?.role || 'staff';
 
   const navigationItems = user ? getNavigationItems(primaryRole as any) : [];
