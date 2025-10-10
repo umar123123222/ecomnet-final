@@ -7,6 +7,9 @@ import { ModernButton } from "@/components/ui/modern-button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { OptimizedSalesChart } from "@/components/charts/OptimizedSalesChart";
 import { CourierPerformanceChart } from "@/components/charts/CourierPerformanceChart";
+import { StaffPerformanceChart } from "@/components/charts/StaffPerformanceChart";
+import { InventoryValueChart } from "@/components/charts/InventoryValueChart";
+import { OrderStatusChart } from "@/components/charts/OrderStatusChart";
 import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import { InventorySummaryWidget } from "@/components/inventory/InventorySummaryWidget";
 import { usePerformanceLogger, useWebVitals } from "@/hooks/usePerformance";
@@ -290,7 +293,7 @@ const Dashboard = () => {
         {/* Inventory Summary Widget */}
         <InventorySummaryWidget />
 
-        {/* Charts Section - Lazy loaded */}
+        {/* Charts Section - Enhanced Analytics */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <GradientCard className="p-0 overflow-hidden">
             <CardHeader className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 dark:from-blue-500/20 dark:to-purple-500/20">
@@ -309,6 +312,36 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent className="p-4 sm:p-6">
               <CourierPerformanceChart />
+            </CardContent>
+          </GradientCard>
+
+          <GradientCard className="p-0 overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-orange-500/10 to-red-500/10 dark:from-orange-500/20 dark:to-red-500/20">
+              <CardTitle className="text-responsive-lg">Staff Performance</CardTitle>
+              <CardDescription>Team productivity metrics (Last 7 days)</CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6">
+              <StaffPerformanceChart />
+            </CardContent>
+          </GradientCard>
+
+          <GradientCard className="p-0 overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 dark:from-purple-500/20 dark:to-pink-500/20">
+              <CardTitle className="text-responsive-lg">Inventory Value by Outlet</CardTitle>
+              <CardDescription>Total stock value across locations</CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6">
+              <InventoryValueChart />
+            </CardContent>
+          </GradientCard>
+
+          <GradientCard className="p-0 overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 dark:from-cyan-500/20 dark:to-blue-500/20">
+              <CardTitle className="text-responsive-lg">Order Status Distribution</CardTitle>
+              <CardDescription>Current orders breakdown by status</CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6">
+              <OrderStatusChart />
             </CardContent>
           </GradientCard>
         </div>
