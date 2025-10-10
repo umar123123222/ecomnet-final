@@ -12,9 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle } from 'lucide-react';
+import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck } from 'lucide-react';
 import TagsNotes from '@/components/TagsNotes';
 import NewOrderDialog from '@/components/NewOrderDialog';
+import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { logActivity } from '@/utils/activityLogger';
 import { useAdvancedFilters } from '@/hooks/useAdvancedFilters';
@@ -43,6 +44,8 @@ const OrderDashboard = () => {
     cancelled: 0,
     returns: 0
   });
+  const [dispatchOrderId, setDispatchOrderId] = useState<string>("");
+  const [isDispatchDialogOpen, setIsDispatchDialogOpen] = useState(false);
 
   const { user } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
@@ -606,17 +609,30 @@ const OrderDashboard = () => {
                            
                            <TabsContent value="order-details" className="mt-4">
                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                               <div className="space-y-4">
-                                 <div>
-                                   <h4 className="font-semibold mb-3">Order Information</h4>
-                                   <div className="space-y-2 text-sm">
-                                     <p><span className="font-medium">Customer Order Total Worth:</span> {order.amount}</p>
-                                     
-                                     <p><span className="font-medium">Dispatched At:</span> {order.dispatchedAt}</p>
-                                     <p><span className="font-medium">Delivered At:</span> {order.deliveredAt}</p>
-                                     <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
-                                   </div>
-                                 </div>
+                                <div className="space-y-4">
+                                  <div>
+                                    <h4 className="font-semibold mb-3">Order Information</h4>
+                                    <div className="space-y-2 text-sm">
+                                      <p><span className="font-medium">Customer Order Total Worth:</span> {order.amount}</p>
+                                      
+                                      <p><span className="font-medium">Dispatched At:</span> {order.dispatchedAt}</p>
+                                      <p><span className="font-medium">Delivered At:</span> {order.deliveredAt}</p>
+                                      <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
+                                    </div>
+                                    {order.status === 'booked' && (
+                                      <Button
+                                        size="sm"
+                                        onClick={() => {
+                                          setDispatchOrderId(order.id);
+                                          setIsDispatchDialogOpen(true);
+                                        }}
+                                        className="mt-3"
+                                      >
+                                        <Truck className="h-4 w-4 mr-2" />
+                                        Quick Dispatch
+                                      </Button>
+                                    )}
+                                  </div>
                                  
                   <div>
                     <h4 className="font-semibold mb-3">Internal Notes</h4>
@@ -652,6 +668,13 @@ const OrderDashboard = () => {
           </Table>
         </CardContent>
       </Card>
+      
+      {/* New Dispatch Dialog */}
+      <NewDispatchDialog 
+        open={isDispatchDialogOpen}
+        onOpenChange={setIsDispatchDialogOpen}
+        preSelectedOrderId={dispatchOrderId}
+      />
     </div>;
 };
 export default OrderDashboard;

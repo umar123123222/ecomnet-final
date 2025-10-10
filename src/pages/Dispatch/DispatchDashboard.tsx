@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Download, Scan, Edit, Truck, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Download, Scan, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter } from 'lucide-react';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
@@ -37,21 +37,27 @@ import { useForm } from 'react-hook-form';
 import TagsNotes from '@/components/TagsNotes';
 import OCRScanner from '@/components/OCRScanner';
 import { useToast } from '@/hooks/use-toast';
+import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
+import CourierPerformanceWidget from '@/components/dispatch/CourierPerformanceWidget';
+import { useQueryClient } from '@tanstack/react-query';
 
 const DispatchDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDispatches, setSelectedDispatches] = useState<string[]>([]);
   const [dispatches, setDispatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [courierFilter, setCourierFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: new Date(),
-    to: addDays(new Date(), 7),
+    from: addDays(new Date(), -7),
+    to: new Date(),
   });
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [isScanningOpen, setIsScanningOpen] = useState(false);
+  const [isNewDispatchOpen, setIsNewDispatchOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const form = useForm({
     defaultValues: {
@@ -72,6 +78,8 @@ const DispatchDashboard = () => {
               customer_name,
               customer_phone,
               customer_address,
+              city,
+              total_amount,
               status
             )
           `)
@@ -95,6 +103,26 @@ const DispatchDashboard = () => {
     };
 
     fetchDispatches();
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('dispatch-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'dispatches'
+        },
+        () => {
+          fetchDispatches();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [toast]);
 
   const filteredByDate = useMemo(() => {
@@ -117,20 +145,28 @@ const DispatchDashboard = () => {
         (dispatch.orders?.order_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (dispatch.courier || '').toLowerCase().includes(searchTerm.toLowerCase());
       
-      return matchesSearch;
+      const matchesStatus = statusFilter === "all" || dispatch.status === statusFilter;
+      const matchesCourier = courierFilter === "all" || dispatch.courier === courierFilter;
+      
+      return matchesSearch && matchesStatus && matchesCourier;
     });
-  }, [filteredByDate, searchTerm]);
+  }, [filteredByDate, searchTerm, statusFilter, courierFilter]);
 
   const metrics = useMemo(() => {
     const totalDispatches = filteredByDate.length;
-    // Since we don't have worth data in dispatches table, we'll estimate
     const worthOfDispatches = filteredByDate.reduce((total, dispatch) => {
-      return total + 2500; // Default amount per dispatch
+      return total + (dispatch.orders?.total_amount || 2500);
     }, 0);
+    const pending = filteredByDate.filter(d => d.status === "pending").length;
+    const inTransit = filteredByDate.filter(d => d.status === "in_transit").length;
+    const delivered = filteredByDate.filter(d => d.status === "completed" || d.status === "delivered").length;
 
     return {
       totalDispatches,
       worthOfDispatches,
+      pending,
+      inTransit,
+      delivered,
     };
   }, [filteredByDate]);
 
@@ -210,15 +246,19 @@ const DispatchDashboard = () => {
           <p className="text-gray-600 mt-1">Track and manage order dispatches</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => setIsScanningOpen(true)}>
+          <Button onClick={() => setIsNewDispatchOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Dispatch
+          </Button>
+          <Button onClick={() => setIsScanningOpen(true)} variant="outline">
             <Scan className="h-4 w-4 mr-2" />
-            Scan Dispatch
+            Scan
           </Button>
           <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
                 <Edit className="h-4 w-4 mr-2" />
-                Manual Entry
+                Bulk Entry
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -266,12 +306,18 @@ const DispatchDashboard = () => {
         scanType="dispatch"
       />
 
+      {/* New Dispatch Dialog */}
+      <NewDispatchDialog 
+        open={isNewDispatchOpen}
+        onOpenChange={setIsNewDispatchOpen}
+      />
+
       {/* Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Total Dispatches (Selected Period)
+              Total Dispatches
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -281,7 +327,37 @@ const DispatchDashboard = () => {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Worth of Dispatches
+              Pending
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">{metrics.pending}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">
+              In Transit
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{metrics.inTransit}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">
+              Delivered
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{metrics.delivered}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">
+              Total Worth
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -289,6 +365,9 @@ const DispatchDashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Courier Performance Widget */}
+      <CourierPerformanceWidget />
 
       {/* Dispatches Table with integrated filters */}
       <Card>
@@ -306,11 +385,11 @@ const DispatchDashboard = () => {
         </CardHeader>
         <CardContent>
           {/* Search and Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search by tracking ID, customer, order ID..."
+                placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -321,9 +400,32 @@ const DispatchDashboard = () => {
               setDate={setDateRange}
               className="w-full"
             />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="in_transit">In Transit</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={courierFilter} onValueChange={setCourierFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Courier" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Couriers</SelectItem>
+                <SelectItem value="leopard">Leopard</SelectItem>
+                <SelectItem value="tcs">TCS</SelectItem>
+                <SelectItem value="postex">PostEx</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
             <Button variant="outline" disabled={selectedDispatches.length === 0}>
               <Download className="h-4 w-4 mr-2" />
-              Download Selected
+              Export
             </Button>
           </div>
 
