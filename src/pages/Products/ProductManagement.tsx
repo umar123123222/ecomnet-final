@@ -5,16 +5,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, Search, Plus, Loader2, Edit, AlertCircle } from "lucide-react";
+import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download } from "lucide-react";
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
+import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
+import { BulkOperationsPanel } from '@/components/BulkOperationsPanel';
+import { bulkToggleProducts, bulkUpdateProductCategory, exportToCSV } from '@/utils/bulkOperations';
 
 const ProductManagement = () => {
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const { progress, executeBulkOperation } = useBulkOperations();
 
 
   // Fetch products
@@ -57,6 +63,57 @@ const ProductManagement = () => {
   // Get unique categories
   const categories = Array.from(new Set(products?.map(p => p.category).filter(Boolean))) as string[];
   const categoryOptions = categories.map(cat => ({ value: cat, label: cat }));
+
+  // Bulk operations
+  const bulkOperations: BulkOperation[] = [
+    {
+      id: 'activate',
+      label: 'Activate',
+      icon: CheckCircle,
+      action: async (ids) => bulkToggleProducts(ids, true),
+    },
+    {
+      id: 'deactivate',
+      label: 'Deactivate',
+      icon: XCircle,
+      variant: 'destructive',
+      action: async (ids) => bulkToggleProducts(ids, false),
+      requiresConfirmation: true,
+      confirmMessage: 'Are you sure you want to deactivate the selected products? They will no longer be available for orders.',
+    },
+    {
+      id: 'export',
+      label: 'Export Selected',
+      icon: Download,
+      action: async (ids) => {
+        const selectedProductsData = products?.filter(p => ids.includes(p.id)) || [];
+        exportToCSV(selectedProductsData, `products-${new Date().toISOString().split('T')[0]}`);
+        return { success: ids.length, failed: 0 };
+      },
+    },
+  ];
+
+  const handleBulkOperation = (operation: BulkOperation) => {
+    executeBulkOperation(operation, selectedProducts, () => {
+      setSelectedProducts([]);
+    });
+  };
+
+  const handleSelectProduct = (productId: string) => {
+    setSelectedProducts(prev => 
+      prev.includes(productId) 
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    setSelectedProducts(
+      selectedProducts.length === filteredProducts?.length 
+        ? [] 
+        : filteredProducts?.map(p => p.id) || []
+    );
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -135,6 +192,12 @@ const ProductManagement = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={selectedProducts.length === filteredProducts?.length && filteredProducts.length > 0}
+                        onCheckedChange={handleSelectAll}
+                      />
+                    </TableHead>
                     <TableHead>SKU</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Category</TableHead>
@@ -149,6 +212,12 @@ const ProductManagement = () => {
                   {filteredProducts && filteredProducts.length > 0 ? (
                     filteredProducts.map((product) => (
                       <TableRow key={product.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedProducts.includes(product.id)}
+                            onCheckedChange={() => handleSelectProduct(product.id)}
+                          />
+                        </TableCell>
                         <TableCell className="font-mono text-sm">{product.sku}</TableCell>
                         <TableCell className="font-medium">{product.name}</TableCell>
                         <TableCell>

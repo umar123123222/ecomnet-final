@@ -12,13 +12,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Upload, Plus, Filter, Download, ChevronDown, ChevronUp, Package, Send, Edit, Trash2 } from 'lucide-react';
+import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle } from 'lucide-react';
 import TagsNotes from '@/components/TagsNotes';
 import NewOrderDialog from '@/components/NewOrderDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { logActivity } from '@/utils/activityLogger';
 import { useAdvancedFilters } from '@/hooks/useAdvancedFilters';
 import { AdvancedFilterPanel } from '@/components/AdvancedFilterPanel';
+import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
+import { BulkOperationsPanel } from '@/components/BulkOperationsPanel';
+import { bulkUpdateOrderStatus, bulkUpdateOrderCourier, bulkAssignOrders, exportToCSV } from '@/utils/bulkOperations';
 
 const OrderDashboard = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
@@ -40,6 +43,9 @@ const OrderDashboard = () => {
     cancelled: 0,
     returns: 0
   });
+
+  const { user } = useAuth();
+  const { progress, executeBulkOperation } = useBulkOperations();
   const fetchOrders = async () => {
     setLoading(true);
     try {
@@ -133,9 +139,51 @@ const OrderDashboard = () => {
   useEffect(() => {
     fetchOrders();
   }, []);
-  const {
-    user
-  } = useAuth();
+
+  // Bulk operations
+  const bulkOperations: BulkOperation[] = [
+    {
+      id: 'dispatch',
+      label: 'Mark as Dispatched',
+      icon: Send,
+      action: async (ids) => bulkUpdateOrderStatus(ids, 'dispatched'),
+    },
+    {
+      id: 'deliver',
+      label: 'Mark as Delivered',
+      icon: CheckCircle,
+      action: async (ids) => bulkUpdateOrderStatus(ids, 'delivered'),
+    },
+    {
+      id: 'leopard',
+      label: 'Assign to Leopard',
+      icon: Send,
+      action: async (ids) => bulkUpdateOrderCourier(ids, 'leopard'),
+    },
+    {
+      id: 'postex',
+      label: 'Assign to PostEx',
+      icon: Send,
+      action: async (ids) => bulkUpdateOrderCourier(ids, 'postex'),
+    },
+    {
+      id: 'export',
+      label: 'Export Selected',
+      icon: Download,
+      action: async (ids) => {
+        const selectedOrders = orders.filter(o => ids.includes(o.id));
+        exportToCSV(selectedOrders, `orders-${new Date().toISOString().split('T')[0]}`);
+        return { success: ids.length, failed: 0 };
+      },
+    },
+  ];
+
+  const handleBulkOperation = (operation: BulkOperation) => {
+    executeBulkOperation(operation, selectedOrders, () => {
+      fetchOrders();
+      setSelectedOrders([]);
+    });
+  };
   const getStatusBadge = (status: string) => {
     const statusMap = {
       delivered: {
@@ -399,37 +447,13 @@ const OrderDashboard = () => {
           </div>
         </div>
 
-        {/* Bulk Actions Section */}
-        {selectedOrders.length > 0 && <Card className="border-orange-200 bg-orange-50">
-            <CardContent className="pt-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <Package className="h-5 w-5 text-orange-600" />
-                  <span className="font-medium text-orange-800">
-                    {selectedOrders.length} order{selectedOrders.length > 1 ? 's' : ''} selected
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => handleBulkAction('recommender')} className="border-orange-300 text-orange-700 hover:bg-orange-100">
-                    <Send className="h-4 w-4 mr-1" />
-                    Recommender
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => handleBulkAction('leopard')} className="border-orange-300 text-orange-700 hover:bg-orange-100">
-                    <Send className="h-4 w-4 mr-1" />
-                    Leopard
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => handleBulkAction('postex')} className="border-orange-300 text-orange-700 hover:bg-orange-100">
-                    <Send className="h-4 w-4 mr-1" />
-                    PostEx
-                  </Button>
-                  <Button size="sm" variant="outline" className="border-orange-300 text-orange-700 hover:bg-orange-100">
-                    <Download className="h-4 w-4 mr-1" />
-                    Download
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>}
+        {/* Bulk Operations */}
+        <BulkOperationsPanel
+          selectedCount={selectedOrders.length}
+          operations={bulkOperations}
+          onExecute={handleBulkOperation}
+          progress={progress}
+        />
       </div>
 
       {/* Summary Cards */}

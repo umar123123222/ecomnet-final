@@ -41,6 +41,10 @@ import ContinuousOCRScanner from '@/components/ContinuousOCRScanner';
 import { useToast } from '@/hooks/use-toast';
 import { logActivity, updateUserPerformance } from '@/utils/activityLogger';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
+import { BulkOperationsPanel } from '@/components/BulkOperationsPanel';
+import { bulkReceiveReturns, bulkUpdateReturnStatus, exportToCSV } from '@/utils/bulkOperations';
+import { CheckCircle, Package as PackageIcon } from 'lucide-react';
 
 const manualEntrySchema = z.object({
   trackingIds: z.string().min(1, 'Please enter at least one tracking ID'),
@@ -60,6 +64,7 @@ const ReturnsDashboard = () => {
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
+  const { progress, executeBulkOperation } = useBulkOperations();
 
   const form = useForm<z.infer<typeof manualEntrySchema>>({
     resolver: zodResolver(manualEntrySchema),
@@ -258,6 +263,59 @@ const ReturnsDashboard = () => {
     form.reset();
   };
 
+  // Bulk operations
+  const bulkOperations: BulkOperation[] = [
+    {
+      id: 'receive',
+      label: 'Mark as Received',
+      icon: CheckCircle,
+      action: async (ids) => {
+        if (!user?.id) {
+          return { success: 0, failed: ids.length, errors: ['User not authenticated'] };
+        }
+        return bulkReceiveReturns(ids, user.id);
+      },
+    },
+    {
+      id: 'processed',
+      label: 'Mark as Processed',
+      icon: PackageIcon,
+      action: async (ids) => bulkUpdateReturnStatus(ids, 'processed'),
+    },
+    {
+      id: 'export',
+      label: 'Export Selected',
+      icon: Download,
+      action: async (ids) => {
+        const selectedReturns = returns.filter(r => ids.includes(r.id));
+        exportToCSV(selectedReturns, `returns-${new Date().toISOString().split('T')[0]}`);
+        return { success: ids.length, failed: 0 };
+      },
+    },
+  ];
+
+  const handleBulkOperation = (operation: BulkOperation) => {
+    executeBulkOperation(operation, selectedReturns, () => {
+      // Refresh returns list after operation
+      const fetchReturns = async () => {
+        const { data } = await supabase
+          .from('returns')
+          .select(`
+            *,
+            orders:order_id (
+              order_number,
+              customer_name,
+              customer_phone
+            )
+          `)
+          .order('created_at', { ascending: false });
+        if (data) setReturns(data);
+      };
+      fetchReturns();
+      setSelectedReturns([]);
+    });
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -345,6 +403,14 @@ const ReturnsDashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Bulk Operations */}
+      <BulkOperationsPanel
+        selectedCount={selectedReturns.length}
+        operations={bulkOperations}
+        onExecute={handleBulkOperation}
+        progress={progress}
+      />
 
       {/* Returns Table with integrated filters */}
       <Card>
