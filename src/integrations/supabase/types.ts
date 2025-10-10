@@ -916,6 +916,9 @@ export type Database = {
         | "SuperAdmin"
         | "Manager"
         | "Dispatch/Returns Manager"
+        | "super_admin"
+        | "super_manager"
+        | "warehouse_manager"
       verification_status: "pending" | "approved" | "disapproved"
     }
     CompositeTypes: {
@@ -1065,6 +1068,9 @@ export const Constants = {
         "SuperAdmin",
         "Manager",
         "Dispatch/Returns Manager",
+        "super_admin",
+        "super_manager",
+        "warehouse_manager",
       ],
       verification_status: ["pending", "approved", "disapproved"],
     },
