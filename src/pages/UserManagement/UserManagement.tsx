@@ -331,21 +331,26 @@ const UserManagement = () => {
                               <PopoverTrigger asChild>
                                 <FormControl>
                                   <Button variant="outline" role="combobox" className="w-full justify-between h-auto min-h-10">
-                                    <div className="flex flex-wrap gap-1">
-                                      {selectedRoles.length > 0 ? selectedRoles.map(role => <Badge key={role} variant="secondary" className="mr-1 mb-1 capitalize">
-                                          {role.replace('_', ' ')}
-                                          <button className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2" onKeyDown={e => {
-                                  if (e.key === "Enter") {
-                                    field.onChange((field.value || []).filter(r => r !== role));
-                                  }
-                                }} onMouseDown={e => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                }} onClick={() => field.onChange(selectedRoles.filter(r => r !== role))}>
-                                            <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                                          </button>
-                                        </Badge>) : <span className="text-muted-foreground">Select roles...</span>}
-                                    </div>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedRoles.length > 0 ? selectedRoles.map(role => <Badge key={role} variant="secondary" className="mr-1 mb-1 capitalize">
+                            {role.replace(/_/g, ' ')}
+                            <span className="ml-1 ring-offset-background rounded-full outline-none cursor-pointer inline-flex" role="button" tabIndex={0} onKeyDown={e => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            field.onChange((field.value || []).filter(r => r !== role));
+                          }
+                        }} onMouseDown={e => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }} onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          field.onChange(selectedRoles.filter(r => r !== role));
+                        }}>
+                              <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                            </span>
+                          </Badge>) : <span className="text-muted-foreground">Select roles...</span>}
+                      </div>
                                     <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                                   </Button>
                                 </FormControl>
@@ -580,21 +585,26 @@ const UserManagement = () => {
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button variant="outline" role="combobox" className="w-full justify-between h-auto min-h-10">
-                              <div className="flex flex-wrap gap-1">
-                                {selectedRoles.length > 0 ? selectedRoles.map(role => <Badge key={role} variant="secondary" className="mr-1 mb-1 capitalize">
-                                    {role.replace('_', ' ')}
-                                    <button className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2" onKeyDown={e => {
-                              if (e.key === "Enter") {
-                                field.onChange((field.value || []).filter(r => r !== role));
-                              }
-                            }} onMouseDown={e => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                            }} onClick={() => field.onChange(selectedRoles.filter(r => r !== role))}>
-                                      <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                                    </button>
-                                  </Badge>) : <span className="text-muted-foreground">Select roles...</span>}
-                              </div>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedRoles.length > 0 ? selectedRoles.map(role => <Badge key={role} variant="secondary" className="mr-1 mb-1 capitalize">
+                              {role.replace(/_/g, ' ')}
+                              <span className="ml-1 ring-offset-background rounded-full outline-none cursor-pointer inline-flex" role="button" tabIndex={0} onKeyDown={e => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            field.onChange((field.value || []).filter(r => r !== role));
+                          }
+                        }} onMouseDown={e => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }} onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          field.onChange(selectedRoles.filter(r => r !== role));
+                        }}>
+                                <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                              </span>
+                            </Badge>) : <span className="text-muted-foreground">Select roles...</span>}
+                        </div>
                               <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                             </Button>
                           </FormControl>
