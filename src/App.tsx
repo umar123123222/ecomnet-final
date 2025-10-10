@@ -1,4 +1,4 @@
-
+import React, { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,7 +7,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Layout from "@/components/Layout";
-import { lazy, Suspense } from "react";
 import { Loader2 } from "lucide-react";
 
 // Lazy load all pages with prefetching hints
@@ -93,17 +92,15 @@ const PageLoader = () => (
   </div>
 );
 
-// Preload critical routes on app initialization
-const preloadCriticalRoutes = () => {
-  // Preload Dashboard (most common route)
-  import("@/pages/Dashboard");
-  // Preload Orders (second most common)
-  setTimeout(() => import("@/pages/Orders/OrderDashboard"), 100);
-};
-
 const App = () => {
-  // Start preloading on mount
-  preloadCriticalRoutes();
+  // Preload critical routes after mount
+  useEffect(() => {
+    // Preload Dashboard (most common route)
+    import("@/pages/Dashboard");
+    // Preload Orders (second most common)
+    const timer = setTimeout(() => import("@/pages/Orders/OrderDashboard"), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
