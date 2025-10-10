@@ -368,20 +368,22 @@ const UserManagement = () => {
                     <FormField
                       control={form.control}
                       name="roles"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Roles</FormLabel>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  variant="outline"
-                                  role="combobox"
-                                  className="w-full justify-between h-auto min-h-10"
-                                >
-                                  <div className="flex flex-wrap gap-1">
-                                    {field.value && field.value.length > 0 ? (
-                                      field.value.map((role) => (
+                      render={({ field }) => {
+                        const selectedRoles = field.value || [];
+                        return (
+                          <FormItem>
+                            <FormLabel>Roles</FormLabel>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <FormControl>
+                                  <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    className="w-full justify-between h-auto min-h-10"
+                                  >
+                                    <div className="flex flex-wrap gap-1">
+                                      {selectedRoles.length > 0 ? (
+                                        selectedRoles.map((role) => (
                                         <Badge
                                           key={role}
                                           variant="secondary"
@@ -399,53 +401,54 @@ const UserManagement = () => {
                                               e.preventDefault();
                                               e.stopPropagation();
                                             }}
-                                            onClick={() => field.onChange((field.value || []).filter((r) => r !== role))}
+                                            onClick={() => field.onChange(selectedRoles.filter((r) => r !== role))}
                                           >
                                             <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
                                           </button>
                                         </Badge>
-                                      ))
-                                    ) : (
-                                      <span className="text-muted-foreground">Select roles...</span>
-                                    )}
-                                  </div>
-                                  <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-full p-0">
-                              <Command>
-                                <CommandInput placeholder="Search roles..." />
-                                <CommandEmpty>No role found.</CommandEmpty>
-                                <CommandGroup>
-                                  {availableRoles.map((role) => (
-                                    <CommandItem
-                                      key={role}
-                                      value={role}
-                                      onSelect={() => {
-                                        const currentValue = field.value || [];
-                                        if (currentValue.includes(role)) {
-                                          field.onChange(currentValue.filter((r) => r !== role));
-                                        } else {
-                                          field.onChange([...currentValue, role]);
-                                        }
-                                      }}
-                                    >
-                                      <Check
-                                        className={`mr-2 h-4 w-4 ${
-                                          field.value && field.value.includes(role) ? "opacity-100" : "opacity-0"
-                                        }`}
-                                      />
-                                      <span className="capitalize">{role.replace('_', ' ')}</span>
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              </Command>
-                            </PopoverContent>
-                          </Popover>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                                        ))
+                                      ) : (
+                                        <span className="text-muted-foreground">Select roles...</span>
+                                      )}
+                                    </div>
+                                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                                  </Button>
+                                </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-full p-0">
+                                <Command key={`add-roles-${isAddUserOpen}`}>
+                                  <CommandInput placeholder="Search roles..." />
+                                  <CommandEmpty>No role found.</CommandEmpty>
+                                  <CommandGroup>
+                                    {availableRoles.map((role) => (
+                                      <CommandItem
+                                        key={role}
+                                        value={role}
+                                        onSelect={() => {
+                                          const currentValue = selectedRoles;
+                                          if (currentValue.includes(role)) {
+                                            field.onChange(currentValue.filter((r) => r !== role));
+                                          } else {
+                                            field.onChange([...currentValue, role]);
+                                          }
+                                        }}
+                                      >
+                                        <Check
+                                          className={`mr-2 h-4 w-4 ${
+                                            selectedRoles.includes(role) ? "opacity-100" : "opacity-0"
+                                          }`}
+                                        />
+                                        <span className="capitalize">{role.replace('_', ' ')}</span>
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </Command>
+                              </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
                     />
                     <div className="flex justify-end gap-2">
                       <Button type="button" variant="outline" onClick={() => setIsAddUserOpen(false)}>
@@ -622,20 +625,22 @@ const UserManagement = () => {
               <FormField
                 control={form.control}
                 name="roles"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Roles</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            className="w-full justify-between h-auto min-h-10"
-                          >
-                            <div className="flex flex-wrap gap-1">
-                              {field.value && field.value.length > 0 ? (
-                                field.value.map((role) => (
+                render={({ field }) => {
+                  const selectedRoles = field.value || [];
+                  return (
+                    <FormItem>
+                      <FormLabel>Roles</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className="w-full justify-between h-auto min-h-10"
+                            >
+                              <div className="flex flex-wrap gap-1">
+                                {selectedRoles.length > 0 ? (
+                                  selectedRoles.map((role) => (
                                   <Badge
                                     key={role}
                                     variant="secondary"
@@ -653,53 +658,54 @@ const UserManagement = () => {
                                         e.preventDefault();
                                         e.stopPropagation();
                                       }}
-                                      onClick={() => field.onChange((field.value || []).filter((r) => r !== role))}
+                                      onClick={() => field.onChange(selectedRoles.filter((r) => r !== role))}
                                     >
                                       <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
                                     </button>
                                   </Badge>
-                                ))
-                              ) : (
-                                <span className="text-muted-foreground">Select roles...</span>
-                              )}
-                            </div>
-                            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-0">
-                        <Command>
-                          <CommandInput placeholder="Search roles..." />
-                          <CommandEmpty>No role found.</CommandEmpty>
-                          <CommandGroup>
-                            {availableRoles.map((role) => (
-                              <CommandItem
-                                key={role}
-                                value={role}
-                                onSelect={() => {
-                                  const currentValue = field.value || [];
-                                  if (currentValue.includes(role)) {
-                                    field.onChange(currentValue.filter((r) => r !== role));
-                                  } else {
-                                    field.onChange([...currentValue, role]);
-                                  }
-                                }}
-                              >
-                                <Check
-                                  className={`mr-2 h-4 w-4 ${
-                                    field.value && field.value.includes(role) ? "opacity-100" : "opacity-0"
-                                  }`}
-                                />
-                                <span className="capitalize">{role.replace('_', ' ')}</span>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                                  ))
+                                ) : (
+                                  <span className="text-muted-foreground">Select roles...</span>
+                                )}
+                              </div>
+                              <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0">
+                          <Command key={`edit-roles-${isEditUserOpen}-${selectedUser?.id}`}>
+                            <CommandInput placeholder="Search roles..." />
+                            <CommandEmpty>No role found.</CommandEmpty>
+                            <CommandGroup>
+                              {availableRoles.map((role) => (
+                                <CommandItem
+                                  key={role}
+                                  value={role}
+                                  onSelect={() => {
+                                    const currentValue = selectedRoles;
+                                    if (currentValue.includes(role)) {
+                                      field.onChange(currentValue.filter((r) => r !== role));
+                                    } else {
+                                      field.onChange([...currentValue, role]);
+                                    }
+                                  }}
+                                >
+                                  <Check
+                                    className={`mr-2 h-4 w-4 ${
+                                      selectedRoles.includes(role) ? "opacity-100" : "opacity-0"
+                                    }`}
+                                  />
+                                  <span className="capitalize">{role.replace('_', ' ')}</span>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setIsEditUserOpen(false)}>
