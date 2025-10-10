@@ -162,6 +162,10 @@ export default {
 				'medium': '0 4px 12px 0 rgba(0, 0, 0, 0.15)',
 				'strong': '0 8px 24px 0 rgba(0, 0, 0, 0.18)',
 				'colored': '0 4px 14px 0 rgba(var(--primary), 0.25)'
+			},
+			backgroundImage: {
+				'gradient-primary': 'linear-gradient(135deg, hsl(var(--gradient-start)), hsl(var(--gradient-end)))',
+				'gradient-radial': 'radial-gradient(circle, hsl(var(--gradient-start)), hsl(var(--gradient-end)))',
 			}
 		}
 	},

@@ -57,8 +57,8 @@ const Layout = () => {
                 <img src="/lovable-uploads/16f7bf51-0496-44ab-846f-048636e7cc5d.png" alt="CORE47.AI" className="w-full h-full object-contain" />
               </div>
               <div className="group-data-[collapsible=icon]:hidden">
-                <h2 className="text-sm font-bold text-white">CORE47.AI</h2>
-                <p className="text-xs text-gray-300">Order Management</p>
+                <h2 className="text-sm font-bold text-primary-foreground">CORE47.AI</h2>
+                <p className="text-xs text-muted-foreground">Order Management</p>
               </div>
             </div>
           </SidebarHeader>
@@ -77,8 +77,8 @@ const Layout = () => {
                         <CollapsibleTrigger asChild>
                           <SidebarMenuButton className={`w-full justify-start gap-2 px-3 py-2 rounded-lg transition-all duration-300 group ${
                             hasActiveSub 
-                              ? 'text-white bg-gradient-to-r from-purple-500/30 to-pink-500/30 border border-purple-400/30' 
-                              : 'text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20'
+                    ? 'text-primary-foreground bg-gradient-primary/30 border border-primary/30' 
+                              : 'text-muted-foreground hover:text-primary-foreground hover:bg-gradient-primary/20'
                           }`}>
                             <IconComponent className="h-4 w-4 group-hover:scale-110 transition-transform" />
                             <span className="font-medium group-data-[collapsible=icon]:hidden">{item.label}</span>
@@ -91,13 +91,13 @@ const Layout = () => {
                               <SidebarMenuSubItem key={subIndex}>
                                  <SidebarMenuSubButton asChild className={`w-full justify-start gap-2 rounded-lg transition-all duration-300 py-2 ${
                                    isActiveRoute(subItem.href)
-                                     ? 'text-white bg-gradient-to-r from-purple-500/25 to-pink-500/25 border border-purple-400/25'
-                                     : 'text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/15 hover:to-pink-500/15'
+                                     ? 'text-primary-foreground bg-gradient-primary/25 border border-primary/25'
+                                     : 'text-muted-foreground hover:text-primary-foreground hover:bg-gradient-primary/15'
                                  }`}>
                                     <Link to={subItem.href} className="flex items-center gap-2">
                                      <span className="font-medium whitespace-nowrap">{subItem.label}</span>
-                                    {subItem.badge && (
-                                      <Badge className="ml-auto bg-gradient-to-r from-red-500 to-pink-500 text-white border-0 text-xs font-semibold">
+                    {subItem.badge && (
+                                      <Badge variant="destructive" className="ml-auto text-xs font-semibold">
                                         {subItem.badge}
                                       </Badge>
                                      )}
@@ -116,14 +116,14 @@ const Layout = () => {
                   <SidebarMenuItem key={item.label}>
                      <SidebarMenuButton asChild className={`w-full justify-start gap-2 px-3 py-2 rounded-lg transition-all duration-300 group ${
                        isActiveRoute(item.href) 
-                         ? 'text-white bg-gradient-to-r from-purple-500/30 to-pink-500/30 border border-purple-400/30' 
-                         : 'text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-purple-500/20 hover:to-pink-500/20'
+                         ? 'text-primary-foreground bg-gradient-primary/30 border border-primary/30' 
+                         : 'text-muted-foreground hover:text-primary-foreground hover:bg-gradient-primary/20'
                      }`}>
                        <Link to={item.href} className="flex items-center gap-2">
                         <IconComponent className="h-4 w-4 group-hover:scale-110 transition-transform" />
                         <span className="font-medium group-data-[collapsible=icon]:hidden">{item.label}</span>
                         {item.badge && (
-                          <Badge className="ml-auto bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 text-xs font-semibold group-data-[collapsible=icon]:hidden">
+                          <Badge variant="destructive" className="ml-auto text-xs font-semibold group-data-[collapsible=icon]:hidden">
                             {item.badge}
                           </Badge>
                          )}
@@ -135,14 +135,14 @@ const Layout = () => {
             </SidebarMenu>
           </SidebarContent>
           
-          <SidebarFooter className="p-4 border-t border-white/10">
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-white/10">
-              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center group-data-[collapsible=icon]:mx-auto">
-                <Users className="h-4 w-4 text-white" />
+          <SidebarFooter className="p-4 border-t border-sidebar-border">
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-gradient-primary/10 border border-sidebar-border">
+              <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center group-data-[collapsible=icon]:mx-auto">
+                <Users className="h-4 w-4 text-primary-foreground" />
               </div>
               <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                <p className="text-xs font-semibold text-white truncate">{displayName}</p>
-                <p className="text-xs text-gray-300 truncate capitalize">{formatRole}</p>
+                <p className="text-xs font-semibold text-primary-foreground truncate">{displayName}</p>
+                <p className="text-xs text-muted-foreground truncate capitalize">{formatRole}</p>
               </div>
             </div>
           </SidebarFooter>

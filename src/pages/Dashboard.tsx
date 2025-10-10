@@ -50,7 +50,7 @@ const SummaryCard = memo(({
             </div>
           </div>
           <div className={`p-3 rounded-xl bg-gradient-to-r ${item.color} shadow-lg`}>
-            <Icon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+            <Icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
           </div>
         </div>
       </CardContent>
@@ -363,14 +363,13 @@ const Dashboard = () => {
         </div>
 
         {/* Quick Actions */}
-        <GradientCard variant="primary" className="p-6 text-center bg-zinc-950">
-          <h2 className="text-responsive-lg font-bold text-white mb-4">
+        <GradientCard variant="primary" className="p-6 text-center bg-background/95">
+          <h2 className="text-responsive-lg font-bold text-foreground mb-4">
             Quick Actions
           </h2>
           <div className="flex flex-wrap justify-center gap-3">
             <ModernButton 
               variant="outline" 
-              className="bg-white/10 border-white/20 text-white hover:bg-white/20"
               onClick={handleBulkUpload}
             >
               <Upload className="h-4 w-4 mr-2" />
@@ -378,7 +377,6 @@ const Dashboard = () => {
             </ModernButton>
             <ModernButton 
               variant="outline" 
-              className="bg-white/10 border-white/20 text-white hover:bg-white/20"
               onClick={handleGenerateReport}
             >
               <FileText className="h-4 w-4 mr-2" />
@@ -386,7 +384,6 @@ const Dashboard = () => {
             </ModernButton>
             <ModernButton 
               variant="outline" 
-              className="bg-white/10 border-white/20 text-white hover:bg-white/20"
               onClick={handleManageUsers}
             >
               <UserCog className="h-4 w-4 mr-2" />
@@ -394,7 +391,6 @@ const Dashboard = () => {
             </ModernButton>
             <ModernButton 
               variant="outline" 
-              className="bg-white/10 border-white/20 text-white hover:bg-white/20"
               onClick={handleSystemSettings}
             >
               <Settings className="h-4 w-4 mr-2" />
