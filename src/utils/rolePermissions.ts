@@ -28,6 +28,7 @@ export const getRolePermissions = (role: UserRole) => {
     canAccessStockTransfer: false,
     canAccessLocations: false,
     canAccessWarehouses: false,
+    canAccessActivityLogs: false,
   };
 
   switch (role) {
@@ -51,6 +52,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessStockTransfer: true,
         canAccessLocations: true,
         canAccessWarehouses: true,
+        canAccessActivityLogs: true,
       };
     
     case 'super_manager':
@@ -73,6 +75,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessStockTransfer: true,
         canAccessLocations: true,
         canAccessWarehouses: true,
+        canAccessActivityLogs: true,
         // No admin panel access
       };
     
@@ -258,6 +261,14 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       label: 'User Management',
       href: '/user-management',
       icon: 'Shield'
+    });
+  }
+
+  if (permissions.canAccessActivityLogs) {
+    items.push({
+      label: 'Activity Logs',
+      href: '/activity-logs',
+      icon: 'Activity'
     });
   }
 

@@ -63,6 +63,9 @@ const WarehousesDashboard = lazy(() =>
   import("@/pages/Warehouses/WarehousesDashboard").then(module => ({ default: module.default }))
 );
 const NotFound = lazy(() => import("./pages/NotFound"));
+const ActivityLogs = lazy(() => 
+  import("@/pages/ActivityLogs/ActivityLogs").then(module => ({ default: module.default }))
+);
 
 // Optimized QueryClient configuration for performance
 const queryClient = new QueryClient({
@@ -198,6 +201,11 @@ const App = () => {
                 <Route path="warehouses" element={
                   <Suspense fallback={<PageLoader />}>
                     <WarehousesDashboard />
+                  </Suspense>
+                } />
+                <Route path="activity-logs" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <ActivityLogs />
                   </Suspense>
                 } />
                 <Route path="*" element={
