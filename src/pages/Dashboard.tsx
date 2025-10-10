@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { OptimizedSalesChart } from "@/components/charts/OptimizedSalesChart";
 import { CourierPerformanceChart } from "@/components/charts/CourierPerformanceChart";
 import { DatePickerWithRange } from "@/components/DatePickerWithRange";
+import { InventorySummaryWidget } from "@/components/inventory/InventorySummaryWidget";
 import { usePerformanceLogger, useWebVitals } from "@/hooks/usePerformance";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar, Package, Truck, CheckCircle, XCircle, RotateCcw, TrendingUp, TrendingDown, Users, BarChart3, Upload, FileText, Settings, UserCog } from "lucide-react";
@@ -285,6 +286,9 @@ const Dashboard = () => {
               </StatusBadge>
             </GradientCard>)}
         </div>
+
+        {/* Inventory Summary Widget */}
+        <InventorySummaryWidget />
 
         {/* Charts Section - Lazy loaded */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">

@@ -8,9 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Package, Search, Plus, Loader2, Edit, AlertCircle } from "lucide-react";
 import { Product } from "@/types/inventory";
+import { AddProductDialog } from "@/components/inventory/AddProductDialog";
 
 const ProductManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [productDialogOpen, setProductDialogOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Fetch products
   const { data: products, isLoading } = useQuery<Product[]>({
@@ -44,7 +47,13 @@ const ProductManagement = () => {
           </h1>
           <p className="text-muted-foreground">Manage your product catalog</p>
         </div>
-        <Button className="gap-2">
+        <Button
+          onClick={() => {
+            setSelectedProduct(null);
+            setProductDialogOpen(true);
+          }}
+          className="gap-2"
+        >
           <Plus className="h-4 w-4" />
           Add Product
         </Button>
@@ -152,7 +161,15 @@ const ProductManagement = () => {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="sm" className="gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="gap-2"
+                            onClick={() => {
+                              setSelectedProduct(product);
+                              setProductDialogOpen(true);
+                            }}
+                          >
                             <Edit className="h-3 w-3" />
                             Edit
                           </Button>
@@ -172,6 +189,16 @@ const ProductManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialogs */}
+      <AddProductDialog
+        open={productDialogOpen}
+        onOpenChange={(open) => {
+          setProductDialogOpen(open);
+          if (!open) setSelectedProduct(null);
+        }}
+        product={selectedProduct}
+      />
     </div>
   );
 };

@@ -7,10 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Building2, MapPin, Plus, Loader2, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Outlet, Inventory } from "@/types/inventory";
+import { AddOutletDialog } from "@/components/inventory/AddOutletDialog";
 
 const OutletManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [outletDialogOpen, setOutletDialogOpen] = useState(false);
+  const [selectedOutlet, setSelectedOutlet] = useState<Outlet | null>(null);
 
   // Fetch outlets
   const { data: outlets, isLoading } = useQuery<(Outlet & { manager?: { full_name: string } })[]>({
@@ -63,7 +66,13 @@ const OutletManagement = () => {
           </h1>
           <p className="text-muted-foreground">Manage warehouses and retail outlets</p>
         </div>
-        <Button className="gap-2">
+        <Button
+          onClick={() => {
+            setSelectedOutlet(null);
+            setOutletDialogOpen(true);
+          }}
+          className="gap-2"
+        >
           <Plus className="h-4 w-4" />
           Add Outlet
         </Button>
@@ -120,7 +129,14 @@ const OutletManagement = () => {
                           {outlet.phone}
                         </div>
                       )}
-                      <Button variant="outline" className="w-full mt-2">
+                      <Button
+                        variant="outline"
+                        className="w-full mt-2"
+                        onClick={() => {
+                          setSelectedOutlet(outlet);
+                          setOutletDialogOpen(true);
+                        }}
+                      >
                         View Details
                       </Button>
                     </CardContent>
@@ -175,7 +191,14 @@ const OutletManagement = () => {
                           {outlet.phone}
                         </div>
                       )}
-                      <Button variant="outline" className="w-full mt-2">
+                      <Button
+                        variant="outline"
+                        className="w-full mt-2"
+                        onClick={() => {
+                          setSelectedOutlet(outlet);
+                          setOutletDialogOpen(true);
+                        }}
+                      >
                         View Details
                       </Button>
                     </CardContent>
@@ -186,6 +209,16 @@ const OutletManagement = () => {
           </div>
         </>
       )}
+
+      {/* Dialogs */}
+      <AddOutletDialog
+        open={outletDialogOpen}
+        onOpenChange={(open) => {
+          setOutletDialogOpen(open);
+          if (!open) setSelectedOutlet(null);
+        }}
+        outlet={selectedOutlet}
+      />
     </div>
   );
 };

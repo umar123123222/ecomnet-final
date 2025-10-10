@@ -7,14 +7,32 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2 } from "lucide-react";
+import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { Inventory, Outlet } from "@/types/inventory";
+import { Inventory, Outlet, Product } from "@/types/inventory";
+import { StockAdjustmentDialog } from "@/components/inventory/StockAdjustmentDialog";
+import { LowStockAlerts } from "@/components/inventory/LowStockAlerts";
+import { RecentStockMovements } from "@/components/inventory/RecentStockMovements";
 
 const InventoryDashboard = () => {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOutlet, setSelectedOutlet] = useState<string>("all");
+  const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
+
+  // Fetch products for the dialog
+  const { data: products } = useQuery<Product[]>({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products_new" as any)
+        .select("*")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data as unknown as Product[];
+    },
+  });
 
   // Fetch outlets
   const { data: outlets } = useQuery<Outlet[]>({
@@ -74,6 +92,10 @@ const InventoryDashboard = () => {
           </h1>
           <p className="text-muted-foreground">Track and manage stock across all outlets</p>
         </div>
+        <Button onClick={() => setAdjustmentDialogOpen(true)} className="gap-2">
+          <Settings className="h-4 w-4" />
+          Adjust Stock
+        </Button>
       </div>
 
       {/* Summary Cards */}
@@ -208,6 +230,20 @@ const InventoryDashboard = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Alerts and Movements */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <LowStockAlerts />
+        <RecentStockMovements />
+      </div>
+
+      {/* Dialogs */}
+      <StockAdjustmentDialog
+        open={adjustmentDialogOpen}
+        onOpenChange={setAdjustmentDialogOpen}
+        products={products || []}
+        outlets={outlets || []}
+      />
     </div>
   );
 };

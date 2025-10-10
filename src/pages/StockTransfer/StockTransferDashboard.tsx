@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowRightLeft, Clock, CheckCircle, XCircle, Plus, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { StockTransferRequest } from "@/types/inventory";
+import { StockTransferRequest, Product, Outlet } from "@/types/inventory";
+import { StockTransferDialog } from "@/components/inventory/StockTransferDialog";
+import { useToast } from "@/hooks/use-toast";
 
 type TransferWithRelations = StockTransferRequest & {
   product?: { name: string; sku: string };
@@ -18,6 +20,36 @@ type TransferWithRelations = StockTransferRequest & {
 
 const StockTransferDashboard = () => {
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch products and outlets for the dialog
+  const { data: products } = useQuery<Product[]>({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products_new" as any)
+        .select("*")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data as unknown as Product[];
+    },
+  });
+
+  const { data: outlets } = useQuery<Outlet[]>({
+    queryKey: ["outlets"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("outlets" as any)
+        .select("*")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data as unknown as Outlet[];
+    },
+  });
 
   // Fetch transfer requests
   const { data: transfers, isLoading } = useQuery<TransferWithRelations[]>({
@@ -48,6 +80,75 @@ const StockTransferDashboard = () => {
   const approvedCount = transfers?.filter(t => t.status === 'approved').length || 0;
   const completedCount = transfers?.filter(t => t.status === 'completed').length || 0;
 
+  const handleApprove = async (transferId: string) => {
+    try {
+      const { error } = await supabase.functions.invoke("stock-transfer-request", {
+        body: { action: "approve", transfer_id: transferId },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Transfer request approved",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to approve transfer",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleReject = async (transferId: string) => {
+    try {
+      const { error } = await supabase.functions.invoke("stock-transfer-request", {
+        body: { action: "reject", transfer_id: transferId },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Transfer request rejected",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to reject transfer",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleComplete = async (transferId: string) => {
+    try {
+      const { error } = await supabase.functions.invoke("stock-transfer-request", {
+        body: { action: "complete", transfer_id: transferId },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Transfer completed successfully",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to complete transfer",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const variants = {
       pending: { variant: "outline" as const, className: "border-yellow-500 text-yellow-500", icon: Clock },
@@ -77,7 +178,7 @@ const StockTransferDashboard = () => {
           </h1>
           <p className="text-muted-foreground">Manage inventory transfers between outlets</p>
         </div>
-        <Button className="gap-2">
+        <Button onClick={() => setTransferDialogOpen(true)} className="gap-2">
           <Plus className="h-4 w-4" />
           New Transfer Request
         </Button>
@@ -192,16 +293,30 @@ const StockTransferDashboard = () => {
                         <TableCell className="text-right">
                           {transfer.status === 'pending' && (
                             <div className="flex gap-1 justify-end">
-                              <Button variant="outline" size="sm" className="text-green-600">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-green-600 hover:bg-green-50"
+                                onClick={() => handleApprove(transfer.id)}
+                              >
                                 Approve
                               </Button>
-                              <Button variant="outline" size="sm" className="text-red-600">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-red-600 hover:bg-red-50"
+                                onClick={() => handleReject(transfer.id)}
+                              >
                                 Reject
                               </Button>
                             </div>
                           )}
                           {transfer.status === 'approved' && (
-                            <Button variant="outline" size="sm">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleComplete(transfer.id)}
+                            >
                               Complete
                             </Button>
                           )}
@@ -221,6 +336,14 @@ const StockTransferDashboard = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialogs */}
+      <StockTransferDialog
+        open={transferDialogOpen}
+        onOpenChange={setTransferDialogOpen}
+        products={products || []}
+        outlets={outlets || []}
+      />
     </div>
   );
 };
