@@ -25,12 +25,12 @@ const InventoryDashboard = () => {
     queryKey: ["products"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("products_new" as any)
+        .from("products")
         .select("*")
         .eq("is_active", true)
         .order("name");
       if (error) throw error;
-      return data as unknown as Product[];
+      return data;
     },
   });
 
@@ -39,12 +39,12 @@ const InventoryDashboard = () => {
     queryKey: ["outlets"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("outlets" as any)
+        .from("outlets")
         .select("*")
         .eq("is_active", true)
         .order("name");
       if (error) throw error;
-      return data as unknown as Outlet[];
+      return data as Outlet[];
     },
   });
 
@@ -53,10 +53,10 @@ const InventoryDashboard = () => {
     queryKey: ["inventory", selectedOutlet],
     queryFn: async () => {
       let query = supabase
-        .from("inventory" as any)
+        .from("inventory")
         .select(`
           *,
-          product:products_new(*),
+          product:products(*),
           outlet:outlets(*)
         `);
 
@@ -66,7 +66,7 @@ const InventoryDashboard = () => {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data as unknown as Inventory[];
+      return data as Inventory[];
     },
   });
 

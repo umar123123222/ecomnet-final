@@ -20,14 +20,14 @@ const OutletManagement = () => {
     queryKey: ["outlets"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("outlets" as any)
+        .from("outlets")
         .select(`
           *,
           manager:profiles(full_name)
         `)
         .order("name");
       if (error) throw error;
-      return data as unknown as (Outlet & { manager?: { full_name: string } })[];
+      return data as (Outlet & { manager?: { full_name: string } })[];
     },
   });
 
@@ -36,12 +36,12 @@ const OutletManagement = () => {
     queryKey: ["outlet-stats"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("inventory" as any)
+        .from("inventory")
         .select("outlet_id, quantity, available_quantity");
       
       if (error) throw error;
 
-      const stats = (data as any[]).reduce((acc: any, item: any) => {
+      const stats = data.reduce((acc, item) => {
         if (!acc[item.outlet_id]) {
           acc[item.outlet_id] = { totalItems: 0, availableItems: 0 };
         }

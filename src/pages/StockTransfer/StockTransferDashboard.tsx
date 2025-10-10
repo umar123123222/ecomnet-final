@@ -29,12 +29,12 @@ const StockTransferDashboard = () => {
     queryKey: ["products"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("products_new" as any)
+        .from("products")
         .select("*")
         .eq("is_active", true)
         .order("name");
       if (error) throw error;
-      return data as unknown as Product[];
+      return data;
     },
   });
 
@@ -42,24 +42,23 @@ const StockTransferDashboard = () => {
     queryKey: ["outlets"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("outlets" as any)
+        .from("outlets")
         .select("*")
         .eq("is_active", true)
         .order("name");
       if (error) throw error;
-      return data as unknown as Outlet[];
+      return data as Outlet[];
     },
   });
 
-  // Fetch transfer requests
+  // Fetch transfer requests with items
   const { data: transfers, isLoading } = useQuery<TransferWithRelations[]>({
     queryKey: ["stock-transfers", filterStatus],
     queryFn: async () => {
       let query = supabase
-        .from("stock_transfer_requests" as any)
+        .from("stock_transfer_requests")
         .select(`
           *,
-          product:products_new(name, sku),
           from_outlet:outlets!stock_transfer_requests_from_outlet_id_fkey(name),
           to_outlet:outlets!stock_transfer_requests_to_outlet_id_fkey(name),
           requester:profiles!stock_transfer_requests_requested_by_fkey(full_name)
@@ -72,7 +71,7 @@ const StockTransferDashboard = () => {
 
       const { data, error } = await query.limit(100);
       if (error) throw error;
-      return data as unknown as TransferWithRelations[];
+      return data as TransferWithRelations[];
     },
   });
 

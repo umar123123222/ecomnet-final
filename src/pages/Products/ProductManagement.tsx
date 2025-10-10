@@ -20,11 +20,11 @@ const ProductManagement = () => {
     queryKey: ["products"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("products_new" as any)
+        .from("products")
         .select("*")
         .order("name");
       if (error) throw error;
-      return data as unknown as Product[];
+      return data;
     },
   });
 
