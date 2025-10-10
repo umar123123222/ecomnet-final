@@ -208,14 +208,6 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     });
   }
 
-  if (permissions.canAccessUserManagement) {
-    items.push({
-      label: 'User Management',
-      href: '/user-management',
-      icon: 'Shield'
-    });
-  }
-
   if (permissions.canAccessInventory || permissions.canAccessOutlets || permissions.canAccessProducts || permissions.canAccessStockTransfer) {
     const inventorySubItems: NavigationItem[] = [];
     
@@ -253,6 +245,14 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       label: 'Warehouses',
       href: '/warehouses',
       icon: 'Warehouse'
+    });
+  }
+
+  if (permissions.canAccessUserManagement) {
+    items.push({
+      label: 'User Management',
+      href: '/user-management',
+      icon: 'Shield'
     });
   }
 
