@@ -5,42 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import LoginLogs from '@/components/LoginLogs';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Search, UserPlus, Download, Edit, Trash2, Eye, Check, ChevronsUpDown, X, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -53,16 +23,13 @@ import { manageUser } from '@/integrations/supabase/functions';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { UserRole } from '@/types/auth';
-
 const userSchema = z.object({
   full_name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email'),
   password: z.string().min(8, 'Password must be at least 8 characters').optional(),
-  roles: z.array(z.string()).min(1, 'At least one role is required'),
+  roles: z.array(z.string()).min(1, 'At least one role is required')
 });
-
 type UserFormData = z.infer<typeof userSchema>;
-
 interface UserWithRoles {
   id: string;
   email: string;
@@ -71,9 +38,11 @@ interface UserWithRoles {
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  user_roles: Array<{ role: UserRole; is_active: boolean }>;
+  user_roles: Array<{
+    role: UserRole;
+    is_active: boolean;
+  }>;
 }
-
 const UserManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
@@ -82,31 +51,40 @@ const UserManagement = () => {
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [isViewUserOpen, setIsViewUserOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithRoles | null>(null);
-  const { user: currentUser } = useAuth();
-  const { permissions } = useUserRoles();
-  const { toast } = useToast();
+  const {
+    user: currentUser
+  } = useAuth();
+  const {
+    permissions
+  } = useUserRoles();
+  const {
+    toast
+  } = useToast();
   const queryClient = useQueryClient();
-
   const form = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
     defaultValues: {
       full_name: '',
       email: '',
       password: '',
-      roles: [],
+      roles: []
     },
-    mode: 'onChange',
+    mode: 'onChange'
   });
-
   const availableRoles: UserRole[] = ['super_admin', 'super_manager', 'warehouse_manager', 'store_manager', 'dispatch_manager', 'returns_manager', 'staff'];
 
   // Fetch users from Supabase
-  const { data: users = [], isLoading, error } = useQuery({
+  const {
+    data: users = [],
+    isLoading,
+    error
+  } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select(`
+      const {
+        data,
+        error
+      } = await supabase.from('profiles').select(`
           id,
           email,
           full_name,
@@ -118,12 +96,12 @@ const UserManagement = () => {
             role,
             is_active
           )
-        `)
-        .order('created_at', { ascending: false });
-
+        `).order('created_at', {
+        ascending: false
+      });
       if (error) throw error;
       return data as UserWithRoles[];
-    },
+    }
   });
 
   // Add user mutation
@@ -135,15 +113,17 @@ const UserManagement = () => {
           email: userData.email,
           full_name: userData.full_name,
           password: userData.password,
-          roles: userData.roles,
-        },
+          roles: userData.roles
+        }
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({
+        queryKey: ['users']
+      });
       toast({
         title: 'Success',
-        description: 'User created successfully',
+        description: 'User created successfully'
       });
       setIsAddUserOpen(false);
       form.reset();
@@ -152,29 +132,37 @@ const UserManagement = () => {
       toast({
         title: 'Error',
         description: error.message || 'Failed to create user',
-        variant: 'destructive',
+        variant: 'destructive'
       });
-    },
+    }
   });
 
   // Update user mutation
   const updateUserMutation = useMutation({
-    mutationFn: async ({ userId, userData }: { userId: string; userData: UserFormData }) => {
+    mutationFn: async ({
+      userId,
+      userData
+    }: {
+      userId: string;
+      userData: UserFormData;
+    }) => {
       return await manageUser({
         action: 'update',
         userData: {
           userId,
           email: userData.email,
           full_name: userData.full_name,
-          roles: userData.roles,
-        },
+          roles: userData.roles
+        }
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({
+        queryKey: ['users']
+      });
       toast({
         title: 'Success',
-        description: 'User updated successfully',
+        description: 'User updated successfully'
       });
       setIsEditUserOpen(false);
       form.reset();
@@ -183,9 +171,9 @@ const UserManagement = () => {
       toast({
         title: 'Error',
         description: error.message || 'Failed to update user',
-        variant: 'destructive',
+        variant: 'destructive'
       });
-    },
+    }
   });
 
   // Delete user mutation
@@ -195,74 +183,63 @@ const UserManagement = () => {
         action: 'delete',
         userData: {
           userId,
-          email: '', // Not used for delete
-          roles: [],
-        },
+          email: '',
+          // Not used for delete
+          roles: []
+        }
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({
+        queryKey: ['users']
+      });
       toast({
         title: 'Success',
-        description: 'User deleted successfully',
+        description: 'User deleted successfully'
       });
     },
     onError: (error: any) => {
       toast({
         title: 'Error',
         description: error.message || 'Failed to delete user',
-        variant: 'destructive',
+        variant: 'destructive'
       });
-    },
+    }
   });
-
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
-      const matchesSearch = user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           user.email.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || user.email.toLowerCase().includes(searchTerm.toLowerCase());
       const userRoles = user.user_roles?.map(ur => ur.role) || [user.role];
       const matchesRole = roleFilter === 'all' || userRoles.includes(roleFilter as UserRole);
       return matchesSearch && matchesRole;
     });
   }, [users, searchTerm, roleFilter]);
-
   const handleSelectUser = (userId: string) => {
-    setSelectedUsers(prev => 
-      prev.includes(userId) 
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
-    );
+    setSelectedUsers(prev => prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]);
   };
-
   const handleSelectAll = () => {
-    setSelectedUsers(
-      selectedUsers.length === filteredUsers.length 
-        ? [] 
-        : filteredUsers.map(u => u.id)
-    );
+    setSelectedUsers(selectedUsers.length === filteredUsers.length ? [] : filteredUsers.map(u => u.id));
   };
-
   const handleAddUser = (data: UserFormData) => {
     addUserMutation.mutate(data);
   };
-
   const handleEditUser = (data: UserFormData) => {
     if (selectedUser) {
-      updateUserMutation.mutate({ userId: selectedUser.id, userData: data });
+      updateUserMutation.mutate({
+        userId: selectedUser.id,
+        userData: data
+      });
     }
   };
-
   const handleViewUser = (user: UserWithRoles) => {
     setSelectedUser(user);
     setIsViewUserOpen(true);
   };
-
   const handleDeleteUser = (userId: string) => {
     if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       deleteUserMutation.mutate(userId);
     }
   };
-
   const openEditDialog = (user: UserWithRoles) => {
     setSelectedUser(user);
     const userRoles = user.user_roles?.map(ur => ur.role) || [user.role];
@@ -271,52 +248,40 @@ const UserManagement = () => {
     form.setValue('roles', userRoles);
     setIsEditUserOpen(true);
   };
-
   if (!permissions?.canAccessUserManagement) {
-    return (
-      <div className="p-6">
+    return <div className="p-6">
         <Card>
           <CardContent className="p-8 text-center">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
             <p className="text-gray-600">You don't have permission to access user management.</p>
           </CardContent>
         </Card>
-      </div>
-    );
+      </div>;
   }
-
   if (isLoading) {
-    return (
-      <div className="p-6 flex items-center justify-center min-h-[400px]">
+    return <div className="p-6 flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
-      </div>
-    );
+      </div>;
   }
-
   if (error) {
-    return (
-      <div className="p-6">
+    return <div className="p-6">
         <Card>
           <CardContent className="p-8 text-center">
             <h2 className="text-2xl font-bold text-red-600 mb-2">Error Loading Users</h2>
             <p className="text-gray-600">{error.message}</p>
           </CardContent>
         </Card>
-      </div>
-    );
+      </div>;
   }
-
-  return (
-    <div className="p-6 space-y-6">
+  return <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Admin & User Management</h1>
+          <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
           <p className="text-gray-600 mt-1">Manage system users, permissions, and monitor activities</p>
         </div>
         <div className="flex items-center gap-3">
-          {permissions.canAddUsers && (
-            <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+          {permissions.canAddUsers && <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
               <DialogTrigger asChild>
                 <Button>
                   <UserPlus className="h-4 w-4 mr-2" />
@@ -329,90 +294,57 @@ const UserManagement = () => {
                 </DialogHeader>
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(handleAddUser)} className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="full_name"
-                      render={({ field }) => (
-                        <FormItem>
+                    <FormField control={form.control} name="full_name" render={({
+                  field
+                }) => <FormItem>
                           <FormLabel>Full Name</FormLabel>
                           <FormControl>
                             <Input placeholder="Enter full name" {...field} />
                           </FormControl>
                           <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
+                        </FormItem>} />
+                    <FormField control={form.control} name="email" render={({
+                  field
+                }) => <FormItem>
                           <FormLabel>Email</FormLabel>
                           <FormControl>
                             <Input placeholder="Enter email" type="email" {...field} />
                           </FormControl>
                           <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="password"
-                      render={({ field }) => (
-                        <FormItem>
+                        </FormItem>} />
+                    <FormField control={form.control} name="password" render={({
+                  field
+                }) => <FormItem>
                           <FormLabel>Password (optional)</FormLabel>
                           <FormControl>
                             <Input placeholder="Auto-generated if empty" type="password" {...field} />
                           </FormControl>
                           <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="roles"
-                      render={({ field }) => {
-                        const selectedRoles = field.value || [];
-                        return (
-                          <FormItem>
+                        </FormItem>} />
+                    <FormField control={form.control} name="roles" render={({
+                  field
+                }) => {
+                  const selectedRoles = field.value || [];
+                  return <FormItem>
                             <FormLabel>Roles</FormLabel>
                             <Popover>
                               <PopoverTrigger asChild>
                                 <FormControl>
-                                  <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    className="w-full justify-between h-auto min-h-10"
-                                  >
+                                  <Button variant="outline" role="combobox" className="w-full justify-between h-auto min-h-10">
                                     <div className="flex flex-wrap gap-1">
-                                      {selectedRoles.length > 0 ? (
-                                        selectedRoles.map((role) => (
-                                        <Badge
-                                          key={role}
-                                          variant="secondary"
-                                          className="mr-1 mb-1 capitalize"
-                                        >
+                                      {selectedRoles.length > 0 ? selectedRoles.map(role => <Badge key={role} variant="secondary" className="mr-1 mb-1 capitalize">
                                           {role.replace('_', ' ')}
-                                          <button
-                                            className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                                            onKeyDown={(e) => {
-                                              if (e.key === "Enter") {
-                                                field.onChange((field.value || []).filter((r) => r !== role));
-                                              }
-                                            }}
-                                            onMouseDown={(e) => {
-                                              e.preventDefault();
-                                              e.stopPropagation();
-                                            }}
-                                            onClick={() => field.onChange(selectedRoles.filter((r) => r !== role))}
-                                          >
+                                          <button className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2" onKeyDown={e => {
+                                  if (e.key === "Enter") {
+                                    field.onChange((field.value || []).filter(r => r !== role));
+                                  }
+                                }} onMouseDown={e => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                }} onClick={() => field.onChange(selectedRoles.filter(r => r !== role))}>
                                             <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
                                           </button>
-                                        </Badge>
-                                        ))
-                                      ) : (
-                                        <span className="text-muted-foreground">Select roles...</span>
-                                      )}
+                                        </Badge>) : <span className="text-muted-foreground">Select roles...</span>}
                                     </div>
                                     <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                                   </Button>
@@ -424,57 +356,40 @@ const UserManagement = () => {
                                   <CommandList>
                                     <CommandEmpty>No role found.</CommandEmpty>
                                     <CommandGroup>
-                                      {availableRoles.map((role) => (
-                                        <CommandItem
-                                          key={role}
-                                          value={role}
-                                          onSelect={() => {
-                                            const currentValue = selectedRoles;
-                                            if (currentValue.includes(role)) {
-                                              field.onChange(currentValue.filter((r) => r !== role));
-                                            } else {
-                                              field.onChange([...currentValue, role]);
-                                            }
-                                          }}
-                                        >
-                                          <Check
-                                            className={`mr-2 h-4 w-4 ${
-                                              selectedRoles.includes(role) ? "opacity-100" : "opacity-0"
-                                            }`}
-                                          />
+                                      {availableRoles.map(role => <CommandItem key={role} value={role} onSelect={() => {
+                                const currentValue = selectedRoles;
+                                if (currentValue.includes(role)) {
+                                  field.onChange(currentValue.filter(r => r !== role));
+                                } else {
+                                  field.onChange([...currentValue, role]);
+                                }
+                              }}>
+                                          <Check className={`mr-2 h-4 w-4 ${selectedRoles.includes(role) ? "opacity-100" : "opacity-0"}`} />
                                           <span className="capitalize">{role.replace('_', ' ')}</span>
-                                        </CommandItem>
-                                      ))}
+                                        </CommandItem>)}
                                     </CommandGroup>
                                   </CommandList>
                                 </Command>
                               </PopoverContent>
                             </Popover>
                             <FormMessage />
-                          </FormItem>
-                        );
-                      }}
-                    />
+                          </FormItem>;
+                }} />
                     <div className="flex justify-end gap-2">
                       <Button type="button" variant="outline" onClick={() => setIsAddUserOpen(false)}>
                         Cancel
                       </Button>
                       <Button type="submit" disabled={addUserMutation.isPending}>
-                        {addUserMutation.isPending ? (
-                          <>
+                        {addUserMutation.isPending ? <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Adding...
-                          </>
-                        ) : (
-                          'Add User'
-                        )}
+                          </> : 'Add User'}
                       </Button>
                     </div>
                   </form>
                 </Form>
               </DialogContent>
-            </Dialog>
-          )}
+            </Dialog>}
         </div>
       </div>
 
@@ -540,10 +455,7 @@ const UserManagement = () => {
           <CardTitle className="flex items-center justify-between">
             <span>Users ({filteredUsers.length})</span>
             <div className="flex items-center gap-2">
-              <Checkbox
-                checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
-                onCheckedChange={handleSelectAll}
-              />
+              <Checkbox checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0} onCheckedChange={handleSelectAll} />
               <span className="text-sm text-gray-600">Select All</span>
             </div>
           </CardTitle>
@@ -553,12 +465,7 @@ const UserManagement = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
-                placeholder="Search by name, email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+              <Input placeholder="Search by name, email..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
             </div>
             <Select value={roleFilter} onValueChange={setRoleFilter}>
               <SelectTrigger>
@@ -566,11 +473,9 @@ const UserManagement = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
-                {availableRoles.map((role) => (
-                  <SelectItem key={role} value={role} className="capitalize">
+                {availableRoles.map(role => <SelectItem key={role} value={role} className="capitalize">
                     {role.replace('_', ' ')}
-                  </SelectItem>
-                ))}
+                  </SelectItem>)}
               </SelectContent>
             </Select>
             <Button variant="outline" disabled={selectedUsers.length === 0}>
@@ -592,25 +497,19 @@ const UserManagement = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user) => {
-                const userRoles = user.user_roles?.map(ur => ur.role) || [user.role];
-                return (
-                  <TableRow key={user.id}>
+              {filteredUsers.map(user => {
+                  const userRoles = user.user_roles?.map(ur => ur.role) || [user.role];
+                  return <TableRow key={user.id}>
                     <TableCell>
-                      <Checkbox
-                        checked={selectedUsers.includes(user.id)}
-                        onCheckedChange={() => handleSelectUser(user.id)}
-                      />
+                      <Checkbox checked={selectedUsers.includes(user.id)} onCheckedChange={() => handleSelectUser(user.id)} />
                     </TableCell>
                     <TableCell className="font-medium">{user.full_name}</TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {userRoles.map(role => (
-                          <Badge key={role} className="bg-purple-100 text-purple-800 text-xs capitalize">
+                        {userRoles.map(role => <Badge key={role} className="bg-purple-100 text-purple-800 text-xs capitalize">
                             {role.replace('_', ' ')}
-                          </Badge>
-                        ))}
+                          </Badge>)}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -624,26 +523,16 @@ const UserManagement = () => {
                         <Button variant="outline" size="sm" onClick={() => handleViewUser(user)}>
                           <Eye className="h-3 w-3" />
                         </Button>
-                        {permissions.canEditUsers && (
-                          <Button variant="outline" size="sm" onClick={() => openEditDialog(user)}>
+                        {permissions.canEditUsers && <Button variant="outline" size="sm" onClick={() => openEditDialog(user)}>
                             <Edit className="h-3 w-3" />
-                          </Button>
-                        )}
-                        {permissions.canDeleteUsers && user.id !== currentUser?.id && (
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => handleDeleteUser(user.id)}
-                            disabled={deleteUserMutation.isPending}
-                          >
+                          </Button>}
+                        {permissions.canDeleteUsers && user.id !== currentUser?.id && <Button variant="outline" size="sm" onClick={() => handleDeleteUser(user.id)} disabled={deleteUserMutation.isPending}>
                             <Trash2 className="h-3 w-3" />
-                          </Button>
-                        )}
+                          </Button>}
                       </div>
                     </TableCell>
-                  </TableRow>
-                );
-              })}
+                  </TableRow>;
+                })}
             </TableBody>
           </Table>
         </CardContent>
@@ -663,77 +552,48 @@ const UserManagement = () => {
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleEditUser)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="full_name"
-                render={({ field }) => (
-                  <FormItem>
+              <FormField control={form.control} name="full_name" render={({
+              field
+            }) => <FormItem>
                     <FormLabel>Full Name</FormLabel>
                     <FormControl>
                       <Input placeholder="Enter full name" {...field} />
                     </FormControl>
                     <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
+                  </FormItem>} />
+              <FormField control={form.control} name="email" render={({
+              field
+            }) => <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
                       <Input placeholder="Enter email" type="email" {...field} />
                     </FormControl>
                     <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="roles"
-                render={({ field }) => {
-                  const selectedRoles = field.value || [];
-                  return (
-                    <FormItem>
+                  </FormItem>} />
+              <FormField control={form.control} name="roles" render={({
+              field
+            }) => {
+              const selectedRoles = field.value || [];
+              return <FormItem>
                       <FormLabel>Roles</FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              className="w-full justify-between h-auto min-h-10"
-                            >
+                            <Button variant="outline" role="combobox" className="w-full justify-between h-auto min-h-10">
                               <div className="flex flex-wrap gap-1">
-                                {selectedRoles.length > 0 ? (
-                                  selectedRoles.map((role) => (
-                                  <Badge
-                                    key={role}
-                                    variant="secondary"
-                                    className="mr-1 mb-1 capitalize"
-                                  >
+                                {selectedRoles.length > 0 ? selectedRoles.map(role => <Badge key={role} variant="secondary" className="mr-1 mb-1 capitalize">
                                     {role.replace('_', ' ')}
-                                    <button
-                                      className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Enter") {
-                                          field.onChange((field.value || []).filter((r) => r !== role));
-                                        }
-                                      }}
-                                      onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                      }}
-                                      onClick={() => field.onChange(selectedRoles.filter((r) => r !== role))}
-                                    >
+                                    <button className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2" onKeyDown={e => {
+                              if (e.key === "Enter") {
+                                field.onChange((field.value || []).filter(r => r !== role));
+                              }
+                            }} onMouseDown={e => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }} onClick={() => field.onChange(selectedRoles.filter(r => r !== role))}>
                                       <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
                                     </button>
-                                  </Badge>
-                                  ))
-                                ) : (
-                                  <span className="text-muted-foreground">Select roles...</span>
-                                )}
+                                  </Badge>) : <span className="text-muted-foreground">Select roles...</span>}
                               </div>
                               <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                             </Button>
@@ -745,50 +605,34 @@ const UserManagement = () => {
                             <CommandList>
                               <CommandEmpty>No role found.</CommandEmpty>
                               <CommandGroup>
-                                {availableRoles.map((role) => (
-                                  <CommandItem
-                                    key={role}
-                                    value={role}
-                                    onSelect={() => {
-                                      const currentValue = selectedRoles;
-                                      if (currentValue.includes(role)) {
-                                        field.onChange(currentValue.filter((r) => r !== role));
-                                      } else {
-                                        field.onChange([...currentValue, role]);
-                                      }
-                                    }}
-                                  >
-                                    <Check
-                                      className={`mr-2 h-4 w-4 ${
-                                        selectedRoles.includes(role) ? "opacity-100" : "opacity-0"
-                                      }`}
-                                    />
+                                {availableRoles.map(role => <CommandItem key={role} value={role} onSelect={() => {
+                            const currentValue = selectedRoles;
+                            if (currentValue.includes(role)) {
+                              field.onChange(currentValue.filter(r => r !== role));
+                            } else {
+                              field.onChange([...currentValue, role]);
+                            }
+                          }}>
+                                    <Check className={`mr-2 h-4 w-4 ${selectedRoles.includes(role) ? "opacity-100" : "opacity-0"}`} />
                                     <span className="capitalize">{role.replace('_', ' ')}</span>
-                                  </CommandItem>
-                                ))}
+                                  </CommandItem>)}
                               </CommandGroup>
                             </CommandList>
                           </Command>
                         </PopoverContent>
                       </Popover>
                       <FormMessage />
-                    </FormItem>
-                  );
-                }}
-              />
+                    </FormItem>;
+            }} />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setIsEditUserOpen(false)}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={updateUserMutation.isPending}>
-                  {updateUserMutation.isPending ? (
-                    <>
+                  {updateUserMutation.isPending ? <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Saving...
-                    </>
-                  ) : (
-                    'Save Changes'
-                  )}
+                    </> : 'Save Changes'}
                 </Button>
               </div>
             </form>
@@ -802,8 +646,7 @@ const UserManagement = () => {
           <DialogHeader>
             <DialogTitle>User Details</DialogTitle>
           </DialogHeader>
-          {selectedUser && (
-            <div className="space-y-4">
+          {selectedUser && <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium text-gray-600">Name</label>
                 <p className="text-sm">{selectedUser.full_name}</p>
@@ -815,11 +658,9 @@ const UserManagement = () => {
               <div>
                 <label className="text-sm font-medium text-gray-600">Roles</label>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {(selectedUser.user_roles?.map(ur => ur.role) || [selectedUser.role]).map((role: string) => (
-                    <Badge key={role} className="bg-purple-100 text-purple-800 text-xs capitalize">
+                  {(selectedUser.user_roles?.map(ur => ur.role) || [selectedUser.role]).map((role: string) => <Badge key={role} className="bg-purple-100 text-purple-800 text-xs capitalize">
                       {role.replace('_', ' ')}
-                    </Badge>
-                  ))}
+                    </Badge>)}
                 </div>
               </div>
               <div>
@@ -834,12 +675,9 @@ const UserManagement = () => {
                 <label className="text-sm font-medium text-gray-600">Last Updated</label>
                 <p className="text-sm">{new Date(selectedUser.updated_at).toLocaleString()}</p>
               </div>
-            </div>
-          )}
+            </div>}
         </DialogContent>
       </Dialog>
-    </div>
-  );
+    </div>;
 };
-
 export default UserManagement;
