@@ -840,7 +840,7 @@ export type Database = {
           id: string
           name: string
           phone: string | null
-          role_id: string
+          role_id: string | null
           status: string | null
           updated_at: string
         }
@@ -850,7 +850,7 @@ export type Database = {
           id?: string
           name: string
           phone?: string | null
-          role_id: string
+          role_id?: string | null
           status?: string | null
           updated_at?: string
         }
@@ -860,7 +860,7 @@ export type Database = {
           id?: string
           name?: string
           phone?: string | null
-          role_id?: string
+          role_id?: string | null
           status?: string | null
           updated_at?: string
         }
