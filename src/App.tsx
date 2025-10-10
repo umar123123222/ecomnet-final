@@ -47,6 +47,18 @@ const ShipperAdvice = lazy(() =>
 const ReturnsNotReceived = lazy(() => 
   import("@/pages/Returns/ReturnsNotReceived").then(module => ({ default: module.default }))
 );
+const InventoryDashboard = lazy(() => 
+  import("@/pages/Inventory/InventoryDashboard").then(module => ({ default: module.default }))
+);
+const OutletManagement = lazy(() => 
+  import("@/pages/Outlets/OutletManagement").then(module => ({ default: module.default }))
+);
+const ProductManagement = lazy(() => 
+  import("@/pages/Products/ProductManagement").then(module => ({ default: module.default }))
+);
+const StockTransferDashboard = lazy(() => 
+  import("@/pages/StockTransfer/StockTransferDashboard").then(module => ({ default: module.default }))
+);
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Optimized QueryClient configuration for performance
@@ -158,6 +170,26 @@ const App = () => {
                 <Route path="returns-not-received" element={
                   <Suspense fallback={<PageLoader />}>
                     <ReturnsNotReceived />
+                  </Suspense>
+                } />
+                <Route path="inventory" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <InventoryDashboard />
+                  </Suspense>
+                } />
+                <Route path="outlets" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <OutletManagement />
+                  </Suspense>
+                } />
+                <Route path="products" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <ProductManagement />
+                  </Suspense>
+                } />
+                <Route path="stock-transfer" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <StockTransferDashboard />
                   </Suspense>
                 } />
                 <Route path="*" element={

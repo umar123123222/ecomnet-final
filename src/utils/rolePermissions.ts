@@ -23,11 +23,16 @@ export const getRolePermissions = (role: UserRole) => {
     canAddUsers: false,
     canEditUsers: false,
     canDeleteUsers: false,
+    canAccessInventory: false,
+    canAccessOutlets: false,
+    canAccessProducts: false,
+    canAccessStockTransfer: false,
   };
 
   switch (role) {
     case 'SuperAdmin':
     case 'owner': // New role system
+    case 'super_admin': // New standardized role
       return {
         ...permissions,
         canAccessDashboard: true,
@@ -42,10 +47,15 @@ export const getRolePermissions = (role: UserRole) => {
         canAddUsers: true,
         canEditUsers: true,
         canDeleteUsers: true,
+        canAccessInventory: true,
+        canAccessOutlets: true,
+        canAccessProducts: true,
+        canAccessStockTransfer: true,
       };
     
     case 'Manager':
     case 'store_manager': // New role system
+    case 'super_manager': // New standardized role
       return {
         ...permissions,
         canAccessDashboard: true,
@@ -59,7 +69,22 @@ export const getRolePermissions = (role: UserRole) => {
         canAddUsers: true,
         canEditUsers: true,
         canDeleteUsers: true,
+        canAccessInventory: true,
+        canAccessOutlets: true,
+        canAccessProducts: true,
+        canAccessStockTransfer: true,
         // No admin panel access
+      };
+    
+    case 'warehouse_manager': // New role system - warehouse/inventory focus
+      return {
+        ...permissions,
+        canAccessDashboard: true,
+        canAccessInventory: true,
+        canAccessOutlets: true,
+        canAccessProducts: true,
+        canAccessStockTransfer: true,
+        canAccessSettings: true,
       };
     
     case 'Dispatch/Returns Manager':
@@ -169,6 +194,30 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       label: 'Admin Panel',
       href: '/admin-panel',
       icon: 'Shield'
+    });
+  }
+
+  if (permissions.canAccessInventory || permissions.canAccessOutlets || permissions.canAccessProducts || permissions.canAccessStockTransfer) {
+    const inventorySubItems: NavigationItem[] = [];
+    
+    if (permissions.canAccessInventory) {
+      inventorySubItems.push({ label: 'Inventory', href: '/inventory', icon: '' });
+    }
+    if (permissions.canAccessProducts) {
+      inventorySubItems.push({ label: 'Products', href: '/products', icon: '' });
+    }
+    if (permissions.canAccessOutlets) {
+      inventorySubItems.push({ label: 'Outlets', href: '/outlets', icon: '' });
+    }
+    if (permissions.canAccessStockTransfer) {
+      inventorySubItems.push({ label: 'Stock Transfers', href: '/stock-transfer', icon: '' });
+    }
+
+    items.push({
+      label: 'Inventory',
+      href: '/inventory',
+      icon: 'Box',
+      subItems: inventorySubItems
     });
   }
 
