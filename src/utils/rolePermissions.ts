@@ -162,7 +162,7 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
   if (permissions.canAccessCustomers) {
     items.push({
       label: 'Customers',
-      href: '/customers',
+      href: '/all-customers',
       icon: 'Users',
       subItems: [
         { label: 'All Customers', href: '/all-customers', icon: '' },
@@ -204,7 +204,7 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     items.push({
       label: 'User Management',
       href: '/user-management',
-      icon: 'Users'
+      icon: 'UserCog'
     });
   }
 
