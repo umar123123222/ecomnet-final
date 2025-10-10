@@ -498,18 +498,18 @@ const UserManagement = () => {
             </TableHeader>
             <TableBody>
               {filteredUsers.map(user => {
-                  const userRoles = user.user_roles?.map(ur => ur.role) || [user.role];
+                  const userRoles = user.user_roles?.filter(ur => ur.is_active).map(ur => ur.role) || [];
                   return <TableRow key={user.id}>
                     <TableCell>
                       <Checkbox checked={selectedUsers.includes(user.id)} onCheckedChange={() => handleSelectUser(user.id)} />
                     </TableCell>
-                    <TableCell className="font-medium">{user.full_name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
+                    <TableCell className="font-medium">{user.full_name || 'N/A'}</TableCell>
+                    <TableCell>{user.email || 'N/A'}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {userRoles.map(role => <Badge key={role} className="bg-purple-100 text-purple-800 text-xs capitalize">
-                            {role.replace('_', ' ')}
-                          </Badge>)}
+                        {userRoles.length > 0 ? userRoles.map(role => <Badge key={role} className="bg-purple-100 text-purple-800 text-xs capitalize">
+                            {role.replace(/_/g, ' ')}
+                          </Badge>) : <span className="text-sm text-gray-400">No roles</span>}
                       </div>
                     </TableCell>
                     <TableCell>
