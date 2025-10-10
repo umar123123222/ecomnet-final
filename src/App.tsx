@@ -59,45 +59,6 @@ const ProductManagement = lazy(() =>
 const StockTransferDashboard = lazy(() => 
   import("@/pages/StockTransfer/StockTransferDashboard").then(module => ({ default: module.default }))
 );
-const ShipmentsDashboard = lazy(() => 
-  import("@/pages/Shipments/ShipmentsDashboard").then(module => ({ default: module.default }))
-);
-const NewOrders = lazy(() => 
-  import("@/pages/Orders/NewOrders").then(module => ({ default: module.default }))
-);
-const ProcessingOrders = lazy(() => 
-  import("@/pages/Orders/ProcessingOrders").then(module => ({ default: module.default }))
-);
-const ShippedOrders = lazy(() => 
-  import("@/pages/Orders/ShippedOrders").then(module => ({ default: module.default }))
-);
-const DeliveredOrders = lazy(() => 
-  import("@/pages/Orders/DeliveredOrders").then(module => ({ default: module.default }))
-);
-const ReturnedOrders = lazy(() => 
-  import("@/pages/Orders/ReturnedOrders").then(module => ({ default: module.default }))
-);
-const SettingsProfile = lazy(() => 
-  import("@/pages/Settings/SettingsProfile").then(module => ({ default: module.default }))
-);
-const SettingsRoles = lazy(() => 
-  import("@/pages/Settings/SettingsRoles").then(module => ({ default: module.default }))
-);
-const SettingsLocations = lazy(() => 
-  import("@/pages/Settings/SettingsLocations").then(module => ({ default: module.default }))
-);
-const SettingsNotifications = lazy(() => 
-  import("@/pages/Settings/SettingsNotifications").then(module => ({ default: module.default }))
-);
-const SettingsSecurity = lazy(() => 
-  import("@/pages/Settings/SettingsSecurity").then(module => ({ default: module.default }))
-);
-const AddInventory = lazy(() => 
-  import("@/pages/Inventory/AddInventory").then(module => ({ default: module.default }))
-);
-const TransferInventory = lazy(() => 
-  import("@/pages/Inventory/TransferInventory").then(module => ({ default: module.default }))
-);
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Optimized QueryClient configuration for performance
@@ -229,71 +190,6 @@ const App = () => {
                 <Route path="stock-transfer" element={
                   <Suspense fallback={<PageLoader />}>
                     <StockTransferDashboard />
-                  </Suspense>
-                } />
-                <Route path="shipments" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <ShipmentsDashboard />
-                  </Suspense>
-                } />
-                <Route path="orders/new" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <NewOrders />
-                  </Suspense>
-                } />
-                <Route path="orders/processing" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <ProcessingOrders />
-                  </Suspense>
-                } />
-                <Route path="orders/shipped" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <ShippedOrders />
-                  </Suspense>
-                } />
-                <Route path="orders/delivered" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <DeliveredOrders />
-                  </Suspense>
-                } />
-                <Route path="orders/returned" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <ReturnedOrders />
-                  </Suspense>
-                } />
-                <Route path="settings/profile" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <SettingsProfile />
-                  </Suspense>
-                } />
-                <Route path="settings/roles" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <SettingsRoles />
-                  </Suspense>
-                } />
-                <Route path="settings/locations" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <SettingsLocations />
-                  </Suspense>
-                } />
-                <Route path="settings/notifications" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <SettingsNotifications />
-                  </Suspense>
-                } />
-                <Route path="settings/security" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <SettingsSecurity />
-                  </Suspense>
-                } />
-                <Route path="inventory/add" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <AddInventory />
-                  </Suspense>
-                } />
-                <Route path="inventory/transfer" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <TransferInventory />
                   </Suspense>
                 } />
                 <Route path="*" element={
