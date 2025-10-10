@@ -5,6 +5,7 @@ export type ActivityAction =
   | 'order_updated'
   | 'order_dispatched'
   | 'order_delivered'
+  | 'order_assigned'
   | 'return_created'
   | 'return_received'
   | 'address_verified'

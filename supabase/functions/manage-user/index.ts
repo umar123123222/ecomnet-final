@@ -12,6 +12,8 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Manage user function called');
+    
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -24,16 +26,27 @@ serve(async (req) => {
     )
 
     // Verify the requesting user is authenticated and has permissions
-    const authHeader = req.headers.get('Authorization')!
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      console.error('No authorization header provided');
+      return new Response(
+        JSON.stringify({ error: 'No authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
 
     if (authError || !user) {
+      console.error('Auth error:', authError);
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    console.log('User authenticated:', user.id);
 
     // Check if user has permission (super_admin, super_manager, or store_manager)
     const allowedRoles = ['super_admin', 'super_manager', 'store_manager']
@@ -64,10 +77,13 @@ serve(async (req) => {
       )
     }
 
-    const { action, userData } = await req.json()
+    const requestBody = await req.json()
+    const { action, userData } = requestBody
+    console.log('Action:', action, 'UserData:', { ...userData, password: '***' });
 
     switch (action) {
       case 'create': {
+        console.log('Creating user:', userData.email);
         // Create user in auth
         const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
           email: userData.email,
@@ -78,7 +94,12 @@ serve(async (req) => {
           },
         })
 
-        if (createError) throw createError
+        if (createError) {
+          console.error('Error creating user:', createError);
+          throw createError;
+        }
+        
+        console.log('User created in auth:', authData.user.id);
 
         // Update profile
         const primaryRole = userData.roles[0]
@@ -90,7 +111,12 @@ serve(async (req) => {
           })
           .eq('id', authData.user.id)
 
-        if (profileError) throw profileError
+        if (profileError) {
+          console.error('Error updating profile:', profileError);
+          throw profileError;
+        }
+        
+        console.log('Profile updated successfully');
 
         // Add roles with outlet assignment if provided
         const roleRecords = userData.roles.map((role: string) => ({
@@ -105,8 +131,12 @@ serve(async (req) => {
           .from('user_roles')
           .insert(roleRecords)
 
-        if (rolesError) throw rolesError
-
+        if (rolesError) {
+          console.error('Error inserting roles:', rolesError);
+          throw rolesError;
+        }
+        
+        console.log('User created successfully');
         return new Response(
           JSON.stringify({ success: true, user: authData.user }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -115,6 +145,7 @@ serve(async (req) => {
 
       case 'update': {
         const { userId } = userData
+        console.log('Updating user:', userId);
 
         // Update profile
         const primaryRole = userData.roles[0]
@@ -127,13 +158,22 @@ serve(async (req) => {
           })
           .eq('id', userId)
 
-        if (profileError) throw profileError
+        if (profileError) {
+          console.error('Error updating profile:', profileError);
+          throw profileError;
+        }
+        
+        console.log('Profile updated');
 
         // Update roles
-        await supabaseAdmin
+        const { error: deleteRolesError } = await supabaseAdmin
           .from('user_roles')
           .delete()
           .eq('user_id', userId)
+          
+        if (deleteRolesError) {
+          console.error('Error deleting old roles:', deleteRolesError);
+        }
 
         const roleRecords = userData.roles.map((role: string) => ({
           user_id: userId,
@@ -147,7 +187,12 @@ serve(async (req) => {
           .from('user_roles')
           .insert(roleRecords)
 
-        if (rolesError) throw rolesError
+        if (rolesError) {
+          console.error('Error inserting new roles:', rolesError);
+          throw rolesError;
+        }
+        
+        console.log('Roles updated successfully');
 
         // Update auth email if changed
         const { data: profile } = await supabaseAdmin
@@ -157,11 +202,16 @@ serve(async (req) => {
           .single()
 
         if (profile && userData.email !== profile.email) {
-          await supabaseAdmin.auth.admin.updateUserById(userId, {
+          console.log('Updating auth email');
+          const { error: emailError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
             email: userData.email
           })
+          if (emailError) {
+            console.error('Error updating email:', emailError);
+          }
         }
 
+        console.log('User updated successfully');
         return new Response(
           JSON.stringify({ success: true }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -170,9 +220,15 @@ serve(async (req) => {
 
       case 'delete': {
         const { userId } = userData
+        console.log('Deleting user:', userId);
+        
         const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
-        if (error) throw error
+        if (error) {
+          console.error('Error deleting user:', error);
+          throw error;
+        }
 
+        console.log('User deleted successfully');
         return new Response(
           JSON.stringify({ success: true }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -186,8 +242,9 @@ serve(async (req) => {
         )
     }
   } catch (error) {
+    console.error('Error in manage-user function:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message || 'An error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }

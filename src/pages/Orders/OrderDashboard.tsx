@@ -31,6 +31,7 @@ const OrderDashboard = () => {
   });
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [staffUsers, setStaffUsers] = useState<any[]>([]);
   const [summaryData, setSummaryData] = useState({
     totalOrders: 0,
     booked: 0,
@@ -52,6 +53,11 @@ const OrderDashboard = () => {
             item_name,
             quantity,
             price
+          ),
+          assigned_to_profile:profiles!orders_assigned_to_fkey(
+            id,
+            full_name,
+            email
           )
         `).order('created_at', {
         ascending: false
@@ -98,6 +104,8 @@ const OrderDashboard = () => {
           orderType: order.order_type || 'COD',
           city: order.city,
           items: order.order_items || [],
+          assignedTo: order.assigned_to,
+          assignedToProfile: order.assigned_to_profile,
           dispatchedAt: order.dispatched_at ? new Date(order.dispatched_at).toLocaleString() : 'N/A',
           deliveredAt: order.delivered_at ? new Date(order.delivered_at).toLocaleString() : 'N/A',
           orderNotes: typeof order.notes === 'string' && order.notes ? order.notes : 'No notes',
@@ -313,6 +321,45 @@ const OrderDashboard = () => {
     setExpandedRows(prev => prev.filter(id => id !== orderId));
   };
 
+  const handleAssignStaff = async (orderId: string, staffId: string | null) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ assigned_to: staffId === 'unassigned' ? null : staffId })
+        .eq('id', orderId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order.id === orderId
+            ? {
+                ...order,
+                assignedTo: staffId === 'unassigned' ? null : staffId,
+                assignedToProfile: staffId === 'unassigned' 
+                  ? null 
+                  : staffUsers.find(u => u.id === staffId)
+              }
+            : order
+        )
+      );
+      
+      // Log activity
+      if (user) {
+        await logActivity({
+          userId: user.id,
+          action: 'order_assigned',
+          entityType: 'order',
+          entityId: orderId,
+          details: { assignedTo: staffId },
+        });
+      }
+    } catch (error) {
+      console.error('Error assigning staff:', error);
+    }
+  };
+
   // Filter orders based on search and filters
   const filteredOrders = orders.filter(order => {
     const matchesSearch = order.trackingId.toLowerCase().includes(searchTerm.toLowerCase()) || order.customer.toLowerCase().includes(searchTerm.toLowerCase()) || order.id.toLowerCase().includes(searchTerm.toLowerCase()) || order.email.toLowerCase().includes(searchTerm.toLowerCase()) || order.phone.toLowerCase().includes(searchTerm.toLowerCase());
@@ -471,15 +518,20 @@ const OrderDashboard = () => {
                     <TableCell>{getStatusBadge(order.status)}</TableCell>
                     <TableCell>{order.courier}</TableCell>
                     <TableCell>
-                      <Select defaultValue={order.assignedTo || "unassigned"}>
-                        <SelectTrigger className="w-32">
-                          <SelectValue placeholder="Assign" />
+                      <Select 
+                        value={order.assignedTo || "unassigned"} 
+                        onValueChange={(value) => handleAssignStaff(order.id, value)}
+                      >
+                        <SelectTrigger className="w-40">
+                          <SelectValue placeholder="Assign Staff" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="unassigned">Unassigned</SelectItem>
-                          <SelectItem value="user1">Ali Khan</SelectItem>
-                          <SelectItem value="user2">Sara Ahmed</SelectItem>
-                          <SelectItem value="user3">Ahmed Raza</SelectItem>
+                          {staffUsers.map((staff) => (
+                            <SelectItem key={staff.id} value={staff.id}>
+                              {staff.full_name} ({staff.role})
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </TableCell>
