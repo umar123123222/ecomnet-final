@@ -59,6 +59,12 @@ const ProductManagement = lazy(() =>
 const StockTransferDashboard = lazy(() => 
   import("@/pages/StockTransfer/StockTransferDashboard").then(module => ({ default: module.default }))
 );
+const LocationsDashboard = lazy(() => 
+  import("@/pages/Locations/LocationsDashboard").then(module => ({ default: module.default }))
+);
+const WarehousesDashboard = lazy(() => 
+  import("@/pages/Warehouses/WarehousesDashboard").then(module => ({ default: module.default }))
+);
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Optimized QueryClient configuration for performance
@@ -190,6 +196,16 @@ const App = () => {
                 <Route path="stock-transfer" element={
                   <Suspense fallback={<PageLoader />}>
                     <StockTransferDashboard />
+                  </Suspense>
+                } />
+                <Route path="locations" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <LocationsDashboard />
+                  </Suspense>
+                } />
+                <Route path="warehouses" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <WarehousesDashboard />
                   </Suspense>
                 } />
                 <Route path="*" element={

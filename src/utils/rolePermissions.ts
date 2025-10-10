@@ -27,6 +27,8 @@ export const getRolePermissions = (role: UserRole) => {
     canAccessOutlets: false,
     canAccessProducts: false,
     canAccessStockTransfer: false,
+    canAccessLocations: false,
+    canAccessWarehouses: false,
   };
 
   switch (role) {
@@ -49,6 +51,8 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessOutlets: true,
         canAccessProducts: true,
         canAccessStockTransfer: true,
+        canAccessLocations: true,
+        canAccessWarehouses: true,
       };
     
     case 'super_manager':
@@ -69,6 +73,8 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessOutlets: true,
         canAccessProducts: true,
         canAccessStockTransfer: true,
+        canAccessLocations: true,
+        canAccessWarehouses: true,
         // No admin panel access
       };
     
@@ -85,6 +91,8 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessOutlets: true,
         canAccessProducts: true,
         canAccessStockTransfer: true,
+        canAccessLocations: true,
+        canAccessWarehouses: true,
         canAccessSettings: true,
       };
     
@@ -96,6 +104,8 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessOutlets: true,
         canAccessProducts: true,
         canAccessStockTransfer: true,
+        canAccessLocations: true,
+        canAccessWarehouses: true,
         canAccessSettings: true,
       };
     
@@ -237,6 +247,22 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       href: '/inventory',
       icon: 'Box',
       subItems: inventorySubItems
+    });
+  }
+
+  if (permissions.canAccessLocations) {
+    items.push({
+      label: 'Locations',
+      href: '/locations',
+      icon: 'MapPin'
+    });
+  }
+
+  if (permissions.canAccessWarehouses) {
+    items.push({
+      label: 'Warehouses',
+      href: '/warehouses',
+      icon: 'Warehouse'
     });
   }
 
