@@ -7,6 +7,7 @@ import { Home, Package, Truck, RotateCcw, Users, Settings, Bell, Moon, Sun, Shie
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from '@/contexts/AuthContext';
 import { getNavigationItems } from '@/utils/rolePermissions';
+import { useUserRoles } from '@/hooks/useUserRoles';
 
 const Layout = () => {
   const [isDark, setIsDark] = useState(false);
@@ -23,16 +24,9 @@ const Layout = () => {
     signOut();
   };
 
-  // Get user's primary role - prefer super_admin > super_manager > store_manager > warehouse_manager > others
-  const primaryRole = userRoles.includes('super_admin' as any) 
-    ? 'super_admin' 
-    : userRoles.includes('super_manager' as any)
-    ? 'super_manager'
-    : userRoles.includes('store_manager' as any)
-    ? 'store_manager'
-    : userRoles.includes('warehouse_manager' as any)
-    ? 'warehouse_manager'
-    : userRoles[0] || profile?.role || 'staff';
+  const { primaryRole, userRoles: currentRoles } = useUserRoles();
+  const displayName = (profile?.full_name && profile.full_name !== 'New User') ? profile.full_name : (profile?.email || user?.email);
+  const formatRole = (primaryRole as string).replace(/_/g, ' ');
 
   const navigationItems = user ? getNavigationItems(primaryRole as any) : [];
 
@@ -146,8 +140,8 @@ const Layout = () => {
                 <Users className="h-4 w-4 text-white" />
               </div>
               <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                <p className="text-xs font-semibold text-white truncate">{profile?.full_name || user?.email}</p>
-                <p className="text-xs text-gray-300 truncate capitalize">{primaryRole.replace('_', ' ')}</p>
+                <p className="text-xs font-semibold text-white truncate">{displayName}</p>
+                <p className="text-xs text-gray-300 truncate capitalize">{formatRole}</p>
               </div>
             </div>
           </SidebarFooter>
