@@ -208,7 +208,7 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     });
   }
 
-  if (permissions.canAccessInventory || permissions.canAccessOutlets || permissions.canAccessProducts || permissions.canAccessStockTransfer) {
+  if (permissions.canAccessInventory || permissions.canAccessProducts || permissions.canAccessStockTransfer) {
     const inventorySubItems: NavigationItem[] = [];
     
     if (permissions.canAccessInventory) {
@@ -216,9 +216,6 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     }
     if (permissions.canAccessProducts) {
       inventorySubItems.push({ label: 'Products', href: '/products', icon: '' });
-    }
-    if (permissions.canAccessOutlets) {
-      inventorySubItems.push({ label: 'Outlets', href: '/outlets', icon: '' });
     }
     if (permissions.canAccessStockTransfer) {
       inventorySubItems.push({ label: 'Stock Transfers', href: '/stock-transfer', icon: '' });
@@ -229,6 +226,14 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       href: '/inventory',
       icon: 'Box',
       subItems: inventorySubItems
+    });
+  }
+
+  if (permissions.canAccessOutlets) {
+    items.push({
+      label: 'Outlets',
+      href: '/outlets',
+      icon: 'Building2'
     });
   }
 

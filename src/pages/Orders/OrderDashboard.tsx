@@ -450,14 +450,15 @@ const OrderDashboard = () => {
                 <TableHead>Tracking ID</TableHead>
                 <TableHead>Order Status</TableHead>
                 <TableHead>Assigned Courier</TableHead>
+                <TableHead>Assigned To</TableHead>
                 <TableHead>Expand</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? <TableRow>
-                  <TableCell colSpan={7} className="text-center">Loading orders...</TableCell>
+                  <TableCell colSpan={8} className="text-center">Loading orders...</TableCell>
                 </TableRow> : filteredOrders.length === 0 ? <TableRow>
-                  <TableCell colSpan={7} className="text-center">No orders found</TableCell>
+                  <TableCell colSpan={8} className="text-center">No orders found</TableCell>
                 </TableRow> : filteredOrders.map(order => (
                   <React.Fragment key={order.id}>
                   <TableRow>
@@ -470,13 +471,26 @@ const OrderDashboard = () => {
                     <TableCell>{getStatusBadge(order.status)}</TableCell>
                     <TableCell>{order.courier}</TableCell>
                     <TableCell>
+                      <Select defaultValue={order.assignedTo || "unassigned"}>
+                        <SelectTrigger className="w-32">
+                          <SelectValue placeholder="Assign" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unassigned">Unassigned</SelectItem>
+                          <SelectItem value="user1">Ali Khan</SelectItem>
+                          <SelectItem value="user2">Sara Ahmed</SelectItem>
+                          <SelectItem value="user3">Ahmed Raza</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
                       <Button variant="outline" size="sm" onClick={() => toggleExpanded(order.id)}>
                         {expandedRows.includes(order.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </Button>
                     </TableCell>
                   </TableRow>
                   {expandedRows.includes(order.id) && <TableRow>
-                       <TableCell colSpan={7} className="bg-gray-50 p-6">
+                       <TableCell colSpan={8} className="bg-gray-50 p-6">
                          <Tabs defaultValue="customer-details" className="w-full">
                            <TabsList className="grid w-full grid-cols-2">
                              <TabsTrigger value="customer-details">Customer Details</TabsTrigger>
