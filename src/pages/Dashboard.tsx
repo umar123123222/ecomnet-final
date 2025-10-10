@@ -12,6 +12,10 @@ import { InventoryValueChart } from "@/components/charts/InventoryValueChart";
 import { OrderStatusChart } from "@/components/charts/OrderStatusChart";
 import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import { InventorySummaryWidget } from "@/components/inventory/InventorySummaryWidget";
+import { RecentActivityFeed } from "@/components/dashboard/RecentActivityFeed";
+import { AlertsSummary } from "@/components/dashboard/AlertsSummary";
+import { TopPerformers } from "@/components/dashboard/TopPerformers";
+import { PerformanceMetrics } from "@/components/dashboard/PerformanceMetrics";
 import { usePerformanceLogger, useWebVitals } from "@/hooks/usePerformance";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar, Package, Truck, CheckCircle, XCircle, RotateCcw, TrendingUp, TrendingDown, Users, BarChart3, Upload, FileText, Settings, UserCog } from "lucide-react";
@@ -292,6 +296,18 @@ const Dashboard = () => {
 
         {/* Inventory Summary Widget */}
         <InventorySummaryWidget />
+
+        {/* Real-time Activity and Alerts */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <RecentActivityFeed />
+          <AlertsSummary />
+        </div>
+
+        {/* Top Performers and System Metrics */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <TopPerformers />
+          <PerformanceMetrics />
+        </div>
 
         {/* Charts Section - Enhanced Analytics */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
