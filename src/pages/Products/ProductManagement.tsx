@@ -9,11 +9,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Package, Search, Plus, Loader2, Edit, AlertCircle } from "lucide-react";
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
+import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
+import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 
 const ProductManagement = () => {
-  const [searchTerm, setSearchTerm] = useState("");
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
 
   // Fetch products
   const { data: products, isLoading } = useQuery<Product[]>({
@@ -28,15 +30,33 @@ const ProductManagement = () => {
     },
   });
 
-  // Filter products by search term
-  const filteredProducts = products?.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.category?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Advanced filtering
+  const {
+    filters,
+    filteredData: filteredProducts,
+    updateFilter,
+    updateCustomFilter,
+    resetFilters,
+    savedPresets,
+    savePreset,
+    loadPreset,
+    deletePreset,
+    activeFiltersCount,
+  } = useAdvancedFilters(products || [], {
+    searchFields: ['name', 'sku', 'category', 'description'],
+    categoryField: 'category',
+    amountField: 'price',
+    customFilters: {
+      status: (product, value) => value === 'active' ? product.is_active : !product.is_active,
+    },
+  });
 
   const activeProducts = filteredProducts?.filter(p => p.is_active).length || 0;
   const totalValue = filteredProducts?.reduce((sum, p) => sum + (p.price || 0), 0) || 0;
+
+  // Get unique categories
+  const categories = Array.from(new Set(products?.map(p => p.category).filter(Boolean))) as string[];
+  const categoryOptions = categories.map(cat => ({ value: cat, label: cat }));
 
   return (
     <div className="p-6 space-y-6">
@@ -106,18 +126,6 @@ const ProductManagement = () => {
           <CardDescription>View and manage all products</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4 mb-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, SKU, or category..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-          </div>
-
           {isLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-purple-500" />

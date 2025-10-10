@@ -13,11 +13,11 @@ import { Inventory, Outlet, Product } from "@/types/inventory";
 import { StockAdjustmentDialog } from "@/components/inventory/StockAdjustmentDialog";
 import { LowStockAlerts } from "@/components/inventory/LowStockAlerts";
 import { RecentStockMovements } from "@/components/inventory/RecentStockMovements";
+import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
+import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 
 const InventoryDashboard = () => {
   const { user } = useAuth();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedOutlet, setSelectedOutlet] = useState<string>("all");
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
 
   // Fetch products for the dialog
@@ -48,53 +48,78 @@ const InventoryDashboard = () => {
     },
   });
 
+
   // Fetch inventory data
   const { data: inventory, isLoading } = useQuery<Inventory[]>({
-    queryKey: ["inventory", selectedOutlet],
+    queryKey: ["inventory"],
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from("inventory")
         .select(`
           *,
           product:products(*),
           outlet:outlets(*)
         `);
-
-      if (selectedOutlet !== "all") {
-        query = query.eq("outlet_id", selectedOutlet);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
       return data as Inventory[];
     },
   });
 
+  // Advanced filtering
+  const {
+    filters,
+    filteredData: filteredInventory,
+    updateFilter,
+    updateCustomFilter,
+    resetFilters,
+    savedPresets,
+    savePreset,
+    loadPreset,
+    deletePreset,
+    activeFiltersCount,
+  } = useAdvancedFilters(inventory || [], {
+    searchFields: ['product.name', 'product.sku', 'outlet.name'],
+    categoryField: 'product.category',
+    customFilters: {
+      outlet: (item, value) => item.outlet_id === value,
+      stockStatus: (item, value) => {
+        if (value === 'low') return item.available_quantity <= (item.product?.reorder_level || 0);
+        if (value === 'out') return item.available_quantity === 0;
+        if (value === 'in') return item.available_quantity > (item.product?.reorder_level || 0);
+        return true;
+      },
+    },
+  });
+
   // Calculate summary stats
-  const totalItems = inventory?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-  const totalValue = inventory?.reduce((sum, item) => 
+  const totalItems = filteredInventory?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  const totalValue = filteredInventory?.reduce((sum, item) => 
     sum + (item.quantity * (item.product?.price || 0)), 0) || 0;
-  const lowStockCount = inventory?.filter(item => 
+  const lowStockCount = filteredInventory?.filter(item => 
     item.available_quantity <= (item.product?.reorder_level || 0)).length || 0;
 
-  // Filter inventory by search term
-  const filteredInventory = inventory?.filter(item =>
-    item.product?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.product?.sku.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Get unique categories
+  const categories = Array.from(new Set(inventory?.map(i => i.product?.category).filter(Boolean))) as string[];
+  const categoryOptions = categories.map(cat => ({ value: cat, label: cat }));
+
+  // Get outlet options
+  const outletOptions = outlets?.map(outlet => ({ value: outlet.id, label: outlet.name })) || [];
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-            Inventory Management
+            Inventory Dashboard
           </h1>
-          <p className="text-muted-foreground">Track and manage stock across all outlets</p>
+          <p className="text-muted-foreground">Track and manage stock levels across outlets</p>
         </div>
-        <Button onClick={() => setAdjustmentDialogOpen(true)} className="gap-2">
+        <Button
+          onClick={() => setAdjustmentDialogOpen(true)}
+          className="gap-2"
+        >
           <Settings className="h-4 w-4" />
-          Adjust Stock
+          Stock Adjustment
         </Button>
       </div>
 
@@ -106,67 +131,69 @@ const InventoryDashboard = () => {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalItems}</div>
+            <div className="text-2xl font-bold">{totalItems.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">Across all outlets</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Value</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Rs. {totalValue.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Retail value</p>
+            <div className="text-2xl font-bold">PKR {totalValue.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Inventory worth</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Low Stock Items</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-orange-500" />
+            <AlertTriangle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-500">{lowStockCount}</div>
+            <div className="text-2xl font-bold text-destructive">{lowStockCount}</div>
             <p className="text-xs text-muted-foreground">Needs attention</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
+      {/* Advanced Filters */}
+      <AdvancedFilterPanel
+        filters={filters}
+        onFilterChange={updateFilter}
+        onCustomFilterChange={updateCustomFilter}
+        onReset={resetFilters}
+        activeFiltersCount={activeFiltersCount}
+        categoryOptions={categoryOptions}
+        customFilters={[
+          {
+            key: 'outlet',
+            label: 'Outlet',
+            options: outletOptions,
+          },
+          {
+            key: 'stockStatus',
+            label: 'Stock Status',
+            options: [
+              { value: 'in', label: 'In Stock' },
+              { value: 'low', label: 'Low Stock' },
+              { value: 'out', label: 'Out of Stock' },
+            ],
+          },
+        ]}
+        savedPresets={savedPresets}
+        onSavePreset={savePreset}
+        onLoadPreset={loadPreset}
+        onDeletePreset={deletePreset}
+      />
+
+      {/* Inventory Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Inventory List</CardTitle>
-          <CardDescription>View and search inventory items</CardDescription>
+          <CardTitle>Inventory Items ({filteredInventory?.length || 0})</CardTitle>
+          <CardDescription>View and manage stock levels</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4 mb-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by product name or SKU..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Select value={selectedOutlet} onValueChange={setSelectedOutlet}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Select outlet" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Outlets</SelectItem>
-                {outlets?.map((outlet) => (
-                  <SelectItem key={outlet.id} value={String(outlet.id)}>
-                    {outlet.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Inventory Table */}
           {isLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-purple-500" />

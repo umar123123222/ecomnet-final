@@ -17,10 +17,10 @@ import TagsNotes from '@/components/TagsNotes';
 import NewOrderDialog from '@/components/NewOrderDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { logActivity } from '@/utils/activityLogger';
+import { useAdvancedFilters } from '@/hooks/useAdvancedFilters';
+import { AdvancedFilterPanel } from '@/components/AdvancedFilterPanel';
+
 const OrderDashboard = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [courierFilter, setCourierFilter] = useState('all');
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [selectAllPages, setSelectAllPages] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
@@ -360,12 +360,27 @@ const OrderDashboard = () => {
     }
   };
 
-  // Filter orders based on search and filters
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.trackingId.toLowerCase().includes(searchTerm.toLowerCase()) || order.customer.toLowerCase().includes(searchTerm.toLowerCase()) || order.id.toLowerCase().includes(searchTerm.toLowerCase()) || order.email.toLowerCase().includes(searchTerm.toLowerCase()) || order.phone.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    const matchesCourier = courierFilter === 'all' || order.courier.toLowerCase() === courierFilter;
-    return matchesSearch && matchesStatus && matchesCourier;
+  // Advanced filtering
+  const {
+    filters,
+    filteredData: filteredOrders,
+    updateFilter,
+    updateCustomFilter,
+    resetFilters,
+    savedPresets,
+    savePreset,
+    loadPreset,
+    deletePreset,
+    activeFiltersCount,
+  } = useAdvancedFilters(orders, {
+    searchFields: ['trackingId', 'customer', 'id', 'email', 'phone', 'city'],
+    statusField: 'status',
+    dateField: 'date',
+    amountField: 'totalPrice',
+    customFilters: {
+      courier: (order, value) => order.courier?.toLowerCase() === value.toLowerCase(),
+      orderType: (order, value) => order.orderType === value,
+    },
   });
   return <div className="p-6 space-y-6">
       {/* Header */}
@@ -431,7 +446,49 @@ const OrderDashboard = () => {
           </Card>)}
       </div>
 
-      {/* Orders Table with Integrated Filters */}
+      {/* Advanced Filters */}
+      <AdvancedFilterPanel
+        filters={filters}
+        onFilterChange={updateFilter}
+        onCustomFilterChange={updateCustomFilter}
+        onReset={resetFilters}
+        activeFiltersCount={activeFiltersCount}
+        statusOptions={[
+          { value: 'booked', label: 'Booked' },
+          { value: 'dispatched', label: 'Dispatched' },
+          { value: 'delivered', label: 'Delivered' },
+          { value: 'cancelled', label: 'Cancelled' },
+          { value: 'returned', label: 'Returned' },
+        ]}
+        showAmountFilter={true}
+        showDateFilter={true}
+        customFilters={[
+          {
+            key: 'courier',
+            label: 'Courier',
+            options: [
+              { value: 'leopard', label: 'Leopard' },
+              { value: 'postex', label: 'PostEx' },
+              { value: 'tcs', label: 'TCS' },
+            ],
+          },
+          {
+            key: 'orderType',
+            label: 'Order Type',
+            options: [
+              { value: 'standard', label: 'Standard' },
+              { value: 'COD', label: 'COD' },
+              { value: 'exchange', label: 'Exchange' },
+            ],
+          },
+        ]}
+        savedPresets={savedPresets}
+        onSavePreset={savePreset}
+        onLoadPreset={loadPreset}
+        onDeletePreset={deletePreset}
+      />
+
+      {/* Orders Table */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
@@ -447,45 +504,6 @@ const OrderDashboard = () => {
               </div>
             </div>
           </CardTitle>
-          
-          {/* Integrated Filters Section */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input placeholder="Search by tracking ID, email, phone..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="booked">Booked</SelectItem>
-                <SelectItem value="dispatched">Dispatched</SelectItem>
-                <SelectItem value="delivered">Delivered</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-                <SelectItem value="returned">Returned</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={courierFilter} onValueChange={setCourierFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by Courier" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Couriers</SelectItem>
-                <SelectItem value="leopard">Leopard</SelectItem>
-                <SelectItem value="postex">PostEx</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline">
-              <Filter className="h-4 w-4 mr-2" />
-              More Filters
-            </Button>
-            <Button variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              Export Data
-            </Button>
-          </div>
         </CardHeader>
         <CardContent>
           <Table>
