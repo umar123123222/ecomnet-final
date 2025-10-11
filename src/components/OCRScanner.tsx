@@ -61,6 +61,7 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
   const [psmMode, setPsmMode] = useState<'auto' | 'single' | 'sparse'>('auto');
   const [roiSnapshotUrl, setRoiSnapshotUrl] = useState('');
   const [averageBrightness, setAverageBrightness] = useState(128);
+  const [ocrInitialized, setOcrInitialized] = useState(false);
 
   const { toast } = useToast();
 
@@ -136,6 +137,7 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
       const rotatedUrl = await rotateDataUrl(dataUrl, angle);
       const r = await ocrWorker.current.recognize(rotatedUrl);
       const conf = r.data.confidence || 0;
+      console.log(`🔄 Tried ${angle}°: confidence ${conf}%`);
       if (conf > best.conf) {
         best = { text: r.data.text || '', conf };
       }
@@ -149,6 +151,7 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
   const initOCRWorker = async () => {
     try {
       if (!ocrWorker.current) {
+        // Create and initialize worker (v6 API handles initialization automatically)
         const worker = await createWorker('eng', 1, {
           logger: (m: any) => {
             if (m.status === 'recognizing text') {
@@ -157,6 +160,7 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
           }
         });
         
+        // Set OCR parameters
         const psm = psmMode === 'single' ? '7' : psmMode === 'sparse' ? '11' : '6';
         await worker.setParameters({
           tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#:-_ ',
@@ -166,16 +170,24 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
         });
         
         ocrWorker.current = worker;
+        setOcrInitialized(true);
+        
+        console.log('✅ OCR Worker initialized successfully');
       } else {
-        // Update PSM if mode changed
+        // Only update PSM if mode changed
         const psm = psmMode === 'single' ? '7' : psmMode === 'sparse' ? '11' : '6';
         await ocrWorker.current.setParameters({
           tessedit_pageseg_mode: psm as any
         });
       }
     } catch (error) {
-      console.error('OCR Worker initialization error:', error);
-      setError('Failed to initialize OCR engine');
+      console.error('❌ OCR Worker initialization error:', error);
+      setError('Failed to initialize OCR engine. Please refresh the page.');
+      toast({
+        title: "OCR Initialization Failed",
+        description: "Could not load text recognition engine. Try refreshing the page.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -352,6 +364,7 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
       }
 
       // Always update the preview with what was recognized
+      console.log('📝 OCR Result:', { text: text || '(empty)', confidence: Math.round(confidence || 0) });
       setLastOcrText(text || '');
       setLastOcrConfidence(Math.round(confidence || 0));
       
@@ -530,6 +543,12 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
   const startOCRScanning = async () => {
     try {
       await initOCRWorker();
+      
+      if (!ocrInitialized && !ocrWorker.current) {
+        setError('OCR engine failed to initialize');
+        setIsScanning(false);
+        return;
+      }
       
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -911,15 +930,23 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
                )}
 
               {/* Always-visible OCR text overlay */}
-              {scanMode === 'ocr' && isScanning && lastOcrText && (
+              {scanMode === 'ocr' && isScanning && (
                 <div className="absolute bottom-2 left-2 right-2 bg-black/80 text-white text-xs px-3 py-2 rounded">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium">Last read:</span>
-                    <Badge variant={lastOcrConfidence >= 60 ? 'default' : 'secondary'} className="text-xs">
-                      {lastOcrConfidence}%
-                    </Badge>
-                  </div>
-                  <div className="truncate">{lastOcrText}</div>
+                  {lastOcrText ? (
+                    <>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium">Last read:</span>
+                        <Badge variant={lastOcrConfidence >= 60 ? 'default' : 'secondary'} className="text-xs">
+                          {lastOcrConfidence}%
+                        </Badge>
+                      </div>
+                      <div className="truncate">{lastOcrText}</div>
+                    </>
+                  ) : (
+                    <div className="text-center text-gray-300">
+                      {ocrBusyRef.current ? 'Processing...' : 'Position text clearly in box'}
+                    </div>
+                  )}
                 </div>
               )}
 
