@@ -46,9 +46,12 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
   // OCR text preview and settings
   const [lastOcrText, setLastOcrText] = useState('');
   const [lastOcrConfidence, setLastOcrConfidence] = useState(0);
-  const [roiMode, setRoiMode] = useState<'narrow' | 'wide' | 'full'>('narrow');
-  const [aggressiveBinarize, setAggressiveBinarize] = useState(true);
+  const [roiMode, setRoiMode] = useState<'narrow' | 'wide' | 'full'>('wide');
+  const [aggressiveBinarize, setAggressiveBinarize] = useState(false);
   const [showTextPreview, setShowTextPreview] = useState(true);
+  const [psmMode, setPsmMode] = useState<'auto' | 'single' | 'sparse'>('auto');
+  const [showRoiSnapshot, setShowRoiSnapshot] = useState(false);
+  const [roiSnapshotUrl, setRoiSnapshotUrl] = useState('');
 
   const { toast } = useToast();
 
@@ -103,9 +106,12 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
             }
           }
         });
+        
+        // Set PSM based on mode
+        const psm = psmMode === 'single' ? 7 : psmMode === 'sparse' ? 11 : 7;
         await ocrWorker.current.setParameters({
           tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#:-_',
-          tessedit_pageseg_mode: '6', // Uniform block of text
+          tessedit_pageseg_mode: psm,
           preserve_interword_spaces: '1',
           user_defined_dpi: '300'
         });
@@ -145,50 +151,109 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
       const roiX = Math.floor((video.videoWidth - roiW) / 2);
       const roiY = Math.floor((video.videoHeight - roiH) / 2);
 
-      // Create an offscreen canvas and upscale a bit for better OCR
-      const scale = 1.5;
+      // Create an offscreen canvas with higher quality
+      const scale = Math.max(2, window.devicePixelRatio * 2);
       const roiCanvas = document.createElement('canvas');
-      roiCanvas.width = Math.max(640, Math.floor(roiW * scale));
-      roiCanvas.height = Math.max(200, Math.floor(roiH * scale));
+      roiCanvas.width = Math.floor(roiW * scale);
+      roiCanvas.height = Math.floor(roiH * scale);
       const rctx = roiCanvas.getContext('2d');
       if (!rctx) return;
+
+      // Disable smoothing for sharper text
+      rctx.imageSmoothingEnabled = false;
 
       // Draw ROI from video to canvas with scaling
       rctx.drawImage(video, roiX, roiY, roiW, roiH, 0, 0, roiCanvas.width, roiCanvas.height);
 
       // Preprocessing based on user settings
+      const imgData = rctx.getImageData(0, 0, roiCanvas.width, roiCanvas.height);
+      const d = imgData.data;
+      
+      // Always convert to grayscale first
+      for (let i = 0; i < d.length; i += 4) {
+        const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        d[i] = d[i + 1] = d[i + 2] = gray;
+      }
+      
       if (aggressiveBinarize) {
-        // Aggressive: grayscale + mean threshold binarization
-        const imgData = rctx.getImageData(0, 0, roiCanvas.width, roiCanvas.height);
-        const d = imgData.data;
+        // Adaptive threshold + light sharpen
         let sum = 0;
         for (let i = 0; i < d.length; i += 4) {
-          const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-          sum += gray;
+          sum += d[i];
         }
         const mean = sum / (d.length / 4);
-        const threshold = mean * 0.9;
+        
+        // Clamp contrast to avoid over-thresholding
+        const threshold = Math.max(80, Math.min(180, mean * 0.95));
+        
         for (let i = 0; i < d.length; i += 4) {
-          const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-          const v = gray > threshold ? 255 : 0;
+          const v = d[i] > threshold ? 255 : 0;
           d[i] = d[i + 1] = d[i + 2] = v;
         }
-        rctx.putImageData(imgData, 0, 0);
-      } else {
-        // Gentler: just grayscale conversion
-        const imgData = rctx.getImageData(0, 0, roiCanvas.width, roiCanvas.height);
-        const d = imgData.data;
-        for (let i = 0; i < d.length; i += 4) {
-          const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-          d[i] = d[i + 1] = d[i + 2] = gray;
+        
+        // Light sharpen pass (3x3 kernel)
+        const tempData = new Uint8ClampedArray(d);
+        const w = roiCanvas.width;
+        const h = roiCanvas.height;
+        for (let y = 1; y < h - 1; y++) {
+          for (let x = 1; x < w - 1; x++) {
+            const i = (y * w + x) * 4;
+            const kernel = [
+              -0.1, -0.1, -0.1,
+              -0.1,  1.8, -0.1,
+              -0.1, -0.1, -0.1
+            ];
+            let sum = 0;
+            for (let ky = -1; ky <= 1; ky++) {
+              for (let kx = -1; kx <= 1; kx++) {
+                const ki = ((y + ky) * w + (x + kx)) * 4;
+                sum += tempData[ki] * kernel[(ky + 1) * 3 + (kx + 1)];
+              }
+            }
+            d[i] = d[i + 1] = d[i + 2] = Math.max(0, Math.min(255, sum));
+          }
         }
-        rctx.putImageData(imgData, 0, 0);
       }
+      
+      rctx.putImageData(imgData, 0, 0);
 
       const imageData = roiCanvas.toDataURL('image/png');
+      
+      // Store ROI snapshot for debugging
+      if (showRoiSnapshot) {
+        setRoiSnapshotUrl(imageData);
+      }
 
-      // OCR the ROI
-      const { data: { text, confidence } } = await ocrWorker.current.recognize(imageData);
+      // OCR the ROI with auto fallback
+      let result = await ocrWorker.current.recognize(imageData);
+      let text = result.data.text;
+      let confidence = result.data.confidence;
+      
+      // If auto mode and confidence is low, try PSM 11
+      if (psmMode === 'auto' && confidence < 60) {
+        await ocrWorker.current.setParameters({ tessedit_pageseg_mode: 11 });
+        const fallbackResult = await ocrWorker.current.recognize(imageData);
+        if (fallbackResult.data.confidence > confidence) {
+          text = fallbackResult.data.text;
+          confidence = fallbackResult.data.confidence;
+        }
+        // Reset to PSM 7
+        await ocrWorker.current.setParameters({ tessedit_pageseg_mode: 7 });
+      }
+      
+      // If still very low confidence, try without whitelist
+      if (confidence < 40) {
+        await ocrWorker.current.setParameters({ tessedit_char_whitelist: '' });
+        const noWhitelistResult = await ocrWorker.current.recognize(imageData);
+        if (noWhitelistResult.data.confidence > confidence) {
+          text = noWhitelistResult.data.text;
+          confidence = noWhitelistResult.data.confidence;
+        }
+        // Reset whitelist
+        await ocrWorker.current.setParameters({
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#:-_'
+        });
+      }
 
       // Always update the preview with what was recognized
       setLastOcrText(text || '');
@@ -547,6 +612,37 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
                 </div>
               </div>
 
+              {/* PSM Mode Selector */}
+              <div className="space-y-2">
+                <Label className="text-xs font-medium">Text Mode</Label>
+                <div className="flex gap-2">
+                  <Button
+                    variant={psmMode === 'auto' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setPsmMode('auto')}
+                    className="flex-1 text-xs"
+                  >
+                    Auto
+                  </Button>
+                  <Button
+                    variant={psmMode === 'single' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setPsmMode('single')}
+                    className="flex-1 text-xs"
+                  >
+                    Single Line
+                  </Button>
+                  <Button
+                    variant={psmMode === 'sparse' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setPsmMode('sparse')}
+                    className="flex-1 text-xs"
+                  >
+                    Sparse
+                  </Button>
+                </div>
+              </div>
+
               {/* Processing Options */}
               <div className="flex items-center justify-between">
                 <Label htmlFor="aggressive-contrast" className="text-xs font-medium cursor-pointer">
@@ -570,6 +666,19 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
                   type="checkbox"
                   checked={showTextPreview}
                   onChange={(e) => setShowTextPreview(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <Label htmlFor="show-roi" className="text-xs font-medium cursor-pointer">
+                  Show ROI Snapshot
+                </Label>
+                <input
+                  id="show-roi"
+                  type="checkbox"
+                  checked={showRoiSnapshot}
+                  onChange={(e) => setShowRoiSnapshot(e.target.checked)}
                   className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
                 />
               </div>
@@ -609,11 +718,17 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
                       </div>
                     </div>
                   ) : (
-                    // Wider rectangular frame for text
-                    <div className="absolute inset-0 border-2 border-primary/50">
-                      <div className="absolute inset-x-4 top-1/3 h-24 border-2 border-white rounded">
-                        <div className="absolute -top-6 left-2 text-white text-xs bg-black/70 px-2 py-1 rounded">
-                          Position text clearly in this area
+                    // Dynamic rectangular frame matching actual ROI
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div 
+                        className="border-2 border-white rounded relative"
+                        style={{
+                          width: roiMode === 'full' ? '100%' : roiMode === 'wide' ? '90%' : '80%',
+                          height: roiMode === 'full' ? '100%' : roiMode === 'wide' ? '50%' : '28%'
+                        }}
+                      >
+                        <div className="absolute -top-6 left-2 text-white text-xs bg-black/70 px-2 py-1 rounded whitespace-nowrap">
+                          Position text clearly in this box
                         </div>
                       </div>
                     </div>
@@ -652,7 +767,7 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
           </div>
 
           {/* OCR Text Preview */}
-          {scanMode === 'ocr' && showTextPreview && lastOcrText && (
+          {scanMode === 'ocr' && showTextPreview && (
             <div className="space-y-2 p-3 bg-muted/50 rounded-lg border">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-medium">
@@ -662,9 +777,24 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
                   {lastOcrConfidence}% confidence
                 </Badge>
               </div>
-              <div className="max-h-24 overflow-y-auto bg-background p-2 rounded border text-xs font-mono break-words">
-                {lastOcrText.slice(0, 300) || '(no text detected yet)'}
+              <div className="max-h-32 overflow-y-auto bg-background p-2 rounded border text-xs font-mono break-words">
+                {lastOcrText || '(no text detected yet)'}
               </div>
+              
+              {/* Low confidence tip */}
+              {scanAttempts >= 5 && lastOcrConfidence < 40 && lastOcrText && (
+                <div className="text-xs text-yellow-600 dark:text-yellow-400">
+                  💡 Try: Move text to center, choose Full area, or turn off Aggressive Contrast
+                </div>
+              )}
+              
+              {/* ROI Snapshot for debugging */}
+              {showRoiSnapshot && roiSnapshotUrl && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">ROI Snapshot (what OCR sees)</Label>
+                  <img src={roiSnapshotUrl} alt="ROI" className="w-full border rounded" />
+                </div>
+              )}
             </div>
           )}
 
