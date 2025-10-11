@@ -32,6 +32,7 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
   const codeReader = useRef<BrowserMultiFormatReader | null>(null);
   const ocrWorker = useRef<any>(null);
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const ocrBusyRef = useRef(false);
   
   const [isScanning, setIsScanning] = useState(false);
   const [scanMode, setScanMode] = useState<ScanMode>('qr');
@@ -95,25 +96,74 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
     return null;
   };
 
+  // Helper to rotate image for orientation trials
+  const rotateDataUrl = (src: string, angle: number): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        const ctx = c.getContext('2d')!;
+        if (angle % 180 === 0) {
+          c.width = img.width;
+          c.height = img.height;
+        } else {
+          c.width = img.height;
+          c.height = img.width;
+        }
+        ctx.translate(c.width / 2, c.height / 2);
+        ctx.rotate((angle * Math.PI) / 180);
+        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.src = src;
+    });
+  };
+
+  // Helper to recognize text at multiple orientations
+  const recognizeBestOrientation = async (dataUrl: string): Promise<{ text: string; conf: number }> => {
+    const rotations = [0, 90, 180, 270];
+    let best = { text: '', conf: 0 };
+    
+    for (const angle of rotations) {
+      const rotatedUrl = await rotateDataUrl(dataUrl, angle);
+      const r = await ocrWorker.current.recognize(rotatedUrl);
+      const conf = r.data.confidence || 0;
+      if (conf > best.conf) {
+        best = { text: r.data.text || '', conf };
+      }
+      if (best.conf >= 85) break; // early exit if very confident
+    }
+    
+    return best;
+  };
+
   // Initialize OCR worker with proper lifecycle
   const initOCRWorker = async () => {
     try {
       if (!ocrWorker.current) {
-        ocrWorker.current = await createWorker('eng', 1, {
+        const worker = await createWorker('eng', 1, {
           logger: (m: any) => {
             if (m.status === 'recognizing text') {
-              setOcrProgress(Math.round(m.progress * 100));
+              setOcrProgress(Math.round((m.progress || 0) * 100));
             }
           }
         });
         
-        // Set PSM based on mode
-        const psm = psmMode === 'single' ? 7 : psmMode === 'sparse' ? 11 : 7;
-        await ocrWorker.current.setParameters({
+        // Set PSM based on mode - default to PSM 6 (block of text)
+        const psm = psmMode === 'single' ? '7' : psmMode === 'sparse' ? '11' : '6';
+        await worker.setParameters({
           tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#:-_',
-          tessedit_pageseg_mode: psm,
+          tessedit_pageseg_mode: psm as any,
           preserve_interword_spaces: '1',
           user_defined_dpi: '300'
+        });
+        
+        ocrWorker.current = worker;
+      } else {
+        // Update PSM if mode changed
+        const psm = psmMode === 'single' ? '7' : psmMode === 'sparse' ? '11' : '6';
+        await ocrWorker.current.setParameters({
+          tessedit_pageseg_mode: psm as any
         });
       }
     } catch (error) {
@@ -124,7 +174,10 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
 
   const processOCRFrame = async () => {
     if (!videoRef.current || !canvasRef.current || !ocrWorker.current) return;
-
+    if (ocrBusyRef.current) return; // Prevent overlapping OCR calls
+    
+    ocrBusyRef.current = true;
+    
     try {
       const video = videoRef.current;
       
@@ -224,30 +277,42 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
         setRoiSnapshotUrl(imageData);
       }
 
-      // OCR the ROI with auto fallback
-      let result = await ocrWorker.current.recognize(imageData);
-      let text = result.data.text;
-      let confidence = result.data.confidence;
+      // OCR with orientation handling
+      const { text: recognizedText, conf: recognizedConf } = await recognizeBestOrientation(imageData);
+      let text = recognizedText;
+      let confidence = recognizedConf;
       
-      // If auto mode and confidence is low, try PSM 11
+      // If auto mode and confidence is low, try different PSM modes
       if (psmMode === 'auto' && confidence < 60) {
-        await ocrWorker.current.setParameters({ tessedit_pageseg_mode: 11 });
-        const fallbackResult = await ocrWorker.current.recognize(imageData);
-        if (fallbackResult.data.confidence > confidence) {
-          text = fallbackResult.data.text;
-          confidence = fallbackResult.data.confidence;
+        // Try PSM 11 (sparse text)
+        await ocrWorker.current.setParameters({ tessedit_pageseg_mode: '11' as any });
+        const psm11Result = await recognizeBestOrientation(imageData);
+        if (psm11Result.conf > confidence) {
+          text = psm11Result.text;
+          confidence = psm11Result.conf;
         }
-        // Reset to PSM 7
-        await ocrWorker.current.setParameters({ tessedit_pageseg_mode: 7 });
+        
+        // Try PSM 7 (single line) if still low
+        if (confidence < 60) {
+          await ocrWorker.current.setParameters({ tessedit_pageseg_mode: '7' as any });
+          const psm7Result = await recognizeBestOrientation(imageData);
+          if (psm7Result.conf > confidence) {
+            text = psm7Result.text;
+            confidence = psm7Result.conf;
+          }
+        }
+        
+        // Reset to PSM 6
+        await ocrWorker.current.setParameters({ tessedit_pageseg_mode: '6' as any });
       }
       
       // If still very low confidence, try without whitelist
       if (confidence < 40) {
         await ocrWorker.current.setParameters({ tessedit_char_whitelist: '' });
-        const noWhitelistResult = await ocrWorker.current.recognize(imageData);
-        if (noWhitelistResult.data.confidence > confidence) {
-          text = noWhitelistResult.data.text;
-          confidence = noWhitelistResult.data.confidence;
+        const noWhitelistResult = await recognizeBestOrientation(imageData);
+        if (noWhitelistResult.conf > confidence) {
+          text = noWhitelistResult.text;
+          confidence = noWhitelistResult.conf;
         }
         // Reset whitelist
         await ocrWorker.current.setParameters({
@@ -271,6 +336,8 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
       setScanAttempts(prev => prev + 1);
     } catch (error) {
       console.error('OCR processing error:', error);
+    } finally {
+      ocrBusyRef.current = false;
     }
   };
 
@@ -689,7 +756,7 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
           <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
             <video
               ref={videoRef}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
               playsInline
               autoPlay
               muted
