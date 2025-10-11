@@ -118,13 +118,12 @@ serve(async (req) => {
         
         console.log('Profile updated successfully');
 
-        // Add roles with outlet assignment if provided
+        // Add roles
         const roleRecords = userData.roles.map((role: string) => ({
           user_id: authData.user.id,
           role: role,
           assigned_by: user.id,
           is_active: true,
-          outlet_id: userData.outlet_id || null,
         }))
 
         const { error: rolesError } = await supabaseAdmin
@@ -180,7 +179,6 @@ serve(async (req) => {
           role: role,
           assigned_by: user.id,
           is_active: true,
-          outlet_id: userData.outlet_id || null,
         }))
 
         const { error: rolesError } = await supabaseAdmin
