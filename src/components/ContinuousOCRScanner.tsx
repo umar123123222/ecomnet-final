@@ -6,6 +6,15 @@ import { Camera, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import Tesseract from 'tesseract.js';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+
+// Make supabase globally accessible for this component
+declare global {
+  interface Window {
+    supabase: typeof supabase;
+  }
+}
+window.supabase = supabase;
 
 interface ScannedParcel {
   id: string;
@@ -58,6 +67,16 @@ const ContinuousOCRScanner: React.FC<ContinuousOCRScannerProps> = ({ onScanCompl
       stopCamera();
     };
   }, []);
+
+  // Auto-start scanning when camera is ready
+  useEffect(() => {
+    if (cameraActive && !scanning) {
+      const timer = setTimeout(() => {
+        startScanning();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [cameraActive]);
 
   const startCamera = async () => {
     try {
@@ -198,6 +217,23 @@ const ContinuousOCRScanner: React.FC<ContinuousOCRScannerProps> = ({ onScanCompl
           setScannedParcels(prev => [...prev, newParcel]);
           setLastScanTime(now);
 
+          // Save to database immediately
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              await supabase.from('scan_results').insert({
+                scan_type: 'return',
+                order_id: orderId || null,
+                tracking_id: trackingId || null,
+                raw_data: combinedText.substring(0, 500),
+                scan_mode: barcodeResult ? 'barcode' : 'ocr',
+                scanned_by: user.id,
+              });
+            }
+          } catch (dbError) {
+            console.error('Error saving scan to database:', dbError);
+          }
+
           // Visual and audio feedback
           toast({
             title: 'Parcel Scanned',
@@ -322,23 +358,27 @@ const ContinuousOCRScanner: React.FC<ContinuousOCRScannerProps> = ({ onScanCompl
 
         {/* Bottom Action Buttons */}
         <div className="absolute bottom-0 left-0 right-0 p-4 flex gap-2">
-          {!scanning ? (
-            <Button
-              onClick={startScanning}
-              disabled={!cameraActive}
-              className="flex-1 h-14 text-lg bg-green-600 hover:bg-green-700"
-            >
-              <Camera className="h-6 w-6 mr-2" />
-              Start Scanning
-            </Button>
-          ) : (
-            <Button
-              onClick={stopScanning}
-              className="flex-1 h-14 text-lg bg-red-600 hover:bg-red-700"
-            >
-              Pause Scanning
-            </Button>
-          )}
+          <Button
+            onClick={scanning ? stopScanning : startScanning}
+            disabled={!cameraActive}
+            className={`flex-1 h-14 text-lg ${
+              scanning 
+                ? 'bg-red-600 hover:bg-red-700' 
+                : 'bg-green-600 hover:bg-green-700'
+            }`}
+          >
+            {scanning ? (
+              <>
+                <Loader2 className="h-6 w-6 mr-2 animate-spin" />
+                Pause Scanning
+              </>
+            ) : (
+              <>
+                <Camera className="h-6 w-6 mr-2" />
+                Resume Scanning
+              </>
+            )}
+          </Button>
           <Button
             onClick={handleComplete}
             disabled={scannedParcels.length === 0}

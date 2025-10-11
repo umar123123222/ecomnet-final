@@ -914,6 +914,39 @@ export type Database = {
         }
         Relationships: []
       }
+      scan_results: {
+        Row: {
+          created_at: string | null
+          id: string
+          order_id: string | null
+          raw_data: string
+          scan_mode: string
+          scan_type: string
+          scanned_by: string | null
+          tracking_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          order_id?: string | null
+          raw_data: string
+          scan_mode: string
+          scan_type: string
+          scanned_by?: string | null
+          tracking_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          order_id?: string | null
+          raw_data?: string
+          scan_mode?: string
+          scan_type?: string
+          scanned_by?: string | null
+          tracking_id?: string | null
+        }
+        Relationships: []
+      }
       stock_movements: {
         Row: {
           created_at: string

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Camera, CameraOff, Flashlight, RotateCcw, Type, QrCode } from 'lucide-react';
+import { Camera, CameraOff, Flashlight, RotateCcw, Type, QrCode, Loader2 } from 'lucide-react';
 
 interface OCRScannerProps {
   isOpen: boolean;
@@ -169,13 +169,17 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
   // Handle successful order detection
   const handleOrderDetected = async (orderId: string, rawData: string) => {
     try {
-      // Log scan result (removed database save since table doesn't exist)
-      console.log('Scan result:', {
-        scan_type: scanType,
-        raw_data: rawData,
-        extracted_order_id: orderId,
-        timestamp: new Date().toISOString()
-      });
+      // Save scan result to database
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData?.user) {
+        await supabase.from('scan_results').insert({
+          scan_type: scanType,
+          order_id: orderId,
+          raw_data: rawData,
+          scan_mode: scanMode === 'qr' ? 'barcode' : 'ocr',
+          scanned_by: userData.user.id,
+        });
+      }
 
       // Provide audio feedback
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -374,11 +378,19 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
     };
   }, []);
 
-  // Start/stop scanning based on dialog state
+  // Auto-start scanning when dialog opens or mode changes
   useEffect(() => {
-    if (isOpen && !isScanning) {
-      startScanning();
-    } else if (!isOpen && isScanning) {
+    if (isOpen) {
+      // Stop current scanning if active
+      if (isScanning) {
+        stopScanning();
+      }
+      // Start scanning automatically after a brief delay
+      const timer = setTimeout(() => {
+        startScanning();
+      }, 100);
+      return () => clearTimeout(timer);
+    } else if (isScanning) {
       stopScanning();
     }
   }, [isOpen, scanMode]);
@@ -483,6 +495,14 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
             </Badge>
           )}
 
+          {/* Status Badge */}
+          {isScanning && (
+            <Badge className="w-full justify-center bg-green-600">
+              <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+              Scanning automatically...
+            </Badge>
+          )}
+
           {/* Controls */}
           <div className="flex gap-2">
             {isScanning ? (
@@ -506,15 +526,13 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
                 )}
               </>
             ) : (
-              <>
-                <Button onClick={startScanning} className="flex-1">
-                  <Camera className="h-4 w-4 mr-2" />
-                  Start Scan
-                </Button>
-                <Button onClick={handleClose} variant="outline">
-                  Cancel
-                </Button>
-              </>
+              <Button 
+                onClick={handleClose} 
+                variant="outline" 
+                className="flex-1"
+              >
+                Cancel
+              </Button>
             )}
           </div>
         </div>
