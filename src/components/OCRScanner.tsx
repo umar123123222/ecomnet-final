@@ -40,7 +40,8 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
-  const [lastOcrText, setLastOcrText] = useState('');
+  const [scanAttempts, setScanAttempts] = useState(0);
+  const [showManualCapture, setShowManualCapture] = useState(false);
 
   const { toast } = useToast();
 
@@ -151,16 +152,18 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
       const imageData = roiCanvas.toDataURL('image/png');
 
       // OCR the ROI
-      const { data: { text } } = await ocrWorker.current.recognize(imageData);
+      const { data: { text, confidence } } = await ocrWorker.current.recognize(imageData);
 
-      if (text) {
-        setLastOcrText(text.trim().slice(0, 160));
+      // Only process if confidence is above threshold (reduces noise)
+      if (text && confidence > 60) {
         const orderId = extractOrderId(text);
         if (orderId) {
           setDetectedOrderId(orderId);
           await handleOrderDetected(orderId, text);
         }
       }
+      
+      setScanAttempts(prev => prev + 1);
     } catch (error) {
       console.error('OCR processing error:', error);
     }
@@ -225,6 +228,12 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
       }
 
       const videoInputDevices = await codeReader.current.listVideoInputDevices();
+      
+      if (!videoInputDevices || videoInputDevices.length === 0) {
+        setError('No camera found on this device');
+        return;
+      }
+
       let selectedDeviceId = videoInputDevices[0]?.deviceId;
 
       // Prefer back camera on mobile
@@ -238,6 +247,15 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
       }
 
       if (videoRef.current) {
+        // Wait for video to be ready before starting decode
+        await new Promise<void>((resolve) => {
+          if (videoRef.current) {
+            videoRef.current.onloadedmetadata = () => {
+              resolve();
+            };
+          }
+        });
+
         await codeReader.current.decodeFromVideoDevice(
           selectedDeviceId,
           videoRef.current,
@@ -255,6 +273,10 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
                 stopScanning();
               }
             }
+            // Increment scan attempts for timeout detection
+            if (!result && !error) {
+              setScanAttempts(prev => prev + 1);
+            }
           }
         );
 
@@ -268,7 +290,7 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
       }
     } catch (error) {
       console.error('Error starting QR scanning:', error);
-      setError('Failed to access camera');
+      setError('Failed to access camera. Please check permissions.');
     }
   };
 
@@ -311,6 +333,8 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
     setError(null);
     setDetectedOrderId('');
     setOcrProgress(0);
+    setScanAttempts(0);
+    setShowManualCapture(false);
 
     if (scanMode === 'qr') {
       await startQRScanning();
@@ -340,6 +364,8 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
 
     setTorchEnabled(false);
     setOcrProgress(0);
+    setScanAttempts(0);
+    setShowManualCapture(false);
   };
 
   // Toggle torch
@@ -395,6 +421,13 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
     }
   }, [isOpen, scanMode]);
 
+  // Show manual capture button after 5 seconds of failed attempts
+  useEffect(() => {
+    if (isScanning && scanAttempts >= 4 && !showManualCapture) {
+      setShowManualCapture(true);
+    }
+  }, [isScanning, scanAttempts, showManualCapture]);
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
@@ -445,32 +478,63 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
               className="hidden"
             />
             
-            {/* Scanning overlay */}
+            {/* Scanning overlay with mode-specific frames */}
               {isScanning && (
-                <div className="absolute inset-0 border-2 border-primary">
-                  <div className="absolute inset-4 border border-white/50 rounded">
-                    {scanMode === 'ocr' && (
-                      <div className="absolute top-2 left-2 text-white text-xs bg-black/50 px-2 py-1 rounded">
-                        Position text clearly in frame
+                <div className="absolute inset-0">
+                  {scanMode === 'qr' ? (
+                    // Square frame for QR codes
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-48 h-48 border-4 border-primary rounded-lg relative">
+                        <div className="absolute top-2 left-2 w-6 h-6 border-t-4 border-l-4 border-white"></div>
+                        <div className="absolute top-2 right-2 w-6 h-6 border-t-4 border-r-4 border-white"></div>
+                        <div className="absolute bottom-2 left-2 w-6 h-6 border-b-4 border-l-4 border-white"></div>
+                        <div className="absolute bottom-2 right-2 w-6 h-6 border-b-4 border-r-4 border-white"></div>
                       </div>
-                    )}
+                      <div className="absolute top-4 left-0 right-0 text-center">
+                        <div className="inline-block bg-black/70 text-white text-xs px-3 py-1 rounded-full">
+                          Position QR code in center
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    // Wider rectangular frame for text
+                    <div className="absolute inset-0 border-2 border-primary/50">
+                      <div className="absolute inset-x-4 top-1/3 h-24 border-2 border-white rounded">
+                        <div className="absolute -top-6 left-2 text-white text-xs bg-black/70 px-2 py-1 rounded">
+                          Position text clearly in this area
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* OCR Progress and Status */}
+              {scanMode === 'ocr' && ocrProgress > 0 && (
+                <div className="absolute bottom-2 left-2 right-2">
+                  <div className="bg-black/70 text-white text-xs px-3 py-1.5 rounded-full text-center">
+                    Scanning text: {ocrProgress}%
                   </div>
                 </div>
               )}
 
-              {/* OCR Progress */}
-              {scanMode === 'ocr' && (ocrProgress > 0 || lastOcrText) && (
-                <div className="absolute bottom-2 left-2 right-2 space-y-1">
-                  {ocrProgress > 0 && (
-                    <div className="bg-black/50 text-white text-xs px-2 py-1 rounded">
-                      Processing: {ocrProgress}%
-                    </div>
-                  )}
-                  {lastOcrText && (
-                    <div className="bg-black/50 text-white text-xs px-2 py-1 rounded line-clamp-2">
-                      {lastOcrText}
-                    </div>
-                  )}
+              {/* QR Mode Status */}
+              {scanMode === 'qr' && isScanning && (
+                <div className="absolute bottom-2 left-2 right-2">
+                  <div className="bg-black/70 text-white text-xs px-3 py-1.5 rounded-full text-center">
+                    Looking for QR/Barcode...
+                  </div>
+                </div>
+              )}
+
+              {/* No detection timeout message */}
+              {isScanning && scanAttempts >= 4 && !detectedOrderId && (
+                <div className="absolute top-2 left-2 right-2">
+                  <div className="bg-yellow-600/90 text-white text-xs px-3 py-1.5 rounded text-center">
+                    {scanMode === 'qr' 
+                      ? 'No QR code detected - try better lighting or switch to Text mode'
+                      : 'No text detected - ensure good lighting and clear text'}
+                  </div>
                 </div>
               )}
           </div>
@@ -499,8 +563,25 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
           {isScanning && (
             <Badge className="w-full justify-center bg-green-600">
               <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-              Scanning automatically...
+              {scanMode === 'qr' ? 'Scanning for QR/Barcode...' : 'Scanning for text...'}
             </Badge>
+          )}
+
+          {/* Manual Capture Button (fallback) */}
+          {showManualCapture && isScanning && (
+            <Button 
+              onClick={() => {
+                if (scanMode === 'ocr') {
+                  processOCRFrame();
+                }
+                setScanAttempts(0);
+              }}
+              variant="outline"
+              className="w-full"
+            >
+              <Camera className="h-4 w-4 mr-2" />
+              Capture Now (Manual)
+            </Button>
           )}
 
           {/* Controls */}
