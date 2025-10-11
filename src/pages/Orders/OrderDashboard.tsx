@@ -12,10 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck } from 'lucide-react';
+import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save } from 'lucide-react';
 import TagsNotes from '@/components/TagsNotes';
 import NewOrderDialog from '@/components/NewOrderDialog';
 import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
+import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { useAuth } from '@/contexts/AuthContext';
 import { logActivity } from '@/utils/activityLogger';
 import { useAdvancedFilters } from '@/hooks/useAdvancedFilters';
@@ -46,6 +47,7 @@ const OrderDashboard = () => {
   });
   const [dispatchOrderId, setDispatchOrderId] = useState<string>("");
   const [isDispatchDialogOpen, setIsDispatchDialogOpen] = useState(false);
+  const [presetName, setPresetName] = useState('');
 
   const { user } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
@@ -473,66 +475,206 @@ const OrderDashboard = () => {
           </Card>)}
       </div>
 
-      {/* Advanced Filters */}
-      <AdvancedFilterPanel
-        filters={filters}
-        onFilterChange={updateFilter}
-        onCustomFilterChange={updateCustomFilter}
-        onReset={resetFilters}
-        activeFiltersCount={activeFiltersCount}
-        statusOptions={[
-          { value: 'booked', label: 'Booked' },
-          { value: 'dispatched', label: 'Dispatched' },
-          { value: 'delivered', label: 'Delivered' },
-          { value: 'cancelled', label: 'Cancelled' },
-          { value: 'returned', label: 'Returned' },
-        ]}
-        showAmountFilter={true}
-        showDateFilter={true}
-        customFilters={[
-          {
-            key: 'courier',
-            label: 'Courier',
-            options: [
-              { value: 'leopard', label: 'Leopard' },
-              { value: 'postex', label: 'PostEx' },
-              { value: 'tcs', label: 'TCS' },
-            ],
-          },
-          {
-            key: 'orderType',
-            label: 'Order Type',
-            options: [
-              { value: 'standard', label: 'Standard' },
-              { value: 'COD', label: 'COD' },
-              { value: 'exchange', label: 'Exchange' },
-            ],
-          },
-        ]}
-        savedPresets={savedPresets}
-        onSavePreset={savePreset}
-        onLoadPreset={loadPreset}
-        onDeletePreset={deletePreset}
-      />
 
-      {/* Orders Table */}
+      {/* Orders Table with Integrated Filters */}
       <Card>
-        <CardHeader>
+        {/* Inline Filter Bar */}
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between p-4 bg-muted/30 border-b">
+          {/* Left side - Quick filters */}
+          <div className="flex flex-1 gap-3 flex-wrap items-center w-full sm:w-auto">
+            {/* Search */}
+            <div className="flex-1 min-w-[200px]">
+              <Input
+                placeholder="Search orders, tracking ID, customer..."
+                value={filters.search}
+                onChange={(e) => updateFilter('search', e.target.value)}
+                className="h-9"
+              />
+            </div>
+            
+            {/* Status Filter */}
+            <Select value={filters.status} onValueChange={(value) => updateFilter('status', value)}>
+              <SelectTrigger className="w-[140px] h-9">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="booked">Booked</SelectItem>
+                <SelectItem value="dispatched">Dispatched</SelectItem>
+                <SelectItem value="delivered">Delivered</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectItem value="returned">Returned</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            {/* Date Range */}
+            <DatePickerWithRange
+              date={filters.dateRange}
+              setDate={(date) => updateFilter('dateRange', date)}
+            />
+            
+            {/* Active filters badge */}
+            {activeFiltersCount > 0 && (
+              <Badge variant="secondary" className="h-9 px-3">
+                {activeFiltersCount} filters
+              </Badge>
+            )}
+          </div>
+          
+          {/* Right side - Advanced filters button */}
+          <div className="flex gap-2">
+            {activeFiltersCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={resetFilters}>
+                <X className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            )}
+            
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Filter className="h-4 w-4 mr-1" />
+                  More Filters
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Advanced Filters</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  {/* Amount Range */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Min Amount (PKR)</Label>
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        value={filters.amountMin || ''}
+                        onChange={(e) => updateFilter('amountMin', e.target.value ? parseFloat(e.target.value) : undefined)}
+                      />
+                    </div>
+                    <div>
+                      <Label>Max Amount (PKR)</Label>
+                      <Input
+                        type="number"
+                        placeholder="999999"
+                        value={filters.amountMax || ''}
+                        onChange={(e) => updateFilter('amountMax', e.target.value ? parseFloat(e.target.value) : undefined)}
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Courier */}
+                  <div>
+                    <Label>Courier</Label>
+                    <Select
+                      value={filters.customValues?.courier || 'all'}
+                      onValueChange={(value) => updateCustomFilter('courier', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="All Couriers" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Couriers</SelectItem>
+                        <SelectItem value="leopard">Leopard</SelectItem>
+                        <SelectItem value="postex">PostEx</SelectItem>
+                        <SelectItem value="tcs">TCS</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Order Type */}
+                  <div>
+                    <Label>Order Type</Label>
+                    <Select
+                      value={filters.customValues?.orderType || 'all'}
+                      onValueChange={(value) => updateCustomFilter('orderType', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="All Types" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        <SelectItem value="COD">COD</SelectItem>
+                        <SelectItem value="Prepaid">Prepaid</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Saved Presets Section */}
+                  {savedPresets.length > 0 && (
+                    <div>
+                      <Label>Saved Filter Presets</Label>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {savedPresets.map(preset => (
+                          <div key={preset.id} className="flex items-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => loadPreset(preset.id)}
+                            >
+                              {preset.name}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deletePreset(preset.id)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Save Current Filters as Preset */}
+                  {activeFiltersCount > 0 && (
+                    <div className="pt-4 border-t">
+                      <Label>Save Current Filters</Label>
+                      <div className="flex gap-2 mt-2">
+                        <Input
+                          placeholder="Preset name..."
+                          value={presetName}
+                          onChange={(e) => setPresetName(e.target.value)}
+                        />
+                        <Button onClick={() => {
+                          if (presetName.trim()) {
+                            savePreset(presetName);
+                            setPresetName('');
+                          }
+                        }}>
+                          <Save className="h-4 w-4 mr-1" />
+                          Save
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
+        {/* Table Header with Selection */}
+        <CardHeader className="pb-3">
           <CardTitle className="flex items-center justify-between">
             <span>Orders ({filteredOrders.length})</span>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <Checkbox checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0} onCheckedChange={handleSelectAllCurrentPage} />
-                <span className="text-sm text-gray-600">Select All (Current Page)</span>
+                <span className="text-sm text-muted-foreground">Select All (Current Page)</span>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox checked={selectAllPages} onCheckedChange={handleSelectAllPages} />
-                <span className="text-sm text-gray-600">Select All Pages</span>
+                <span className="text-sm text-muted-foreground">Select All Pages</span>
               </div>
             </div>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+
+        <CardContent className="pt-0">
           <Table>
             <TableHeader>
               <TableRow>
