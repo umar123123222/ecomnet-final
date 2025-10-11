@@ -42,6 +42,13 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
   const [ocrProgress, setOcrProgress] = useState(0);
   const [scanAttempts, setScanAttempts] = useState(0);
   const [showManualCapture, setShowManualCapture] = useState(false);
+  
+  // OCR text preview and settings
+  const [lastOcrText, setLastOcrText] = useState('');
+  const [lastOcrConfidence, setLastOcrConfidence] = useState(0);
+  const [roiMode, setRoiMode] = useState<'narrow' | 'wide' | 'full'>('narrow');
+  const [aggressiveBinarize, setAggressiveBinarize] = useState(true);
+  const [showTextPreview, setShowTextPreview] = useState(true);
 
   const { toast } = useToast();
 
@@ -118,9 +125,23 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
       // Guard: ensure video has valid dimensions
       if (video.videoWidth < 2 || video.videoHeight < 2) return;
 
-      // Define a centered region of interest (ROI) where users place the text
-      const roiW = Math.floor(video.videoWidth * 0.8);
-      const roiH = Math.floor(video.videoHeight * 0.28);
+      // Define ROI based on user-selected mode
+      let roiW: number, roiH: number;
+      switch (roiMode) {
+        case 'wide':
+          roiW = Math.floor(video.videoWidth * 0.9);
+          roiH = Math.floor(video.videoHeight * 0.5);
+          break;
+        case 'full':
+          roiW = video.videoWidth;
+          roiH = video.videoHeight;
+          break;
+        case 'narrow':
+        default:
+          roiW = Math.floor(video.videoWidth * 0.8);
+          roiH = Math.floor(video.videoHeight * 0.28);
+          break;
+      }
       const roiX = Math.floor((video.videoWidth - roiW) / 2);
       const roiY = Math.floor((video.videoHeight - roiH) / 2);
 
@@ -135,29 +156,45 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
       // Draw ROI from video to canvas with scaling
       rctx.drawImage(video, roiX, roiY, roiW, roiH, 0, 0, roiCanvas.width, roiCanvas.height);
 
-      // Simple preprocessing: grayscale + mean threshold to increase contrast
-      const imgData = rctx.getImageData(0, 0, roiCanvas.width, roiCanvas.height);
-      const d = imgData.data;
-      let sum = 0;
-      for (let i = 0; i < d.length; i += 4) {
-        const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-        sum += gray;
+      // Preprocessing based on user settings
+      if (aggressiveBinarize) {
+        // Aggressive: grayscale + mean threshold binarization
+        const imgData = rctx.getImageData(0, 0, roiCanvas.width, roiCanvas.height);
+        const d = imgData.data;
+        let sum = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          sum += gray;
+        }
+        const mean = sum / (d.length / 4);
+        const threshold = mean * 0.9;
+        for (let i = 0; i < d.length; i += 4) {
+          const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          const v = gray > threshold ? 255 : 0;
+          d[i] = d[i + 1] = d[i + 2] = v;
+        }
+        rctx.putImageData(imgData, 0, 0);
+      } else {
+        // Gentler: just grayscale conversion
+        const imgData = rctx.getImageData(0, 0, roiCanvas.width, roiCanvas.height);
+        const d = imgData.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          d[i] = d[i + 1] = d[i + 2] = gray;
+        }
+        rctx.putImageData(imgData, 0, 0);
       }
-      const mean = sum / (d.length / 4);
-      const threshold = mean * 0.9; // tweakable
-      for (let i = 0; i < d.length; i += 4) {
-        const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-        const v = gray > threshold ? 255 : 0;
-        d[i] = d[i + 1] = d[i + 2] = v;
-      }
-      rctx.putImageData(imgData, 0, 0);
 
       const imageData = roiCanvas.toDataURL('image/png');
 
       // OCR the ROI
       const { data: { text, confidence } } = await ocrWorker.current.recognize(imageData);
 
-      // Only process if confidence is above threshold (reduces noise)
+      // Always update the preview with what was recognized
+      setLastOcrText(text || '');
+      setLastOcrConfidence(Math.round(confidence || 0));
+
+      // Only process for Order ID if confidence is above threshold
       if (text && confidence > 60) {
         const orderId = extractOrderId(text);
         if (orderId) {
@@ -345,6 +382,8 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
     setOcrProgress(0);
     setScanAttempts(0);
     setShowManualCapture(false);
+    setLastOcrText('');
+    setLastOcrConfidence(0);
 
     if (scanMode === 'qr') {
       await startQRScanning();
@@ -474,6 +513,69 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
             </Button>
           </div>
 
+          {/* OCR Settings - only show in OCR mode */}
+          {scanMode === 'ocr' && (
+            <div className="space-y-3 p-3 bg-muted/50 rounded-lg border">
+              {/* Scan Area Selector */}
+              <div className="space-y-2">
+                <Label className="text-xs font-medium">Scan Area</Label>
+                <div className="flex gap-2">
+                  <Button
+                    variant={roiMode === 'narrow' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setRoiMode('narrow')}
+                    className="flex-1"
+                  >
+                    Narrow
+                  </Button>
+                  <Button
+                    variant={roiMode === 'wide' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setRoiMode('wide')}
+                    className="flex-1"
+                  >
+                    Wide
+                  </Button>
+                  <Button
+                    variant={roiMode === 'full' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setRoiMode('full')}
+                    className="flex-1"
+                  >
+                    Full
+                  </Button>
+                </div>
+              </div>
+
+              {/* Processing Options */}
+              <div className="flex items-center justify-between">
+                <Label htmlFor="aggressive-contrast" className="text-xs font-medium cursor-pointer">
+                  Aggressive Contrast
+                </Label>
+                <input
+                  id="aggressive-contrast"
+                  type="checkbox"
+                  checked={aggressiveBinarize}
+                  onChange={(e) => setAggressiveBinarize(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="show-preview" className="text-xs font-medium cursor-pointer">
+                  Show Text Preview
+                </Label>
+                <input
+                  id="show-preview"
+                  type="checkbox"
+                  checked={showTextPreview}
+                  onChange={(e) => setShowTextPreview(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Camera Preview */}
           <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
             <video
@@ -548,6 +650,23 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
                 </div>
               )}
           </div>
+
+          {/* OCR Text Preview */}
+          {scanMode === 'ocr' && showTextPreview && lastOcrText && (
+            <div className="space-y-2 p-3 bg-muted/50 rounded-lg border">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium">
+                  Recognized Text
+                </Label>
+                <Badge variant={lastOcrConfidence >= 60 ? 'default' : 'secondary'} className="text-xs">
+                  {lastOcrConfidence}% confidence
+                </Badge>
+              </div>
+              <div className="max-h-24 overflow-y-auto bg-background p-2 rounded border text-xs font-mono break-words">
+                {lastOcrText.slice(0, 300) || '(no text detected yet)'}
+              </div>
+            </div>
+          )}
 
           {/* Detected Order ID */}
           {detectedOrderId && (
