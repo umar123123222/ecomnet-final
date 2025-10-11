@@ -16,6 +16,7 @@ interface OCRScannerProps {
   onScan: (data: { orderId?: string; trackingId?: string; rawData: string }) => void;
   title?: string;
   scanType: 'dispatch' | 'return';
+  initialScanMode?: 'qr' | 'ocr';
 }
 
 type ScanMode = 'qr' | 'ocr';
@@ -25,7 +26,8 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
   onClose,
   onScan,
   title = "Scan Order",
-  scanType
+  scanType,
+  initialScanMode = 'qr'
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -35,7 +37,9 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
   const ocrBusyRef = useRef(false);
   
   const [isScanning, setIsScanning] = useState(false);
-  const [scanMode, setScanMode] = useState<ScanMode>('qr');
+  const [isPaused, setIsPaused] = useState(false);
+  const [stopAfterFirst, setStopAfterFirst] = useState(false);
+  const [scanMode, setScanMode] = useState<ScanMode>(initialScanMode);
   const [error, setError] = useState<string | null>(null);
   const [detectedOrderId, setDetectedOrderId] = useState('');
   const [torchSupported, setTorchSupported] = useState(false);
@@ -324,6 +328,15 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
       setLastOcrText(text || '');
       setLastOcrConfidence(Math.round(confidence || 0));
 
+      // Stop after first recognition if enabled
+      if (stopAfterFirst && text && text.length > 0) {
+        setIsPaused(true);
+        if (scanIntervalRef.current) {
+          clearInterval(scanIntervalRef.current);
+          scanIntervalRef.current = null;
+        }
+      }
+
       // Only process for Order ID if confidence is above threshold
       if (text && confidence > 60) {
         const orderId = extractOrderId(text);
@@ -498,7 +511,7 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
         }
 
         // Start OCR processing at intervals after video is ready
-        scanIntervalRef.current = setInterval(processOCRFrame, 1200);
+        scanIntervalRef.current = setInterval(processOCRFrame, 1600);
       }
     } catch (error) {
       console.error('Error starting OCR scanning:', error);
@@ -524,9 +537,34 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
     }
   };
 
+  // Pause scanning
+  const pauseScanning = () => {
+    setIsPaused(true);
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
+    }
+  };
+
+  // Resume scanning
+  const resumeScanning = () => {
+    setIsPaused(false);
+    if (scanMode === 'ocr' && !scanIntervalRef.current) {
+      scanIntervalRef.current = setInterval(processOCRFrame, 1600);
+    }
+  };
+
+  // Scan once (manual trigger)
+  const scanOnce = async () => {
+    if (scanMode === 'ocr') {
+      await processOCRFrame();
+    }
+  };
+
   // Stop scanning
   const stopScanning = () => {
     setIsScanning(false);
+    setIsPaused(false);
     
     if (codeReader.current) {
       codeReader.current.reset();
@@ -737,7 +775,7 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
                 />
               </div>
               
-              <div className="flex items-center justify-between">
+               <div className="flex items-center justify-between">
                 <Label htmlFor="show-roi" className="text-xs font-medium cursor-pointer">
                   Show ROI Snapshot
                 </Label>
@@ -746,6 +784,19 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
                   type="checkbox"
                   checked={showRoiSnapshot}
                   onChange={(e) => setShowRoiSnapshot(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="stop-first" className="text-xs font-medium cursor-pointer">
+                  Stop after first recognition
+                </Label>
+                <input
+                  id="stop-first"
+                  type="checkbox"
+                  checked={stopAfterFirst}
+                  onChange={(e) => setStopAfterFirst(e.target.checked)}
                   className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
                 />
               </div>
@@ -798,13 +849,26 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
                           Position text clearly in this box
                         </div>
                       </div>
-                    </div>
-                  )}
+                     </div>
+                   )}
+                 </div>
+               )}
+
+              {/* Always-visible OCR text overlay */}
+              {scanMode === 'ocr' && isScanning && lastOcrText && (
+                <div className="absolute bottom-2 left-2 right-2 bg-black/80 text-white text-xs px-3 py-2 rounded">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium">Last read:</span>
+                    <Badge variant={lastOcrConfidence >= 60 ? 'default' : 'secondary'} className="text-xs">
+                      {lastOcrConfidence}%
+                    </Badge>
+                  </div>
+                  <div className="truncate">{lastOcrText}</div>
                 </div>
               )}
 
               {/* OCR Progress and Status */}
-              {scanMode === 'ocr' && ocrProgress > 0 && (
+              {scanMode === 'ocr' && ocrProgress > 0 && !lastOcrText && (
                 <div className="absolute bottom-2 left-2 right-2">
                   <div className="bg-black/70 text-white text-xs px-3 py-1.5 rounded-full text-center">
                     Scanning text: {ocrProgress}%
@@ -911,36 +975,59 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
           )}
 
           {/* Controls */}
-          <div className="flex gap-2">
-            {isScanning ? (
-              <>
+          <div className="space-y-2">
+            {/* Scan Control Buttons */}
+            {scanMode === 'ocr' && isScanning && (
+              <div className="flex gap-2">
                 <Button 
-                  onClick={stopScanning} 
-                  variant="destructive" 
+                  onClick={isPaused ? resumeScanning : pauseScanning}
+                  variant="outline"
                   className="flex-1"
                 >
-                  <CameraOff className="h-4 w-4 mr-2" />
-                  Stop
+                  {isPaused ? 'Resume' : 'Pause'}
                 </Button>
-                {torchSupported && (
-                  <Button
-                    onClick={toggleTorch}
-                    variant={torchEnabled ? 'default' : 'outline'}
-                    size="icon"
-                  >
-                    <Flashlight className="h-4 w-4" />
-                  </Button>
-                )}
-              </>
-            ) : (
-              <Button 
-                onClick={handleClose} 
-                variant="outline" 
-                className="flex-1"
-              >
-                Cancel
-              </Button>
+                <Button 
+                  onClick={scanOnce}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Scan Once
+                </Button>
+              </div>
             )}
+            
+            {/* Main Controls */}
+            <div className="flex gap-2">
+              {isScanning ? (
+                <>
+                  <Button 
+                    onClick={stopScanning} 
+                    variant="destructive" 
+                    className="flex-1"
+                  >
+                    <CameraOff className="h-4 w-4 mr-2" />
+                    Stop
+                  </Button>
+                  {torchSupported && (
+                    <Button
+                      onClick={toggleTorch}
+                      variant={torchEnabled ? 'default' : 'outline'}
+                      size="icon"
+                    >
+                      <Flashlight className="h-4 w-4" />
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <Button 
+                  onClick={handleClose} 
+                  variant="outline" 
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </DialogContent>

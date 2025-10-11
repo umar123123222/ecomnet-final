@@ -304,6 +304,7 @@ const DispatchDashboard = () => {
         onScan={handleScanDispatch}
         title="Scan Dispatch Package"
         scanType="dispatch"
+        initialScanMode="ocr"
       />
 
       {/* New Dispatch Dialog */}
