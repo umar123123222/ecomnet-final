@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Download, Scan, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter } from 'lucide-react';
+import { Search, Download, Scan, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, QrCode, Type } from 'lucide-react';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
@@ -54,6 +54,8 @@ const DispatchDashboard = () => {
   });
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [isScanningOpen, setIsScanningOpen] = useState(false);
+  const [scanModeSelectOpen, setScanModeSelectOpen] = useState(false);
+  const [selectedInitialMode, setSelectedInitialMode] = useState<'qr' | 'ocr'>('ocr');
   const [isNewDispatchOpen, setIsNewDispatchOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const { toast } = useToast();
@@ -250,7 +252,7 @@ const DispatchDashboard = () => {
             <Plus className="h-4 w-4 mr-2" />
             New Dispatch
           </Button>
-          <Button onClick={() => setIsScanningOpen(true)} variant="outline">
+          <Button onClick={() => setScanModeSelectOpen(true)} variant="outline">
             <Scan className="h-4 w-4 mr-2" />
             Scan
           </Button>
@@ -297,6 +299,41 @@ const DispatchDashboard = () => {
         </div>
       </div>
 
+      {/* Scan Mode Selection Dialog */}
+      <Dialog open={scanModeSelectOpen} onOpenChange={setScanModeSelectOpen}>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Choose Scan Mode</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <Button 
+              onClick={() => { 
+                setSelectedInitialMode('qr'); 
+                setScanModeSelectOpen(false); 
+                setIsScanningOpen(true); 
+              }}
+              variant="outline" 
+              className="h-20 flex-col gap-2"
+            >
+              <QrCode className="h-8 w-8" />
+              <span>QR / Barcode</span>
+            </Button>
+            <Button 
+              onClick={() => { 
+                setSelectedInitialMode('ocr'); 
+                setScanModeSelectOpen(false); 
+                setIsScanningOpen(true); 
+              }}
+              variant="outline"
+              className="h-20 flex-col gap-2"
+            >
+              <Type className="h-8 w-8" />
+              <span>Text (OCR)</span>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Scanner Component */}
       <OCRScanner
         isOpen={isScanningOpen}
@@ -304,7 +341,7 @@ const DispatchDashboard = () => {
         onScan={handleScanDispatch}
         title="Scan Dispatch Package"
         scanType="dispatch"
-        initialScanMode="ocr"
+        initialScanMode={selectedInitialMode}
       />
 
       {/* New Dispatch Dialog */}

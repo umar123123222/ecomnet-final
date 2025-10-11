@@ -47,16 +47,20 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
   const [ocrProgress, setOcrProgress] = useState(0);
   const [scanAttempts, setScanAttempts] = useState(0);
   const [showManualCapture, setShowManualCapture] = useState(false);
+  const [skipOrientation, setSkipOrientation] = useState(false);
+  const [lowConfidenceCount, setLowConfidenceCount] = useState(0);
+  const [confidenceTrend, setConfidenceTrend] = useState<number[]>([]);
+  const [showOcrSettings, setShowOcrSettings] = useState(false);
   
   // OCR text preview and settings
   const [lastOcrText, setLastOcrText] = useState('');
   const [lastOcrConfidence, setLastOcrConfidence] = useState(0);
   const [roiMode, setRoiMode] = useState<'narrow' | 'wide' | 'full'>('wide');
-  const [aggressiveBinarize, setAggressiveBinarize] = useState(false);
+  const [contrastLevel, setContrastLevel] = useState<'off' | 'medium' | 'high'>('off');
   const [showTextPreview, setShowTextPreview] = useState(true);
   const [psmMode, setPsmMode] = useState<'auto' | 'single' | 'sparse'>('auto');
-  const [showRoiSnapshot, setShowRoiSnapshot] = useState(false);
   const [roiSnapshotUrl, setRoiSnapshotUrl] = useState('');
+  const [averageBrightness, setAverageBrightness] = useState(128);
 
   const { toast } = useToast();
 
@@ -123,9 +127,9 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
     });
   };
 
-  // Helper to recognize text at multiple orientations
+  // Helper to recognize text at multiple orientations (optimized)
   const recognizeBestOrientation = async (dataUrl: string): Promise<{ text: string; conf: number }> => {
-    const rotations = [0, 90, 180, 270];
+    const rotations = [0, 180, 90, 270]; // Most likely orientations first
     let best = { text: '', conf: 0 };
     
     for (const angle of rotations) {
@@ -135,13 +139,13 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
       if (conf > best.conf) {
         best = { text: r.data.text || '', conf };
       }
-      if (best.conf >= 85) break; // early exit if very confident
+      if (best.conf >= 75) break; // early exit if confident
     }
     
     return best;
   };
 
-  // Initialize OCR worker with proper lifecycle
+  // Initialize OCR worker with proper parameters
   const initOCRWorker = async () => {
     try {
       if (!ocrWorker.current) {
@@ -153,10 +157,9 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
           }
         });
         
-        // Set PSM based on mode - default to PSM 6 (block of text)
         const psm = psmMode === 'single' ? '7' : psmMode === 'sparse' ? '11' : '6';
         await worker.setParameters({
-          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#:-_',
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#:-_ ',
           tessedit_pageseg_mode: psm as any,
           preserve_interword_spaces: '1',
           user_defined_dpi: '300'
@@ -227,20 +230,39 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
       const d = imgData.data;
       
       // Always convert to grayscale first
+      let brightnessSum = 0;
       for (let i = 0; i < d.length; i += 4) {
         const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
         d[i] = d[i + 1] = d[i + 2] = gray;
+        brightnessSum += gray;
       }
+      const avgBrightness = brightnessSum / (d.length / 4);
+      setAverageBrightness(avgBrightness);
       
-      if (aggressiveBinarize) {
-        // Adaptive threshold + light sharpen
+      if (contrastLevel === 'medium') {
+        // CLAHE-like histogram equalization (simplified)
+        const histogram = new Array(256).fill(0);
+        for (let i = 0; i < d.length; i += 4) {
+          histogram[d[i]]++;
+        }
+        const cdf = new Array(256).fill(0);
+        cdf[0] = histogram[0];
+        for (let i = 1; i < 256; i++) {
+          cdf[i] = cdf[i - 1] + histogram[i];
+        }
+        const cdfMin = cdf.find(v => v > 0) || 0;
+        const totalPixels = d.length / 4;
+        for (let i = 0; i < d.length; i += 4) {
+          const equalized = Math.round(((cdf[d[i]] - cdfMin) / (totalPixels - cdfMin)) * 255);
+          d[i] = d[i + 1] = d[i + 2] = equalized;
+        }
+      } else if (contrastLevel === 'high') {
+        // Adaptive threshold + sharpen
         let sum = 0;
         for (let i = 0; i < d.length; i += 4) {
           sum += d[i];
         }
         const mean = sum / (d.length / 4);
-        
-        // Clamp contrast to avoid over-thresholding
         const threshold = Math.max(80, Math.min(180, mean * 0.95));
         
         for (let i = 0; i < d.length; i += 4) {
@@ -248,18 +270,14 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
           d[i] = d[i + 1] = d[i + 2] = v;
         }
         
-        // Light sharpen pass (3x3 kernel)
+        // Sharpen
         const tempData = new Uint8ClampedArray(d);
         const w = roiCanvas.width;
         const h = roiCanvas.height;
         for (let y = 1; y < h - 1; y++) {
           for (let x = 1; x < w - 1; x++) {
             const i = (y * w + x) * 4;
-            const kernel = [
-              -0.1, -0.1, -0.1,
-              -0.1,  1.8, -0.1,
-              -0.1, -0.1, -0.1
-            ];
+            const kernel = [-0.1, -0.1, -0.1, -0.1, 1.8, -0.1, -0.1, -0.1, -0.1];
             let sum = 0;
             for (let ky = -1; ky <= 1; ky++) {
               for (let kx = -1; kx <= 1; kx++) {
@@ -276,15 +294,24 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
 
       const imageData = roiCanvas.toDataURL('image/png');
       
-      // Store ROI snapshot for debugging
-      if (showRoiSnapshot) {
-        setRoiSnapshotUrl(imageData);
-      }
+      // Always store ROI snapshot for real-time feedback
+      setRoiSnapshotUrl(imageData);
 
-      // OCR with orientation handling
-      const { text: recognizedText, conf: recognizedConf } = await recognizeBestOrientation(imageData);
-      let text = recognizedText;
-      let confidence = recognizedConf;
+      // OCR with conditional orientation handling
+      let text: string;
+      let confidence: number;
+
+      if (!skipOrientation && (scanAttempts === 0 || lastOcrConfidence < 40)) {
+        const { text: recognizedText, conf: recognizedConf } = await recognizeBestOrientation(imageData);
+        text = recognizedText;
+        confidence = recognizedConf;
+        if (confidence >= 75) setSkipOrientation(true); // Skip orientation trials after first success
+      } else {
+        // Just recognize at 0 degrees
+        const r = await ocrWorker.current.recognize(imageData);
+        text = r.data.text || '';
+        confidence = r.data.confidence || 0;
+      }
       
       // If auto mode and confidence is low, try different PSM modes
       if (psmMode === 'auto' && confidence < 60) {
@@ -327,6 +354,29 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
       // Always update the preview with what was recognized
       setLastOcrText(text || '');
       setLastOcrConfidence(Math.round(confidence || 0));
+      
+      // Update confidence trend
+      setConfidenceTrend(prev => [...prev.slice(-2), Math.round(confidence || 0)]);
+      
+      // Track low confidence reads
+      if (confidence < 40) {
+        setLowConfidenceCount(prev => prev + 1);
+        // Auto-pause after 5 consecutive low-confidence reads
+        if (lowConfidenceCount >= 4) {
+          setIsPaused(true);
+          if (scanIntervalRef.current) {
+            clearInterval(scanIntervalRef.current);
+            scanIntervalRef.current = null;
+          }
+          toast({
+            title: "Auto-paused",
+            description: "Low confidence detected. Tap 'Scan Once' to retry.",
+            variant: "default",
+          });
+        }
+      } else {
+        setLowConfidenceCount(0);
+      }
 
       // Stop after first recognition if enabled
       if (stopAfterFirst && text && text.length > 0) {
@@ -751,15 +801,34 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
               {/* Processing Options */}
               <div className="flex items-center justify-between">
                 <Label htmlFor="aggressive-contrast" className="text-xs font-medium cursor-pointer">
-                  Aggressive Contrast
+                  Contrast Level
                 </Label>
-                <input
-                  id="aggressive-contrast"
-                  type="checkbox"
-                  checked={aggressiveBinarize}
-                  onChange={(e) => setAggressiveBinarize(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-                />
+                <div className="flex gap-1">
+                  <Button
+                    variant={contrastLevel === 'off' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setContrastLevel('off')}
+                    className="text-xs px-2 py-1 h-6"
+                  >
+                    Off
+                  </Button>
+                  <Button
+                    variant={contrastLevel === 'medium' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setContrastLevel('medium')}
+                    className="text-xs px-2 py-1 h-6"
+                  >
+                    Med
+                  </Button>
+                  <Button
+                    variant={contrastLevel === 'high' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setContrastLevel('high')}
+                    className="text-xs px-2 py-1 h-6"
+                  >
+                    High
+                  </Button>
+                </div>
               </div>
 
               <div className="flex items-center justify-between">
@@ -771,19 +840,6 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
                   type="checkbox"
                   checked={showTextPreview}
                   onChange={(e) => setShowTextPreview(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-                />
-              </div>
-              
-               <div className="flex items-center justify-between">
-                <Label htmlFor="show-roi" className="text-xs font-medium cursor-pointer">
-                  Show ROI Snapshot
-                </Label>
-                <input
-                  id="show-roi"
-                  type="checkbox"
-                  checked={showRoiSnapshot}
-                  onChange={(e) => setShowRoiSnapshot(e.target.checked)}
                   className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
                 />
               </div>
@@ -915,12 +971,12 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
               {/* Low confidence tip */}
               {scanAttempts >= 5 && lastOcrConfidence < 40 && lastOcrText && (
                 <div className="text-xs text-yellow-600 dark:text-yellow-400">
-                  💡 Try: Move text to center, choose Full area, or turn off Aggressive Contrast
+                  💡 Try: Move text to center, choose Full area, or adjust Contrast Level
                 </div>
               )}
               
-              {/* ROI Snapshot for debugging */}
-              {showRoiSnapshot && roiSnapshotUrl && (
+              {/* ROI Snapshot - always show for debugging */}
+              {roiSnapshotUrl && (
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">ROI Snapshot (what OCR sees)</Label>
                   <img src={roiSnapshotUrl} alt="ROI" className="w-full border rounded" />
