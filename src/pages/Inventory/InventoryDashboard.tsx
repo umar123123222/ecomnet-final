@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2, Settings } from "lucide-react";
+import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2, Settings, X, Save, Filter } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { Inventory, Outlet, Product } from "@/types/inventory";
 import { StockAdjustmentDialog } from "@/components/inventory/StockAdjustmentDialog";
@@ -19,6 +21,7 @@ import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 const InventoryDashboard = () => {
   const { user } = useAuth();
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
+  const [presetName, setPresetName] = useState('');
 
   // Fetch products for the dialog
   const { data: products } = useQuery<Product[]>({
@@ -157,103 +160,224 @@ const InventoryDashboard = () => {
         </Card>
       </div>
 
-      {/* Advanced Filters */}
-      <AdvancedFilterPanel
-        filters={filters}
-        onFilterChange={updateFilter}
-        onCustomFilterChange={updateCustomFilter}
-        onReset={resetFilters}
-        activeFiltersCount={activeFiltersCount}
-        categoryOptions={categoryOptions}
-        customFilters={[
-          {
-            key: 'outlet',
-            label: 'Outlet',
-            options: outletOptions,
-          },
-          {
-            key: 'stockStatus',
-            label: 'Stock Status',
-            options: [
-              { value: 'in', label: 'In Stock' },
-              { value: 'low', label: 'Low Stock' },
-              { value: 'out', label: 'Out of Stock' },
-            ],
-          },
-        ]}
-        savedPresets={savedPresets}
-        onSavePreset={savePreset}
-        onLoadPreset={loadPreset}
-        onDeletePreset={deletePreset}
-      />
-
-      {/* Inventory Table */}
+      {/* Inventory Table with Integrated Filters */}
       <Card>
-        <CardHeader>
-          <CardTitle>Inventory Items ({filteredInventory?.length || 0})</CardTitle>
-          <CardDescription>View and manage stock levels</CardDescription>
-        </CardHeader>
-        <CardContent>
+        {/* Integrated Filter Bar */}
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between p-4 bg-muted/30 rounded-t-lg border-b">
+          {/* Left side - Quick filters */}
+          <div className="flex flex-1 gap-3 flex-wrap items-center">
+            {/* Search */}
+            <div className="flex-1 min-w-[200px]">
+              <Input
+                placeholder="Search products, SKU, outlet..."
+                value={filters.search}
+                onChange={(e) => updateFilter('search', e.target.value)}
+                className="h-9"
+              />
+            </div>
+            
+            {/* Category Filter */}
+            <Select value={filters.category} onValueChange={(value) => updateFilter('category', value)}>
+              <SelectTrigger className="w-[140px] h-9">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categoryOptions.map(cat => (
+                  <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            {/* Stock Status Quick Filter */}
+            <Select
+              value={filters.customValues?.stockStatus || 'all'}
+              onValueChange={(value) => updateCustomFilter('stockStatus', value)}
+            >
+              <SelectTrigger className="w-[140px] h-9">
+                <SelectValue placeholder="Stock Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Stock</SelectItem>
+                <SelectItem value="in">In Stock</SelectItem>
+                <SelectItem value="low">Low Stock</SelectItem>
+                <SelectItem value="out">Out of Stock</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            {/* Active filters badge */}
+            {activeFiltersCount > 0 && (
+              <Badge variant="secondary" className="h-9 px-3">
+                {activeFiltersCount} filters
+              </Badge>
+            )}
+          </div>
+          
+          {/* Right side - Advanced filters button */}
+          <div className="flex gap-2">
+            {activeFiltersCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={resetFilters}>
+                <X className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            )}
+            
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Filter className="h-4 w-4 mr-1" />
+                  More Filters
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Advanced Filters</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  {/* Outlet Filter */}
+                  <div>
+                    <Label>Outlet</Label>
+                    <Select
+                      value={filters.customValues?.outlet || 'all'}
+                      onValueChange={(value) => updateCustomFilter('outlet', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="All Outlets" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Outlets</SelectItem>
+                        {outletOptions.map(outlet => (
+                          <SelectItem key={outlet.value} value={outlet.value}>
+                            {outlet.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Saved Presets Section */}
+                  {savedPresets.length > 0 && (
+                    <div>
+                      <Label>Saved Filter Presets</Label>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {savedPresets.map(preset => (
+                          <div key={preset.id} className="flex items-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => loadPreset(preset.id)}
+                            >
+                              {preset.name}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deletePreset(preset.id)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Save Current Filters as Preset */}
+                  {activeFiltersCount > 0 && (
+                    <div className="pt-4 border-t">
+                      <Label>Save Current Filters</Label>
+                      <div className="flex gap-2 mt-2">
+                        <Input
+                          placeholder="Preset name..."
+                          value={presetName}
+                          onChange={(e) => setPresetName(e.target.value)}
+                        />
+                        <Button onClick={() => {
+                          if (presetName.trim()) {
+                            savePreset(presetName);
+                            setPresetName('');
+                          }
+                        }}>
+                          <Save className="h-4 w-4 mr-1" />
+                          Save
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
+        {/* Table Content */}
+        <CardContent className="p-0">
           {isLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
             </div>
           ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>SKU</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Outlet</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right">Reserved</TableHead>
-                    <TableHead className="text-right">Available</TableHead>
-                    <TableHead className="text-right">Reorder Level</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredInventory && filteredInventory.length > 0 ? (
-                    filteredInventory.map((item) => {
-                      const isLowStock = item.available_quantity <= (item.product?.reorder_level || 0);
-                      const isOutOfStock = item.available_quantity === 0;
-                      
-                      return (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-mono text-sm">{item.product?.sku}</TableCell>
-                          <TableCell className="font-medium">{item.product?.name}</TableCell>
-                          <TableCell>{item.outlet?.name}</TableCell>
-                          <TableCell className="text-right">{item.quantity}</TableCell>
-                          <TableCell className="text-right">{item.reserved_quantity}</TableCell>
-                          <TableCell className="text-right font-medium">{item.available_quantity}</TableCell>
-                          <TableCell className="text-right">{item.product?.reorder_level || 10}</TableCell>
-                          <TableCell>
-                            {isOutOfStock ? (
-                              <Badge variant="destructive">Out of Stock</Badge>
-                            ) : isLowStock ? (
-                              <Badge variant="outline" className="border-orange-500 text-orange-500">
-                                Low Stock
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="border-green-500 text-green-500">
-                                In Stock
-                              </Badge>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  ) : (
+            <>
+              <div className="px-4 py-2 bg-muted/50 text-sm text-muted-foreground border-b">
+                Showing {filteredInventory?.length || 0} items
+              </div>
+              <div className="rounded-b-lg border-t-0">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                        No inventory items found
-                      </TableCell>
+                      <TableHead>SKU</TableHead>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Outlet</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Reserved</TableHead>
+                      <TableHead className="text-right">Available</TableHead>
+                      <TableHead className="text-right">Reorder Level</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredInventory && filteredInventory.length > 0 ? (
+                      filteredInventory.map((item) => {
+                        const isLowStock = item.available_quantity <= (item.product?.reorder_level || 0);
+                        const isOutOfStock = item.available_quantity === 0;
+                        
+                        return (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-mono text-sm">{item.product?.sku}</TableCell>
+                            <TableCell className="font-medium">{item.product?.name}</TableCell>
+                            <TableCell>{item.outlet?.name}</TableCell>
+                            <TableCell className="text-right">{item.quantity}</TableCell>
+                            <TableCell className="text-right">{item.reserved_quantity}</TableCell>
+                            <TableCell className="text-right font-medium">{item.available_quantity}</TableCell>
+                            <TableCell className="text-right">{item.product?.reorder_level || 10}</TableCell>
+                            <TableCell>
+                              {isOutOfStock ? (
+                                <Badge variant="destructive">Out of Stock</Badge>
+                              ) : isLowStock ? (
+                                <Badge variant="outline" className="border-orange-500 text-orange-500">
+                                  Low Stock
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="border-green-500 text-green-500">
+                                  In Stock
+                                </Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                          No inventory items found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
