@@ -85,12 +85,12 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
     return null;
   };
 
-  // Initialize OCR worker
+  // Initialize OCR worker with proper lifecycle
   const initOCRWorker = async () => {
     try {
       if (!ocrWorker.current) {
         ocrWorker.current = await createWorker('eng', 1, {
-          logger: (m) => {
+          logger: (m: any) => {
             if (m.status === 'recognizing text') {
               setOcrProgress(Math.round(m.progress * 100));
             }
@@ -98,7 +98,7 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
         });
         await ocrWorker.current.setParameters({
           tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#:-_',
-          tessedit_pageseg_mode: '7', // Treat image as a single text line
+          tessedit_pageseg_mode: '6', // Uniform block of text
           preserve_interword_spaces: '1',
           user_defined_dpi: '300'
         });
@@ -114,6 +114,9 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
 
     try {
       const video = videoRef.current;
+      
+      // Guard: ensure video has valid dimensions
+      if (video.videoWidth < 2 || video.videoHeight < 2) return;
 
       // Define a centered region of interest (ROI) where users place the text
       const roiW = Math.floor(video.videoWidth * 0.8);
@@ -247,15 +250,7 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
       }
 
       if (videoRef.current) {
-        // Wait for video to be ready before starting decode
-        await new Promise<void>((resolve) => {
-          if (videoRef.current) {
-            videoRef.current.onloadedmetadata = () => {
-              resolve();
-            };
-          }
-        });
-
+        // Let zxing manage the camera stream directly - no manual waiting
         await codeReader.current.decodeFromVideoDevice(
           selectedDeviceId,
           videoRef.current,
@@ -277,16 +272,21 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
             if (!result && !error) {
               setScanAttempts(prev => prev + 1);
             }
+            if (error && error.message && !error.message.includes('No MultiFormat Readers')) {
+              console.error('QR scan error:', error);
+            }
           }
         );
 
-        // Check for torch support
-        const track = videoRef.current.srcObject && 
-          (videoRef.current.srcObject as MediaStream).getVideoTracks()[0];
-        if (track && 'getCapabilities' in track) {
-          const capabilities = track.getCapabilities() as any;
-          setTorchSupported(!!capabilities.torch);
-        }
+        // Check for torch support after stream is established
+        setTimeout(() => {
+          const track = videoRef.current?.srcObject && 
+            (videoRef.current.srcObject as MediaStream).getVideoTracks()[0];
+          if (track && 'getCapabilities' in track) {
+            const capabilities = track.getCapabilities() as any;
+            setTorchSupported(!!capabilities.torch);
+          }
+        }, 500);
       }
     } catch (error) {
       console.error('Error starting QR scanning:', error);
@@ -309,7 +309,17 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        await videoRef.current.play();
+
+        // Wait for video metadata to be loaded before starting OCR
+        await new Promise<void>((resolve) => {
+          const v = videoRef.current;
+          if (!v) return resolve();
+          if (v.readyState >= 2 && v.videoWidth > 0) {
+            return resolve();
+          }
+          v.onloadedmetadata = () => resolve();
+        });
 
         // Check for torch support
         const track = stream.getVideoTracks()[0];
@@ -318,12 +328,12 @@ const OCRScanner: React.FC<OCRScannerProps> = ({
           setTorchSupported(!!capabilities.torch);
         }
 
-        // Start OCR processing at intervals
+        // Start OCR processing at intervals after video is ready
         scanIntervalRef.current = setInterval(processOCRFrame, 1200);
       }
     } catch (error) {
       console.error('Error starting OCR scanning:', error);
-      setError('Failed to access camera');
+      setError('Failed to access camera. Please check permissions.');
     }
   };
 
