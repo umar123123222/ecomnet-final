@@ -71,6 +71,12 @@ const PurchaseOrderDashboard = lazy(() =>
 const ReceivingDashboard = lazy(() => 
   import("@/pages/Receiving/ReceivingDashboard").then(module => ({ default: module.default }))
 );
+const StockAuditDashboard = lazy(() => 
+  import("@/pages/StockAudit/StockAuditDashboard").then(module => ({ default: module.default }))
+);
+const VarianceManagement = lazy(() => 
+  import("@/pages/VarianceManagement/VarianceManagement").then(module => ({ default: module.default }))
+);
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ActivityLogs = lazy(() => 
   import("@/pages/ActivityLogs/ActivityLogs").then(module => ({ default: module.default }))
@@ -224,6 +230,16 @@ const App = () => {
                 <Route path="receiving" element={
                   <Suspense fallback={<PageLoader />}>
                     <ReceivingDashboard />
+                  </Suspense>
+                } />
+                <Route path="stock-audit" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <StockAuditDashboard />
+                  </Suspense>
+                } />
+                <Route path="variance-management" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <VarianceManagement />
                   </Suspense>
                 } />
                 <Route path="activity-logs" element={

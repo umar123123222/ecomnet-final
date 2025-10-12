@@ -32,6 +32,8 @@ export const getRolePermissions = (role: UserRole) => {
     canAccessSuppliers: false,
     canAccessPurchaseOrders: false,
     canAccessReceiving: false,
+    canAccessStockAudit: false,
+    canAccessVarianceManagement: false,
   };
 
   switch (role) {
@@ -59,6 +61,8 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessSuppliers: true,
         canAccessPurchaseOrders: true,
         canAccessReceiving: true,
+        canAccessStockAudit: true,
+        canAccessVarianceManagement: true,
       };
     
     case 'super_manager':
@@ -85,6 +89,8 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessSuppliers: true,
         canAccessPurchaseOrders: true,
         canAccessReceiving: true,
+        canAccessStockAudit: true,
+        canAccessVarianceManagement: true,
         // No admin panel access
       };
     
@@ -107,6 +113,8 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessSuppliers: true,
         canAccessPurchaseOrders: true,
         canAccessReceiving: true,
+        canAccessStockAudit: true,
+        canAccessVarianceManagement: true,
       };
     
     case 'warehouse_manager':
@@ -123,6 +131,8 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessSuppliers: true,
         canAccessPurchaseOrders: true,
         canAccessReceiving: true,
+        canAccessStockAudit: true,
+        canAccessVarianceManagement: true,
       };
     
     case 'dispatch_manager':
@@ -271,7 +281,7 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     });
   }
 
-  if (permissions.canAccessSuppliers || permissions.canAccessPurchaseOrders || permissions.canAccessReceiving) {
+  if (permissions.canAccessSuppliers || permissions.canAccessPurchaseOrders || permissions.canAccessReceiving || permissions.canAccessStockAudit || permissions.canAccessVarianceManagement) {
     const supplierSubItems: NavigationItem[] = [];
     
     if (permissions.canAccessSuppliers) {
@@ -282,6 +292,12 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     }
     if (permissions.canAccessReceiving) {
       supplierSubItems.push({ label: 'Receiving', href: '/receiving', icon: '' });
+    }
+    if (permissions.canAccessStockAudit) {
+      supplierSubItems.push({ label: 'Stock Audit', href: '/stock-audit', icon: '' });
+    }
+    if (permissions.canAccessVarianceManagement) {
+      supplierSubItems.push({ label: 'Variance Management', href: '/variance-management', icon: '' });
     }
 
     items.push({

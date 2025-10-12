@@ -172,6 +172,96 @@ export type Database = {
           },
         ]
       }
+      count_variances: {
+        Row: {
+          assigned_to: string | null
+          corrective_action: string | null
+          count_item_id: string
+          created_at: string | null
+          id: string
+          outlet_id: string
+          product_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          root_cause: string | null
+          severity: string | null
+          status: string | null
+          updated_at: string | null
+          variance: number
+          variance_value: number
+        }
+        Insert: {
+          assigned_to?: string | null
+          corrective_action?: string | null
+          count_item_id: string
+          created_at?: string | null
+          id?: string
+          outlet_id: string
+          product_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          root_cause?: string | null
+          severity?: string | null
+          status?: string | null
+          updated_at?: string | null
+          variance: number
+          variance_value: number
+        }
+        Update: {
+          assigned_to?: string | null
+          corrective_action?: string | null
+          count_item_id?: string
+          created_at?: string | null
+          id?: string
+          outlet_id?: string
+          product_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          root_cause?: string | null
+          severity?: string | null
+          status?: string | null
+          updated_at?: string | null
+          variance?: number
+          variance_value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "count_variances_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "count_variances_count_item_id_fkey"
+            columns: ["count_item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_count_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "count_variances_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "count_variances_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "count_variances_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           address: string | null
@@ -1363,6 +1453,222 @@ export type Database = {
         }
         Relationships: []
       }
+      stock_count_items: {
+        Row: {
+          count_id: string
+          counted_at: string | null
+          counted_by: string
+          counted_quantity: number
+          created_at: string | null
+          id: string
+          notes: string | null
+          outlet_id: string
+          product_id: string
+          recount_count: number | null
+          recount_required: boolean | null
+          system_quantity: number
+          unit_cost: number | null
+          variance: number | null
+          variance_percentage: number | null
+          variance_reason: string | null
+          variance_value: number | null
+        }
+        Insert: {
+          count_id: string
+          counted_at?: string | null
+          counted_by: string
+          counted_quantity: number
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          outlet_id: string
+          product_id: string
+          recount_count?: number | null
+          recount_required?: boolean | null
+          system_quantity: number
+          unit_cost?: number | null
+          variance?: number | null
+          variance_percentage?: number | null
+          variance_reason?: string | null
+          variance_value?: number | null
+        }
+        Update: {
+          count_id?: string
+          counted_at?: string | null
+          counted_by?: string
+          counted_quantity?: number
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          outlet_id?: string
+          product_id?: string
+          recount_count?: number | null
+          recount_required?: boolean | null
+          system_quantity?: number
+          unit_cost?: number | null
+          variance?: number | null
+          variance_percentage?: number | null
+          variance_reason?: string | null
+          variance_value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_count_items_count_id_fkey"
+            columns: ["count_id"]
+            isOneToOne: false
+            referencedRelation: "stock_counts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_count_items_counted_by_fkey"
+            columns: ["counted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_count_items_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_count_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_count_schedules: {
+        Row: {
+          assigned_to: string | null
+          count_type: string
+          created_at: string | null
+          frequency: string | null
+          id: string
+          next_count_date: string | null
+          outlet_id: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          count_type: string
+          created_at?: string | null
+          frequency?: string | null
+          id?: string
+          next_count_date?: string | null
+          outlet_id: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          count_type?: string
+          created_at?: string | null
+          frequency?: string | null
+          id?: string
+          next_count_date?: string | null
+          outlet_id?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_count_schedules_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_count_schedules_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_counts: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          completed_at: string | null
+          count_number: string
+          count_type: string
+          created_at: string | null
+          id: string
+          items_with_variance: number | null
+          notes: string | null
+          outlet_id: string
+          started_at: string | null
+          started_by: string
+          status: string | null
+          total_items_counted: number | null
+          total_variance_value: number | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          completed_at?: string | null
+          count_number: string
+          count_type: string
+          created_at?: string | null
+          id?: string
+          items_with_variance?: number | null
+          notes?: string | null
+          outlet_id: string
+          started_at?: string | null
+          started_by: string
+          status?: string | null
+          total_items_counted?: number | null
+          total_variance_value?: number | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          completed_at?: string | null
+          count_number?: string
+          count_type?: string
+          created_at?: string | null
+          id?: string
+          items_with_variance?: number | null
+          notes?: string | null
+          outlet_id?: string
+          started_at?: string | null
+          started_by?: string
+          status?: string | null
+          total_items_counted?: number | null
+          total_variance_value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_counts_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_counts_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_counts_started_by_fkey"
+            columns: ["started_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_movements: {
         Row: {
           created_at: string
@@ -1843,6 +2149,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_variance_severity: {
+        Args: { variance_value: number }
+        Returns: string
+      }
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["user_role"]
