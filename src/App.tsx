@@ -62,6 +62,15 @@ const LocationsDashboard = lazy(() =>
 const WarehousesDashboard = lazy(() => 
   import("@/pages/Warehouses/WarehousesDashboard").then(module => ({ default: module.default }))
 );
+const SupplierManagement = lazy(() => 
+  import("@/pages/Suppliers/SupplierManagement").then(module => ({ default: module.default }))
+);
+const PurchaseOrderDashboard = lazy(() => 
+  import("@/pages/PurchaseOrders/PurchaseOrderDashboard").then(module => ({ default: module.default }))
+);
+const ReceivingDashboard = lazy(() => 
+  import("@/pages/Receiving/ReceivingDashboard").then(module => ({ default: module.default }))
+);
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ActivityLogs = lazy(() => 
   import("@/pages/ActivityLogs/ActivityLogs").then(module => ({ default: module.default }))
@@ -200,6 +209,21 @@ const App = () => {
                 <Route path="warehouses" element={
                   <Suspense fallback={<PageLoader />}>
                     <WarehousesDashboard />
+                  </Suspense>
+                } />
+                <Route path="suppliers" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <SupplierManagement />
+                  </Suspense>
+                } />
+                <Route path="purchase-orders" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <PurchaseOrderDashboard />
+                  </Suspense>
+                } />
+                <Route path="receiving" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <ReceivingDashboard />
                   </Suspense>
                 } />
                 <Route path="activity-logs" element={

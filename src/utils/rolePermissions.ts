@@ -29,6 +29,9 @@ export const getRolePermissions = (role: UserRole) => {
     canAccessLocations: false,
     canAccessWarehouses: false,
     canAccessActivityLogs: false,
+    canAccessSuppliers: false,
+    canAccessPurchaseOrders: false,
+    canAccessReceiving: false,
   };
 
   switch (role) {
@@ -53,6 +56,9 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessLocations: true,
         canAccessWarehouses: true,
         canAccessActivityLogs: true,
+        canAccessSuppliers: true,
+        canAccessPurchaseOrders: true,
+        canAccessReceiving: true,
       };
     
     case 'super_manager':
@@ -76,6 +82,9 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessLocations: true,
         canAccessWarehouses: true,
         canAccessActivityLogs: true,
+        canAccessSuppliers: true,
+        canAccessPurchaseOrders: true,
+        canAccessReceiving: true,
         // No admin panel access
       };
     
@@ -95,6 +104,9 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessLocations: true,
         canAccessWarehouses: true,
         canAccessSettings: true,
+        canAccessSuppliers: true,
+        canAccessPurchaseOrders: true,
+        canAccessReceiving: true,
       };
     
     case 'warehouse_manager':
@@ -108,6 +120,9 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessLocations: true,
         canAccessWarehouses: true,
         canAccessSettings: true,
+        canAccessSuppliers: true,
+        canAccessPurchaseOrders: true,
+        canAccessReceiving: true,
       };
     
     case 'dispatch_manager':
@@ -253,6 +268,27 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       label: 'Warehouses',
       href: '/warehouses',
       icon: 'Warehouse'
+    });
+  }
+
+  if (permissions.canAccessSuppliers || permissions.canAccessPurchaseOrders || permissions.canAccessReceiving) {
+    const supplierSubItems: NavigationItem[] = [];
+    
+    if (permissions.canAccessSuppliers) {
+      supplierSubItems.push({ label: 'Suppliers', href: '/suppliers', icon: '' });
+    }
+    if (permissions.canAccessPurchaseOrders) {
+      supplierSubItems.push({ label: 'Purchase Orders', href: '/purchase-orders', icon: '' });
+    }
+    if (permissions.canAccessReceiving) {
+      supplierSubItems.push({ label: 'Receiving', href: '/receiving', icon: '' });
+    }
+
+    items.push({
+      label: 'Procurement',
+      href: '/suppliers',
+      icon: 'Truck',
+      subItems: supplierSubItems
     });
   }
 

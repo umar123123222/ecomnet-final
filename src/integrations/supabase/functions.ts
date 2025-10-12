@@ -125,3 +125,72 @@ export const getLowStockAlerts = async (request: LowStockAlertsRequest) => {
   if (error) throw error;
   return data;
 };
+
+// ============================================
+// PURCHASE ORDERS
+// ============================================
+
+export interface PurchaseOrderRequest {
+  action: 'create' | 'approve' | 'cancel';
+  data: {
+    po_id?: string;
+    supplier_id?: string;
+    outlet_id?: string;
+    items?: Array<{
+      product_id: string;
+      quantity_ordered: number;
+      unit_price: number;
+      tax_rate?: number;
+      discount_rate?: number;
+      notes?: string;
+    }>;
+    expected_delivery_date?: string;
+    notes?: string;
+    terms_conditions?: string;
+    tax_amount?: number;
+    discount_amount?: number;
+    shipping_cost?: number;
+  };
+}
+
+export const managePurchaseOrder = async (request: PurchaseOrderRequest) => {
+  const { data, error } = await supabase.functions.invoke('manage-purchase-order', {
+    body: request,
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+// ============================================
+// GOODS RECEIVING
+// ============================================
+
+export interface GRNRequest {
+  action: 'create' | 'accept' | 'reject';
+  data: {
+    grn_id?: string;
+    po_id?: string;
+    items?: Array<{
+      po_item_id: string;
+      product_id: string;
+      quantity_expected: number;
+      quantity_received: number;
+      unit_cost: number;
+      batch_number?: string;
+      expiry_date?: string;
+      notes?: string;
+    }>;
+    notes?: string;
+    rejection_reason?: string;
+  };
+}
+
+export const processGRN = async (request: GRNRequest) => {
+  const { data, error } = await supabase.functions.invoke('process-grn', {
+    body: request,
+  });
+
+  if (error) throw error;
+  return data;
+};
