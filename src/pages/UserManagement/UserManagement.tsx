@@ -26,7 +26,7 @@ import { UserRole } from '@/types/auth';
 const userSchema = z.object({
   full_name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email'),
-  password: z.string().min(8, 'Password must be at least 8 characters').optional(),
+  password: z.string().min(8, 'Password must be at least 8 characters').or(z.literal('')).optional(),
   roles: z.array(z.string()).min(1, 'At least one role is required')
 });
 type UserFormData = z.infer<typeof userSchema>;
@@ -224,6 +224,7 @@ const UserManagement = () => {
     addUserMutation.mutate(data);
   };
   const handleEditUser = (data: UserFormData) => {
+    console.log('Editing user:', { userId: selectedUser?.id, data: { ...data, password: data.password ? '***' : '(empty)' } });
     if (selectedUser) {
       updateUserMutation.mutate({
         userId: selectedUser.id,
@@ -245,6 +246,7 @@ const UserManagement = () => {
     const userRoles = user.user_roles?.map(ur => ur.role) || [user.role];
     form.setValue('full_name', user.full_name);
     form.setValue('email', user.email);
+    form.setValue('password', ''); // Explicitly clear password field
     form.setValue('roles', userRoles);
     setIsEditUserOpen(true);
   };
