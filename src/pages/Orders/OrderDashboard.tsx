@@ -24,6 +24,8 @@ import { AdvancedFilterPanel } from '@/components/AdvancedFilterPanel';
 import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
 import { BulkOperationsPanel } from '@/components/BulkOperationsPanel';
 import { bulkUpdateOrderStatus, bulkUpdateOrderCourier, bulkAssignOrders, exportToCSV } from '@/utils/bulkOperations';
+import { useToast } from '@/hooks/use-toast';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
 const OrderDashboard = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
@@ -48,53 +50,87 @@ const OrderDashboard = () => {
   const [dispatchOrderId, setDispatchOrderId] = useState<string>("");
   const [isDispatchDialogOpen, setIsDispatchDialogOpen] = useState(false);
   const [presetName, setPresetName] = useState('');
+  const [page, setPage] = useState(0);
+  const [pageSize] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
 
   const { user } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
+  const { toast } = useToast();
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      console.log('Fetching orders...');
-      const {
-        data,
-        error
-      } = await supabase.from('orders').select(`
-          *,
-          order_items (
-            item_name,
-            quantity,
-            price
-          ),
-          assigned_to_profile:profiles!orders_assigned_to_fkey(
-            id,
-            full_name,
-            email
-          )
-        `).order('created_at', {
-        ascending: false
-      });
-      console.log('Supabase response:', {
-        data,
-        error
-      });
-      if (error) {
-        console.error('Error fetching orders:', error);
-        // Still try to show any data we got
+      const offset = page * pageSize;
+      
+      // 1. Get base orders with pagination and count
+      const { data: baseOrders, error: ordersError, count } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + pageSize - 1);
+
+      if (ordersError) {
+        console.error('Error fetching orders:', ordersError);
+        toast({
+          title: "Error loading orders",
+          description: ordersError.message,
+          variant: "destructive"
+        });
+        setOrders([]);
+        return;
       }
 
-      // Process data even if empty array to show proper state
-      console.log('Processing orders:', data?.length || 0);
-      const formattedOrders = (data || []).map(order => {
-        // Separate order notes (plain text) from user comments (structured)
+      if (!baseOrders || baseOrders.length === 0) {
+        setOrders([]);
+        setTotalCount(0);
+        return;
+      }
+
+      setTotalCount(count || 0);
+
+      // 2. Collect IDs for batch fetching related data
+      const orderIds = baseOrders.map(o => o.id);
+      const assignedIds = baseOrders
+        .map(o => o.assigned_to)
+        .filter((id): id is string => id != null);
+
+      // 3. Fetch related data in parallel
+      const [itemsResult, profilesResult] = await Promise.all([
+        supabase
+          .from('order_items')
+          .select('item_name, quantity, price, order_id')
+          .in('order_id', orderIds),
+        assignedIds.length > 0
+          ? supabase
+              .from('profiles')
+              .select('id, full_name, email')
+              .in('id', assignedIds)
+          : Promise.resolve({ data: [], error: null })
+      ]);
+
+      // 4. Build lookup maps
+      const itemsByOrderId = new Map<string, any[]>();
+      (itemsResult.data || []).forEach(item => {
+        if (!itemsByOrderId.has(item.order_id)) {
+          itemsByOrderId.set(item.order_id, []);
+        }
+        itemsByOrderId.get(item.order_id)!.push(item);
+      });
+
+      const profilesById = new Map<string, any>();
+      (profilesResult.data || []).forEach(profile => {
+        profilesById.set(profile.id, profile);
+      });
+
+      // 5. Merge data and format orders
+      const formattedOrders = baseOrders.map(order => {
         let orderNotes = '';
         let userComments = [];
         
-        // Handle plain text order notes
         if (order.notes && typeof order.notes === 'string') {
           orderNotes = order.notes;
         }
         
-        // Handle structured user comments (separate field)
         if (order.comments) {
           try {
             if (typeof order.comments === 'string') {
@@ -103,7 +139,6 @@ const OrderDashboard = () => {
               userComments = order.comments;
             }
           } catch (e) {
-            console.warn('Failed to parse comments:', e);
             userComments = [];
           }
         }
@@ -124,9 +159,9 @@ const OrderDashboard = () => {
           totalPrice: order.total_amount || 0,
           orderType: order.order_type || 'COD',
           city: order.city,
-          items: order.order_items || [],
+          items: itemsByOrderId.get(order.id) || [],
           assignedTo: order.assigned_to,
-          assignedToProfile: order.assigned_to_profile,
+          assignedToProfile: order.assigned_to ? profilesById.get(order.assigned_to) : null,
           dispatchedAt: order.dispatched_at ? new Date(order.dispatched_at).toLocaleString() : 'N/A',
           deliveredAt: order.delivered_at ? new Date(order.delivered_at).toLocaleString() : 'N/A',
           orderNotes: orderNotes,
@@ -134,6 +169,7 @@ const OrderDashboard = () => {
           tags: []
         };
       });
+
       setOrders(formattedOrders);
 
       // Calculate summary data
@@ -146,14 +182,20 @@ const OrderDashboard = () => {
         returns: formattedOrders.filter(o => o.status === 'returned').length
       });
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Unexpected error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load orders. Please try again.",
+        variant: "destructive"
+      });
+      setOrders([]);
     } finally {
       setLoading(false);
     }
   };
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [page]);
 
   // Bulk operations
   const bulkOperations: BulkOperation[] = [
@@ -823,6 +865,43 @@ const OrderDashboard = () => {
           </Table>
         </CardContent>
       </Card>
+      
+      {/* Pagination */}
+      {totalCount > pageSize && (
+        <Card className="mt-4">
+          <CardContent className="pt-6">
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.max(0, p - 1))}
+                    disabled={page === 0}
+                  >
+                    Previous
+                  </Button>
+                </PaginationItem>
+                <PaginationItem>
+                  <span className="text-sm px-4">
+                    Page {page + 1} of {Math.ceil(totalCount / pageSize)} ({totalCount} total)
+                  </span>
+                </PaginationItem>
+                <PaginationItem>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => p + 1)}
+                    disabled={(page + 1) * pageSize >= totalCount}
+                  >
+                    Next
+                  </Button>
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </CardContent>
+        </Card>
+      )}
       
       {/* New Dispatch Dialog */}
       <NewDispatchDialog 
