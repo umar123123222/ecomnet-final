@@ -51,7 +51,10 @@ const OrderDashboard = () => {
   const [isDispatchDialogOpen, setIsDispatchDialogOpen] = useState(false);
   const [presetName, setPresetName] = useState('');
   const [page, setPage] = useState(0);
-  const [pageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(() => {
+    const saved = localStorage.getItem('orders_page_size');
+    return saved ? Number(saved) : 50;
+  });
   const [totalCount, setTotalCount] = useState(0);
 
   const { user } = useAuth();
@@ -154,6 +157,7 @@ const OrderDashboard = () => {
           status: order.status,
           amount: `PKR ${order.total_amount?.toLocaleString() || '0'}`,
           date: new Date(order.created_at || '').toLocaleDateString(),
+          createdAtISO: order.created_at,
           address: order.customer_address,
           gptScore: order.gpt_score || 0,
           totalPrice: order.total_amount || 0,
@@ -172,9 +176,9 @@ const OrderDashboard = () => {
 
       setOrders(formattedOrders);
 
-      // Calculate summary data
+      // Calculate summary data from current page
       setSummaryData({
-        totalOrders: formattedOrders.length,
+        totalOrders: count || 0,
         booked: formattedOrders.filter(o => o.status === 'booked').length,
         dispatched: formattedOrders.filter(o => o.status === 'dispatched').length,
         delivered: formattedOrders.filter(o => o.status === 'delivered').length,
@@ -195,7 +199,18 @@ const OrderDashboard = () => {
   };
   useEffect(() => {
     fetchOrders();
-  }, [page]);
+  }, [page, pageSize]);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    localStorage.setItem('orders_page_size', String(newSize));
+    setPage(0);
+  };
+
+  const handleNewOrderCreated = async () => {
+    setPage(0);
+    await fetchOrders();
+  };
 
   // Bulk operations
   const bulkOperations: BulkOperation[] = [
@@ -271,7 +286,7 @@ const OrderDashboard = () => {
   };
   const summaryCards = [{
     title: 'Total Orders',
-    value: summaryData.totalOrders.toLocaleString(),
+    value: totalCount.toLocaleString(),
     color: 'bg-blue-500'
   }, {
     title: 'Booked',
@@ -482,23 +497,33 @@ const OrderDashboard = () => {
   } = useAdvancedFilters(orders, {
     searchFields: ['trackingId', 'customer', 'id', 'email', 'phone', 'city'],
     statusField: 'status',
-    dateField: 'date',
+    dateField: 'createdAtISO',
     amountField: 'totalPrice',
     customFilters: {
       courier: (order, value) => order.courier?.toLowerCase() === value.toLowerCase(),
       orderType: (order, value) => order.orderType === value,
     },
   });
+
+  const start = page * pageSize + 1;
+  const end = Math.min((page + 1) * pageSize, totalCount);
+  const totalPages = Math.ceil(totalCount / pageSize);
   return <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Order Management</h1>
-            <p className="text-gray-600 mt-1">Manage and track all your orders</p>
+            <p className="text-gray-600 mt-1">
+              {totalCount > 0 ? `Showing ${start}–${end} of ${totalCount.toLocaleString()} orders` : 'Manage and track all your orders'}
+            </p>
           </div>
           <div className="flex items-center gap-3">
-            <NewOrderDialog onOrderCreated={fetchOrders} />
+            <Button variant="outline" onClick={fetchOrders} size="sm">
+              <Download className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+            <NewOrderDialog onOrderCreated={handleNewOrderCreated} />
             <Button variant="outline">
               <Upload className="h-4 w-4 mr-2" />
               Bulk Upload
@@ -536,6 +561,21 @@ const OrderDashboard = () => {
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between p-4 bg-muted/30 border-b">
           {/* Left side - Quick filters */}
           <div className="flex flex-1 gap-3 flex-wrap items-center w-full sm:w-auto">
+            {/* Page Size Selector */}
+            <div className="flex items-center gap-2">
+              <Label className="text-sm whitespace-nowrap">Rows:</Label>
+              <Select value={String(pageSize)} onValueChange={(val) => handlePageSizeChange(Number(val))}>
+                <SelectTrigger className="w-[90px] h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="200">200</SelectItem>
+                  <SelectItem value="500">500</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             {/* Search */}
             <div className="flex-1 min-w-[200px]">
               <Input
@@ -714,7 +754,14 @@ const OrderDashboard = () => {
         {/* Table Header with Selection */}
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center justify-between">
-            <span>Orders ({filteredOrders.length})</span>
+            <div className="flex flex-col gap-1">
+              <span>Orders {start}–{end} of {totalCount.toLocaleString()}</span>
+              {activeFiltersCount > 0 && (
+                <span className="text-xs text-muted-foreground font-normal">
+                  Some orders may be hidden by active filters
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <Checkbox checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0} onCheckedChange={handleSelectAllCurrentPage} />
@@ -882,11 +929,11 @@ const OrderDashboard = () => {
                     Previous
                   </Button>
                 </PaginationItem>
-                <PaginationItem>
-                  <span className="text-sm px-4">
-                    Page {page + 1} of {Math.ceil(totalCount / pageSize)} ({totalCount} total)
-                  </span>
-                </PaginationItem>
+                 <PaginationItem>
+                   <span className="text-sm px-4">
+                     Page {page + 1} of {totalPages} ({totalCount.toLocaleString()} total orders)
+                   </span>
+                 </PaginationItem>
                 <PaginationItem>
                   <Button
                     variant="outline"
