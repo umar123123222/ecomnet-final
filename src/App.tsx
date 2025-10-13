@@ -65,6 +65,9 @@ const WarehousesDashboard = lazy(() =>
 const SupplierManagement = lazy(() => 
   import("@/pages/Suppliers/SupplierManagement").then(module => ({ default: module.default }))
 );
+const SupplierAnalyticsDashboard = lazy(() => 
+  import("@/pages/Suppliers/SupplierAnalyticsDashboard").then(module => ({ default: module.default }))
+);
 const PurchaseOrderDashboard = lazy(() => 
   import("@/pages/PurchaseOrders/PurchaseOrderDashboard").then(module => ({ default: module.default }))
 );
@@ -223,6 +226,11 @@ const App = () => {
                 <Route path="suppliers" element={
                   <Suspense fallback={<PageLoader />}>
                     <SupplierManagement />
+                  </Suspense>
+                } />
+                <Route path="supplier-analytics" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <SupplierAnalyticsDashboard />
                   </Suspense>
                 } />
                 <Route path="purchase-orders" element={
