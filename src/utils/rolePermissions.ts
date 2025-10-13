@@ -34,6 +34,7 @@ export const getRolePermissions = (role: UserRole) => {
     canAccessReceiving: false,
     canAccessStockAudit: false,
     canAccessVarianceManagement: false,
+    canAccessFraudReporting: false,
   };
 
   switch (role) {
@@ -63,6 +64,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessReceiving: true,
         canAccessStockAudit: true,
         canAccessVarianceManagement: true,
+        canAccessFraudReporting: true,
       };
     
     case 'super_manager':
@@ -91,6 +93,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessReceiving: true,
         canAccessStockAudit: true,
         canAccessVarianceManagement: true,
+        canAccessFraudReporting: true,
         // No admin panel access
       };
     
@@ -115,6 +118,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessReceiving: true,
         canAccessStockAudit: true,
         canAccessVarianceManagement: true,
+        canAccessFraudReporting: true,
       };
     
     case 'warehouse_manager':
@@ -204,6 +208,15 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
         { label: 'All Customers', href: '/all-customers', icon: '' },
         { label: 'Suspicious Customers', href: '/suspicious-customers', icon: '', badge: '5' }
       ]
+    });
+  }
+
+  if (permissions.canAccessFraudReporting) {
+    items.push({
+      label: 'Fraud Prevention',
+      href: '/fraud-reporting',
+      icon: 'Shield',
+      badge: 'NEW'
     });
   }
 

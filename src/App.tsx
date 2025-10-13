@@ -77,6 +77,9 @@ const StockAuditDashboard = lazy(() =>
 const VarianceManagement = lazy(() => 
   import("@/pages/VarianceManagement/VarianceManagement").then(module => ({ default: module.default }))
 );
+const FraudReportDashboard = lazy(() => 
+  import("@/pages/FraudReporting/FraudReportDashboard").then(module => ({ default: module.default }))
+);
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ActivityLogs = lazy(() => 
   import("@/pages/ActivityLogs/ActivityLogs").then(module => ({ default: module.default }))
@@ -240,6 +243,11 @@ const App = () => {
                 <Route path="variance-management" element={
                   <Suspense fallback={<PageLoader />}>
                     <VarianceManagement />
+                  </Suspense>
+                } />
+                <Route path="fraud-reporting" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <FraudReportDashboard />
                   </Suspense>
                 } />
                 <Route path="activity-logs" element={

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save } from 'lucide-react';
+import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save, Shield, AlertTriangle } from 'lucide-react';
 import TagsNotes from '@/components/TagsNotes';
 import NewOrderDialog from '@/components/NewOrderDialog';
 import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
@@ -26,6 +26,7 @@ import { BulkOperationsPanel } from '@/components/BulkOperationsPanel';
 import { bulkUpdateOrderStatus, bulkUpdateOrderCourier, bulkAssignOrders, exportToCSV } from '@/utils/bulkOperations';
 import { useToast } from '@/hooks/use-toast';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
+import { batchAnalyzeOrders } from '@/utils/orderFraudDetection';
 
 const OrderDashboard = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
@@ -174,7 +175,14 @@ const OrderDashboard = () => {
         };
       });
 
-      setOrders(formattedOrders);
+      // Phase 4: Analyze orders for fraud
+      const fraudAnalyses = batchAnalyzeOrders(formattedOrders, baseOrders);
+      const ordersWithFraud = formattedOrders.map((order, index) => ({
+        ...order,
+        fraudIndicators: fraudAnalyses[index]?.fraudIndicators || { riskScore: 0, riskLevel: 'low', flags: [], patterns: [], autoActions: [], shouldBlock: false, shouldFlag: false }
+      }));
+
+      setOrders(ordersWithFraud);
 
       // Calculate summary data from current page
       setSummaryData({
@@ -802,7 +810,17 @@ const OrderDashboard = () => {
                     </TableCell>
                     <TableCell className="font-medium">{order.customerId}</TableCell>
                     <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>{order.trackingId}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {order.trackingId}
+                        {order.fraudIndicators?.isHighRisk && (
+                          <Badge variant="destructive" className="gap-1">
+                            <Shield className="h-3 w-3" />
+                            FRAUD: {order.fraudIndicators.riskScore}%
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>{getStatusBadge(order.status)}</TableCell>
                     <TableCell>{order.courier}</TableCell>
                     <TableCell>
