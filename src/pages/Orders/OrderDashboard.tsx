@@ -85,17 +85,27 @@ const OrderDashboard = () => {
       // Process data even if empty array to show proper state
       console.log('Processing orders:', data?.length || 0);
       const formattedOrders = (data || []).map(order => {
-        // Parse notes if they're stored as JSON string
-        let parsedNotes = [];
-        try {
-          if (order.notes && typeof order.notes === 'string') {
-            parsedNotes = JSON.parse(order.notes);
-          } else if (Array.isArray(order.notes)) {
-            parsedNotes = order.notes;
+        // Separate order notes (plain text) from user comments (structured)
+        let orderNotes = '';
+        let userComments = [];
+        
+        // Handle plain text order notes
+        if (order.notes && typeof order.notes === 'string') {
+          orderNotes = order.notes;
+        }
+        
+        // Handle structured user comments (separate field)
+        if (order.comments) {
+          try {
+            if (typeof order.comments === 'string') {
+              userComments = JSON.parse(order.comments);
+            } else if (Array.isArray(order.comments)) {
+              userComments = order.comments;
+            }
+          } catch (e) {
+            console.warn('Failed to parse comments:', e);
+            userComments = [];
           }
-        } catch (e) {
-          console.error('Error parsing notes:', e);
-          parsedNotes = [];
         }
         
         return {
@@ -119,9 +129,9 @@ const OrderDashboard = () => {
           assignedToProfile: order.assigned_to_profile,
           dispatchedAt: order.dispatched_at ? new Date(order.dispatched_at).toLocaleString() : 'N/A',
           deliveredAt: order.delivered_at ? new Date(order.delivered_at).toLocaleString() : 'N/A',
-          orderNotes: typeof order.notes === 'string' && order.notes ? order.notes : 'No notes',
-          tags: [],
-          notes: parsedNotes
+          orderNotes: orderNotes,
+          userComments: userComments,
+          tags: []
         };
       });
       setOrders(formattedOrders);
@@ -277,43 +287,44 @@ const OrderDashboard = () => {
   };
   const handleAddNote = async (orderId: string, note: string) => {
     try {
-      // Get current order notes
       const order = orders.find(o => o.id === orderId);
-      const currentNotes = order?.notes || [];
+      const currentComments = order?.userComments || [];
       
-      const newNote = {
-        id: `note_${Date.now()}`,
+      const newComment = {
+        id: `comment_${Date.now()}`,
         text: note,
         addedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
         addedAt: new Date().toISOString(),
         canDelete: true
       };
       
-      const updatedNotes = [...currentNotes, newNote];
+      const updatedComments = [...currentComments, newComment];
       
-      // Save to Supabase
+      // Save to comments field (not notes!)
       const { error } = await supabase
         .from('orders')
-        .update({ notes: JSON.stringify(updatedNotes) })
+        .update({ comments: updatedComments })
         .eq('id', orderId);
       
       if (error) throw error;
       
       // Update local state
-      setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? {
-        ...o,
-        notes: updatedNotes
-      } : o));
+      setOrders(prevOrders => prevOrders.map(o => 
+        o.id === orderId ? {
+          ...o,
+          userComments: updatedComments
+        } : o
+      ));
       
       // Log activity
       await logActivity({
         action: 'order_updated',
         entityType: 'order',
         entityId: orderId,
-        details: { noteAdded: note },
+        details: { comment: note },
       });
     } catch (error) {
-      console.error('Error adding note:', error);
+      console.error('Error adding comment:', error);
     }
   };
   
@@ -327,25 +338,26 @@ const OrderDashboard = () => {
   
   const handleDeleteNote = async (orderId: string, noteId: string) => {
     try {
-      // Get current order notes
       const order = orders.find(o => o.id === orderId);
-      const updatedNotes = order?.notes.filter(n => n.id !== noteId) || [];
+      const updatedComments = order?.userComments.filter(c => c.id !== noteId) || [];
       
-      // Save to Supabase
+      // Save to comments field
       const { error } = await supabase
         .from('orders')
-        .update({ notes: JSON.stringify(updatedNotes) })
+        .update({ comments: updatedComments })
         .eq('id', orderId);
       
       if (error) throw error;
       
       // Update local state
-      setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? {
-        ...o,
-        notes: updatedNotes
-      } : o));
+      setOrders(prevOrders => prevOrders.map(o => 
+        o.id === orderId ? {
+          ...o,
+          userComments: updatedComments
+        } : o
+      ));
     } catch (error) {
-      console.error('Error deleting note:', error);
+      console.error('Error deleting comment:', error);
     }
   };
   const handleEditOrder = (order: any) => {
@@ -780,7 +792,8 @@ const OrderDashboard = () => {
                     <h4 className="font-semibold mb-3">Internal Notes</h4>
                     <TagsNotes
                       itemId={order.id}
-                      notes={order.notes}
+                      orderNotes={order.orderNotes}
+                      notes={order.userComments}
                       onAddNote={(note) => handleAddNote(order.id, note)}
                       onDeleteNote={(noteId) => handleDeleteNote(order.id, noteId)}
                     />

@@ -762,6 +762,7 @@ export type Database = {
         Row: {
           assigned_to: string | null
           city: string
+          comments: Json | null
           courier: Database["public"]["Enums"]["courier_type"] | null
           created_at: string | null
           customer_address: string
@@ -797,6 +798,7 @@ export type Database = {
         Insert: {
           assigned_to?: string | null
           city: string
+          comments?: Json | null
           courier?: Database["public"]["Enums"]["courier_type"] | null
           created_at?: string | null
           customer_address: string
@@ -832,6 +834,7 @@ export type Database = {
         Update: {
           assigned_to?: string | null
           city?: string
+          comments?: Json | null
           courier?: Database["public"]["Enums"]["courier_type"] | null
           created_at?: string | null
           customer_address?: string

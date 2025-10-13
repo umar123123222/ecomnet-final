@@ -23,6 +23,7 @@ interface Note {
 }
 interface TagsNotesProps {
   itemId: string;
+  orderNotes?: string;
   tags?: Tag[];
   notes?: Note[];
   onAddTag?: (tag: string) => void;
@@ -32,6 +33,7 @@ interface TagsNotesProps {
 }
 const TagsNotes: React.FC<TagsNotesProps> = ({
   itemId,
+  orderNotes,
   tags = [],
   notes = [],
   onAddTag,
@@ -64,6 +66,14 @@ const TagsNotes: React.FC<TagsNotesProps> = ({
     return user?.user_metadata?.role === 'SuperAdmin' || user?.user_metadata?.role === 'Manager' || (user?.user_metadata?.full_name || user?.email) === addedBy;
   };
   return <div className="space-y-4">
+      {/* Order Notes Section - Plain text from order creation */}
+      {orderNotes && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+          <h4 className="font-semibold text-sm text-blue-900 mb-1">Order Notes:</h4>
+          <p className="text-sm text-blue-800">{orderNotes}</p>
+        </div>
+      )}
+      
       {/* Tags Section */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
@@ -107,10 +117,10 @@ const TagsNotes: React.FC<TagsNotesProps> = ({
         </div>
       </div>
 
-      {/* Notes Section */}
+      {/* User Comments Section */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-700">📝 Notes:</span>
+          <span className="text-sm font-medium text-gray-700">📝 User Comments:</span>
           <Dialog open={isNoteDialogOpen} onOpenChange={setIsNoteDialogOpen}>
             <DialogTrigger asChild>
               <button className="flex items-center justify-center w-6 h-6 bg-gray-100 border border-gray-200 rounded hover:bg-gray-200 transition-colors">
