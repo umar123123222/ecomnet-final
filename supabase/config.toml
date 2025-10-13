@@ -14,3 +14,15 @@ verify_jwt = true
 
 [functions.low-stock-alerts]
 verify_jwt = true
+
+[functions.process-grn]
+verify_jwt = true
+
+[functions.process-order-fulfillment]
+verify_jwt = true
+
+[functions.process-return-restock]
+verify_jwt = true
+
+[functions.manage-purchase-order]
+verify_jwt = true

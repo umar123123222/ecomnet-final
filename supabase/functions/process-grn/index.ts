@@ -216,7 +216,7 @@ serve(async (req) => {
             .insert({
               product_id: item.product_id,
               outlet_id: grn.outlet_id,
-              movement_type: 'grn_receipt',
+              movement_type: 'purchase',
               quantity: qtyToAdd,
               created_by: user.id,
               reference_id: grn.id,

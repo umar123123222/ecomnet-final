@@ -194,3 +194,45 @@ export const processGRN = async (request: GRNRequest) => {
   if (error) throw error;
   return data;
 };
+
+// ============================================
+// ORDER FULFILLMENT
+// ============================================
+
+export interface OrderFulfillmentRequest {
+  action: 'dispatch' | 'cancel';
+  data: {
+    order_id: string;
+    outlet_id: string;
+  };
+}
+
+export const processOrderFulfillment = async (request: OrderFulfillmentRequest) => {
+  const { data, error } = await supabase.functions.invoke('process-order-fulfillment', {
+    body: request,
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+// ============================================
+// RETURN RESTOCKING
+// ============================================
+
+export interface ReturnRestockRequest {
+  action: 'receive';
+  data: {
+    return_id: string;
+    outlet_id: string;
+  };
+}
+
+export const processReturnRestock = async (request: ReturnRestockRequest) => {
+  const { data, error } = await supabase.functions.invoke('process-return-restock', {
+    body: request,
+  });
+
+  if (error) throw error;
+  return data;
+};

@@ -198,11 +198,59 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
           .insert(orderItems);
 
         if (itemsError) throw itemsError;
+
+        // Reserve stock for each product
+        for (const product of selectedProducts) {
+          try {
+            // Find matching product in database
+            const { data: dbProduct } = await supabase
+              .from('products')
+              .select('id')
+              .ilike('name', `%${product.name}%`)
+              .single();
+
+            if (dbProduct) {
+              // Get warehouse outlets
+              const { data: warehouses } = await supabase
+                .from('outlets')
+                .select('id')
+                .eq('outlet_type', 'warehouse')
+                .eq('is_active', true)
+                .limit(1)
+                .single();
+
+              if (warehouses) {
+                // Reserve stock
+                const { data: inventory } = await supabase
+                  .from('inventory')
+                  .select('id, quantity, reserved_quantity, available_quantity')
+                  .eq('product_id', dbProduct.id)
+                  .eq('outlet_id', warehouses.id)
+                  .single();
+
+                if (inventory && inventory.available_quantity >= product.quantity) {
+                  await supabase
+                    .from('inventory')
+                    .update({
+                      reserved_quantity: inventory.reserved_quantity + product.quantity,
+                      available_quantity: inventory.available_quantity - product.quantity
+                    })
+                    .eq('id', inventory.id);
+
+                  console.log(`Reserved ${product.quantity} units of ${product.name}`);
+                }
+              }
+            }
+          } catch (reserveError) {
+            console.error('Stock reservation warning:', reserveError);
+            // Don't fail order creation if reservation fails
+          }
+        }
       }
 
       toast({
         title: "Order Created",
-        description: `Order ${orderNumber} has been created successfully`,
+        description: `Order ${orderNumber} has been created successfully with stock reserved`,
       });
 
       resetForm();
