@@ -149,6 +149,7 @@ const OrderDashboard = () => {
         
         return {
           id: order.id,
+          orderNumber: order.order_number,
           customerId: order.customer_id || 'N/A',
           trackingId: order.tracking_id || 'N/A',
           customer: order.customer_name,
@@ -156,6 +157,7 @@ const OrderDashboard = () => {
           phone: order.customer_phone,
           courier: order.courier || 'N/A',
           status: order.status,
+          verificationStatus: order.verification_status || 'pending',
           amount: `PKR ${order.total_amount?.toLocaleString() || '0'}`,
           date: new Date(order.created_at || '').toLocaleDateString(),
           createdAtISO: order.created_at,
@@ -503,13 +505,14 @@ const OrderDashboard = () => {
     deletePreset,
     activeFiltersCount,
   } = useAdvancedFilters(orders, {
-    searchFields: ['trackingId', 'customer', 'id', 'email', 'phone', 'city'],
+    searchFields: ['orderNumber', 'trackingId', 'customer', 'id', 'email', 'phone', 'city'],
     statusField: 'status',
     dateField: 'createdAtISO',
     amountField: 'totalPrice',
     customFilters: {
       courier: (order, value) => order.courier?.toLowerCase() === value.toLowerCase(),
       orderType: (order, value) => order.orderType === value,
+      verificationStatus: (order, value) => order.verificationStatus === value,
     },
   });
 
@@ -594,18 +597,35 @@ const OrderDashboard = () => {
               />
             </div>
             
-            {/* Status Filter */}
+            {/* Order Status Filter */}
             <Select value={filters.status} onValueChange={(value) => updateFilter('status', value)}>
               <SelectTrigger className="w-[140px] h-9">
-                <SelectValue placeholder="All Statuses" />
+                <SelectValue placeholder="Order Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="booked">Booked</SelectItem>
                 <SelectItem value="dispatched">Dispatched</SelectItem>
                 <SelectItem value="delivered">Delivered</SelectItem>
                 <SelectItem value="cancelled">Cancelled</SelectItem>
                 <SelectItem value="returned">Returned</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            {/* Verification Status Filter */}
+            <Select 
+              value={filters.customValues?.verificationStatus || 'all'} 
+              onValueChange={(value) => updateCustomFilter('verificationStatus', value)}
+            >
+              <SelectTrigger className="w-[160px] h-9">
+                <SelectValue placeholder="Verification" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Verification</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="disapproved">Disapproved</SelectItem>
               </SelectContent>
             </Select>
             
@@ -788,11 +808,11 @@ const OrderDashboard = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Select</TableHead>
-                <TableHead>Customer ID</TableHead>
-                <TableHead>Order ID</TableHead>
+                <TableHead>Order Number</TableHead>
                 <TableHead>Tracking ID</TableHead>
                 <TableHead>Order Status</TableHead>
-                <TableHead>Assigned Courier</TableHead>
+                <TableHead>Verification</TableHead>
+                <TableHead>Courier</TableHead>
                 <TableHead>Assigned To</TableHead>
                 <TableHead>Expand</TableHead>
               </TableRow>
@@ -808,8 +828,7 @@ const OrderDashboard = () => {
                     <TableCell>
                       <Checkbox checked={selectedOrders.includes(order.id)} onCheckedChange={() => handleSelectOrder(order.id)} />
                     </TableCell>
-                    <TableCell className="font-medium">{order.customerId}</TableCell>
-                    <TableCell className="font-medium">{order.id}</TableCell>
+                    <TableCell className="font-medium">{order.orderNumber || order.id}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {order.trackingId}
@@ -822,6 +841,17 @@ const OrderDashboard = () => {
                       </div>
                     </TableCell>
                     <TableCell>{getStatusBadge(order.status)}</TableCell>
+                    <TableCell>
+                      <Badge variant={
+                        order.verificationStatus === 'approved' ? 'default' :
+                        order.verificationStatus === 'disapproved' ? 'destructive' :
+                        'secondary'
+                      }>
+                        {order.verificationStatus === 'pending' ? '⏳ Pending' : 
+                         order.verificationStatus === 'approved' ? '✓ Approved' : 
+                         '✗ Disapproved'}
+                      </Badge>
+                    </TableCell>
                     <TableCell>{order.courier}</TableCell>
                     <TableCell>
                       <Select 
