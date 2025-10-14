@@ -106,9 +106,9 @@ const AllCustomers = () => {
 
   const handleSelectAll = () => {
     setSelectedCustomers(
-      selectedCustomers.length === customers.length 
+      selectedCustomers.length === filteredCustomers.length && filteredCustomers.length > 0
         ? [] 
-        : customers.map(c => c.id)
+        : filteredCustomers.map(c => c.id)
     );
   };
 
@@ -245,6 +245,19 @@ const AllCustomers = () => {
     }
   };
 
+  // Filter customers based on search term
+  const filteredCustomers = customers.filter(customer => {
+    if (!searchTerm.trim()) return true;
+    
+    const search = searchTerm.toLowerCase();
+    return (
+      customer.name.toLowerCase().includes(search) ||
+      customer.phone.toLowerCase().includes(search) ||
+      customer.email.toLowerCase().includes(search) ||
+      customer.id.toLowerCase().includes(search)
+    );
+  });
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -288,7 +301,7 @@ const AllCustomers = () => {
             </CardTitle>
             <div className="flex items-center gap-2">
               <Checkbox
-                checked={selectedCustomers.length === customers.length}
+                checked={selectedCustomers.length === filteredCustomers.length && filteredCustomers.length > 0}
                 onCheckedChange={handleSelectAll}
               />
               <span className="text-sm text-gray-600">Select All</span>
@@ -332,12 +345,12 @@ const AllCustomers = () => {
                 <TableRow>
                   <TableCell colSpan={9} className="text-center">Loading customers...</TableCell>
                 </TableRow>
-              ) : customers.length === 0 ? (
+              ) : filteredCustomers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center">No customers found</TableCell>
                 </TableRow>
               ) : (
-                customers.map((customer) => (
+                filteredCustomers.map((customer) => (
                 <TableRow key={customer.id}>
                   <TableCell>
                     <Checkbox
