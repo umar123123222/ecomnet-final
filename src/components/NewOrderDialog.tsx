@@ -155,15 +155,18 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
     try {
       const orderNumber = generateOrderNumber();
       const totalAmount = calculateTotal();
-      const phoneLastFiveChr = customerPhone.slice(-5);
+      
+      // Normalize phone number (remove all non-digits)
+      const normalizedPhone = customerPhone.replace(/[^0-9]/g, '');
+      const phoneLastFiveChr = normalizedPhone.slice(-5);
 
-      // Step 1: Check if customer already exists by phone
+      // Step 1: Check if customer already exists by normalized phone
       let customerId: string | null = null;
 
       const { data: existingCustomer } = await supabase
         .from('customers')
         .select('id')
-        .eq('phone', customerPhone)
+        .eq('phone', normalizedPhone)
         .maybeSingle();
 
       if (existingCustomer) {
@@ -187,7 +190,7 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
           .from('customers')
           .insert({
             name: customerName,
-            phone: customerPhone,
+            phone: normalizedPhone,
             email: customerEmail || null,
             address: customerAddress,
             city: city || null,
@@ -214,7 +217,7 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
           order_number: orderNumber,
           customer_id: customerId,
           customer_name: customerName,
-          customer_phone: customerPhone,
+          customer_phone: normalizedPhone,
           customer_email: customerEmail,
           customer_address: customerAddress,
           city: city,

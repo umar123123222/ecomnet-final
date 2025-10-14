@@ -23,7 +23,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Download, Eye, Edit, MessageCircle } from 'lucide-react';
+import { Search, Download, Eye, Edit, MessageCircle, RefreshCw } from 'lucide-react';
 import TagsNotes from '@/components/TagsNotes';
 
 const AllCustomers = () => {
@@ -39,61 +39,86 @@ const AllCustomers = () => {
     newThisMonth: 0
   });
   const { toast } = useToast();
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      setLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('customers')
-          .select('*')
-          .order('created_at', { ascending: false });
 
-        if (error) {
-          console.error('Error fetching customers:', error);
-          toast({
-            title: "Error",
-            description: "Failed to fetch customers",
-            variant: "destructive",
-          });
-        } else {
-          const formattedCustomers = (data || []).map(customer => ({
-            id: customer.id,
-            name: customer.name,
-            phone: customer.phone || 'N/A',
-            email: customer.email || 'N/A',
-            status: 'Active', // Default to active
-            totalOrders: customer.total_orders || 0,
-            totalSpent: `Rs. ${(customer.total_orders * 2500).toLocaleString()}`, // Estimated
-            joinDate: new Date(customer.created_at).toLocaleDateString(),
-            ordersDelivered: customer.delivered_count || 0,
-            ordersCancelled: 0, // Not in schema
-            ordersReturned: customer.return_count || 0,
-            tags: [],
-            notes: [],
-            orders: [] // Would need separate query for order history
-          }));
+  const fetchCustomers = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-          setCustomers(formattedCustomers);
+      if (error) {
+        console.error('Error fetching customers:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch customers",
+          variant: "destructive",
+        });
+      } else {
+        const formattedCustomers = (data || []).map(customer => ({
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone || 'N/A',
+          email: customer.email || 'N/A',
+          status: 'Active', // Default to active
+          totalOrders: customer.total_orders || 0,
+          totalSpent: `Rs. ${(customer.total_orders * 2500).toLocaleString()}`, // Estimated
+          joinDate: new Date(customer.created_at).toLocaleDateString(),
+          createdAt: customer.created_at,
+          ordersDelivered: customer.delivered_count || 0,
+          ordersCancelled: 0, // Not in schema
+          ordersReturned: customer.return_count || 0,
+          tags: [],
+          notes: [],
+          orders: [] // Would need separate query for order history
+        }));
 
-          // Calculate summary data
-          const currentMonth = new Date().getMonth();
-          const newThisMonth = formattedCustomers.filter(c => 
-            new Date(c.joinDate).getMonth() === currentMonth
-          ).length;
+        setCustomers(formattedCustomers);
 
-          setSummaryData({
-            activeCustomers: formattedCustomers.length,
-            newThisMonth
-          });
-        }
-      } catch (error) {
-        console.error('Error:', error);
-      } finally {
-        setLoading(false);
+        // Calculate summary data
+        const currentMonth = new Date().getMonth();
+        const currentYear = new Date().getFullYear();
+        const newThisMonth = formattedCustomers.filter(c => {
+          const createdDate = new Date(c.createdAt);
+          return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear;
+        }).length;
+
+        setSummaryData({
+          activeCustomers: formattedCustomers.length,
+          newThisMonth
+        });
       }
-    };
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchCustomers();
+
+    // Subscribe to realtime changes on customers table
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'customers'
+        },
+        () => {
+          // Refetch customers when any change occurs
+          fetchCustomers();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [toast]);
 
   const handleSelectCustomer = (customerId: string) => {
@@ -319,6 +344,10 @@ const AllCustomers = () => {
                 className="pl-10"
               />
             </div>
+            <Button variant="outline" onClick={fetchCustomers} className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
             <Button variant="outline" disabled={selectedCustomers.length === 0}>
               <Download className="h-4 w-4 mr-2" />
               Download Selected

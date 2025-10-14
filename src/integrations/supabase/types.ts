@@ -2168,6 +2168,10 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: undefined
       }
+      normalize_phone: {
+        Args: { p_phone: string }
+        Returns: string
+      }
       user_has_role: {
         Args: {
           check_role: Database["public"]["Enums"]["user_role"]
