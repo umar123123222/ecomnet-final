@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save, Shield, AlertTriangle } from 'lucide-react';
+import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save, Shield, AlertTriangle, AlertCircle, MapPin } from 'lucide-react';
 import TagsNotes from '@/components/TagsNotes';
 import NewOrderDialog from '@/components/NewOrderDialog';
 import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
@@ -57,6 +57,7 @@ const OrderDashboard = () => {
     return saved ? Number(saved) : 50;
   });
   const [totalCount, setTotalCount] = useState(0);
+  const [quickFilter, setQuickFilter] = useState<string | null>(null);
 
   const { user } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
@@ -516,6 +517,39 @@ const OrderDashboard = () => {
     },
   });
 
+  // Quick filter handlers
+  const applyQuickFilter = (filterType: string) => {
+    if (quickFilter === filterType) {
+      // Deactivate if clicking the same filter
+      setQuickFilter(null);
+      resetFilters();
+    } else {
+      setQuickFilter(filterType);
+      
+      switch (filterType) {
+        case 'needsConfirmation':
+          updateFilter('status', 'pending');
+          updateCustomFilter('verificationStatus', 'all');
+          break;
+        case 'needsVerification':
+          updateCustomFilter('verificationStatus', 'pending');
+          updateFilter('status', 'all');
+          break;
+        case 'actionRequired':
+          // This will show orders where either status is pending
+          // We'll handle this with a custom filter approach
+          updateFilter('status', 'all');
+          updateCustomFilter('verificationStatus', 'all');
+          break;
+      }
+    }
+  };
+
+  // Apply action required filter manually
+  const finalFilteredOrders = quickFilter === 'actionRequired' 
+    ? filteredOrders.filter(order => order.status === 'pending' || order.verificationStatus === 'pending')
+    : filteredOrders;
+
   const start = page * pageSize + 1;
   const end = Math.min((page + 1) * pageSize, totalCount);
   const totalPages = Math.ceil(totalCount / pageSize);
@@ -568,6 +602,36 @@ const OrderDashboard = () => {
 
       {/* Orders Table with Integrated Filters */}
       <Card>
+        {/* Quick Filter Buttons */}
+        <div className="flex gap-2 p-4 border-b bg-muted/20">
+          <Button 
+            variant={quickFilter === 'needsConfirmation' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => applyQuickFilter('needsConfirmation')}
+          >
+            <AlertCircle className="h-4 w-4 mr-1" />
+            Needs Confirmation
+          </Button>
+          
+          <Button 
+            variant={quickFilter === 'needsVerification' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => applyQuickFilter('needsVerification')}
+          >
+            <MapPin className="h-4 w-4 mr-1" />
+            Needs Address Check
+          </Button>
+          
+          <Button 
+            variant={quickFilter === 'actionRequired' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => applyQuickFilter('actionRequired')}
+          >
+            <AlertTriangle className="h-4 w-4 mr-1" />
+            Action Required
+          </Button>
+        </div>
+
         {/* Inline Filter Bar */}
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between p-4 bg-muted/30 border-b">
           {/* Left side - Quick filters */}
@@ -599,12 +663,12 @@ const OrderDashboard = () => {
             
             {/* Order Status Filter */}
             <Select value={filters.status} onValueChange={(value) => updateFilter('status', value)}>
-              <SelectTrigger className="w-[140px] h-9">
+              <SelectTrigger className="w-[180px] h-9">
                 <SelectValue placeholder="Order Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="pending">Pending Confirmation</SelectItem>
                 <SelectItem value="booked">Booked</SelectItem>
                 <SelectItem value="dispatched">Dispatched</SelectItem>
                 <SelectItem value="delivered">Delivered</SelectItem>
@@ -618,12 +682,12 @@ const OrderDashboard = () => {
               value={filters.customValues?.verificationStatus || 'all'} 
               onValueChange={(value) => updateCustomFilter('verificationStatus', value)}
             >
-              <SelectTrigger className="w-[160px] h-9">
+              <SelectTrigger className="w-[190px] h-9">
                 <SelectValue placeholder="Verification" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Verification</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="pending">Pending Verification</SelectItem>
                 <SelectItem value="approved">Approved</SelectItem>
                 <SelectItem value="disapproved">Disapproved</SelectItem>
               </SelectContent>
@@ -792,7 +856,7 @@ const OrderDashboard = () => {
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <Checkbox checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0} onCheckedChange={handleSelectAllCurrentPage} />
+                <Checkbox checked={selectedOrders.length === finalFilteredOrders.length && finalFilteredOrders.length > 0} onCheckedChange={handleSelectAllCurrentPage} />
                 <span className="text-sm text-muted-foreground">Select All (Current Page)</span>
               </div>
               <div className="flex items-center gap-2">
@@ -820,9 +884,9 @@ const OrderDashboard = () => {
             <TableBody>
               {loading ? <TableRow>
                   <TableCell colSpan={8} className="text-center">Loading orders...</TableCell>
-                </TableRow> : filteredOrders.length === 0 ? <TableRow>
+                </TableRow> : finalFilteredOrders.length === 0 ? <TableRow>
                   <TableCell colSpan={8} className="text-center">No orders found</TableCell>
-                </TableRow> : filteredOrders.map(order => (
+                </TableRow> : finalFilteredOrders.map(order => (
                   <React.Fragment key={order.id}>
                   <TableRow>
                     <TableCell>
@@ -840,14 +904,20 @@ const OrderDashboard = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>{getStatusBadge(order.status)}</TableCell>
+                    <TableCell>
+                      {order.status === 'pending' ? (
+                        <Badge variant="secondary">⏳ Pending Confirmation</Badge>
+                      ) : (
+                        getStatusBadge(order.status)
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={
                         order.verificationStatus === 'approved' ? 'default' :
                         order.verificationStatus === 'disapproved' ? 'destructive' :
                         'secondary'
                       }>
-                        {order.verificationStatus === 'pending' ? '⏳ Pending' : 
+                        {order.verificationStatus === 'pending' ? '⏳ Pending Verification' : 
                          order.verificationStatus === 'approved' ? '✓ Approved' : 
                          '✗ Disapproved'}
                       </Badge>
