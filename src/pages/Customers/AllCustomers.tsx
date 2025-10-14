@@ -251,10 +251,10 @@ const AllCustomers = () => {
     
     const search = searchTerm.toLowerCase();
     return (
-      customer.name.toLowerCase().includes(search) ||
-      customer.phone.toLowerCase().includes(search) ||
-      customer.email.toLowerCase().includes(search) ||
-      customer.id.toLowerCase().includes(search)
+      customer.name?.toLowerCase().includes(search) ||
+      customer.phone?.toLowerCase().includes(search) ||
+      customer.email?.toLowerCase().includes(search) ||
+      customer.id?.toLowerCase().includes(search)
     );
   });
 
