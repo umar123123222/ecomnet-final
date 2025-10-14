@@ -58,6 +58,7 @@ const OrderDashboard = () => {
   });
   const [totalCount, setTotalCount] = useState(0);
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
+  const [combinedStatus, setCombinedStatus] = useState<string>('all');
 
   const { user } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
@@ -522,22 +523,26 @@ const OrderDashboard = () => {
     if (quickFilter === filterType) {
       // Deactivate if clicking the same filter
       setQuickFilter(null);
+      setCombinedStatus('all');
       resetFilters();
     } else {
       setQuickFilter(filterType);
       
       switch (filterType) {
         case 'needsConfirmation':
+          setCombinedStatus('pending_order');
           updateFilter('status', 'pending');
           updateCustomFilter('verificationStatus', 'all');
           break;
         case 'needsVerification':
+          setCombinedStatus('pending_address');
           updateCustomFilter('verificationStatus', 'pending');
           updateFilter('status', 'all');
           break;
         case 'actionRequired':
           // This will show orders where either status is pending
           // We'll handle this with a custom filter approach
+          setCombinedStatus('all');
           updateFilter('status', 'all');
           updateCustomFilter('verificationStatus', 'all');
           break;
@@ -662,13 +667,36 @@ const OrderDashboard = () => {
             </div>
             
             {/* Order Status Filter */}
-            <Select value={filters.status} onValueChange={(value) => updateFilter('status', value)}>
-              <SelectTrigger className="w-[180px] h-9">
+            <Select 
+              value={combinedStatus} 
+              onValueChange={(value) => {
+                setCombinedStatus(value);
+                if (value === 'pending_order') {
+                  updateFilter('status', 'pending');
+                  updateCustomFilter('verificationStatus', 'all');
+                  setQuickFilter(null);
+                } else if (value === 'pending_address') {
+                  updateFilter('status', 'all');
+                  updateCustomFilter('verificationStatus', 'pending');
+                  setQuickFilter(null);
+                } else if (value === 'all') {
+                  updateFilter('status', 'all');
+                  updateCustomFilter('verificationStatus', 'all');
+                  setQuickFilter(null);
+                } else {
+                  updateFilter('status', value);
+                  updateCustomFilter('verificationStatus', 'all');
+                  setQuickFilter(null);
+                }
+              }}
+            >
+              <SelectTrigger className="w-[230px] h-9">
                 <SelectValue placeholder="Order Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="pending">Pending Confirmation</SelectItem>
+                <SelectItem value="pending_order">Pending Order Confirmation</SelectItem>
+                <SelectItem value="pending_address">Pending Address Confirmation</SelectItem>
                 <SelectItem value="booked">Booked</SelectItem>
                 <SelectItem value="dispatched">Dispatched</SelectItem>
                 <SelectItem value="delivered">Delivered</SelectItem>
