@@ -157,11 +157,62 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
       const totalAmount = calculateTotal();
       const phoneLastFiveChr = customerPhone.slice(-5);
 
+      // Step 1: Check if customer already exists by phone
+      let customerId: string | null = null;
+
+      const { data: existingCustomer } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('phone', customerPhone)
+        .maybeSingle();
+
+      if (existingCustomer) {
+        // Customer exists, use their ID and update their info
+        customerId = existingCustomer.id;
+        
+        await supabase
+          .from('customers')
+          .update({
+            name: customerName,
+            email: customerEmail || null,
+            address: customerAddress,
+            city: city || null,
+            phone_last_5_chr: phoneLastFiveChr,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', customerId);
+      } else {
+        // Create new customer
+        const { data: newCustomer, error: customerError } = await supabase
+          .from('customers')
+          .insert({
+            name: customerName,
+            phone: customerPhone,
+            email: customerEmail || null,
+            address: customerAddress,
+            city: city || null,
+            phone_last_5_chr: phoneLastFiveChr,
+            total_orders: 0,
+            return_count: 0,
+            is_suspicious: false
+          })
+          .select('id')
+          .single();
+
+        if (customerError) {
+          console.error('Error creating customer:', customerError);
+          throw new Error('Failed to create customer record');
+        }
+        
+        customerId = newCustomer.id;
+      }
+
       // Create order
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert({
           order_number: orderNumber,
+          customer_id: customerId,
           customer_name: customerName,
           customer_phone: customerPhone,
           customer_email: customerEmail,
