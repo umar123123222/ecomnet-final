@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { sendWhatsAppMessage, checkWhatsAppOptIn } from './whatsappHelpers';
 
 export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'low_stock' | 'order_update' | 'return_update';
 export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
@@ -26,6 +27,9 @@ interface CreateNotificationParams {
   actionUrl?: string;
   metadata?: any;
   expiresInHours?: number;
+  sendWhatsApp?: boolean;
+  whatsAppPhone?: string;
+  customerId?: string;
 }
 
 /**
@@ -40,6 +44,9 @@ export const createNotification = async ({
   actionUrl,
   metadata = {},
   expiresInHours,
+  sendWhatsApp = false,
+  whatsAppPhone,
+  customerId,
 }: CreateNotificationParams): Promise<void> => {
   try {
     const expiresAt = expiresInHours
@@ -59,6 +66,22 @@ export const createNotification = async ({
 
     if (error) {
       console.error('Failed to create notification:', error);
+    }
+
+    // Send WhatsApp if requested
+    if (sendWhatsApp && whatsAppPhone) {
+      // Check opt-in status if customerId provided
+      let canSend = true;
+      if (customerId) {
+        canSend = await checkWhatsAppOptIn(customerId);
+      }
+
+      if (canSend) {
+        await sendWhatsAppMessage({
+          to: whatsAppPhone,
+          message: `${title}\n\n${message}`
+        });
+      }
     }
   } catch (error) {
     console.error('Error creating notification:', error);
