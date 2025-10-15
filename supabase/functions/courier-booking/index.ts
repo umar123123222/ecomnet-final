@@ -58,7 +58,7 @@ serve(async (req) => {
     let bookingResponse;
     let trackingId;
 
-    switch (courier.code) {
+    switch (courier.code.toUpperCase()) {
       case 'TCS':
         bookingResponse = await bookTCS(bookingRequest);
         trackingId = bookingResponse.tracking_number;
