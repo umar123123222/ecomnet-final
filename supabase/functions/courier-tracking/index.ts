@@ -82,7 +82,7 @@ serve(async (req) => {
 });
 
 async function trackTCS(trackingId: string) {
-  const apiKey = await getAPISetting('TCS_API_KEY');
+  const apiKey = getAPISetting('TCS_API_KEY');
   
   const response = await fetch(`https://api.tcs.com.pk/api/v1/tracking/${trackingId}`, {
     headers: {
@@ -106,7 +106,7 @@ async function trackTCS(trackingId: string) {
 }
 
 async function trackLeopard(trackingId: string) {
-  const apiKey = await getAPISetting('LEOPARD_API_KEY');
+  const apiKey = getAPISetting('LEOPARD_API_KEY');
   
   const response = await fetch(`https://api.leopardscourier.com/api/packet/track`, {
     method: 'POST',
@@ -135,7 +135,7 @@ async function trackLeopard(trackingId: string) {
 }
 
 async function trackPostEx(trackingId: string) {
-  const apiKey = await getAPISetting('POSTEX_API_KEY');
+  const apiKey = getAPISetting('POSTEX_API_KEY');
   
   const response = await fetch(`https://api.postex.pk/services/integration/api/order/v1/track-order/${trackingId}`, {
     headers: {

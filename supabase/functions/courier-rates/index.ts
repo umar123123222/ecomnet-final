@@ -130,7 +130,7 @@ serve(async (req) => {
 });
 
 async function getTCSRate(request: RateRequest) {
-  const apiKey = await getAPISetting('TCS_API_KEY');
+  const apiKey = getAPISetting('TCS_API_KEY');
   
   try {
     const response = await fetch('https://api.tcs.com.pk/api/v1/rates/calculate', {
@@ -162,7 +162,7 @@ async function getTCSRate(request: RateRequest) {
 }
 
 async function getLeopardRate(request: RateRequest) {
-  const apiKey = await getAPISetting('LEOPARD_API_KEY');
+  const apiKey = getAPISetting('LEOPARD_API_KEY');
   
   try {
     const response = await fetch('https://api.leopardscourier.com/api/rate/calculate', {
@@ -194,7 +194,7 @@ async function getLeopardRate(request: RateRequest) {
 }
 
 async function getPostExRate(request: RateRequest) {
-  const apiKey = await getAPISetting('POSTEX_API_KEY');
+  const apiKey = getAPISetting('POSTEX_API_KEY');
   
   try {
     const response = await fetch('https://api.postex.pk/services/integration/api/shipment/v1/calculate-charges', {

@@ -29,8 +29,8 @@ serve(async (req) => {
       throw new Error('Recipient phone number is required');
     }
 
-    const accessToken = await getAPISetting('WHATSAPP_ACCESS_TOKEN');
-    const phoneNumberId = await getAPISetting('WHATSAPP_PHONE_NUMBER_ID');
+    const accessToken = getAPISetting('WHATSAPP_ACCESS_TOKEN');
+    const phoneNumberId = getAPISetting('WHATSAPP_PHONE_NUMBER_ID');
 
     if (!accessToken || !phoneNumberId) {
       throw new Error('WhatsApp API credentials not configured');
