@@ -249,15 +249,15 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm sm:max-w-md max-h-[85vh] grid grid-rows-[auto,1fr,auto]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Truck className="h-5 w-5" />
             Create New Dispatch
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <ScrollArea className="max-h-[65vh] pr-4">
+        <form id="new-dispatch-form" onSubmit={handleSubmit} className="min-h-0">
+          <ScrollArea className="h-full pr-4">
             <div className="space-y-4">
               <div>
                 <Label htmlFor="order_id">Order * {pendingOrders.length > 0 && `(${pendingOrders.length} available)`}</Label>
@@ -360,44 +360,44 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
             </div>
           </ScrollArea>
 
-          <DialogFooter className="flex-row justify-end w-full gap-2 pt-4 border-t sticky bottom-0 left-0 bg-background z-10">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            
-            {formData.courier === "other" ? (
-              <Button 
-                type="submit" 
-                disabled={createDispatchMutation.isPending}
-              >
-                {createDispatchMutation.isPending ? "Creating..." : "Create Dispatch"}
-              </Button>
-            ) : (
-              <Button 
-                type="button"
-                onClick={handleBookAndDispatch}
-                disabled={isBooking || !formData.order_id || !formData.courier}
-                className="bg-primary"
-              >
-                {isBooking ? (
-                  <>
-                    <Truck className="mr-2 h-4 w-4 animate-pulse" />
-                    Booking...
-                  </>
-                ) : (
-                  <>
-                    <Truck className="mr-2 h-4 w-4" />
-                    Book & Dispatch
-                  </>
-                )}
-              </Button>
-            )}
-          </DialogFooter>
         </form>
+        <DialogFooter className="!flex !flex-row !justify-end w-full gap-2 pt-4 border-t">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          {formData.courier === "other" ? (
+            <Button 
+              type="submit" 
+              form="new-dispatch-form"
+              disabled={createDispatchMutation.isPending}
+            >
+              {createDispatchMutation.isPending ? "Creating..." : "Create Dispatch"}
+            </Button>
+          ) : (
+            <Button 
+              type="button"
+              onClick={handleBookAndDispatch}
+              disabled={isBooking || !formData.order_id || !formData.courier}
+              className="bg-primary"
+            >
+              {isBooking ? (
+                <>
+                  <Truck className="mr-2 h-4 w-4 animate-pulse" />
+                  Booking...
+                </>
+              ) : (
+                <>
+                  <Truck className="mr-2 h-4 w-4" />
+                  Book & Dispatch
+                </>
+              )}
+            </Button>
+          )}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
