@@ -19,6 +19,7 @@ export const getRolePermissions = (role: UserRole) => {
     canAccessAddressVerification: false,
     canAccessUserManagement: false,
     canAccessSettings: false,
+    canAccessBusinessSettings: false,
     canAddUsers: false,
     canEditUsers: false,
     canDeleteUsers: false,
@@ -49,6 +50,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessAddressVerification: true,
         canAccessUserManagement: true,
         canAccessSettings: true,
+        canAccessBusinessSettings: true,
         canAddUsers: true,
         canEditUsers: true,
         canDeleteUsers: true,
@@ -342,6 +344,14 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       label: 'Settings',
       href: '/settings',
       icon: 'Settings'
+    });
+  }
+
+  if (permissions.canAccessBusinessSettings) {
+    items.push({
+      label: 'Business Settings',
+      href: '/business-settings',
+      icon: 'Building'
     });
   }
 

@@ -38,6 +38,9 @@ const UserManagement = lazy(() =>
 const Settings = lazy(() => 
   import("@/pages/Settings/Settings").then(module => ({ default: module.default }))
 );
+const BusinessSettings = lazy(() => 
+  import("@/pages/Settings/BusinessSettings").then(module => ({ default: module.default }))
+);
 const ShipperAdvice = lazy(() => 
   import("@/pages/Orders/ShipperAdvice").then(module => ({ default: module.default }))
 );
@@ -181,6 +184,11 @@ const App = () => {
                 <Route path="settings" element={
                   <Suspense fallback={<PageLoader />}>
                     <Settings />
+                  </Suspense>
+                } />
+                <Route path="business-settings" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <BusinessSettings />
                   </Suspense>
                 } />
                 <Route path="shipper-advice" element={
