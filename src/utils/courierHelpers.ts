@@ -68,6 +68,7 @@ export async function bookCourier(params: BookingParams): Promise<{
   success: boolean;
   trackingId?: string;
   error?: string;
+  errorCode?: string;
 }> {
   try {
     const { data, error } = await supabase.functions.invoke('courier-booking', {
@@ -76,7 +77,19 @@ export async function bookCourier(params: BookingParams): Promise<{
 
     if (error) {
       console.error('Error booking courier:', error);
-      return { success: false, error: error.message };
+      return { 
+        success: false, 
+        error: error.message,
+        errorCode: 'FUNCTION_ERROR'
+      };
+    }
+
+    if (!data.success) {
+      return {
+        success: false,
+        error: data.error || 'Booking failed',
+        errorCode: data.errorCode || 'BOOKING_ERROR'
+      };
     }
 
     return {
@@ -85,7 +98,11 @@ export async function bookCourier(params: BookingParams): Promise<{
     };
   } catch (error: any) {
     console.error('Exception booking courier:', error);
-    return { success: false, error: error.message };
+    return { 
+      success: false, 
+      error: error.message || 'Network error occurred',
+      errorCode: 'NETWORK_ERROR'
+    };
   }
 }
 

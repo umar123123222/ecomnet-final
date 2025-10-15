@@ -55,27 +55,43 @@ serve(async (req) => {
 
     console.log('Courier:', courier.name);
 
+    // Check for mock mode
+    const mockMode = Deno.env.get('COURIER_BOOKING_MODE') === 'mock';
+    
     let bookingResponse;
     let trackingId;
 
-    switch (courier.code.toUpperCase()) {
-      case 'TCS':
-        bookingResponse = await bookTCS(bookingRequest);
-        trackingId = bookingResponse.tracking_number;
-        break;
-      
-      case 'LEOPARD':
-        bookingResponse = await bookLeopard(bookingRequest);
-        trackingId = bookingResponse.track_number;
-        break;
-      
-      case 'POSTEX':
-        bookingResponse = await bookPostEx(bookingRequest);
-        trackingId = bookingResponse.tracking_number;
-        break;
-      
-      default:
-        throw new Error(`Unsupported courier: ${courier.code}`);
+    if (mockMode) {
+      console.log('MOCK MODE: Generating fake tracking ID');
+      trackingId = `${courier.code.toUpperCase()}-MOCK-${Date.now().toString().slice(-8)}`;
+      bookingResponse = {
+        mock: true,
+        tracking_number: trackingId,
+        track_number: trackingId,
+        booking_id: `MOCK-${Date.now()}`,
+        status: 'booked',
+        message: 'Mock booking successful'
+      };
+    } else {
+      switch (courier.code.toUpperCase()) {
+        case 'TCS':
+          bookingResponse = await bookTCS(bookingRequest);
+          trackingId = bookingResponse.tracking_number;
+          break;
+        
+        case 'LEOPARD':
+          bookingResponse = await bookLeopard(bookingRequest);
+          trackingId = bookingResponse.track_number;
+          break;
+        
+        case 'POSTEX':
+          bookingResponse = await bookPostEx(bookingRequest);
+          trackingId = bookingResponse.tracking_number;
+          break;
+        
+        default:
+          throw new Error(`Unsupported courier: ${courier.code}`);
+      }
     }
 
     // Update order with tracking information
@@ -124,10 +140,27 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('Error in courier-booking:', error);
+    
+    // Detect DNS/network errors
+    let errorCode = 'UNKNOWN_ERROR';
+    let errorDetail = error.message;
+    
+    if (error.message?.includes('DNS') || error.message?.includes('getaddrinfo')) {
+      errorCode = 'NETWORK_DNS_ERROR';
+      errorDetail = 'Cannot reach courier API (DNS resolution failed)';
+    } else if (error.message?.includes('fetch') || error.message?.includes('network')) {
+      errorCode = 'NETWORK_ERROR';
+      errorDetail = 'Network connectivity issue with courier API';
+    } else if (error.message?.includes('booking failed')) {
+      errorCode = 'BOOKING_API_ERROR';
+    }
+    
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message
+        error: errorDetail,
+        errorCode: errorCode,
+        originalError: error.message
       }),
       {
         status: 500,

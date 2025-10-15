@@ -113,6 +113,34 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
       return;
     }
 
+    // Normalize city to Title Case
+    const normalizeCity = (city: string) => 
+      city.trim().charAt(0).toUpperCase() + city.trim().slice(1).toLowerCase();
+
+    // Pre-booking validations
+    const deliveryName = selectedOrder.customer_name?.trim();
+    const deliveryPhone = selectedOrder.customer_phone?.trim();
+    const deliveryAddress = selectedOrder.customer_address?.trim();
+    const deliveryCity = selectedOrder.city?.trim();
+
+    if (!deliveryName || !deliveryPhone || !deliveryAddress || !deliveryCity) {
+      toast({
+        title: "Incomplete Delivery Information",
+        description: "Customer name, phone, address, and city are required for booking.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (deliveryAddress.length < 10) {
+      toast({
+        title: "Invalid Address",
+        description: "Delivery address seems too short. Please verify the order details.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsBooking(true);
 
     try {
@@ -133,10 +161,10 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
           city: "Karachi", // TODO: Get from business settings
         },
         deliveryAddress: {
-          name: selectedOrder.customer_name,
-          phone: selectedOrder.customer_phone,
-          address: selectedOrder.customer_address,
-          city: selectedOrder.city,
+          name: deliveryName,
+          phone: deliveryPhone,
+          address: deliveryAddress,
+          city: normalizeCity(deliveryCity),
         },
         weight: 1, // Default 1kg
         pieces: 1, // Default 1 piece
@@ -162,14 +190,29 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
           tracking_id: result.trackingId,
         });
       } else {
-        throw new Error(result.error || "Booking failed");
+        // Show fallback options
+        const errorMsg = result.errorCode === 'NETWORK_DNS_ERROR' 
+          ? "Cannot reach courier API (network/DNS error). You can manually enter a tracking ID to dispatch."
+          : result.error || "Booking failed. You can manually enter a tracking ID to dispatch.";
+        
+        toast({
+          title: "Courier API Booking Failed",
+          description: errorMsg,
+          variant: "destructive",
+        });
+        
+        // Switch to manual mode by setting courier to "other"
+        setFormData(prev => ({ ...prev, courier: 'other', tracking_id: '' }));
       }
     } catch (error: any) {
       toast({
         title: "Booking Failed",
-        description: error.message,
+        description: error.message || "Failed to book courier. Switch to manual dispatch if needed.",
         variant: "destructive",
       });
+      
+      // Switch to manual mode
+      setFormData(prev => ({ ...prev, courier: 'other', tracking_id: '' }));
     } finally {
       setIsBooking(false);
     }
@@ -309,7 +352,9 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
                 <div className="rounded-lg bg-muted p-3 space-y-1 text-sm">
                   <p className="font-semibold">Order Details</p>
                   <p>Customer: {selectedOrder.customer_name}</p>
-                  <p>City: {selectedOrder.city}</p>
+                  <p>Phone: {selectedOrder.customer_phone || 'Not provided'}</p>
+                  <p>Address: {selectedOrder.customer_address?.trim() || 'Not provided'}</p>
+                  <p>City: {selectedOrder.city ? selectedOrder.city.charAt(0).toUpperCase() + selectedOrder.city.slice(1).toLowerCase() : 'Not provided'}</p>
                   <p>Amount: Rs. {selectedOrder.total_amount?.toLocaleString()}</p>
                 </div>
               )}
