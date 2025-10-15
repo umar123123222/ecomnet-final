@@ -3,6 +3,15 @@ project_id = "lzitfcigdjbpymvebipp"
 [functions.send-whatsapp]
 verify_jwt = true
 
+[functions.courier-booking]
+verify_jwt = true
+
+[functions.courier-rates]
+verify_jwt = true
+
+[functions.courier-tracking]
+verify_jwt = true
+
 [functions.manage-user]
 verify_jwt = true
 
