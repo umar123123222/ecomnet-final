@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Truck, Package } from "lucide-react";
+import { bookCourier } from "@/utils/courierHelpers";
 
 interface NewDispatchDialogProps {
   open: boolean;
@@ -26,6 +27,8 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
     notes: "",
     dispatch_date: new Date().toISOString().split('T')[0],
   });
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [isBooking, setIsBooking] = useState(false);
 
   // Fetch pending orders
   const { data: pendingOrders = [], isLoading } = useQuery({
@@ -33,7 +36,16 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, order_number, customer_name, status")
+        .select(`
+          id, 
+          order_number, 
+          customer_name, 
+          customer_phone, 
+          customer_address, 
+          city, 
+          total_amount,
+          status
+        `)
         .in("status", ["pending", "address clear"])
         .is("dispatched_at", null)
         .order("created_at", { ascending: false });
@@ -42,11 +54,125 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
     },
   });
 
+  // Fetch active couriers
+  const { data: activeCouriers = [] } = useQuery({
+    queryKey: ["active-couriers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("couriers")
+        .select("id, name, code")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   useEffect(() => {
     if (preSelectedOrderId) {
       setFormData(prev => ({ ...prev, order_id: preSelectedOrderId }));
+      const order = pendingOrders.find(o => o.id === preSelectedOrderId);
+      setSelectedOrder(order);
     }
-  }, [preSelectedOrderId]);
+  }, [preSelectedOrderId, pendingOrders]);
+
+  const handleOrderSelect = (orderId: string) => {
+    const order = pendingOrders.find(o => o.id === orderId);
+    setSelectedOrder(order);
+    setFormData({ ...formData, order_id: orderId });
+  };
+
+  const handleBookAndDispatch = async () => {
+    // Validation
+    if (!formData.order_id || !formData.courier) {
+      toast({
+        title: "Validation Error",
+        description: "Please select an order and courier",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedOrder) {
+      toast({
+        title: "Error",
+        description: "Order details not found",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Only book with API for integrated couriers
+    if (formData.courier === "other") {
+      toast({
+        title: "Manual Tracking Required",
+        description: "Please enter tracking ID manually for this courier",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsBooking(true);
+
+    try {
+      // Get courier details
+      const courier = activeCouriers.find(c => c.code === formData.courier);
+      if (!courier) {
+        throw new Error("Courier not found");
+      }
+
+      // Prepare booking parameters
+      const bookingParams = {
+        orderId: formData.order_id,
+        courierId: courier.id,
+        pickupAddress: {
+          name: "Your Business Name", // TODO: Get from business settings
+          phone: "+92-300-1234567", // TODO: Get from business settings
+          address: "Your Warehouse Address", // TODO: Get from business settings
+          city: "Karachi", // TODO: Get from business settings
+        },
+        deliveryAddress: {
+          name: selectedOrder.customer_name,
+          phone: selectedOrder.customer_phone,
+          address: selectedOrder.customer_address,
+          city: selectedOrder.city,
+        },
+        weight: 1, // Default 1kg
+        pieces: 1, // Default 1 piece
+        codAmount: selectedOrder.total_amount,
+        specialInstructions: formData.notes,
+      };
+
+      // Call booking API
+      const result = await bookCourier(bookingParams);
+
+      if (result.success && result.trackingId) {
+        // Auto-fill tracking ID
+        setFormData(prev => ({ ...prev, tracking_id: result.trackingId! }));
+        
+        toast({
+          title: "Booking Successful",
+          description: `Tracking ID: ${result.trackingId}`,
+        });
+
+        // Proceed with dispatch creation
+        createDispatchMutation.mutate({
+          ...formData,
+          tracking_id: result.trackingId,
+        });
+      } else {
+        throw new Error(result.error || "Booking failed");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Booking Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsBooking(false);
+    }
+  };
 
   const createDispatchMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -134,7 +260,7 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
             <Label htmlFor="order_id">Order * {pendingOrders.length > 0 && `(${pendingOrders.length} available)`}</Label>
             <Select
               value={formData.order_id}
-              onValueChange={(value) => setFormData({ ...formData, order_id: value })}
+              onValueChange={handleOrderSelect}
               disabled={!!preSelectedOrderId || isLoading}
             >
               <SelectTrigger>
@@ -176,15 +302,38 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
             </Select>
           </div>
 
-          <div>
-            <Label htmlFor="tracking_id">Tracking ID *</Label>
-            <Input
-              id="tracking_id"
-              value={formData.tracking_id}
-              onChange={(e) => setFormData({ ...formData, tracking_id: e.target.value })}
-              placeholder="Enter tracking number"
-            />
-          </div>
+          {selectedOrder && formData.courier && formData.courier !== "other" && (
+            <div className="rounded-lg bg-muted p-3 space-y-1 text-sm">
+              <p className="font-semibold">Order Details</p>
+              <p>Customer: {selectedOrder.customer_name}</p>
+              <p>Phone: {selectedOrder.customer_phone}</p>
+              <p>Address: {selectedOrder.customer_address}, {selectedOrder.city}</p>
+              <p>Amount: Rs. {selectedOrder.total_amount?.toLocaleString()}</p>
+            </div>
+          )}
+
+          {formData.courier === "other" ? (
+            <div>
+              <Label htmlFor="tracking_id">Tracking ID *</Label>
+              <Input
+                id="tracking_id"
+                value={formData.tracking_id}
+                onChange={(e) => setFormData({ ...formData, tracking_id: e.target.value })}
+                placeholder="Enter tracking number manually"
+              />
+            </div>
+          ) : (
+            <div>
+              <Label htmlFor="tracking_id">Tracking ID</Label>
+              <Input
+                id="tracking_id"
+                value={formData.tracking_id}
+                placeholder="Will be auto-generated after booking"
+                disabled
+                className="bg-muted"
+              />
+            </div>
+          )}
 
           <div>
             <Label htmlFor="dispatch_date">Dispatch Date</Label>
@@ -207,7 +356,7 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
             />
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button
               type="button"
               variant="outline"
@@ -215,9 +364,34 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={createDispatchMutation.isPending}>
-              {createDispatchMutation.isPending ? "Creating..." : "Create Dispatch"}
-            </Button>
+            
+            {formData.courier === "other" ? (
+              <Button 
+                type="submit" 
+                disabled={createDispatchMutation.isPending}
+              >
+                {createDispatchMutation.isPending ? "Creating..." : "Create Dispatch"}
+              </Button>
+            ) : (
+              <Button 
+                type="button"
+                onClick={handleBookAndDispatch}
+                disabled={isBooking || !formData.order_id || !formData.courier}
+                className="bg-primary"
+              >
+                {isBooking ? (
+                  <>
+                    <Truck className="mr-2 h-4 w-4 animate-pulse" />
+                    Booking...
+                  </>
+                ) : (
+                  <>
+                    <Truck className="mr-2 h-4 w-4" />
+                    Book & Dispatch
+                  </>
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>
