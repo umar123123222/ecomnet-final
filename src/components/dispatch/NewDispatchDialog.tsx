@@ -360,7 +360,7 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
             </div>
           </ScrollArea>
 
-          <DialogFooter className="flex-col sm:flex-row gap-2 pt-4 border-t sticky bottom-0 bg-background">
+          <DialogFooter className="gap-2 pt-4 border-t sticky bottom-0 bg-background">
             <Button
               type="button"
               variant="outline"
