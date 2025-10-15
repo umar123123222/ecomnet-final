@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.50.2";
+import { getAPISetting } from "../_shared/apiSettings.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -129,7 +130,7 @@ serve(async (req) => {
 });
 
 async function getTCSRate(request: RateRequest) {
-  const apiKey = Deno.env.get('TCS_API_KEY');
+  const apiKey = await getAPISetting('TCS_API_KEY');
   
   try {
     const response = await fetch('https://api.tcs.com.pk/api/v1/rates/calculate', {
@@ -161,7 +162,7 @@ async function getTCSRate(request: RateRequest) {
 }
 
 async function getLeopardRate(request: RateRequest) {
-  const apiKey = Deno.env.get('LEOPARD_API_KEY');
+  const apiKey = await getAPISetting('LEOPARD_API_KEY');
   
   try {
     const response = await fetch('https://api.leopardscourier.com/api/rate/calculate', {
@@ -193,7 +194,7 @@ async function getLeopardRate(request: RateRequest) {
 }
 
 async function getPostExRate(request: RateRequest) {
-  const apiKey = Deno.env.get('POSTEX_API_KEY');
+  const apiKey = await getAPISetting('POSTEX_API_KEY');
   
   try {
     const response = await fetch('https://api.postex.pk/services/integration/api/shipment/v1/calculate-charges', {

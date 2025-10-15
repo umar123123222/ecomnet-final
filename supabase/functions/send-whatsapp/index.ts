@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getAPISetting } from "../_shared/apiSettings.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,8 +29,8 @@ serve(async (req) => {
       throw new Error('Recipient phone number is required');
     }
 
-    const accessToken = Deno.env.get('WHATSAPP_ACCESS_TOKEN');
-    const phoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID');
+    const accessToken = await getAPISetting('WHATSAPP_ACCESS_TOKEN');
+    const phoneNumberId = await getAPISetting('WHATSAPP_PHONE_NUMBER_ID');
 
     if (!accessToken || !phoneNumberId) {
       throw new Error('WhatsApp API credentials not configured');

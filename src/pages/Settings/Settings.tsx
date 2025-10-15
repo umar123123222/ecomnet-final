@@ -9,10 +9,13 @@ import { Camera, Save, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { APISettingsCard } from "@/components/settings/APISettingsCard";
+import { useUserRoles } from "@/hooks/useUserRoles";
 
 const Settings = () => {
   const { toast } = useToast();
   const { profile } = useAuth();
+  const { isAdmin } = useUserRoles();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [profileImage, setProfileImage] = useState("");
@@ -137,6 +140,9 @@ const Settings = () => {
       </div>
 
       <div className="space-y-8">
+        {/* API Settings - Only visible to super admin */}
+        {isAdmin() && <APISettingsCard isSuperAdmin={true} />}
+
         {/* Profile Information Card */}
         <Card className="modern-card">
           <CardHeader className="card-header">
