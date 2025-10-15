@@ -262,6 +262,95 @@ export type Database = {
           },
         ]
       }
+      courier_rate_cards: {
+        Row: {
+          courier_id: string
+          created_at: string | null
+          destination_city: string
+          estimated_days: number | null
+          id: string
+          is_active: boolean | null
+          origin_city: string
+          rate: number
+          updated_at: string | null
+          weight_from: number
+          weight_to: number
+        }
+        Insert: {
+          courier_id: string
+          created_at?: string | null
+          destination_city: string
+          estimated_days?: number | null
+          id?: string
+          is_active?: boolean | null
+          origin_city: string
+          rate: number
+          updated_at?: string | null
+          weight_from: number
+          weight_to: number
+        }
+        Update: {
+          courier_id?: string
+          created_at?: string | null
+          destination_city?: string
+          estimated_days?: number | null
+          id?: string
+          is_active?: boolean | null
+          origin_city?: string
+          rate?: number
+          updated_at?: string | null
+          weight_from?: number
+          weight_to?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courier_rate_cards_courier_id_fkey"
+            columns: ["courier_id"]
+            isOneToOne: false
+            referencedRelation: "couriers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      couriers: {
+        Row: {
+          api_endpoint: string
+          code: string
+          config: Json | null
+          created_at: string | null
+          id: string
+          is_active: boolean
+          name: string
+          pricing_config: Json | null
+          supported_cities: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          api_endpoint: string
+          code: string
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          pricing_config?: Json | null
+          supported_cities?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          api_endpoint?: string
+          code?: string
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          pricing_config?: Json | null
+          supported_cities?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           address: string | null
@@ -271,14 +360,17 @@ export type Database = {
           email: string | null
           id: string
           is_suspicious: boolean | null
+          last_whatsapp_sent: string | null
           name: string
           phone: string | null
           phone_last_5_chr: string | null
           return_count: number | null
+          shopify_customer_id: number | null
           suspicious_reason: string | null
           total_orders: number | null
           Type: string | null
           updated_at: string | null
+          whatsapp_opt_in: boolean | null
         }
         Insert: {
           address?: string | null
@@ -288,14 +380,17 @@ export type Database = {
           email?: string | null
           id?: string
           is_suspicious?: boolean | null
+          last_whatsapp_sent?: string | null
           name: string
           phone?: string | null
           phone_last_5_chr?: string | null
           return_count?: number | null
+          shopify_customer_id?: number | null
           suspicious_reason?: string | null
           total_orders?: number | null
           Type?: string | null
           updated_at?: string | null
+          whatsapp_opt_in?: boolean | null
         }
         Update: {
           address?: string | null
@@ -305,24 +400,32 @@ export type Database = {
           email?: string | null
           id?: string
           is_suspicious?: boolean | null
+          last_whatsapp_sent?: string | null
           name?: string
           phone?: string | null
           phone_last_5_chr?: string | null
           return_count?: number | null
+          shopify_customer_id?: number | null
           suspicious_reason?: string | null
           total_orders?: number | null
           Type?: string | null
           updated_at?: string | null
+          whatsapp_opt_in?: boolean | null
         }
         Relationships: []
       }
       dispatches: {
         Row: {
           courier: string
+          courier_booking_id: string | null
+          courier_id: string | null
+          courier_response: Json | null
           created_at: string
           dispatch_date: string | null
           dispatched_by: string | null
+          estimated_delivery: string | null
           id: string
+          last_tracking_update: string | null
           notes: string | null
           order_id: string
           status: string | null
@@ -331,10 +434,15 @@ export type Database = {
         }
         Insert: {
           courier: string
+          courier_booking_id?: string | null
+          courier_id?: string | null
+          courier_response?: Json | null
           created_at?: string
           dispatch_date?: string | null
           dispatched_by?: string | null
+          estimated_delivery?: string | null
           id?: string
+          last_tracking_update?: string | null
           notes?: string | null
           order_id: string
           status?: string | null
@@ -343,10 +451,15 @@ export type Database = {
         }
         Update: {
           courier?: string
+          courier_booking_id?: string | null
+          courier_id?: string | null
+          courier_response?: Json | null
           created_at?: string
           dispatch_date?: string | null
           dispatched_by?: string | null
+          estimated_delivery?: string | null
           id?: string
+          last_tracking_update?: string | null
           notes?: string | null
           order_id?: string
           status?: string | null
@@ -354,6 +467,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "dispatches_courier_id_fkey"
+            columns: ["courier_id"]
+            isOneToOne: false
+            referencedRelation: "couriers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "dispatches_dispatched_by_fkey"
             columns: ["dispatched_by"]
@@ -778,10 +898,15 @@ export type Database = {
           gpt_score: number | null
           id: string
           items: Json
+          last_shopify_sync: string | null
           notes: string | null
           order_number: string
           order_type: string | null
+          shopify_fulfillment_id: number | null
+          shopify_order_id: number | null
+          shopify_order_number: string | null
           status: Database["public"]["Enums"]["order_status"] | null
+          synced_to_shopify: boolean | null
           tags: string[] | null
           timestamp: string | null
           total_amount: number
@@ -814,10 +939,15 @@ export type Database = {
           gpt_score?: number | null
           id?: string
           items: Json
+          last_shopify_sync?: string | null
           notes?: string | null
           order_number: string
           order_type?: string | null
+          shopify_fulfillment_id?: number | null
+          shopify_order_id?: number | null
+          shopify_order_number?: string | null
           status?: Database["public"]["Enums"]["order_status"] | null
+          synced_to_shopify?: boolean | null
           tags?: string[] | null
           timestamp?: string | null
           total_amount: number
@@ -850,10 +980,15 @@ export type Database = {
           gpt_score?: number | null
           id?: string
           items?: Json
+          last_shopify_sync?: string | null
           notes?: string | null
           order_number?: string
           order_type?: string | null
+          shopify_fulfillment_id?: number | null
+          shopify_order_id?: number | null
+          shopify_order_number?: string | null
           status?: Database["public"]["Enums"]["order_status"] | null
+          synced_to_shopify?: boolean | null
           tags?: string[] | null
           timestamp?: string | null
           total_amount?: number
@@ -1033,7 +1168,10 @@ export type Database = {
           name: string
           price: number
           reorder_level: number
+          shopify_product_id: number | null
+          shopify_variant_id: number | null
           sku: string
+          synced_from_shopify: boolean | null
           updated_at: string
         }
         Insert: {
@@ -1046,7 +1184,10 @@ export type Database = {
           name: string
           price: number
           reorder_level?: number
+          shopify_product_id?: number | null
+          shopify_variant_id?: number | null
           sku: string
+          synced_from_shopify?: boolean | null
           updated_at?: string
         }
         Update: {
@@ -1059,7 +1200,10 @@ export type Database = {
           name?: string
           price?: number
           reorder_level?: number
+          shopify_product_id?: number | null
+          shopify_variant_id?: number | null
           sku?: string
+          synced_from_shopify?: boolean | null
           updated_at?: string
         }
         Relationships: []
@@ -1453,6 +1597,45 @@ export type Database = {
           scan_type?: string
           scanned_by?: string | null
           tracking_id?: string | null
+        }
+        Relationships: []
+      }
+      shopify_sync_log: {
+        Row: {
+          completed_at: string | null
+          error_details: Json | null
+          id: string
+          records_failed: number | null
+          records_processed: number | null
+          started_at: string | null
+          status: string
+          sync_direction: string
+          sync_type: string
+          triggered_by: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          error_details?: Json | null
+          id?: string
+          records_failed?: number | null
+          records_processed?: number | null
+          started_at?: string | null
+          status: string
+          sync_direction: string
+          sync_type: string
+          triggered_by?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          error_details?: Json | null
+          id?: string
+          records_failed?: number | null
+          records_processed?: number | null
+          started_at?: string | null
+          status?: string
+          sync_direction?: string
+          sync_type?: string
+          triggered_by?: string | null
         }
         Relationships: []
       }
@@ -2146,6 +2329,114 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_message_queue: {
+        Row: {
+          attempts: number | null
+          created_at: string | null
+          customer_id: string | null
+          id: string
+          last_error: string | null
+          message_text: string
+          order_id: string | null
+          phone_number: string
+          sent_at: string | null
+          status: string | null
+          template_name: string | null
+          variables: Json | null
+          whatsapp_message_id: string | null
+        }
+        Insert: {
+          attempts?: number | null
+          created_at?: string | null
+          customer_id?: string | null
+          id?: string
+          last_error?: string | null
+          message_text: string
+          order_id?: string | null
+          phone_number: string
+          sent_at?: string | null
+          status?: string | null
+          template_name?: string | null
+          variables?: Json | null
+          whatsapp_message_id?: string | null
+        }
+        Update: {
+          attempts?: number | null
+          created_at?: string | null
+          customer_id?: string | null
+          id?: string
+          last_error?: string | null
+          message_text?: string
+          order_id?: string | null
+          phone_number?: string
+          sent_at?: string | null
+          status?: string | null
+          template_name?: string | null
+          variables?: Json | null
+          whatsapp_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_message_queue_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_message_queue_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_templates: {
+        Row: {
+          body_text: string
+          button_config: Json | null
+          category: string
+          created_at: string | null
+          footer_text: string | null
+          header_text: string | null
+          id: string
+          is_active: boolean | null
+          language: string | null
+          name: string
+          template_id: string
+          variables: Json | null
+        }
+        Insert: {
+          body_text: string
+          button_config?: Json | null
+          category: string
+          created_at?: string | null
+          footer_text?: string | null
+          header_text?: string | null
+          id?: string
+          is_active?: boolean | null
+          language?: string | null
+          name: string
+          template_id: string
+          variables?: Json | null
+        }
+        Update: {
+          body_text?: string
+          button_config?: Json | null
+          category?: string
+          created_at?: string | null
+          footer_text?: string | null
+          header_text?: string | null
+          id?: string
+          is_active?: boolean | null
+          language?: string | null
+          name?: string
+          template_id?: string
+          variables?: Json | null
+        }
+        Relationships: []
       }
     }
     Views: {
