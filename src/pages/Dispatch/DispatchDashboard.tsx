@@ -75,7 +75,7 @@ const DispatchDashboard = () => {
           .from('dispatches')
           .select(`
             *,
-            orders:order_id (
+            orders!dispatches_order_id_fkey (
               order_number,
               customer_name,
               customer_phone,

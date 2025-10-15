@@ -518,13 +518,6 @@ export type Database = {
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "fk_dispatches_order"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
         ]
       }
       goods_received_notes: {
@@ -1553,13 +1546,6 @@ export type Database = {
           worth?: number | null
         }
         Relationships: [
-          {
-            foreignKeyName: "fk_returns_order"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "returns_order_id_fkey"
             columns: ["order_id"]

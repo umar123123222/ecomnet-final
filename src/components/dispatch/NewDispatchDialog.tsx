@@ -28,13 +28,14 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
   });
 
   // Fetch pending orders
-  const { data: pendingOrders = [] } = useQuery({
+  const { data: pendingOrders = [], isLoading } = useQuery({
     queryKey: ["pending-orders"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
         .select("id, order_number, customer_name, status")
-        .eq("status", "booked")
+        .in("status", ["pending", "address clear"])
+        .is("dispatched_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -130,21 +131,29 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="order_id">Order *</Label>
+            <Label htmlFor="order_id">Order * {pendingOrders.length > 0 && `(${pendingOrders.length} available)`}</Label>
             <Select
               value={formData.order_id}
               onValueChange={(value) => setFormData({ ...formData, order_id: value })}
-              disabled={!!preSelectedOrderId}
+              disabled={!!preSelectedOrderId || isLoading}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select an order" />
+                <SelectValue placeholder={
+                  isLoading ? "Loading orders..." : 
+                  pendingOrders.length === 0 ? "No orders available" :
+                  "Select an order"
+                } />
               </SelectTrigger>
               <SelectContent>
-                {pendingOrders.map((order) => (
-                  <SelectItem key={order.id} value={order.id}>
-                    {order.order_number} - {order.customer_name}
-                  </SelectItem>
-                ))}
+                {pendingOrders.length === 0 ? (
+                  <SelectItem value="" disabled>No dispatchable orders found</SelectItem>
+                ) : (
+                  pendingOrders.map((order) => (
+                    <SelectItem key={order.id} value={order.id}>
+                      {order.order_number} - {order.customer_name}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>

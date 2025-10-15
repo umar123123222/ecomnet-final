@@ -81,7 +81,7 @@ const ReturnsDashboard = () => {
           .from('returns')
           .select(`
             *,
-            orders:order_id (
+            orders!returns_order_id_fkey (
               order_number,
               customer_name,
               customer_phone
