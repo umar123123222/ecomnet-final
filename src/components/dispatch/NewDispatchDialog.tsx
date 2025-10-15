@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Truck, Package } from "lucide-react";
 import { bookCourier } from "@/utils/courierHelpers";
 
@@ -256,107 +257,110 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="order_id">Order * {pendingOrders.length > 0 && `(${pendingOrders.length} available)`}</Label>
-            <Select
-              value={formData.order_id}
-              onValueChange={handleOrderSelect}
-              disabled={!!preSelectedOrderId || isLoading}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={
-                  isLoading ? "Loading orders..." : 
-                  pendingOrders.length === 0 ? "No orders available" :
-                  "Select an order"
-                } />
-              </SelectTrigger>
-              <SelectContent>
-                {pendingOrders.length === 0 ? (
-                  <SelectItem value="" disabled>No dispatchable orders found</SelectItem>
-                ) : (
-                  pendingOrders.map((order) => (
-                    <SelectItem key={order.id} value={order.id}>
-                      {order.order_number} - {order.customer_name}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          </div>
+          <ScrollArea className="max-h-[65vh] pr-4">
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="order_id">Order * {pendingOrders.length > 0 && `(${pendingOrders.length} available)`}</Label>
+                <Select
+                  value={formData.order_id}
+                  onValueChange={handleOrderSelect}
+                  disabled={!!preSelectedOrderId || isLoading}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={
+                      isLoading ? "Loading orders..." : 
+                      pendingOrders.length === 0 ? "No orders available" :
+                      "Select an order"
+                    } />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pendingOrders.length === 0 ? (
+                      <SelectItem value="" disabled>No dispatchable orders found</SelectItem>
+                    ) : (
+                      pendingOrders.map((order) => (
+                        <SelectItem key={order.id} value={order.id}>
+                          {order.order_number} - {order.customer_name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div>
-            <Label htmlFor="courier">Courier *</Label>
-            <Select
-              value={formData.courier}
-              onValueChange={(value: "leopard" | "tcs" | "postex" | "other") => setFormData({ ...formData, courier: value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select courier" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="leopard">Leopard</SelectItem>
-                <SelectItem value="tcs">TCS</SelectItem>
-                <SelectItem value="postex">PostEx</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+              <div>
+                <Label htmlFor="courier">Courier *</Label>
+                <Select
+                  value={formData.courier}
+                  onValueChange={(value: "leopard" | "tcs" | "postex" | "other") => setFormData({ ...formData, courier: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select courier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="leopard">Leopard</SelectItem>
+                    <SelectItem value="tcs">TCS</SelectItem>
+                    <SelectItem value="postex">PostEx</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-          {selectedOrder && formData.courier && formData.courier !== "other" && (
-            <div className="rounded-lg bg-muted p-3 space-y-1 text-sm">
-              <p className="font-semibold">Order Details</p>
-              <p>Customer: {selectedOrder.customer_name}</p>
-              <p>Phone: {selectedOrder.customer_phone}</p>
-              <p>Address: {selectedOrder.customer_address}, {selectedOrder.city}</p>
-              <p>Amount: Rs. {selectedOrder.total_amount?.toLocaleString()}</p>
+              {selectedOrder && formData.courier && formData.courier !== "other" && (
+                <div className="rounded-lg bg-muted p-3 space-y-1 text-sm">
+                  <p className="font-semibold">Order Details</p>
+                  <p>Customer: {selectedOrder.customer_name}</p>
+                  <p>City: {selectedOrder.city}</p>
+                  <p>Amount: Rs. {selectedOrder.total_amount?.toLocaleString()}</p>
+                </div>
+              )}
+
+              {formData.courier === "other" ? (
+                <div>
+                  <Label htmlFor="tracking_id">Tracking ID *</Label>
+                  <Input
+                    id="tracking_id"
+                    value={formData.tracking_id}
+                    onChange={(e) => setFormData({ ...formData, tracking_id: e.target.value })}
+                    placeholder="Enter tracking number manually"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <Label htmlFor="tracking_id">Tracking ID</Label>
+                  <Input
+                    id="tracking_id"
+                    value={formData.tracking_id}
+                    placeholder="Will be auto-generated after booking"
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+              )}
+
+              <div>
+                <Label htmlFor="dispatch_date">Dispatch Date</Label>
+                <Input
+                  id="dispatch_date"
+                  type="date"
+                  value={formData.dispatch_date}
+                  onChange={(e) => setFormData({ ...formData, dispatch_date: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="notes">Notes (Optional)</Label>
+                <Textarea
+                  id="notes"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  placeholder="Add any additional notes..."
+                  rows={3}
+                />
+              </div>
             </div>
-          )}
+          </ScrollArea>
 
-          {formData.courier === "other" ? (
-            <div>
-              <Label htmlFor="tracking_id">Tracking ID *</Label>
-              <Input
-                id="tracking_id"
-                value={formData.tracking_id}
-                onChange={(e) => setFormData({ ...formData, tracking_id: e.target.value })}
-                placeholder="Enter tracking number manually"
-              />
-            </div>
-          ) : (
-            <div>
-              <Label htmlFor="tracking_id">Tracking ID</Label>
-              <Input
-                id="tracking_id"
-                value={formData.tracking_id}
-                placeholder="Will be auto-generated after booking"
-                disabled
-                className="bg-muted"
-              />
-            </div>
-          )}
-
-          <div>
-            <Label htmlFor="dispatch_date">Dispatch Date</Label>
-            <Input
-              id="dispatch_date"
-              type="date"
-              value={formData.dispatch_date}
-              onChange={(e) => setFormData({ ...formData, dispatch_date: e.target.value })}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="notes">Notes (Optional)</Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="Add any additional notes..."
-              rows={3}
-            />
-          </div>
-
-          <DialogFooter className="flex-col sm:flex-row gap-2">
+          <DialogFooter className="flex-col sm:flex-row gap-2 pt-4 border-t sticky bottom-0 bg-background">
             <Button
               type="button"
               variant="outline"
