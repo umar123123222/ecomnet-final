@@ -1,20 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Label } from '@/components/ui/label';
 import { useHandheldScanner } from '@/contexts/HandheldScannerContext';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { useToast } from '@/hooks/use-toast';
-import { Camera, Type, Keyboard, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { Camera, Type, Keyboard, ScanLine } from 'lucide-react';
 import Tesseract from 'tesseract.js';
 
 export interface ScanResult {
   orderId?: string;
   trackingId?: string;
   rawData: string;
-  method: 'handheld' | 'camera-barcode' | 'ocr' | 'manual';
+  method: 'handheld' | 'barcode' | 'ocr' | 'manual';
   confidence: number;
   timestamp: Date;
   scanDuration: number;
@@ -35,8 +36,8 @@ const UnifiedScanner: React.FC<UnifiedScannerProps> = ({
   scanType,
   title = 'Scan Package',
 }) => {
-  const [currentMethod, setCurrentMethod] = useState<'waiting' | 'handheld' | 'camera-barcode' | 'ocr' | 'manual'>('waiting');
-  const [processing, setProcessing] = useState(false);
+  const [currentMethod, setCurrentMethod] = useState<'handheld' | 'barcode' | 'ocr' | 'manual'>('barcode');
+  const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [manualEntry, setManualEntry] = useState({ trackingId: '', orderId: '' });
   const [scanStartTime, setScanStartTime] = useState<number>(0);
@@ -45,6 +46,7 @@ const UnifiedScanner: React.FC<UnifiedScannerProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const videoStreamRef = useRef<MediaStream | null>(null);
   
   const { isConnected: handheldConnected, onScan: onHandheldScan } = useHandheldScanner();
   const { toast } = useToast();
@@ -85,6 +87,17 @@ const UnifiedScanner: React.FC<UnifiedScannerProps> = ({
     return { trackingId, orderId };
   };
 
+  // Helper to stop camera stream
+  const stopCamera = () => {
+    if (videoStreamRef.current) {
+      videoStreamRef.current.getTracks().forEach(track => track.stop());
+      videoStreamRef.current = null;
+    }
+    if (videoRef.current && videoRef.current.srcObject) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
   const emitResult = (result: Partial<ScanResult>) => {
     const scanDuration = Date.now() - scanStartTime;
     const fullResult: ScanResult = {
@@ -97,6 +110,7 @@ const UnifiedScanner: React.FC<UnifiedScannerProps> = ({
       scanDuration,
     };
 
+    stopCamera();
     onScan(fullResult);
     toast({
       title: 'Scan Successful',
@@ -105,12 +119,22 @@ const UnifiedScanner: React.FC<UnifiedScannerProps> = ({
     onClose();
   };
 
+  // Method switch helper
+  const switchToMethod = (method: 'barcode' | 'ocr' | 'manual') => {
+    stopCamera();
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    setCurrentMethod(method);
+    setProgress(0);
+    setIsProcessing(false);
+  };
+
   // Step 1: Try Handheld Scanner
   useEffect(() => {
-    if (!isOpen || !handheldConnected) return;
+    if (!isOpen || !handheldConnected || currentMethod !== 'handheld') return;
 
-    setCurrentMethod('handheld');
-    setScanStartTime(Date.now());
+    setIsProcessing(true);
     setProgress(10);
 
     const cleanup = onHandheldScan((data) => {
@@ -124,18 +148,23 @@ const UnifiedScanner: React.FC<UnifiedScannerProps> = ({
       });
     });
 
-    // Wait 500ms for handheld scan
+    // Short timeout before moving to camera barcode
     timeoutRef.current = setTimeout(() => {
-      setCurrentMethod('camera-barcode');
-      setProgress(30);
+      if (currentMethod === 'handheld') {
+        setCurrentMethod('barcode');
+      }
     }, 500);
 
     return cleanup;
-  }, [isOpen, handheldConnected]);
+  }, [isOpen, handheldConnected, currentMethod]);
 
-  // Step 2: Try Camera Barcode
+  // Step 2: Camera Barcode Scanning
   useEffect(() => {
-    if (!isOpen || currentMethod !== 'camera-barcode') return;
+    if (!isOpen || currentMethod !== 'barcode') return;
+
+    let isScanning = true;
+    setIsProcessing(true);
+    setProgress(30);
 
     const startBarcodeScanning = async () => {
       try {
@@ -149,24 +178,24 @@ const UnifiedScanner: React.FC<UnifiedScannerProps> = ({
 
         if (!videoRef.current) return;
 
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: backCamera?.deviceId, facingMode: 'environment' }
+        });
+        videoStreamRef.current = stream;
+
         codeReader.decodeFromVideoDevice(
           backCamera?.deviceId,
           videoRef.current,
           (result, error) => {
-            if (result) {
+            if (result && isScanning) {
               const text = result.getText();
               const { trackingId, orderId } = extractIds(text);
-              
-              if (videoRef.current) {
-                const stream = videoRef.current.srcObject as MediaStream;
-                stream?.getTracks().forEach(track => track.stop());
-              }
               
               emitResult({
                 trackingId,
                 orderId,
                 rawData: text,
-                method: 'camera-barcode',
+                method: 'barcode',
                 confidence: 95,
               });
             }
@@ -175,41 +204,43 @@ const UnifiedScanner: React.FC<UnifiedScannerProps> = ({
 
         setProgress(50);
 
-        // 2-second timeout for barcode scanning
+        // Extended timeout - 5 seconds for barcode detection
         timeoutRef.current = setTimeout(() => {
-          if (videoRef.current) {
-            const stream = videoRef.current.srcObject as MediaStream;
-            stream?.getTracks().forEach(track => track.stop());
+          if (isScanning && currentMethod === 'barcode') {
+            toast({
+              title: 'No Barcode Detected',
+              description: 'Try holding the barcode steady, or use OCR/Manual entry',
+              variant: 'default',
+            });
           }
-          setCurrentMethod('manual');
-          setProgress(70);
-          toast({
-            title: 'No Barcode Detected',
-            description: 'Try OCR or enter manually',
-          });
-        }, 2000);
+        }, 5000);
+
       } catch (error) {
         console.error('Barcode scanning error:', error);
-        setCurrentMethod('manual');
+        toast({
+          title: 'Camera Error',
+          description: 'Could not access camera. Please try manual entry.',
+          variant: 'destructive',
+        });
       }
     };
 
     startBarcodeScanning();
 
     return () => {
-      if (videoRef.current) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream?.getTracks().forEach(track => track.stop());
+      isScanning = false;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
       }
+      stopCamera();
     };
   }, [isOpen, currentMethod]);
 
-  // Step 3: OCR Fallback (user-initiated)
+  // Step 3: OCR Scanning
   const handleOCRScan = async () => {
     if (!videoRef.current || !canvasRef.current) return;
 
-    setCurrentMethod('ocr');
-    setProcessing(true);
+    setIsProcessing(true);
     setProgress(80);
 
     try {
@@ -244,21 +275,19 @@ const UnifiedScanner: React.FC<UnifiedScannerProps> = ({
       } else {
         toast({
           title: 'No IDs Found',
-          description: 'Please enter manually',
-          variant: 'destructive',
+          description: 'Please try again or enter manually',
+          variant: 'default',
         });
-        setCurrentMethod('manual');
       }
     } catch (error) {
       console.error('OCR error:', error);
       toast({
         title: 'OCR Failed',
-        description: 'Please enter manually',
+        description: 'Please try again or enter manually',
         variant: 'destructive',
       });
-      setCurrentMethod('manual');
     } finally {
-      setProcessing(false);
+      setIsProcessing(false);
     }
   };
 
@@ -286,66 +315,107 @@ const UnifiedScanner: React.FC<UnifiedScannerProps> = ({
     if (isOpen) {
       setScanStartTime(Date.now());
       setProgress(0);
-      setCurrentMethod(handheldConnected ? 'handheld' : 'camera-barcode');
+      setCurrentMethod(handheldConnected ? 'handheld' : 'barcode');
+      setManualEntry({ trackingId: '', orderId: '' });
     }
 
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
-      if (videoRef.current) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream?.getTracks().forEach(track => track.stop());
-      }
+      stopCamera();
     };
-  }, [isOpen]);
+  }, [isOpen, handheldConnected]);
+
+  const getStatusMessage = () => {
+    switch (currentMethod) {
+      case 'handheld':
+        return 'Waiting for handheld scanner input...';
+      case 'barcode':
+        return 'Hold barcode steady in the green frame';
+      case 'ocr':
+        return isProcessing ? 'Processing text recognition...' : 'Click "Use OCR" to capture and process text';
+      case 'manual':
+        return 'Enter tracking and order details manually';
+      default:
+        return '';
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {title}
-            <Badge variant="outline">{currentMethod}</Badge>
-          </DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>
+            {getStatusMessage()}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Progress Bar */}
-          <Progress value={progress} className="w-full" />
-
-          {/* Method Indicators */}
-          <div className="flex justify-around text-sm">
-            <div className={`flex items-center gap-1 ${currentMethod === 'handheld' ? 'text-primary' : 'text-muted-foreground'}`}>
-              <Keyboard className="h-4 w-4" />
-              <span>Handheld</span>
-              {handheldConnected && <CheckCircle2 className="h-3 w-3 text-green-600" />}
-              {!handheldConnected && <XCircle className="h-3 w-3 text-red-600" />}
-            </div>
-            <div className={`flex items-center gap-1 ${currentMethod === 'camera-barcode' ? 'text-primary' : 'text-muted-foreground'}`}>
-              <Camera className="h-4 w-4" />
-              <span>Barcode</span>
-            </div>
-            <div className={`flex items-center gap-1 ${currentMethod === 'ocr' ? 'text-primary' : 'text-muted-foreground'}`}>
-              <Type className="h-4 w-4" />
-              <span>OCR</span>
-            </div>
+          {/* Method Selector Buttons - Always Visible */}
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={currentMethod === 'barcode' ? 'default' : 'outline'}
+              onClick={() => switchToMethod('barcode')}
+              className="flex-1"
+            >
+              <Camera className="h-4 w-4 mr-1" />
+              Barcode
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={currentMethod === 'ocr' ? 'default' : 'outline'}
+              onClick={() => handleOCRScan()}
+              disabled={isProcessing || currentMethod === 'manual'}
+              className="flex-1"
+            >
+              <ScanLine className="h-4 w-4 mr-1" />
+              Use OCR
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={currentMethod === 'manual' ? 'default' : 'outline'}
+              onClick={() => switchToMethod('manual')}
+              className="flex-1"
+            >
+              <Keyboard className="h-4 w-4 mr-1" />
+              Manual
+            </Button>
           </div>
 
+          {/* Progress Bar */}
+          {isProcessing && (
+            <div className="flex items-center gap-2">
+              <Progress value={progress} className="flex-1" />
+              <span className="text-xs text-muted-foreground">{progress}%</span>
+            </div>
+          )}
+
           {/* Video Preview */}
-          {(currentMethod === 'camera-barcode' || currentMethod === 'ocr') && (
+          {(currentMethod === 'barcode' || currentMethod === 'ocr') && (
             <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
               <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
               <canvas ref={canvasRef} className="hidden" />
               
-              {/* ROI Overlay */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="border-2 border-green-500 w-3/4 h-2/3 rounded-lg" />
-              </div>
+              {/* ROI Overlay for Barcode */}
+              {currentMethod === 'barcode' && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="border-2 border-green-500 w-3/4 h-2/3 rounded-lg shadow-lg" />
+                  <div className="absolute bottom-4 text-white text-sm bg-black/60 px-3 py-1 rounded">
+                    Hold barcode steady in green frame
+                  </div>
+                </div>
+              )}
 
-              {processing && (
+              {/* Processing Overlay */}
+              {isProcessing && currentMethod === 'ocr' && (
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-white" />
+                  <div className="text-white text-sm">Processing text...</div>
                 </div>
               )}
             </div>
@@ -355,16 +425,18 @@ const UnifiedScanner: React.FC<UnifiedScannerProps> = ({
           {currentMethod === 'manual' && (
             <div className="space-y-4 p-4 border rounded-lg">
               <div>
-                <label className="text-sm font-medium">Tracking ID</label>
+                <Label htmlFor="trackingId">Tracking ID</Label>
                 <Input
+                  id="trackingId"
                   placeholder="Enter tracking ID"
                   value={manualEntry.trackingId}
                   onChange={(e) => setManualEntry(prev => ({ ...prev, trackingId: e.target.value }))}
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Order ID</label>
+                <Label htmlFor="orderId">Order ID</Label>
                 <Input
+                  id="orderId"
                   placeholder="Enter order ID"
                   value={manualEntry.orderId}
                   onChange={(e) => setManualEntry(prev => ({ ...prev, orderId: e.target.value }))}
@@ -374,24 +446,16 @@ const UnifiedScanner: React.FC<UnifiedScannerProps> = ({
           )}
 
           {/* Action Buttons */}
-          <div className="flex justify-between">
+          <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
             
-            <div className="flex gap-2">
-              {currentMethod === 'camera-barcode' && (
-                <Button variant="secondary" onClick={handleOCRScan} disabled={processing}>
-                  Try OCR
-                </Button>
-              )}
-              
-              {currentMethod === 'manual' && (
-                <Button onClick={handleManualSubmit}>
-                  Submit
-                </Button>
-              )}
-            </div>
+            {currentMethod === 'manual' && (
+              <Button onClick={handleManualSubmit}>
+                Submit
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>
