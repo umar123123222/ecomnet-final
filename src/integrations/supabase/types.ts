@@ -2507,6 +2507,7 @@ export type Database = {
         | "dispatch_manager"
         | "returns_manager"
         | "staff"
+        | "supplier"
       verification_status: "pending" | "approved" | "disapproved"
     }
     CompositeTypes: {
@@ -2655,6 +2656,7 @@ export const Constants = {
         "dispatch_manager",
         "returns_manager",
         "staff",
+        "supplier",
       ],
       verification_status: ["pending", "approved", "disapproved"],
     },
