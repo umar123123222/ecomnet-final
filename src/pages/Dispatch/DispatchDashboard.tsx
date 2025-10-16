@@ -151,8 +151,8 @@ const DispatchDashboard = () => {
     bulkEntries: string;
   }) => {
     try {
-      // Parse entries - format: "ORDER_ID" or "TRACKING_ID" or "ORDER_ID, TRACKING_ID" per line
-      const entries = data.bulkEntries
+      // Parse entries - one tracking ID per line
+      const trackingIds = data.bulkEntries
         .split('\n')
         .map(line => line.trim())
         .filter(line => line.length > 0);
@@ -161,79 +161,25 @@ const DispatchDashboard = () => {
       let errorCount = 0;
       const errors: string[] = [];
 
-      for (const entry of entries) {
-        // Split by comma to check if both values provided
-        const parts = entry.split(',').map(p => p.trim());
-        const firstValue = parts[0];
-        const secondValue = parts[1] || '';
+      for (const trackingId of trackingIds) {
+        // Find order by tracking_id
+        const { data: order, error: orderError } = await supabase
+          .from('orders')
+          .select('id')
+          .eq('tracking_id', trackingId)
+          .maybeSingle();
 
-        let orderNumber = '';
-        let trackingId = '';
-
-        // Determine which is which (order numbers typically have specific format)
-        // If two values, assume first is order number, second is tracking
-        if (secondValue) {
-          orderNumber = firstValue;
-          trackingId = secondValue;
-        } else {
-          // Only one value - could be either order number or tracking ID
-          // Try to find order by order_number first
-          const { data: orderByNumber } = await supabase
-            .from('orders')
-            .select('id, order_number')
-            .eq('order_number', firstValue)
-            .maybeSingle();
-
-          if (orderByNumber) {
-            orderNumber = firstValue;
-          } else {
-            // If not found as order number, treat as tracking ID
-            trackingId = firstValue;
-          }
-        }
-
-        // Find the order
-        let orderId: string | null = null;
-
-        if (orderNumber) {
-          const { data: order, error: orderError } = await supabase
-            .from('orders')
-            .select('id')
-            .eq('order_number', orderNumber)
-            .maybeSingle();
-
-          if (orderError || !order) {
-            errors.push(`Order not found: ${orderNumber}`);
-            errorCount++;
-            continue;
-          }
-          orderId = order.id;
-        } else if (trackingId) {
-          // If only tracking ID provided, try to find existing dispatch
-          const { data: existingDispatch } = await supabase
-            .from('dispatches')
-            .select('order_id')
-            .eq('tracking_id', trackingId)
-            .maybeSingle();
-
-          if (existingDispatch) {
-            orderId = existingDispatch.order_id;
-          } else {
-            errors.push(`Cannot find order for tracking ID: ${trackingId}`);
-            errorCount++;
-            continue;
-          }
-        } else {
-          errors.push(`Invalid entry: ${entry}`);
+        if (orderError || !order) {
+          errors.push(`Order not found for tracking ID: ${trackingId}`);
           errorCount++;
           continue;
         }
 
-        // Create or update dispatch record
+        // Check if dispatch already exists
         const { data: existingDispatch } = await supabase
           .from('dispatches')
           .select('id')
-          .eq('order_id', orderId)
+          .eq('order_id', order.id)
           .maybeSingle();
 
         if (existingDispatch) {
@@ -241,14 +187,14 @@ const DispatchDashboard = () => {
           const { error: updateDispatchError } = await supabase
             .from('dispatches')
             .update({
-              tracking_id: trackingId || undefined,
+              tracking_id: trackingId,
               status: 'in_transit',
               dispatch_date: new Date().toISOString()
             })
             .eq('id', existingDispatch.id);
 
           if (updateDispatchError) {
-            errors.push(`Failed to update dispatch: ${updateDispatchError.message}`);
+            errors.push(`Failed to update dispatch for ${trackingId}: ${updateDispatchError.message}`);
             errorCount++;
             continue;
           }
@@ -257,15 +203,15 @@ const DispatchDashboard = () => {
           const { error: dispatchError } = await supabase
             .from('dispatches')
             .insert({
-              order_id: orderId,
-              tracking_id: trackingId || null,
+              order_id: order.id,
+              tracking_id: trackingId,
               status: 'in_transit',
               courier: 'Manual Entry',
               dispatch_date: new Date().toISOString()
             });
 
           if (dispatchError) {
-            errors.push(`Failed to create dispatch: ${dispatchError.message}`);
+            errors.push(`Failed to create dispatch for ${trackingId}: ${dispatchError.message}`);
             errorCount++;
             continue;
           }
@@ -275,10 +221,10 @@ const DispatchDashboard = () => {
         const { error: updateError } = await supabase
           .from('orders')
           .update({ status: 'dispatched' })
-          .eq('id', orderId);
+          .eq('id', order.id);
 
         if (updateError) {
-          errors.push(`Failed to update order status: ${updateError.message}`);
+          errors.push(`Failed to update order status for ${trackingId}: ${updateError.message}`);
           errorCount++;
           continue;
         }
@@ -290,7 +236,7 @@ const DispatchDashboard = () => {
       if (successCount > 0) {
         toast({
           title: "Bulk Entry Complete",
-          description: `Successfully processed ${successCount} order(s)${errorCount > 0 ? `, ${errorCount} failed` : ''}`,
+          description: `Successfully processed ${successCount} tracking ID(s)${errorCount > 0 ? `, ${errorCount} failed` : ''}`,
         });
       }
 
@@ -341,12 +287,12 @@ const DispatchDashboard = () => {
                   <FormField control={form.control} name="bulkEntries" render={({
                   field
                 }) => <FormItem>
-                        <FormLabel>Order & Tracking IDs</FormLabel>
+                        <FormLabel>Tracking IDs</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Enter one per line. You can enter:&#10;- Order ID only: ORD001&#10;- Tracking ID only: TRK123456&#10;- Both: ORD001, TRK123456" className="min-h-[150px] font-mono text-sm" {...field} />
+                          <Textarea placeholder="Enter tracking IDs (one per line)&#10;Example:&#10;TRK123456&#10;TRK789012&#10;TRK345678" className="min-h-[150px] font-mono text-sm" {...field} />
                         </FormControl>
                         <p className="text-xs text-muted-foreground">
-                          Enter order ID, tracking ID, or both (separated by comma)
+                          Enter one tracking ID per line
                         </p>
                         <FormMessage />
                       </FormItem>} />
