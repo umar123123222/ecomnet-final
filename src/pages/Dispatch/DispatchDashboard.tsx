@@ -295,22 +295,26 @@ const DispatchDashboard = () => {
         </CardHeader>
         <CardContent>
           {/* Search and Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-            <div className="relative w-full">
+          <div className="flex flex-col md:flex-row gap-4 mb-6">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input placeholder="Search by tracking ID, order ID, name, phone, email..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 w-full" />
             </div>
-            <DatePickerWithRange date={dateRange} setDate={setDateRange} className="w-full" />
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="in_transit">Dispatched</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex-1">
+              <DatePickerWithRange date={dateRange} setDate={setDateRange} className="w-full" />
+            </div>
+            <div className="flex-1">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="in_transit">Dispatched</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <Table>
