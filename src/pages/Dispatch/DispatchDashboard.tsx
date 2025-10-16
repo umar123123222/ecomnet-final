@@ -10,13 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Download, Scan, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, QrCode, Type } from 'lucide-react';
+import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter } from 'lucide-react';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import TagsNotes from '@/components/TagsNotes';
-import UnifiedScanner, { ScanResult } from '@/components/UnifiedScanner';
+
 import { useToast } from '@/hooks/use-toast';
 import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
 import { useQueryClient } from '@tanstack/react-query';
@@ -31,7 +31,6 @@ const DispatchDashboard = () => {
     to: new Date()
   });
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
-  const [isScanningOpen, setIsScanningOpen] = useState(false);
   const [isNewDispatchOpen, setIsNewDispatchOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const {
@@ -148,38 +147,6 @@ const DispatchDashboard = () => {
         return 'bg-gray-100 text-gray-800';
     }
   };
-  const handleScanDispatch = async (result: ScanResult) => {
-    console.log(`Scanned via ${result.method} in ${result.scanDuration}ms`);
-    const {
-      orderId,
-      trackingId
-    } = result;
-    if (orderId || trackingId) {
-      // Try to find matching order
-      const matchingDispatch = dispatches.find(d => d.tracking_id === trackingId || d.orders?.order_number === orderId);
-      if (matchingDispatch) {
-        toast({
-          title: "Dispatch Found",
-          description: `Order: ${matchingDispatch.orders?.order_number || orderId}`
-        });
-        setSearchTerm(trackingId || orderId || '');
-      } else {
-        // New dispatch - open dialog for creation
-        toast({
-          title: "New Dispatch Detected",
-          description: `Tracking: ${trackingId || 'N/A'}`
-        });
-        setSearchTerm(trackingId || orderId || '');
-        setIsNewDispatchOpen(true);
-      }
-    } else {
-      toast({
-        title: "No Order Information Found",
-        description: `Scanned: ${result.rawData.substring(0, 50)}`,
-        variant: "destructive"
-      });
-    }
-  };
   const handleManualEntry = (data: {
     trackingIds: string;
   }) => {
@@ -198,11 +165,6 @@ const DispatchDashboard = () => {
           <p className="text-gray-600 mt-1">Track and manage order dispatches</p>
         </div>
         <div className="flex gap-2">
-          
-          <Button onClick={() => setIsScanningOpen(true)} variant="outline">
-            <Scan className="h-4 w-4 mr-2" />
-            Scan
-          </Button>
           <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
@@ -237,9 +199,6 @@ const DispatchDashboard = () => {
           </Dialog>
         </div>
       </div>
-
-      {/* Unified Scanner */}
-      <UnifiedScanner isOpen={isScanningOpen} onClose={() => setIsScanningOpen(false)} onScan={handleScanDispatch} scanType="dispatch" title="Scan Dispatch Package" />
 
       {/* New Dispatch Dialog */}
       <NewDispatchDialog open={isNewDispatchOpen} onOpenChange={setIsNewDispatchOpen} />
