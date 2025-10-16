@@ -16,7 +16,6 @@ import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import TagsNotes from '@/components/TagsNotes';
-
 import { useToast } from '@/hooks/use-toast';
 import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
 import { useQueryClient } from '@tanstack/react-query';
@@ -152,23 +151,16 @@ const DispatchDashboard = () => {
   }) => {
     try {
       // Parse entries - one tracking ID per line
-      const trackingIds = data.bulkEntries
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0);
-
+      const trackingIds = data.bulkEntries.split('\n').map(line => line.trim()).filter(line => line.length > 0);
       let successCount = 0;
       let errorCount = 0;
       const errors: string[] = [];
-
       for (const trackingId of trackingIds) {
         // Find order by tracking_id
-        const { data: order, error: orderError } = await supabase
-          .from('orders')
-          .select('id')
-          .eq('tracking_id', trackingId)
-          .maybeSingle();
-
+        const {
+          data: order,
+          error: orderError
+        } = await supabase.from('orders').select('id').eq('tracking_id', trackingId).maybeSingle();
         if (orderError || !order) {
           errors.push(`Order not found for tracking ID: ${trackingId}`);
           errorCount++;
@@ -176,23 +168,18 @@ const DispatchDashboard = () => {
         }
 
         // Check if dispatch already exists
-        const { data: existingDispatch } = await supabase
-          .from('dispatches')
-          .select('id')
-          .eq('order_id', order.id)
-          .maybeSingle();
-
+        const {
+          data: existingDispatch
+        } = await supabase.from('dispatches').select('id').eq('order_id', order.id).maybeSingle();
         if (existingDispatch) {
           // Update existing dispatch
-          const { error: updateDispatchError } = await supabase
-            .from('dispatches')
-            .update({
-              tracking_id: trackingId,
-              status: 'in_transit',
-              dispatch_date: new Date().toISOString()
-            })
-            .eq('id', existingDispatch.id);
-
+          const {
+            error: updateDispatchError
+          } = await supabase.from('dispatches').update({
+            tracking_id: trackingId,
+            status: 'in_transit',
+            dispatch_date: new Date().toISOString()
+          }).eq('id', existingDispatch.id);
           if (updateDispatchError) {
             errors.push(`Failed to update dispatch for ${trackingId}: ${updateDispatchError.message}`);
             errorCount++;
@@ -200,16 +187,15 @@ const DispatchDashboard = () => {
           }
         } else {
           // Create new dispatch
-          const { error: dispatchError } = await supabase
-            .from('dispatches')
-            .insert({
-              order_id: order.id,
-              tracking_id: trackingId,
-              status: 'in_transit',
-              courier: 'Manual Entry',
-              dispatch_date: new Date().toISOString()
-            });
-
+          const {
+            error: dispatchError
+          } = await supabase.from('dispatches').insert({
+            order_id: order.id,
+            tracking_id: trackingId,
+            status: 'in_transit',
+            courier: 'Manual Entry',
+            dispatch_date: new Date().toISOString()
+          });
           if (dispatchError) {
             errors.push(`Failed to create dispatch for ${trackingId}: ${dispatchError.message}`);
             errorCount++;
@@ -218,17 +204,16 @@ const DispatchDashboard = () => {
         }
 
         // Update order status to dispatched
-        const { error: updateError } = await supabase
-          .from('orders')
-          .update({ status: 'dispatched' })
-          .eq('id', order.id);
-
+        const {
+          error: updateError
+        } = await supabase.from('orders').update({
+          status: 'dispatched'
+        }).eq('id', order.id);
         if (updateError) {
           errors.push(`Failed to update order status for ${trackingId}: ${updateError.message}`);
           errorCount++;
           continue;
         }
-
         successCount++;
       }
 
@@ -236,10 +221,9 @@ const DispatchDashboard = () => {
       if (successCount > 0) {
         toast({
           title: "Bulk Entry Complete",
-          description: `Successfully processed ${successCount} tracking ID(s)${errorCount > 0 ? `, ${errorCount} failed` : ''}`,
+          description: `Successfully processed ${successCount} tracking ID(s)${errorCount > 0 ? `, ${errorCount} failed` : ''}`
         });
       }
-
       if (errors.length > 0) {
         console.error('Bulk entry errors:', errors);
         toast({
@@ -248,7 +232,6 @@ const DispatchDashboard = () => {
           variant: "destructive"
         });
       }
-
       setIsManualEntryOpen(false);
       form.reset();
     } catch (error) {
@@ -354,7 +337,7 @@ const DispatchDashboard = () => {
             <div className="flex items-center gap-2">
               <Checkbox checked={selectedDispatches.length === filteredDispatches.length && filteredDispatches.length > 0} onCheckedChange={() => {}} // handleSelectAll
             />
-              <span className="text-sm text-gray-600">Select All</span>
+              
             </div>
           </CardTitle>
         </CardHeader>
