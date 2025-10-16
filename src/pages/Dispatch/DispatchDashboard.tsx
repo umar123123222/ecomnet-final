@@ -95,7 +95,7 @@ const DispatchDashboard = () => {
   const filteredByDate = useMemo(() => {
     if (!dateRange?.from) return dispatches;
     return dispatches.filter(dispatch => {
-      const dispatchDate = parseISO(dispatch.date);
+      const dispatchDate = parseISO(dispatch.dispatch_date || dispatch.created_at);
       if (dateRange.to) {
         return isWithinInterval(dispatchDate, {
           start: dateRange.from,
