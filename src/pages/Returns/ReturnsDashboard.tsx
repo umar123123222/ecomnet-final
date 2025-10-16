@@ -51,7 +51,8 @@ const ReturnsDashboard = () => {
             orders!returns_order_id_fkey (
               order_number,
               customer_name,
-              customer_phone
+              customer_phone,
+              customer_email
             )
           `).order('created_at', {
           ascending: false
@@ -88,7 +89,13 @@ const ReturnsDashboard = () => {
     });
   }, [returns, dateRange]);
   const filteredReturns = useMemo(() => {
-    return filteredByDate.filter(returnItem => (returnItem.tracking_id || '').toLowerCase().includes(searchTerm.toLowerCase()) || (returnItem.orders?.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || (returnItem.orders?.order_number || '').toLowerCase().includes(searchTerm.toLowerCase()));
+    return filteredByDate.filter(returnItem => 
+      (returnItem.tracking_id || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (returnItem.orders?.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (returnItem.orders?.order_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (returnItem.orders?.customer_email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (returnItem.orders?.customer_phone || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
   }, [filteredByDate, searchTerm]);
   const metrics = useMemo(() => {
     const returnedCount = filteredByDate.length;
@@ -214,7 +221,7 @@ const ReturnsDashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input placeholder="Search by tracking ID, customer, order ID..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
+              <Input placeholder="Search by tracking ID, order ID, name, email, phone..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
             </div>
             <DatePickerWithRange date={dateRange} setDate={setDateRange} className="w-full" />
             
