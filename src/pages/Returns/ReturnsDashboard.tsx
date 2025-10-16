@@ -37,7 +37,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import TagsNotes from '@/components/TagsNotes';
-import ContinuousOCRScanner from '@/components/ContinuousOCRScanner';
+import UnifiedScanner, { ScanResult } from '@/components/UnifiedScanner';
 import { useToast } from '@/hooks/use-toast';
 import { logActivity, updateUserPerformance } from '@/utils/activityLogger';
 import { useAuth } from '@/contexts/AuthContext';
@@ -157,91 +157,85 @@ const ReturnsDashboard = () => {
     );
   };
 
-  const handleScanComplete = async (scannedParcels: Array<{
-    id: string;
-    trackingId?: string;
-    orderId?: string;
-    timestamp: Date;
-    status: 'success' | 'partial' | 'failed';
-  }>) => {
-    if (scannedParcels.length === 0) return;
-
+  const handleScanComplete = async (result: ScanResult) => {
+    console.log(`Scanned return via ${result.method} in ${result.scanDuration}ms`);
+    
     try {
-      // Match scanned parcels with returns in database
-      const trackingIds = scannedParcels.map(p => p.trackingId).filter(Boolean);
-      const orderIds = scannedParcels.map(p => p.orderId).filter(Boolean);
+      const { trackingId, orderId } = result;
+      
+      // Match scanned data with returns in database
+      let query = supabase.from('returns').select(`
+        *,
+        orders:order_id (
+          order_number,
+          customer_name,
+          customer_phone
+        )
+      `);
 
-      // Query returns matching the scanned IDs
-      const { data: matchedReturns, error } = await supabase
-        .from('returns')
-        .select('*')
-        .or(`tracking_id.in.(${trackingIds.join(',')}),order_id.in.(${orderIds.join(',')})`);
+      if (trackingId) {
+        query = query.eq('tracking_id', trackingId);
+      } else if (orderId) {
+        query = query.eq('order_id', orderId);
+      }
+
+      const { data: matchedReturns, error } = await query;
 
       if (error) throw error;
 
-      const matched = matchedReturns?.length || 0;
-      const notFound = scannedParcels.length - matched;
+      if (matchedReturns && matchedReturns.length > 0) {
+        const returnItem = matchedReturns[0];
+        
+        toast({
+          title: 'Return Found',
+          description: `Order: ${returnItem.orders?.order_number || orderId}`,
+        });
 
-      toast({
-        title: 'Batch Scan Complete',
-        description: `Scanned: ${scannedParcels.length} parcels. Matched: ${matched}. Not found: ${notFound}`,
-      });
+        // Update performance metrics
+        if (user?.id) {
+          await updateUserPerformance(user.id, 'returns_handled', 1);
+        }
 
-      // Update performance metrics
-      if (user?.id) {
-        await updateUserPerformance(user.id, 'returns_handled', matched);
-      }
-
-      // Log activity for each matched return
-      for (const returnItem of matchedReturns || []) {
+        // Log activity
         await logActivity({
           action: 'return_received',
           entityType: 'return',
           entityId: returnItem.id,
           details: { 
             scannedAt: new Date().toISOString(),
-            trackingId: returnItem.tracking_id 
+            trackingId: returnItem.tracking_id,
+            scanMethod: result.method,
           },
         });
-      }
 
-      // Show details of not found items
-      if (notFound > 0) {
-        const notFoundIds = scannedParcels
-          .filter(p => !matchedReturns?.some(r => 
-            r.tracking_id === p.trackingId || r.order_id === p.orderId
-          ))
-          .map(p => p.trackingId || p.orderId)
-          .join(', ');
+        // Refresh returns list
+        const { data: updatedReturns } = await supabase
+          .from('returns')
+          .select(`
+            *,
+            orders:order_id (
+              order_number,
+              customer_name,
+              customer_phone
+            )
+          `)
+          .order('created_at', { ascending: false });
 
+        if (updatedReturns) {
+          setReturns(updatedReturns);
+        }
+      } else {
         toast({
-          title: 'Some Parcels Not Found',
-          description: `IDs not found in system: ${notFoundIds}`,
+          title: 'Return Not Found',
+          description: `No return found with ID: ${trackingId || orderId}`,
           variant: 'destructive',
         });
       }
-
-      // Refresh returns list
-      const { data: updatedReturns } = await supabase
-        .from('returns')
-        .select(`
-          *,
-          orders:order_id (
-            order_number,
-            customer_name,
-            customer_phone
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (updatedReturns) {
-        setReturns(updatedReturns);
-      }
     } catch (error) {
-      console.error('Error processing scanned returns:', error);
+      console.error('Error processing scanned return:', error);
       toast({
         title: 'Error',
-        description: 'Failed to process scanned returns',
+        description: 'Failed to process scanned return',
         variant: 'destructive',
       });
     } finally {
@@ -372,13 +366,14 @@ const ReturnsDashboard = () => {
         </div>
       </div>
 
-      {/* Continuous Scanner Component */}
-      {isScanDialogOpen && (
-        <ContinuousOCRScanner
-          onScanComplete={handleScanComplete}
-          onClose={() => setIsScanDialogOpen(false)}
-        />
-      )}
+      {/* Unified Scanner */}
+      <UnifiedScanner
+        isOpen={isScanDialogOpen}
+        onClose={() => setIsScanDialogOpen(false)}
+        onScan={handleScanComplete}
+        scanType="return"
+        title="Scan Return Package"
+      />
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

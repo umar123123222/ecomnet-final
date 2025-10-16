@@ -35,7 +35,7 @@ import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import TagsNotes from '@/components/TagsNotes';
-import OCRScanner from '@/components/OCRScanner';
+import UnifiedScanner, { ScanResult } from '@/components/UnifiedScanner';
 import { useToast } from '@/hooks/use-toast';
 import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
 import CourierPerformanceWidget from '@/components/dispatch/CourierPerformanceWidget';
@@ -54,8 +54,6 @@ const DispatchDashboard = () => {
   });
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [isScanningOpen, setIsScanningOpen] = useState(false);
-  const [scanModeSelectOpen, setScanModeSelectOpen] = useState(false);
-  const [selectedInitialMode, setSelectedInitialMode] = useState<'qr' | 'ocr'>('ocr');
   const [isNewDispatchOpen, setIsNewDispatchOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const { toast } = useToast();
@@ -201,25 +199,37 @@ const DispatchDashboard = () => {
     }
   };
 
-  const handleScanDispatch = (scanData: { orderId?: string; trackingId?: string; rawData: string }) => {
-    const { orderId, trackingId, rawData } = scanData;
+  const handleScanDispatch = async (result: ScanResult) => {
+    console.log(`Scanned via ${result.method} in ${result.scanDuration}ms`);
+    
+    const { orderId, trackingId } = result;
     
     if (orderId || trackingId) {
-      toast({
-        title: "Dispatch Scanned Successfully",
-        description: `Order ID: ${orderId || 'Not found'}, Tracking ID: ${trackingId || 'Not found'}`,
-      });
-      
-      // Auto-fill the search with the scanned tracking ID or order ID
-      if (trackingId) {
-        setSearchTerm(trackingId);
-      } else if (orderId) {
-        setSearchTerm(orderId);
+      // Try to find matching order
+      const matchingDispatch = dispatches.find(d => 
+        d.tracking_id === trackingId || 
+        d.orders?.order_number === orderId
+      );
+
+      if (matchingDispatch) {
+        toast({
+          title: "Dispatch Found",
+          description: `Order: ${matchingDispatch.orders?.order_number || orderId}`,
+        });
+        setSearchTerm(trackingId || orderId || '');
+      } else {
+        // New dispatch - open dialog for creation
+        toast({
+          title: "New Dispatch Detected",
+          description: `Tracking: ${trackingId || 'N/A'}`,
+        });
+        setSearchTerm(trackingId || orderId || '');
+        setIsNewDispatchOpen(true);
       }
     } else {
       toast({
         title: "No Order Information Found",
-        description: `Scanned: ${rawData.substring(0, 50)}${rawData.length > 50 ? '...' : ''}`,
+        description: `Scanned: ${result.rawData.substring(0, 50)}`,
         variant: "destructive",
       });
     }
@@ -252,7 +262,7 @@ const DispatchDashboard = () => {
             <Plus className="h-4 w-4 mr-2" />
             New Dispatch
           </Button>
-          <Button onClick={() => setScanModeSelectOpen(true)} variant="outline">
+          <Button onClick={() => setIsScanningOpen(true)} variant="outline">
             <Scan className="h-4 w-4 mr-2" />
             Scan
           </Button>
@@ -299,49 +309,13 @@ const DispatchDashboard = () => {
         </div>
       </div>
 
-      {/* Scan Mode Selection Dialog */}
-      <Dialog open={scanModeSelectOpen} onOpenChange={setScanModeSelectOpen}>
-        <DialogContent className="sm:max-w-xs">
-          <DialogHeader>
-            <DialogTitle>Choose Scan Mode</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-3">
-            <Button 
-              onClick={() => { 
-                setSelectedInitialMode('qr'); 
-                setScanModeSelectOpen(false); 
-                setIsScanningOpen(true); 
-              }}
-              variant="outline" 
-              className="h-20 flex-col gap-2"
-            >
-              <QrCode className="h-8 w-8" />
-              <span>QR / Barcode</span>
-            </Button>
-            <Button 
-              onClick={() => { 
-                setSelectedInitialMode('ocr'); 
-                setScanModeSelectOpen(false); 
-                setIsScanningOpen(true); 
-              }}
-              variant="outline"
-              className="h-20 flex-col gap-2"
-            >
-              <Type className="h-8 w-8" />
-              <span>Text (OCR)</span>
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Scanner Component */}
-      <OCRScanner
+      {/* Unified Scanner */}
+      <UnifiedScanner
         isOpen={isScanningOpen}
         onClose={() => setIsScanningOpen(false)}
         onScan={handleScanDispatch}
-        title="Scan Dispatch Package"
         scanType="dispatch"
-        initialScanMode={selectedInitialMode}
+        title="Scan Dispatch Package"
       />
 
       {/* New Dispatch Dialog */}
