@@ -27,7 +27,8 @@ const userSchema = z.object({
   full_name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email'),
   password: z.string().min(8, 'Password must be at least 8 characters').or(z.literal('')).optional(),
-  roles: z.array(z.string()).min(1, 'At least one role is required')
+  roles: z.array(z.string()).min(1, 'At least one role is required'),
+  supplier_id: z.string().optional()
 });
 type UserFormData = z.infer<typeof userSchema>;
 interface UserWithRoles {
@@ -67,11 +68,26 @@ const UserManagement = () => {
       full_name: '',
       email: '',
       password: '',
-      roles: []
+      roles: [],
+      supplier_id: ''
     },
     mode: 'onChange'
   });
-  const availableRoles: UserRole[] = ['super_admin', 'super_manager', 'warehouse_manager', 'store_manager', 'dispatch_manager', 'returns_manager', 'staff'];
+  const availableRoles: UserRole[] = ['super_admin', 'super_manager', 'warehouse_manager', 'store_manager', 'dispatch_manager', 'returns_manager', 'staff', 'supplier'];
+
+  // Fetch suppliers for supplier role assignment
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['suppliers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('id, name')
+        .eq('status', 'active')
+        .order('name');
+      if (error) throw error;
+      return data;
+    }
+  });
 
   // Fetch users from Supabase
   const {
@@ -107,7 +123,8 @@ const UserManagement = () => {
   // Add user mutation
   const addUserMutation = useMutation({
     mutationFn: async (userData: UserFormData) => {
-      return await manageUser({
+      // First create the user
+      const result = await manageUser({
         action: 'create',
         userData: {
           email: userData.email,
@@ -116,6 +133,23 @@ const UserManagement = () => {
           roles: userData.roles
         }
       });
+
+      // If user has supplier role and supplier_id is provided, create supplier_profile
+      if (userData.roles.includes('supplier') && userData.supplier_id) {
+        const { error: profileError } = await supabase
+          .from('supplier_profiles')
+          .insert({
+            user_id: result.user.id,
+            supplier_id: userData.supplier_id
+          });
+        
+        if (profileError) {
+          console.error('Error creating supplier profile:', profileError);
+          throw new Error('User created but failed to link to supplier');
+        }
+      }
+
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -382,6 +416,30 @@ const UserManagement = () => {
                             <FormMessage />
                           </FormItem>;
                 }} />
+                    {form.watch('roles')?.includes('supplier') && (
+                      <FormField control={form.control} name="supplier_id" render={({
+                        field
+                      }) => (
+                        <FormItem>
+                          <FormLabel>Link to Supplier</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a supplier" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {suppliers.map((supplier) => (
+                                <SelectItem key={supplier.id} value={supplier.id}>
+                                  {supplier.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                    )}
                     <div className="flex justify-end gap-2">
                       <Button type="button" variant="outline" onClick={() => setIsAddUserOpen(false)}>
                         Cancel
@@ -636,6 +694,30 @@ const UserManagement = () => {
                       <FormMessage />
                     </FormItem>;
             }} />
+              {form.watch('roles')?.includes('supplier') && (
+                <FormField control={form.control} name="supplier_id" render={({
+                  field
+                }) => (
+                  <FormItem>
+                    <FormLabel>Link to Supplier</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a supplier" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {suppliers.map((supplier) => (
+                          <SelectItem key={supplier.id} value={supplier.id}>
+                            {supplier.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              )}
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setIsEditUserOpen(false)}>
                   Cancel
