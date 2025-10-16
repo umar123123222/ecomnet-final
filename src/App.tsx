@@ -86,6 +86,9 @@ const VarianceManagement = lazy(() =>
 const FraudReportDashboard = lazy(() => 
   import("@/pages/FraudReporting/FraudReportDashboard").then(module => ({ default: module.default }))
 );
+const PackagingManagement = lazy(() => 
+  import("@/pages/Inventory/PackagingManagement").then(module => ({ default: module.default }))
+);
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ActivityLogs = lazy(() => 
   import("@/pages/ActivityLogs/ActivityLogs").then(module => ({ default: module.default }))
@@ -214,6 +217,11 @@ const App = () => {
                 <Route path="products" element={
                   <Suspense fallback={<PageLoader />}>
                     <ProductManagement />
+                  </Suspense>
+                } />
+                <Route path="packaging" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <PackagingManagement />
                   </Suspense>
                 } />
                 <Route path="stock-transfer" element={

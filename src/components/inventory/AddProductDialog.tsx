@@ -23,6 +23,9 @@ const productSchema = z.object({
   cost: z.number().min(0, "Cost must be positive").optional(),
   reorder_level: z.number().int().min(0, "Reorder level must be a positive integer"),
   is_active: z.boolean(),
+  size: z.string().optional(),
+  unit_type: z.enum(['ml', 'grams', 'liters', 'kg', 'pieces', 'boxes']).optional(),
+  requires_packaging: z.boolean().default(false),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -47,7 +50,12 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
     reset,
   } = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
-    defaultValues: product || {
+    defaultValues: product ? {
+      ...product,
+      size: product.size || "",
+      unit_type: product.unit_type || undefined,
+      requires_packaging: product.requires_packaging || false,
+    } : {
       sku: "",
       name: "",
       description: "",
@@ -56,18 +64,23 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
       cost: 0,
       reorder_level: 10,
       is_active: true,
+      size: "",
+      unit_type: undefined,
+      requires_packaging: false,
     },
   });
 
   const isActive = watch("is_active");
+  const requiresPackaging = watch("requires_packaging");
+  const unitType = watch("unit_type");
 
   const onSubmit = async (data: ProductFormData) => {
     setIsSubmitting(true);
     try {
       if (product) {
         const { error } = await supabase
-          .from("products_new" as any)
-          .update(data)
+          .from("products")
+          .update(data as any)
           .eq("id", product.id);
 
         if (error) throw error;
@@ -78,8 +91,8 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
         });
       } else {
         const { error } = await supabase
-          .from("products_new" as any)
-          .insert([data]);
+          .from("products")
+          .insert([data as any]);
 
         if (error) throw error;
 
@@ -166,9 +179,46 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
             )}
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="size">Size</Label>
+              <Input
+                id="size"
+                {...register("size")}
+                placeholder="e.g., 500, 1"
+              />
+              {errors.size && (
+                <p className="text-sm text-red-500">{errors.size.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="unit_type">Unit</Label>
+              <Select 
+                value={unitType} 
+                onValueChange={(value) => setValue("unit_type", value as any)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ml">ml</SelectItem>
+                  <SelectItem value="liters">Liters</SelectItem>
+                  <SelectItem value="grams">Grams</SelectItem>
+                  <SelectItem value="kg">Kg</SelectItem>
+                  <SelectItem value="pieces">Pieces</SelectItem>
+                  <SelectItem value="boxes">Boxes</SelectItem>
+                </SelectContent>
+              </Select>
+              {errors.unit_type && (
+                <p className="text-sm text-red-500">{errors.unit_type.message}</p>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="price">Price (Rs.) *</Label>
+              <Label htmlFor="price">Price (PKR) *</Label>
               <Input
                 id="price"
                 type="number"
@@ -182,7 +232,7 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="cost">Cost (Rs.)</Label>
+              <Label htmlFor="cost">Cost (PKR)</Label>
               <Input
                 id="cost"
                 type="number"
@@ -207,6 +257,22 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
                 <p className="text-sm text-red-500">{errors.reorder_level.message}</p>
               )}
             </div>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="requires_packaging" className="text-base cursor-pointer">
+                Requires Packaging
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Does this product require packaging materials (bottles, boxes, etc.)?
+              </p>
+            </div>
+            <Switch
+              id="requires_packaging"
+              checked={requiresPackaging}
+              onCheckedChange={(checked) => setValue("requires_packaging", checked)}
+            />
           </div>
 
           <div className="flex items-center space-x-2">

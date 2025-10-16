@@ -4,11 +4,34 @@ export interface Product {
   id: string;
   sku: string;
   name: string;
-  description?: string;
-  category?: string;
+  description?: string | null;
+  category?: string | null;
   price: number;
-  cost?: number;
+  cost?: number | null;
   reorder_level: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  size?: string | null;
+  unit_type?: string | null;
+  requires_packaging?: boolean;
+  packaging_metadata?: any;
+  shopify_product_id?: number | null;
+  shopify_variant_id?: number | null;
+  synced_from_shopify?: boolean;
+}
+
+export interface PackagingItem {
+  id: string;
+  name: string;
+  sku: string;
+  type: 'bottle' | 'box' | 'label' | 'cap' | 'bag' | 'wrapper' | 'other';
+  size?: string;
+  material?: string;
+  cost: number;
+  reorder_level: number;
+  current_stock: number;
+  supplier_id?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
