@@ -38,7 +38,6 @@ import TagsNotes from '@/components/TagsNotes';
 import UnifiedScanner, { ScanResult } from '@/components/UnifiedScanner';
 import { useToast } from '@/hooks/use-toast';
 import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
-import CourierPerformanceWidget from '@/components/dispatch/CourierPerformanceWidget';
 import { useQueryClient } from '@tanstack/react-query';
 
 const DispatchDashboard = () => {
@@ -47,7 +46,6 @@ const DispatchDashboard = () => {
   const [dispatches, setDispatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [courierFilter, setCourierFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: addDays(new Date(), -7),
     to: new Date(),
@@ -143,14 +141,14 @@ const DispatchDashboard = () => {
         (dispatch.tracking_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (dispatch.orders?.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (dispatch.orders?.order_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (dispatch.courier || '').toLowerCase().includes(searchTerm.toLowerCase());
+        (dispatch.orders?.customer_phone || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (dispatch.orders?.customer_email || '').toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesStatus = statusFilter === "all" || dispatch.status === statusFilter;
-      const matchesCourier = courierFilter === "all" || dispatch.courier === courierFilter;
       
-      return matchesSearch && matchesStatus && matchesCourier;
+      return matchesSearch && matchesStatus;
     });
-  }, [filteredByDate, searchTerm, statusFilter, courierFilter]);
+  }, [filteredByDate, searchTerm, statusFilter]);
 
   const metrics = useMemo(() => {
     const totalDispatches = filteredByDate.length;
@@ -378,9 +376,6 @@ const DispatchDashboard = () => {
         </Card>
       </div>
 
-      {/* Courier Performance Widget */}
-      <CourierPerformanceWidget />
-
       {/* Dispatches Table with integrated filters */}
       <Card>
         <CardHeader>
@@ -397,11 +392,11 @@ const DispatchDashboard = () => {
         </CardHeader>
         <CardContent>
           {/* Search and Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search..."
+                placeholder="Search by tracking ID, order ID, name, phone, email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -419,20 +414,7 @@ const DispatchDashboard = () => {
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="in_transit">In Transit</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={courierFilter} onValueChange={setCourierFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Courier" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Couriers</SelectItem>
-                <SelectItem value="leopard">Leopard</SelectItem>
-                <SelectItem value="tcs">TCS</SelectItem>
-                <SelectItem value="postex">PostEx</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
+                <SelectItem value="in_transit">Dispatched</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" disabled={selectedDispatches.length === 0}>
