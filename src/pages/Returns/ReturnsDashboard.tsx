@@ -217,10 +217,7 @@ const ReturnsDashboard = () => {
               <Input placeholder="Search by tracking ID, customer, order ID..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
             </div>
             <DatePickerWithRange date={dateRange} setDate={setDateRange} className="w-full" />
-            <Button variant="outline" disabled={selectedReturns.length === 0}>
-              <Download className="h-4 w-4 mr-2" />
-              Download Selected
-            </Button>
+            
           </div>
 
           <Table>
