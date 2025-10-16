@@ -21,23 +21,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import { Search, Plus, Download, Scan, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
 import TagsNotes from '@/components/TagsNotes';
-import UnifiedScanner, { ScanResult } from '@/components/UnifiedScanner';
 import { useToast } from '@/hooks/use-toast';
 import { logActivity, updateUserPerformance } from '@/utils/activityLogger';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,10 +33,6 @@ import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
 import { BulkOperationsPanel } from '@/components/BulkOperationsPanel';
 import { bulkReceiveReturns, bulkUpdateReturnStatus, exportToCSV } from '@/utils/bulkOperations';
 import { CheckCircle, Package as PackageIcon } from 'lucide-react';
-
-const manualEntrySchema = z.object({
-  trackingIds: z.string().min(1, 'Please enter at least one tracking ID'),
-});
 
 const ReturnsDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -59,19 +43,10 @@ const ReturnsDashboard = () => {
     from: new Date(),
     to: addDays(new Date(), 7),
   });
-  const [isScanDialogOpen, setIsScanDialogOpen] = useState(false);
-  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
-
-  const form = useForm<z.infer<typeof manualEntrySchema>>({
-    resolver: zodResolver(manualEntrySchema),
-    defaultValues: {
-      trackingIds: '',
-    },
-  });
 
   useEffect(() => {
     const fetchReturns = async () => {
@@ -157,104 +132,12 @@ const ReturnsDashboard = () => {
     );
   };
 
-  const handleScanComplete = async (result: ScanResult) => {
-    console.log(`Scanned return via ${result.method} in ${result.scanDuration}ms`);
-    
-    try {
-      const { trackingId, orderId } = result;
-      
-      // Match scanned data with returns in database
-      let query = supabase.from('returns').select(`
-        *,
-        orders:order_id (
-          order_number,
-          customer_name,
-          customer_phone
-        )
-      `);
-
-      if (trackingId) {
-        query = query.eq('tracking_id', trackingId);
-      } else if (orderId) {
-        query = query.eq('order_id', orderId);
-      }
-
-      const { data: matchedReturns, error } = await query;
-
-      if (error) throw error;
-
-      if (matchedReturns && matchedReturns.length > 0) {
-        const returnItem = matchedReturns[0];
-        
-        toast({
-          title: 'Return Found',
-          description: `Order: ${returnItem.orders?.order_number || orderId}`,
-        });
-
-        // Update performance metrics
-        if (user?.id) {
-          await updateUserPerformance(user.id, 'returns_handled', 1);
-        }
-
-        // Log activity
-        await logActivity({
-          action: 'return_received',
-          entityType: 'return',
-          entityId: returnItem.id,
-          details: { 
-            scannedAt: new Date().toISOString(),
-            trackingId: returnItem.tracking_id,
-            scanMethod: result.method,
-          },
-        });
-
-        // Refresh returns list
-        const { data: updatedReturns } = await supabase
-          .from('returns')
-          .select(`
-            *,
-            orders:order_id (
-              order_number,
-              customer_name,
-              customer_phone
-            )
-          `)
-          .order('created_at', { ascending: false });
-
-        if (updatedReturns) {
-          setReturns(updatedReturns);
-        }
-      } else {
-        toast({
-          title: 'Return Not Found',
-          description: `No return found with ID: ${trackingId || orderId}`,
-          variant: 'destructive',
-        });
-      }
-    } catch (error) {
-      console.error('Error processing scanned return:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to process scanned return',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsScanDialogOpen(false);
-    }
-  };
-
   const toggleRowExpansion = (returnId: string) => {
     setExpandedRows(prev => 
       prev.includes(returnId) 
         ? prev.filter(id => id !== returnId)
         : [...prev, returnId]
     );
-  };
-
-  const onManualEntrySubmit = (values: z.infer<typeof manualEntrySchema>) => {
-    // Manual entry tracking IDs processed
-    setIsManualEntryOpen(false);
-    form.reset();
   };
 
   // Bulk operations
@@ -318,62 +201,7 @@ const ReturnsDashboard = () => {
           <h1 className="text-3xl font-bold text-gray-900">Returns Management</h1>
           <p className="text-gray-600 mt-1">Track and manage returned orders</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => setIsScanDialogOpen(true)}>
-            <Scan className="h-4 w-4 mr-2" />
-            Scan Return
-          </Button>
-
-          <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Manual Entry
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Manual Entry</DialogTitle>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onManualEntrySubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="trackingIds"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tracking ID(s)</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Enter tracking ID(s) separated by commas"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <div className="flex justify-end gap-2">
-                    <Button type="button" variant="outline" onClick={() => setIsManualEntryOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit">Submit</Button>
-                  </div>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-        </div>
       </div>
-
-      {/* Unified Scanner */}
-      <UnifiedScanner
-        isOpen={isScanDialogOpen}
-        onClose={() => setIsScanDialogOpen(false)}
-        onScan={handleScanComplete}
-        scanType="return"
-        title="Scan Return Package"
-      />
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
