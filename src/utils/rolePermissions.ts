@@ -36,9 +36,18 @@ export const getRolePermissions = (role: UserRole) => {
     canAccessStockAudit: false,
     canAccessVarianceManagement: false,
     canAccessFraudReporting: false,
+    canAccessSupplierPortal: false,
+    canAccessPackaging: false,
   };
 
   switch (role) {
+    case 'supplier':
+      return {
+        ...permissions,
+        canAccessSupplierPortal: true,
+        canAccessSettings: true,
+      };
+    
     case 'super_admin':
       return {
         ...permissions,
@@ -67,6 +76,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessStockAudit: true,
         canAccessVarianceManagement: true,
         canAccessFraudReporting: true,
+        canAccessPackaging: true,
       };
     
     case 'super_manager':
@@ -96,6 +106,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessStockAudit: true,
         canAccessVarianceManagement: true,
         canAccessFraudReporting: true,
+        canAccessPackaging: true,
         // No admin panel access
       };
     
@@ -139,6 +150,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessReceiving: true,
         canAccessStockAudit: true,
         canAccessVarianceManagement: true,
+        canAccessPackaging: true,
       };
     
     case 'dispatch_manager':
@@ -260,6 +272,9 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     if (permissions.canAccessProducts) {
       inventorySubItems.push({ label: 'Products', href: '/products', icon: '' });
     }
+    if (permissions.canAccessPackaging) {
+      inventorySubItems.push({ label: 'Packaging', href: '/packaging', icon: '' });
+    }
     if (permissions.canAccessStockTransfer) {
       inventorySubItems.push({ label: 'Stock Transfers', href: '/stock-transfer', icon: '' });
     }
@@ -269,6 +284,14 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       href: '/inventory',
       icon: 'Box',
       subItems: inventorySubItems
+    });
+  }
+
+  if (permissions.canAccessSupplierPortal) {
+    items.push({
+      label: 'Supplier Portal',
+      href: '/supplier-portal',
+      icon: 'Package'
     });
   }
 

@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, Star, AlertCircle, Building2 } from 'lucide-react';
+import { Plus, Search, Star, AlertCircle, Building2, Package } from 'lucide-react';
+import { SupplierProductsDialog } from '@/components/suppliers/SupplierProductsDialog';
 
 interface Supplier {
   id: string;
@@ -32,6 +33,7 @@ const SupplierManagement = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [assignProductsDialog, setAssignProductsDialog] = useState<{ open: boolean; supplierId: string; supplierName: string }>({ open: false, supplierId: '', supplierName: '' });
 
   const [formData, setFormData] = useState({
     name: '',
@@ -41,10 +43,13 @@ const SupplierManagement = () => {
     email: '',
     address: '',
     city: '',
-    payment_terms: '',
+    payment_terms: 'Net 30',
     tax_id: '',
     status: 'active',
-    notes: ''
+    notes: '',
+    whatsapp_number: '',
+    lead_time_days: 7,
+    minimum_order_value: 0,
   });
 
   // Fetch suppliers
@@ -109,10 +114,13 @@ const SupplierManagement = () => {
       email: '',
       address: '',
       city: '',
-      payment_terms: '',
+      payment_terms: 'Net 30',
       tax_id: '',
       status: 'active',
-      notes: ''
+      notes: '',
+      whatsapp_number: '',
+      lead_time_days: 7,
+      minimum_order_value: 0,
     });
     setEditingSupplier(null);
   };
@@ -127,10 +135,13 @@ const SupplierManagement = () => {
       email: supplier.email || '',
       address: '',
       city: supplier.city || '',
-      payment_terms: '',
+      payment_terms: (supplier as any).payment_terms || 'Net 30',
       tax_id: '',
       status: supplier.status,
-      notes: ''
+      notes: '',
+      whatsapp_number: (supplier as any).whatsapp_number || '',
+      lead_time_days: (supplier as any).lead_time_days || 7,
+      minimum_order_value: (supplier as any).minimum_order_value || 0,
     });
     setIsDialogOpen(true);
   };
@@ -256,7 +267,7 @@ const SupplierManagement = () => {
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 />
-              </div>
+               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -269,6 +280,40 @@ const SupplierManagement = () => {
                   />
                 </div>
                 <div>
+                  <Label htmlFor="whatsapp_number">WhatsApp Number</Label>
+                  <Input
+                    id="whatsapp_number"
+                    value={formData.whatsapp_number}
+                    onChange={(e) => setFormData({ ...formData, whatsapp_number: e.target.value })}
+                    placeholder="+92XXXXXXXXXX"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="lead_time_days">Lead Time (Days)</Label>
+                  <Input
+                    id="lead_time_days"
+                    type="number"
+                    value={formData.lead_time_days}
+                    onChange={(e) => setFormData({ ...formData, lead_time_days: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="minimum_order_value">Minimum Order Value (PKR)</Label>
+                  <Input
+                    id="minimum_order_value"
+                    type="number"
+                    step="0.01"
+                    value={formData.minimum_order_value}
+                    onChange={(e) => setFormData({ ...formData, minimum_order_value: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <Label htmlFor="tax_id">Tax ID</Label>
                   <Input
                     id="tax_id"
@@ -276,20 +321,19 @@ const SupplierManagement = () => {
                     onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })}
                   />
                 </div>
-              </div>
-
-              <div>
-                <Label htmlFor="status">Status</Label>
-                <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                    <SelectItem value="blacklisted">Blacklisted</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div>
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="blacklisted">Blacklisted</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div>
@@ -357,7 +401,7 @@ const SupplierManagement = () => {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredSuppliers.map((supplier) => (
-            <Card key={supplier.id} className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => handleEdit(supplier)}>
+            <Card key={supplier.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
@@ -394,11 +438,36 @@ const SupplierManagement = () => {
                     <span>Blacklisted Supplier</span>
                   </div>
                 )}
+
+                <div className="flex gap-2 mt-4">
+                  <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEdit(supplier)}>
+                    Edit
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="default" 
+                    className="flex-1" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAssignProductsDialog({ open: true, supplierId: supplier.id, supplierName: supplier.name });
+                    }}
+                  >
+                    <Package className="mr-1 h-3 w-3" />
+                    Assign
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+
+      <SupplierProductsDialog
+        open={assignProductsDialog.open}
+        onOpenChange={(open) => setAssignProductsDialog({ ...assignProductsDialog, open })}
+        supplierId={assignProductsDialog.supplierId}
+        supplierName={assignProductsDialog.supplierName}
+      />
     </div>
   );
 };

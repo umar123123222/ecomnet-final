@@ -89,6 +89,9 @@ const FraudReportDashboard = lazy(() =>
 const PackagingManagement = lazy(() => 
   import("@/pages/Inventory/PackagingManagement").then(module => ({ default: module.default }))
 );
+const SupplierPortal = lazy(() => 
+  import("@/pages/Suppliers/SupplierPortal").then(module => ({ default: module.default }))
+);
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ActivityLogs = lazy(() => 
   import("@/pages/ActivityLogs/ActivityLogs").then(module => ({ default: module.default }))
@@ -242,6 +245,11 @@ const App = () => {
                 <Route path="suppliers" element={
                   <Suspense fallback={<PageLoader />}>
                     <SupplierManagement />
+                  </Suspense>
+                } />
+                <Route path="supplier-portal" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <SupplierPortal />
                   </Suspense>
                 } />
                 <Route path="supplier-analytics" element={

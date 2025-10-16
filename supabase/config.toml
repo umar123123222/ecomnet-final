@@ -50,3 +50,9 @@ verify_jwt = true
 
 [functions.sync-shopify-all]
 verify_jwt = true
+
+[functions.check-low-stock]
+verify_jwt = false
+
+[functions.process-stock-count]
+verify_jwt = true
