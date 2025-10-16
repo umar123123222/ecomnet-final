@@ -39,7 +39,7 @@ const DispatchDashboard = () => {
   const queryClient = useQueryClient();
   const form = useForm({
     defaultValues: {
-      trackingIds: ''
+      bulkEntries: ''
     }
   });
   useEffect(() => {
@@ -147,12 +147,104 @@ const DispatchDashboard = () => {
         return 'bg-gray-100 text-gray-800';
     }
   };
-  const handleManualEntry = (data: {
-    trackingIds: string;
+  const handleManualEntry = async (data: {
+    bulkEntries: string;
   }) => {
-    // Manual entry tracking IDs processed
-    setIsManualEntryOpen(false);
-    form.reset();
+    try {
+      // Parse entries - format: "ORDER_ID, TRACKING_ID" per line
+      const entries = data.bulkEntries
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
+
+      for (const entry of entries) {
+        // Split by comma to get order ID and tracking ID
+        const parts = entry.split(',').map(p => p.trim());
+        const orderNumber = parts[0];
+        const trackingId = parts[1] || '';
+
+        if (!orderNumber) {
+          errors.push(`Invalid entry: ${entry}`);
+          errorCount++;
+          continue;
+        }
+
+        // Find the order in the database
+        const { data: order, error: orderError } = await supabase
+          .from('orders')
+          .select('id, status')
+          .eq('order_number', orderNumber)
+          .maybeSingle();
+
+        if (orderError || !order) {
+          errors.push(`Order not found: ${orderNumber}`);
+          errorCount++;
+          continue;
+        }
+
+        // Create dispatch record
+        const { error: dispatchError } = await supabase
+          .from('dispatches')
+          .insert({
+            order_id: order.id,
+            tracking_id: trackingId,
+            status: 'in_transit',
+            courier: 'Manual Entry',
+            dispatch_date: new Date().toISOString()
+          });
+
+        if (dispatchError) {
+          errors.push(`Failed to create dispatch for ${orderNumber}: ${dispatchError.message}`);
+          errorCount++;
+          continue;
+        }
+
+        // Update order status
+        const { error: updateError } = await supabase
+          .from('orders')
+          .update({ status: 'dispatched' })
+          .eq('id', order.id);
+
+        if (updateError) {
+          errors.push(`Failed to update order ${orderNumber}: ${updateError.message}`);
+          errorCount++;
+          continue;
+        }
+
+        successCount++;
+      }
+
+      // Show results
+      if (successCount > 0) {
+        toast({
+          title: "Bulk Entry Complete",
+          description: `Successfully processed ${successCount} order(s)${errorCount > 0 ? `, ${errorCount} failed` : ''}`,
+        });
+      }
+
+      if (errors.length > 0) {
+        console.error('Bulk entry errors:', errors);
+        toast({
+          title: "Some Entries Failed",
+          description: `${errorCount} entries failed. Check console for details.`,
+          variant: "destructive"
+        });
+      }
+
+      setIsManualEntryOpen(false);
+      form.reset();
+    } catch (error) {
+      console.error('Bulk entry error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to process bulk entries",
+        variant: "destructive"
+      });
+    }
   };
   const toggleRowExpansion = (dispatchId: string) => {
     setExpandedRows(prev => prev.includes(dispatchId) ? prev.filter(id => id !== dispatchId) : [...prev, dispatchId]);
@@ -174,24 +266,27 @@ const DispatchDashboard = () => {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Manual Tracking ID Entry</DialogTitle>
+                <DialogTitle>Bulk Dispatch Entry</DialogTitle>
               </DialogHeader>
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(() => {})} className="space-y-4">
-                  <FormField control={form.control} name="trackingIds" render={({
+                <form onSubmit={form.handleSubmit(handleManualEntry)} className="space-y-4">
+                  <FormField control={form.control} name="bulkEntries" render={({
                   field
                 }) => <FormItem>
-                        <FormLabel>Tracking IDs</FormLabel>
+                        <FormLabel>Order & Tracking IDs</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Enter tracking IDs (one per line or comma separated)..." className="min-h-[100px]" {...field} />
+                          <Textarea placeholder="Format: ORDER_ID, TRACKING_ID (one per line)&#10;Example:&#10;ORD001, TRK123456&#10;ORD002, TRK789012" className="min-h-[150px] font-mono text-sm" {...field} />
                         </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          Enter one entry per line. Format: ORDER_ID, TRACKING_ID
+                        </p>
                         <FormMessage />
                       </FormItem>} />
                   <div className="flex justify-end gap-2">
                     <Button type="button" variant="outline" onClick={() => setIsManualEntryOpen(false)}>
                       Cancel
                     </Button>
-                    <Button type="submit">Submit</Button>
+                    <Button type="submit">Process Entries</Button>
                   </div>
                 </form>
               </Form>
