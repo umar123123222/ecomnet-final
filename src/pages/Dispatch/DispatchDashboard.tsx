@@ -198,7 +198,10 @@ const DispatchDashboard = () => {
           <p className="text-gray-600 mt-1">Track and manage order dispatches</p>
         </div>
         <div className="flex gap-2">
-          
+          <Button onClick={() => setIsNewDispatchOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Dispatch
+          </Button>
           <Button onClick={() => setIsScanningOpen(true)} variant="outline">
             <Scan className="h-4 w-4 mr-2" />
             Scan
