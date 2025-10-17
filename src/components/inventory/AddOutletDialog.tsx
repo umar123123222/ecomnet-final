@@ -190,7 +190,7 @@ export function AddOutletDialog({ open, onOpenChange, outlet }: AddOutletDialogP
               onCheckedChange={(checked) => setValue("is_active", checked)}
             />
             <Label htmlFor="is_active" className="cursor-pointer">
-              Active Outlet
+              Active
             </Label>
           </div>
 
