@@ -628,6 +628,7 @@ export type Database = {
           grn_id: string
           id: string
           notes: string | null
+          packaging_item_id: string | null
           po_item_id: string | null
           product_id: string
           quality_status: string | null
@@ -645,6 +646,7 @@ export type Database = {
           grn_id: string
           id?: string
           notes?: string | null
+          packaging_item_id?: string | null
           po_item_id?: string | null
           product_id: string
           quality_status?: string | null
@@ -662,6 +664,7 @@ export type Database = {
           grn_id?: string
           id?: string
           notes?: string | null
+          packaging_item_id?: string | null
           po_item_id?: string | null
           product_id?: string
           quality_status?: string | null
@@ -677,6 +680,13 @@ export type Database = {
             columns: ["grn_id"]
             isOneToOne: false
             referencedRelation: "goods_received_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grn_items_packaging_item_id_fkey"
+            columns: ["packaging_item_id"]
+            isOneToOne: false
+            referencedRelation: "packaging_items"
             referencedColumns: ["id"]
           },
           {
