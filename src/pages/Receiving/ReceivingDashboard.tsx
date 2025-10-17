@@ -72,6 +72,22 @@ const ReceivingDashboard = () => {
     }
   });
 
+  // Fetch main warehouse
+  const { data: mainWarehouse } = useQuery({
+    queryKey: ['main-warehouse'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('outlets')
+        .select('*')
+        .eq('outlet_type', 'warehouse')
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+      if (error) throw error;
+      return data;
+    }
+  });
+
   const startReceiving = (poId: string) => {
     setSelectedPO(poId);
     setIsReceivingDialogOpen(true);
@@ -252,6 +268,16 @@ const ReceivingDashboard = () => {
             <DialogTitle>Receive Goods - Line by Line Inspection</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {mainWarehouse && (
+              <div>
+                <Label>Receiving Warehouse</Label>
+                <Input 
+                  value={mainWarehouse.name} 
+                  disabled 
+                  className="bg-muted"
+                />
+              </div>
+            )}
             <div className="text-center py-12 text-muted-foreground">
               <Camera className="mx-auto h-12 w-12 mb-4" />
               <p>Scan barcode or manually enter items to receive</p>
