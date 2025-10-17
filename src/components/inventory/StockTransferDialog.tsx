@@ -9,16 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const transferSchema = z.object({
+  product_id: z.string().min(1, "Product is required"),
   from_outlet_id: z.string().min(1, "Source outlet is required"),
   to_outlet_id: z.string().min(1, "Destination outlet is required"),
+  quantity: z.number().int().min(1, "Quantity must be at least 1"),
   notes: z.string().trim().max(500, "Notes must be less than 500 characters").optional(),
 }).refine((data) => data.from_outlet_id !== data.to_outlet_id, {
   message: "Source and destination outlets must be different",
@@ -26,11 +26,6 @@ const transferSchema = z.object({
 });
 
 type TransferFormData = z.infer<typeof transferSchema>;
-
-interface ProductQuantity {
-  productId: string;
-  quantity: number;
-}
 
 interface StockTransferDialogProps {
   open: boolean;
@@ -46,7 +41,6 @@ export function StockTransferDialog({
   outlets,
 }: StockTransferDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedProducts, setSelectedProducts] = useState<Record<string, number>>({});
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -61,77 +55,42 @@ export function StockTransferDialog({
   } = useForm<TransferFormData>({
     resolver: zodResolver(transferSchema),
     defaultValues: {
+      product_id: "",
       from_outlet_id: "",
       to_outlet_id: "",
+      quantity: 1,
       notes: "",
     },
   });
 
-  const toggleProduct = (productId: string) => {
-    setSelectedProducts((prev) => {
-      const newSelected = { ...prev };
-      if (newSelected[productId]) {
-        delete newSelected[productId];
-      } else {
-        newSelected[productId] = 1;
-      }
-      return newSelected;
-    });
-  };
-
-  const updateQuantity = (productId: string, quantity: number) => {
-    if (quantity < 1) return;
-    setSelectedProducts((prev) => ({
-      ...prev,
-      [productId]: quantity,
-    }));
-  };
-
   const onSubmit = async (data: TransferFormData) => {
-    if (Object.keys(selectedProducts).length === 0) {
-      toast({
-        title: "Error",
-        description: "Please select at least one product",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      const requests = Object.entries(selectedProducts).map(([productId, quantity]) =>
-        supabase.functions.invoke("stock-transfer-request", {
-          body: {
-            action: "create",
-            product_id: productId,
-            from_outlet_id: data.from_outlet_id,
-            to_outlet_id: data.to_outlet_id,
-            quantity_requested: quantity,
-            notes: data.notes,
-          },
-        })
-      );
+      const { data: result, error } = await supabase.functions.invoke("stock-transfer-request", {
+        body: {
+          action: "create",
+          product_id: data.product_id,
+          from_outlet_id: data.from_outlet_id,
+          to_outlet_id: data.to_outlet_id,
+          quantity_requested: data.quantity,
+          notes: data.notes,
+        },
+      });
 
-      const results = await Promise.all(requests);
-      const errors = results.filter((r) => r.error);
-
-      if (errors.length > 0) {
-        throw new Error(`Failed to create ${errors.length} transfer request(s)`);
-      }
+      if (error) throw error;
 
       toast({
         title: "Success",
-        description: `${Object.keys(selectedProducts).length} stock transfer request(s) created successfully`,
+        description: "Stock transfer request created successfully",
       });
 
       queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
       reset();
-      setSelectedProducts({});
       onOpenChange(false);
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to create transfer requests",
+        description: error.message || "Failed to create transfer request",
         variant: "destructive",
       });
     } finally {
@@ -151,38 +110,25 @@ export function StockTransferDialog({
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label>Products * (Select {Object.keys(selectedProducts).length})</Label>
-            <ScrollArea className="h-[200px] rounded-md border p-4">
-              <div className="space-y-3">
+            <Label htmlFor="product_id">Product *</Label>
+            <Select
+              value={watch("product_id")}
+              onValueChange={(value) => setValue("product_id", value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select product" />
+              </SelectTrigger>
+              <SelectContent>
                 {products?.map((product) => (
-                  <div key={product.id} className="flex items-center gap-3">
-                    <Checkbox
-                      id={product.id}
-                      checked={!!selectedProducts[product.id]}
-                      onCheckedChange={() => toggleProduct(product.id)}
-                    />
-                    <Label
-                      htmlFor={product.id}
-                      className="flex-1 cursor-pointer text-sm font-normal"
-                    >
-                      {product.name} ({product.sku})
-                    </Label>
-                    {selectedProducts[product.id] && (
-                      <Input
-                        type="number"
-                        min="1"
-                        value={selectedProducts[product.id]}
-                        onChange={(e) =>
-                          updateQuantity(product.id, parseInt(e.target.value) || 1)
-                        }
-                        className="w-20"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    )}
-                  </div>
+                  <SelectItem key={product.id} value={product.id}>
+                    {product.name} ({product.sku})
+                  </SelectItem>
                 ))}
-              </div>
-            </ScrollArea>
+              </SelectContent>
+            </Select>
+            {errors.product_id && (
+              <p className="text-sm text-red-500">{errors.product_id.message}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -229,6 +175,19 @@ export function StockTransferDialog({
             )}
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="quantity">Quantity *</Label>
+            <Input
+              id="quantity"
+              type="number"
+              min="1"
+              {...register("quantity", { valueAsNumber: true })}
+              placeholder="1"
+            />
+            {errors.quantity && (
+              <p className="text-sm text-red-500">{errors.quantity.message}</p>
+            )}
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="notes">Notes</Label>
