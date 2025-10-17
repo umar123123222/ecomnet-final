@@ -8,82 +8,69 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 
 // Mock data for demonstration
-const mockReturns = [
-  {
-    id: '1',
-    orderNumber: 'ORD-2024-001',
-    customerName: 'John Doe',
-    customerPhone: '+92 300 1234567',
-    returnReason: 'Size issue',
-    returnStatus: 'returned',
-    markedReturnedDate: '2024-01-10',
-    daysSinceMarked: 8,
-    expectedReceiptDate: '2024-01-12',
-    courier: 'TCS',
-    trackingId: 'TCS123456',
-    returnValue: 2500,
-    isOverdue: true
-  },
-  {
-    id: '2',
-    orderNumber: 'ORD-2024-002',
-    customerName: 'Sarah Khan',
-    customerPhone: '+92 301 9876543',
-    returnReason: 'Wrong item',
-    returnStatus: 'returned',
-    markedReturnedDate: '2024-01-08',
-    daysSinceMarked: 10,
-    expectedReceiptDate: '2024-01-10',
-    courier: 'Leopard',
-    trackingId: 'LEO789012',
-    returnValue: 1800,
-    isOverdue: true
-  },
-  {
-    id: '3',
-    orderNumber: 'ORD-2024-003',
-    customerName: 'Ahmed Ali',
-    customerPhone: '+92 302 5555555',
-    returnReason: 'Defective product',
-    returnStatus: 'returned',
-    markedReturnedDate: '2024-01-12',
-    daysSinceMarked: 6,
-    expectedReceiptDate: '2024-01-14',
-    courier: 'Postex',
-    trackingId: 'POST345678',
-    returnValue: 3200,
-    isOverdue: true
-  },
-  {
-    id: '4',
-    orderNumber: 'ORD-2024-004',
-    customerName: 'Fatima Sheikh',
-    customerPhone: '+92 303 7777777',
-    returnReason: 'Not as described',
-    returnStatus: 'returned',
-    markedReturnedDate: '2024-01-14',
-    daysSinceMarked: 4,
-    expectedReceiptDate: '2024-01-16',
-    courier: 'TCS',
-    trackingId: 'TCS901234',
-    returnValue: 1500,
-    isOverdue: true
-  }
-];
-
+const mockReturns = [{
+  id: '1',
+  orderNumber: 'ORD-2024-001',
+  customerName: 'John Doe',
+  customerPhone: '+92 300 1234567',
+  returnReason: 'Size issue',
+  returnStatus: 'returned',
+  markedReturnedDate: '2024-01-10',
+  daysSinceMarked: 8,
+  expectedReceiptDate: '2024-01-12',
+  courier: 'TCS',
+  trackingId: 'TCS123456',
+  returnValue: 2500,
+  isOverdue: true
+}, {
+  id: '2',
+  orderNumber: 'ORD-2024-002',
+  customerName: 'Sarah Khan',
+  customerPhone: '+92 301 9876543',
+  returnReason: 'Wrong item',
+  returnStatus: 'returned',
+  markedReturnedDate: '2024-01-08',
+  daysSinceMarked: 10,
+  expectedReceiptDate: '2024-01-10',
+  courier: 'Leopard',
+  trackingId: 'LEO789012',
+  returnValue: 1800,
+  isOverdue: true
+}, {
+  id: '3',
+  orderNumber: 'ORD-2024-003',
+  customerName: 'Ahmed Ali',
+  customerPhone: '+92 302 5555555',
+  returnReason: 'Defective product',
+  returnStatus: 'returned',
+  markedReturnedDate: '2024-01-12',
+  daysSinceMarked: 6,
+  expectedReceiptDate: '2024-01-14',
+  courier: 'Postex',
+  trackingId: 'POST345678',
+  returnValue: 3200,
+  isOverdue: true
+}, {
+  id: '4',
+  orderNumber: 'ORD-2024-004',
+  customerName: 'Fatima Sheikh',
+  customerPhone: '+92 303 7777777',
+  returnReason: 'Not as described',
+  returnStatus: 'returned',
+  markedReturnedDate: '2024-01-14',
+  daysSinceMarked: 4,
+  expectedReceiptDate: '2024-01-16',
+  courier: 'TCS',
+  trackingId: 'TCS901234',
+  returnValue: 1500,
+  isOverdue: true
+}];
 const ReturnsNotReceived = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedReturns, setSelectedReturns] = useState<string[]>([]);
-
   const filteredReturns = useMemo(() => {
-    return mockReturns.filter(returnItem =>
-      returnItem.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      returnItem.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      returnItem.customerPhone.includes(searchTerm) ||
-      returnItem.trackingId.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    return mockReturns.filter(returnItem => returnItem.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) || returnItem.customerName.toLowerCase().includes(searchTerm.toLowerCase()) || returnItem.customerPhone.includes(searchTerm) || returnItem.trackingId.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [searchTerm]);
-
   const handleSelectReturn = (returnId: string, checked: boolean) => {
     if (checked) {
       setSelectedReturns([...selectedReturns, returnId]);
@@ -91,7 +78,6 @@ const ReturnsNotReceived = () => {
       setSelectedReturns(selectedReturns.filter(id => id !== returnId));
     }
   };
-
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       setSelectedReturns(filteredReturns.map(returnItem => returnItem.id));
@@ -99,67 +85,45 @@ const ReturnsNotReceived = () => {
       setSelectedReturns([]);
     }
   };
-
   const handleExportSelected = () => {
     const selectedData = filteredReturns.filter(returnItem => selectedReturns.includes(returnItem.id));
-    const csvContent = [
-      ['Order Number', 'Customer Name', 'Phone', 'Return Reason', 'Courier', 'Tracking ID', 'Marked Date', 'Days Overdue', 'Value'],
-      ...selectedData.map(returnItem => [
-        returnItem.orderNumber,
-        returnItem.customerName,
-        returnItem.customerPhone,
-        returnItem.returnReason,
-        returnItem.courier,
-        returnItem.trackingId,
-        returnItem.markedReturnedDate,
-        returnItem.daysSinceMarked.toString(),
-        `₨${returnItem.returnValue.toLocaleString()}`
-      ])
-    ].map(row => row.join(',')).join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const csvContent = [['Order Number', 'Customer Name', 'Phone', 'Return Reason', 'Courier', 'Tracking ID', 'Marked Date', 'Days Overdue', 'Value'], ...selectedData.map(returnItem => [returnItem.orderNumber, returnItem.customerName, returnItem.customerPhone, returnItem.returnReason, returnItem.courier, returnItem.trackingId, returnItem.markedReturnedDate, returnItem.daysSinceMarked.toString(), `₨${returnItem.returnValue.toLocaleString()}`])].map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], {
+      type: 'text/csv;charset=utf-8;'
+    });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `returns-not-received-${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
-
   const handleViewReturn = (returnId: string) => {
     // For now, we'll show an alert. In a real app, this would navigate to return details
     alert(`Viewing return details for ${returnId}`);
   };
-
   const handleCallCustomer = (phone: string) => {
     // Open phone dialer
     window.open(`tel:${phone}`, '_self');
   };
-
   const getPriorityColor = (daysSinceMarked: number) => {
     if (daysSinceMarked >= 10) return 'text-red-600 font-bold';
     if (daysSinceMarked >= 7) return 'text-orange-600 font-semibold';
     if (daysSinceMarked >= 3) return 'text-yellow-600 font-medium';
     return 'text-gray-600';
   };
-
   const getPriorityBadge = (daysSinceMarked: number) => {
     if (daysSinceMarked >= 10) return 'bg-red-100 text-red-800 border-red-200';
     if (daysSinceMarked >= 7) return 'bg-orange-100 text-orange-800 border-orange-200';
     if (daysSinceMarked >= 3) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     return 'bg-gray-100 text-gray-800 border-gray-200';
   };
-
-  return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+  return <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Returns Not Received</h1>
           <p className="text-gray-600 mt-1">Orders marked as returned but not received at warehouse for more than 3 days</p>
         </div>
-        <Button variant="outline" disabled={selectedReturns.length === 0} onClick={handleExportSelected}>
-          <Download className="h-4 w-4 mr-2" />
-          Export Selected
-        </Button>
+        
       </div>
 
       {/* Stats Cards */}
@@ -237,12 +201,7 @@ const ReturnsNotReceived = () => {
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
-                placeholder="Search by order number, customer name, phone, or tracking ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+              <Input placeholder="Search by order number, customer name, phone, or tracking ID..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
             </div>
           </div>
 
@@ -252,10 +211,7 @@ const ReturnsNotReceived = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12">
-                    <Checkbox
-                      checked={selectedReturns.length === filteredReturns.length && filteredReturns.length > 0}
-                      onCheckedChange={handleSelectAll}
-                    />
+                    <Checkbox checked={selectedReturns.length === filteredReturns.length && filteredReturns.length > 0} onCheckedChange={handleSelectAll} />
                   </TableHead>
                   <TableHead>Order #</TableHead>
                   <TableHead>Customer</TableHead>
@@ -271,13 +227,9 @@ const ReturnsNotReceived = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredReturns.map((returnItem) => (
-                  <TableRow key={returnItem.id}>
+                {filteredReturns.map(returnItem => <TableRow key={returnItem.id}>
                     <TableCell>
-                      <Checkbox
-                        checked={selectedReturns.includes(returnItem.id)}
-                        onCheckedChange={(checked) => handleSelectReturn(returnItem.id, checked as boolean)}
-                      />
+                      <Checkbox checked={selectedReturns.includes(returnItem.id)} onCheckedChange={checked => handleSelectReturn(returnItem.id, checked as boolean)} />
                     </TableCell>
                     <TableCell className="font-medium">{returnItem.orderNumber}</TableCell>
                     <TableCell>
@@ -300,9 +252,7 @@ const ReturnsNotReceived = () => {
                     <TableCell>₨{returnItem.returnValue.toLocaleString()}</TableCell>
                     <TableCell>
                       <Badge className={getPriorityBadge(returnItem.daysSinceMarked)}>
-                        {returnItem.daysSinceMarked >= 10 ? 'Critical' :
-                         returnItem.daysSinceMarked >= 7 ? 'High' :
-                         returnItem.daysSinceMarked >= 3 ? 'Medium' : 'Low'}
+                        {returnItem.daysSinceMarked >= 10 ? 'Critical' : returnItem.daysSinceMarked >= 7 ? 'High' : returnItem.daysSinceMarked >= 3 ? 'Medium' : 'Low'}
                       </Badge>
                     </TableCell>
                      <TableCell>
@@ -315,21 +265,16 @@ const ReturnsNotReceived = () => {
                          </Button>
                        </div>
                      </TableCell>
-                  </TableRow>
-                ))}
+                  </TableRow>)}
               </TableBody>
             </Table>
           </div>
 
-          {filteredReturns.length === 0 && (
-            <div className="text-center py-8">
+          {filteredReturns.length === 0 && <div className="text-center py-8">
               <p className="text-gray-500">No overdue returns found matching your search criteria.</p>
-            </div>
-          )}
+            </div>}
         </CardContent>
       </Card>
-    </div>
-  );
+    </div>;
 };
-
 export default ReturnsNotReceived;
