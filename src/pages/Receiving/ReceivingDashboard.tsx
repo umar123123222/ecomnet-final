@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Package, AlertTriangle, CheckCircle2, Camera } from 'lucide-react';
+import { Search, Package, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 
@@ -32,7 +32,9 @@ const ReceivingDashboard = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [isReceivingDialogOpen, setIsReceivingDialogOpen] = useState(false);
-  const [selectedPO, setSelectedPO] = useState<string>('');
+  const [selectedPO, setSelectedPO] = useState<any>(null);
+  const [receivingItems, setReceivingItems] = useState<any[]>([]);
+  const [notes, setNotes] = useState('');
 
   // Fetch GRNs
   const { data: grns = [], isLoading } = useQuery({
@@ -88,10 +90,113 @@ const ReceivingDashboard = () => {
     }
   });
 
-  const startReceiving = (poId: string) => {
-    setSelectedPO(poId);
+  // Fetch PO items for selected PO
+  const { data: poItems = [] } = useQuery({
+    queryKey: ['po-items', selectedPO?.id],
+    queryFn: async () => {
+      if (!selectedPO?.id) return [];
+      const { data, error } = await supabase
+        .from('purchase_order_items')
+        .select(`
+          *,
+          products(id, name, sku),
+          packaging_items(id, name, sku)
+        `)
+        .eq('po_id', selectedPO.id);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedPO?.id
+  });
+
+  const startReceiving = (po: any) => {
+    setSelectedPO(po);
     setIsReceivingDialogOpen(true);
+    setNotes('');
   };
+
+  // Initialize receiving items when PO items are loaded
+  const initializeReceivingItems = () => {
+    if (poItems.length > 0 && receivingItems.length === 0) {
+      const items = poItems.map((item: any) => ({
+        po_item_id: item.id,
+        product_id: item.product_id,
+        packaging_item_id: item.packaging_item_id,
+        name: item.products?.name || item.packaging_items?.name || 'Unknown',
+        sku: item.products?.sku || item.packaging_items?.sku || '',
+        quantity_expected: item.quantity_ordered - (item.quantity_received || 0),
+        quantity_received: item.quantity_ordered - (item.quantity_received || 0),
+        unit_cost: item.unit_cost,
+        batch_number: '',
+        expiry_date: '',
+        notes: ''
+      }));
+      setReceivingItems(items);
+    }
+  };
+
+  // Update received quantity
+  const updateReceivedQuantity = (index: number, value: string) => {
+    const newItems = [...receivingItems];
+    newItems[index].quantity_received = parseInt(value) || 0;
+    setReceivingItems(newItems);
+  };
+
+  const updateItemField = (index: number, field: string, value: string) => {
+    const newItems = [...receivingItems];
+    newItems[index][field] = value;
+    setReceivingItems(newItems);
+  };
+
+  // Create GRN mutation
+  const createGRNMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('process-grn', {
+        body: {
+          action: 'create',
+          data: {
+            po_id: selectedPO.id,
+            items: receivingItems,
+            notes
+          }
+        }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['grns'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-pos'] });
+      setIsReceivingDialogOpen(false);
+      setSelectedPO(null);
+      setReceivingItems([]);
+      
+      if (data.hasDiscrepancy) {
+        toast({
+          title: 'GRN Created with Discrepancies',
+          description: 'Managers and supplier have been notified about quantity differences.',
+          variant: 'default'
+        });
+      } else {
+        toast({
+          title: 'Success',
+          description: 'Goods received successfully',
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // Initialize items when dialog opens
+  if (isReceivingDialogOpen && poItems.length > 0 && receivingItems.length === 0) {
+    initializeReceivingItems();
+  }
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string }> = {
@@ -178,7 +283,7 @@ const ReceivingDashboard = () => {
                       {po.suppliers?.name} → {po.outlets?.name}
                     </p>
                   </div>
-                  <Button onClick={() => startReceiving(po.id)}>
+                  <Button onClick={() => startReceiving(po)}>
                     Start Receiving
                   </Button>
                 </div>
@@ -261,13 +366,27 @@ const ReceivingDashboard = () => {
         </div>
       )}
 
-      {/* Receiving Dialog - Placeholder for detailed receiving flow */}
-      <Dialog open={isReceivingDialogOpen} onOpenChange={setIsReceivingDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      {/* Receiving Dialog */}
+      <Dialog open={isReceivingDialogOpen} onOpenChange={(open) => {
+        setIsReceivingDialogOpen(open);
+        if (!open) {
+          setSelectedPO(null);
+          setReceivingItems([]);
+          setNotes('');
+        }
+      }}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Receive Goods - Line by Line Inspection</DialogTitle>
+            <DialogTitle>
+              Receive Goods - {selectedPO?.po_number}
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              From: {selectedPO?.suppliers?.name} → To: {selectedPO?.outlets?.name}
+            </p>
           </DialogHeader>
-          <div className="space-y-4">
+
+          <div className="space-y-6">
+            {/* Warehouse Info */}
             {mainWarehouse && (
               <div>
                 <Label>Receiving Warehouse</Label>
@@ -278,11 +397,139 @@ const ReceivingDashboard = () => {
                 />
               </div>
             )}
-            <div className="text-center py-12 text-muted-foreground">
-              <Camera className="mx-auto h-12 w-12 mb-4" />
-              <p>Scan barcode or manually enter items to receive</p>
-              <p className="text-sm mt-2">Full receiving workflow coming soon...</p>
-            </div>
+
+            {/* Items to Receive */}
+            {receivingItems.length > 0 ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Items to Receive</h3>
+                  <Badge variant="outline">
+                    {receivingItems.length} item(s)
+                  </Badge>
+                </div>
+
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-muted">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-medium">Item</th>
+                          <th className="px-4 py-3 text-left text-sm font-medium">SKU</th>
+                          <th className="px-4 py-3 text-right text-sm font-medium">Expected</th>
+                          <th className="px-4 py-3 text-right text-sm font-medium">Received *</th>
+                          <th className="px-4 py-3 text-left text-sm font-medium">Batch #</th>
+                          <th className="px-4 py-3 text-left text-sm font-medium">Expiry</th>
+                          <th className="px-4 py-3 text-left text-sm font-medium">Notes</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {receivingItems.map((item, index) => {
+                          const hasDiscrepancy = item.quantity_received !== item.quantity_expected;
+                          return (
+                            <tr key={index} className={hasDiscrepancy ? 'bg-amber-50' : ''}>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  {hasDiscrepancy && (
+                                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                                  )}
+                                  <span className="font-medium">{item.name}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-muted-foreground">
+                                {item.sku}
+                              </td>
+                              <td className="px-4 py-3 text-right font-medium">
+                                {item.quantity_expected}
+                              </td>
+                              <td className="px-4 py-3">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={item.quantity_received}
+                                  onChange={(e) => updateReceivedQuantity(index, e.target.value)}
+                                  className={hasDiscrepancy ? 'border-amber-500' : ''}
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <Input
+                                  placeholder="Batch"
+                                  value={item.batch_number}
+                                  onChange={(e) => updateItemField(index, 'batch_number', e.target.value)}
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <Input
+                                  type="date"
+                                  value={item.expiry_date}
+                                  onChange={(e) => updateItemField(index, 'expiry_date', e.target.value)}
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <Input
+                                  placeholder="Item notes"
+                                  value={item.notes}
+                                  onChange={(e) => updateItemField(index, 'notes', e.target.value)}
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Discrepancy Warning */}
+                {receivingItems.some(item => item.quantity_received !== item.quantity_expected) && (
+                  <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-amber-900">Quantity Discrepancy Detected</h4>
+                      <p className="text-sm text-amber-800 mt-1">
+                        One or more items have different received quantities than expected.
+                        Managers and the supplier will be automatically notified.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* General Notes */}
+                <div>
+                  <Label>General Notes</Label>
+                  <Textarea
+                    placeholder="Add any additional notes about this receiving..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 justify-end pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsReceivingDialogOpen(false);
+                      setSelectedPO(null);
+                      setReceivingItems([]);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => createGRNMutation.mutate()}
+                    disabled={createGRNMutation.isPending || receivingItems.length === 0}
+                  >
+                    {createGRNMutation.isPending ? 'Creating GRN...' : 'Complete Receiving'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                <Package className="mx-auto h-12 w-12 mb-4" />
+                <p>Loading items...</p>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

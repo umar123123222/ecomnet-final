@@ -40,7 +40,10 @@ serve(async (req) => {
         // Get PO details
         const { data: po, error: poError } = await supabaseClient
           .from('purchase_orders')
-          .select('*, purchase_order_items(*)')
+          .select(`
+            *, 
+            purchase_order_items(*, products(*), packaging_items(*))
+          `)
           .eq('id', data.po_id)
           .single();
 
@@ -92,6 +95,7 @@ serve(async (req) => {
           grn_id: grn.id,
           po_item_id: item.po_item_id,
           product_id: item.product_id,
+          packaging_item_id: item.packaging_item_id,
           quantity_expected: item.quantity_expected,
           quantity_received: item.quantity_received,
           unit_cost: item.unit_cost,
@@ -106,6 +110,64 @@ serve(async (req) => {
           .insert(grnItems);
 
         if (itemsError) throw itemsError;
+
+        // Send notifications if there are discrepancies
+        if (hasDiscrepancy) {
+          // Get managers (super_admin, super_manager, warehouse_manager)
+          const { data: managers } = await supabaseClient
+            .from('user_roles')
+            .select('user_id, profiles(email, full_name)')
+            .in('role', ['super_admin', 'super_manager', 'warehouse_manager'])
+            .eq('is_active', true);
+
+          // Get supplier contact info
+          const { data: supplier } = await supabaseClient
+            .from('suppliers')
+            .select('name, contact_person, email, phone')
+            .eq('id', po.supplier_id)
+            .single();
+
+          const discrepancyDetails = items
+            .filter((item: any) => item.quantity_received !== item.quantity_expected)
+            .map((item: any) => {
+              const product = po.purchase_order_items.find((poi: any) => poi.id === item.po_item_id);
+              return `- ${product?.products?.name || product?.packaging_items?.name}: Expected ${item.quantity_expected}, Received ${item.quantity_received}`;
+            })
+            .join('\n');
+
+          const notificationMessage = `Quantity discrepancies detected in GRN ${grnNumber} for PO ${po.po_number}:\n\n${discrepancyDetails}`;
+
+          // Notify managers
+          if (managers) {
+            const managerNotifications = managers.map((manager: any) => ({
+              user_id: manager.user_id,
+              title: 'GRN Quantity Discrepancy',
+              message: notificationMessage,
+              type: 'warning',
+              priority: 'high',
+              action_url: `/receiving`,
+              metadata: { grn_id: grn.id, po_id: data.po_id }
+            }));
+
+            await supabaseClient
+              .from('notifications')
+              .insert(managerNotifications);
+          }
+
+          // Notify supplier via WhatsApp if phone available
+          if (supplier?.phone) {
+            try {
+              await supabaseClient.functions.invoke('send-whatsapp', {
+                body: {
+                  to: supplier.phone,
+                  message: `Dear ${supplier.contact_person || supplier.name},\n\n${notificationMessage}\n\nPlease contact us to resolve this issue.`
+                }
+              });
+            } catch (whatsappError) {
+              console.error('Failed to send WhatsApp to supplier:', whatsappError);
+            }
+          }
+        }
 
         // Update PO items received quantities
         for (const item of items) {
