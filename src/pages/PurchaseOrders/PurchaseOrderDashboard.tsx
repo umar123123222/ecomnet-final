@@ -226,7 +226,7 @@ const PurchaseOrderDashboard = () => {
               </div>
 
               <div>
-                <Label htmlFor="expected_delivery_date">Expected Delivery Date</Label>
+                <Label htmlFor="expected_delivery_date">Recommended Delivery Date</Label>
                 <Input
                   id="expected_delivery_date"
                   type="date"
