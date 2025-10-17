@@ -46,6 +46,11 @@ export function StockTransferDialog({
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
+  // Find main warehouse
+  const mainWarehouse = outlets?.find(
+    (outlet) => outlet.outlet_type === 'warehouse' && outlet.name.toLowerCase().includes('main')
+  ) || outlets?.find((outlet) => outlet.outlet_type === 'warehouse');
+
   const {
     register,
     handleSubmit,
@@ -56,7 +61,7 @@ export function StockTransferDialog({
   } = useForm<TransferFormData>({
     resolver: zodResolver(transferSchema),
     defaultValues: {
-      from_outlet_id: "",
+      from_outlet_id: mainWarehouse?.id || "",
       to_outlet_id: "",
       notes: "",
     },
@@ -177,25 +182,15 @@ export function StockTransferDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="from_outlet_id">From Outlet *</Label>
-            <Select
-              value={watch("from_outlet_id")}
-              onValueChange={(value) => setValue("from_outlet_id", value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select source outlet" />
-              </SelectTrigger>
-              <SelectContent>
-                {outlets?.map((outlet) => (
-                  <SelectItem key={outlet.id} value={outlet.id}>
-                    {outlet.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.from_outlet_id && (
-              <p className="text-sm text-red-500">{errors.from_outlet_id.message}</p>
-            )}
+            <Label htmlFor="from_outlet_id">From Outlet</Label>
+            <Input
+              value={mainWarehouse?.name || "Main Warehouse"}
+              disabled
+              className="bg-muted"
+            />
+            <p className="text-xs text-muted-foreground">
+              Transfers are always from the main warehouse
+            </p>
           </div>
 
           <div className="space-y-2">
