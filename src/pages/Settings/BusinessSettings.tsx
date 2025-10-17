@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { Navigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -47,6 +48,33 @@ const BusinessSettings = () => {
   const [metaAccessToken, setMetaAccessToken] = useState('');
   const [metaPhoneNumberId, setMetaPhoneNumberId] = useState('');
   const [metaBusinessAccountId, setMetaBusinessAccountId] = useState('');
+  
+  // WhatsApp Templates State
+  const [whatsappTemplates, setWhatsappTemplates] = useState<Array<{
+    id: string;
+    name: string;
+    category: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION' | 'SERVICE';
+    language: string;
+    status: 'APPROVED' | 'PENDING' | 'REJECTED';
+    components: string;
+  }>>([
+    {
+      id: '1',
+      name: 'order_confirmation',
+      category: 'UTILITY',
+      language: 'en',
+      status: 'APPROVED',
+      components: 'Header, Body, Footer'
+    },
+    {
+      id: '2',
+      name: 'promotional_offer',
+      category: 'MARKETING',
+      language: 'en',
+      status: 'APPROVED',
+      components: 'Header, Body, Button'
+    }
+  ]);
 
   const handleSaveCompanyInfo = () => {
     toast({
@@ -381,55 +409,160 @@ const BusinessSettings = () => {
 
         {/* Meta WhatsApp API */}
         <TabsContent value="meta-whatsapp">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                Meta WhatsApp Business API
-              </CardTitle>
-              <CardDescription>
-                Configure Meta WhatsApp Business API credentials
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="metaAccessToken">Access Token</Label>
-                <Input
-                  id="metaAccessToken"
-                  type="password"
-                  placeholder="EAAB..."
-                  value={metaAccessToken}
-                  onChange={(e) => setMetaAccessToken(e.target.value)}
-                />
-              </div>
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5" />
+                  Meta WhatsApp Business API
+                </CardTitle>
+                <CardDescription>
+                  Configure Meta WhatsApp Business API credentials
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="metaAccessToken">Access Token</Label>
+                  <Input
+                    id="metaAccessToken"
+                    type="password"
+                    placeholder="EAAB..."
+                    value={metaAccessToken}
+                    onChange={(e) => setMetaAccessToken(e.target.value)}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="metaPhoneNumberId">Phone Number ID</Label>
-                <Input
-                  id="metaPhoneNumberId"
-                  placeholder="123456789012345"
-                  value={metaPhoneNumberId}
-                  onChange={(e) => setMetaPhoneNumberId(e.target.value)}
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="metaPhoneNumberId">Phone Number ID</Label>
+                  <Input
+                    id="metaPhoneNumberId"
+                    placeholder="123456789012345"
+                    value={metaPhoneNumberId}
+                    onChange={(e) => setMetaPhoneNumberId(e.target.value)}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="metaBusinessAccountId">Business Account ID</Label>
-                <Input
-                  id="metaBusinessAccountId"
-                  placeholder="987654321098765"
-                  value={metaBusinessAccountId}
-                  onChange={(e) => setMetaBusinessAccountId(e.target.value)}
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="metaBusinessAccountId">Business Account ID</Label>
+                  <Input
+                    id="metaBusinessAccountId"
+                    placeholder="987654321098765"
+                    value={metaBusinessAccountId}
+                    onChange={(e) => setMetaBusinessAccountId(e.target.value)}
+                  />
+                </div>
 
-              <Separator />
+                <Separator />
 
-              <Button onClick={handleSaveMetaWhatsApp} className="w-full">
-                Save Meta WhatsApp API Settings
-              </Button>
-            </CardContent>
-          </Card>
+                <Button onClick={handleSaveMetaWhatsApp} className="w-full">
+                  Save Meta WhatsApp API Settings
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* WhatsApp Message Templates */}
+            <Card>
+              <CardHeader>
+                <CardTitle>WhatsApp Message Templates</CardTitle>
+                <CardDescription>
+                  Approved message templates from Meta Business Manager
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {whatsappTemplates.map((template) => (
+                    <Card key={template.id} className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-2 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold">{template.name}</h4>
+                            <Badge 
+                              variant={
+                                template.category === 'MARKETING' 
+                                  ? 'default' 
+                                  : template.category === 'UTILITY'
+                                  ? 'secondary'
+                                  : template.category === 'AUTHENTICATION'
+                                  ? 'outline'
+                                  : 'default'
+                              }
+                            >
+                              {template.category}
+                            </Badge>
+                            <Badge 
+                              variant={
+                                template.status === 'APPROVED' 
+                                  ? 'default' 
+                                  : template.status === 'PENDING'
+                                  ? 'secondary'
+                                  : 'destructive'
+                              }
+                            >
+                              {template.status}
+                            </Badge>
+                          </div>
+                          
+                          <div className="text-sm text-muted-foreground space-y-1">
+                            <p><strong>Language:</strong> {template.language.toUpperCase()}</p>
+                            <p><strong>Components:</strong> {template.components}</p>
+                          </div>
+
+                          <div className="pt-2">
+                            <p className="text-xs text-muted-foreground">
+                              {template.category === 'MARKETING' && (
+                                '📢 Marketing templates are for promotional content and require 24-hour opt-in'
+                              )}
+                              {template.category === 'UTILITY' && (
+                                '🔧 Utility templates for transactional updates like order confirmations'
+                              )}
+                              {template.category === 'AUTHENTICATION' && (
+                                '🔐 Authentication templates for OTP and verification codes'
+                              )}
+                              {template.category === 'SERVICE' && (
+                                '🛠️ Service templates for customer support and service notifications'
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+
+                  {whatsappTemplates.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p>No templates configured</p>
+                      <p className="text-sm">Add templates in Meta Business Manager</p>
+                    </div>
+                  )}
+                </div>
+
+                <Separator className="my-4" />
+
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold">Template Categories</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="p-2 border rounded-md">
+                      <strong>MARKETING</strong>
+                      <p className="text-xs text-muted-foreground">Promotional content, offers, announcements</p>
+                    </div>
+                    <div className="p-2 border rounded-md">
+                      <strong>UTILITY</strong>
+                      <p className="text-xs text-muted-foreground">Order updates, account notifications</p>
+                    </div>
+                    <div className="p-2 border rounded-md">
+                      <strong>AUTHENTICATION</strong>
+                      <p className="text-xs text-muted-foreground">OTP, verification codes</p>
+                    </div>
+                    <div className="p-2 border rounded-md">
+                      <strong>SERVICE</strong>
+                      <p className="text-xs text-muted-foreground">Customer support, service updates</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
