@@ -208,7 +208,7 @@ const PurchaseOrderDashboard = () => {
               </div>
 
               <div>
-                <Label htmlFor="outlet_id">Receiving Outlet *</Label>
+                <Label htmlFor="outlet_id">Receiving Location *</Label>
                 <Select value={formData.outlet_id} onValueChange={(value) => setFormData({ ...formData, outlet_id: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select outlet" />
