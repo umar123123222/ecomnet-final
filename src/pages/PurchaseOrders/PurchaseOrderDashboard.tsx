@@ -37,9 +37,16 @@ const PurchaseOrderDashboard = () => {
     supplier_id: '',
     outlet_id: '',
     expected_delivery_date: '',
-    notes: '',
-    terms_conditions: ''
+    notes: ''
   });
+  
+  const [selectedItems, setSelectedItems] = useState<Array<{
+    id: string;
+    name: string;
+    type: 'product' | 'packaging';
+    quantity: number;
+    unit_price: number;
+  }>>([]);
 
   // Fetch POs
   const { data: purchaseOrders = [], isLoading } = useQuery({
@@ -94,12 +101,49 @@ const PurchaseOrderDashboard = () => {
     }
   });
 
+  // Fetch supplier products
+  const { data: supplierProducts = [] } = useQuery({
+    queryKey: ['supplier-products', formData.supplier_id],
+    queryFn: async () => {
+      if (!formData.supplier_id) return [];
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, sku, cost')
+        .eq('supplier_id', formData.supplier_id)
+        .eq('is_active', true);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!formData.supplier_id
+  });
+
+  // Fetch supplier packaging
+  const { data: supplierPackaging = [] } = useQuery({
+    queryKey: ['supplier-packaging', formData.supplier_id],
+    queryFn: async () => {
+      if (!formData.supplier_id) return [];
+      const { data, error } = await supabase
+        .from('packaging_items')
+        .select('id, name, sku, cost')
+        .eq('supplier_id', formData.supplier_id)
+        .eq('is_active', true);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!formData.supplier_id
+  });
+
   // Set main warehouse as default when loaded
   useEffect(() => {
     if (mainWarehouse && !formData.outlet_id) {
       setFormData(prev => ({ ...prev, outlet_id: mainWarehouse.id }));
     }
   }, [mainWarehouse]);
+
+  // Reset items when supplier changes
+  useEffect(() => {
+    setSelectedItems([]);
+  }, [formData.supplier_id]);
 
   // Generate PO number
   const generatePONumber = () => {
@@ -112,16 +156,37 @@ const PurchaseOrderDashboard = () => {
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
       const poNumber = generatePONumber();
-      const { error } = await supabase
+      const totalAmount = selectedItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+      
+      const { data: poData, error: poError } = await supabase
         .from('purchase_orders')
         .insert([{
           ...data,
           po_number: poNumber,
           created_by: profile?.id,
-          total_amount: 0,
+          total_amount: totalAmount,
           status: 'draft'
-        }]);
-      if (error) throw error;
+        }])
+        .select()
+        .single();
+      
+      if (poError) throw poError;
+
+      // Create PO items
+      const poItems = selectedItems.map(item => ({
+        po_id: poData.id,
+        product_id: item.type === 'product' ? item.id : null,
+        packaging_item_id: item.type === 'packaging' ? item.id : null,
+        quantity_ordered: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.quantity * item.unit_price
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('purchase_order_items')
+        .insert(poItems);
+      
+      if (itemsError) throw itemsError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
@@ -144,15 +209,44 @@ const PurchaseOrderDashboard = () => {
   const resetForm = () => {
     setFormData({
       supplier_id: '',
-      outlet_id: '',
+      outlet_id: mainWarehouse?.id || '',
       expected_delivery_date: '',
-      notes: '',
-      terms_conditions: ''
+      notes: ''
     });
+    setSelectedItems([]);
+  };
+
+  const addItem = (itemId: string, itemName: string, itemType: 'product' | 'packaging', cost: number) => {
+    if (selectedItems.find(i => i.id === itemId)) return;
+    setSelectedItems([...selectedItems, {
+      id: itemId,
+      name: itemName,
+      type: itemType,
+      quantity: 1,
+      unit_price: cost || 0
+    }]);
+  };
+
+  const updateItemQuantity = (itemId: string, quantity: number) => {
+    setSelectedItems(selectedItems.map(item => 
+      item.id === itemId ? { ...item, quantity: Math.max(1, quantity) } : item
+    ));
+  };
+
+  const removeItem = (itemId: string) => {
+    setSelectedItems(selectedItems.filter(item => item.id !== itemId));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (selectedItems.length === 0) {
+      toast({
+        title: 'Error',
+        description: 'Please add at least one item to the purchase order',
+        variant: 'destructive'
+      });
+      return;
+    }
     createMutation.mutate(formData);
   };
 
@@ -236,6 +330,79 @@ const PurchaseOrderDashboard = () => {
               </div>
 
               <div>
+                <Label>Items</Label>
+                <div className="space-y-2">
+                  <Select onValueChange={(value) => {
+                    const [type, id] = value.split(':');
+                    const item = type === 'product' 
+                      ? supplierProducts.find(p => p.id === id)
+                      : supplierPackaging.find(p => p.id === id);
+                    if (item) {
+                      addItem(item.id, item.name, type as 'product' | 'packaging', item.cost || 0);
+                    }
+                  }} disabled={!formData.supplier_id}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select item to add" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {supplierProducts.length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-sm font-semibold">Products</div>
+                          {supplierProducts.map(product => (
+                            <SelectItem key={`product:${product.id}`} value={`product:${product.id}`}>
+                              {product.name} ({product.sku})
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
+                      {supplierPackaging.length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-sm font-semibold">Packaging</div>
+                          {supplierPackaging.map(pkg => (
+                            <SelectItem key={`packaging:${pkg.id}`} value={`packaging:${pkg.id}`}>
+                              {pkg.name} ({pkg.sku})
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
+                      {supplierProducts.length === 0 && supplierPackaging.length === 0 && (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">No items available</div>
+                      )}
+                    </SelectContent>
+                  </Select>
+
+                  {selectedItems.length > 0 && (
+                    <div className="border rounded-md divide-y">
+                      {selectedItems.map(item => (
+                        <div key={item.id} className="p-3 flex items-center gap-2">
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{item.name}</p>
+                            <p className="text-xs text-muted-foreground capitalize">{item.type}</p>
+                          </div>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => updateItemQuantity(item.id, parseInt(e.target.value) || 1)}
+                            className="w-20"
+                            placeholder="Qty"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeItem(item.id)}
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
                 <Label htmlFor="notes">Notes</Label>
                 <Textarea
                   id="notes"
@@ -244,20 +411,11 @@ const PurchaseOrderDashboard = () => {
                 />
               </div>
 
-              <div>
-                <Label htmlFor="terms_conditions">Terms & Conditions</Label>
-                <Textarea
-                  id="terms_conditions"
-                  value={formData.terms_conditions}
-                  onChange={(e) => setFormData({ ...formData, terms_conditions: e.target.value })}
-                />
-              </div>
-
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={createMutation.isPending || !formData.supplier_id || !formData.outlet_id}>
+                <Button type="submit" disabled={createMutation.isPending || !formData.supplier_id || !formData.outlet_id || selectedItems.length === 0}>
                   {createMutation.isPending ? 'Creating...' : 'Create PO'}
                 </Button>
               </div>
