@@ -53,6 +53,7 @@ const packagingSchema = z.object({
   reorder_level: z.number().int().min(0),
   current_stock: z.number().int().min(0),
   is_active: z.boolean().default(true),
+  supplier_id: z.string().optional(),
 });
 
 type PackagingFormData = z.infer<typeof packagingSchema>;
@@ -76,6 +77,20 @@ export default function PackagingManagement() {
     },
   });
 
+  // Fetch suppliers
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['suppliers-active'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('id, name')
+        .eq('status', 'active')
+        .order('name');
+      if (error) throw error;
+      return data;
+    }
+  });
+
   const form = useForm<PackagingFormData>({
     resolver: zodResolver(packagingSchema),
     defaultValues: {
@@ -88,6 +103,7 @@ export default function PackagingManagement() {
       reorder_level: 50,
       current_stock: 0,
       is_active: true,
+      supplier_id: undefined,
     },
   });
 
@@ -155,6 +171,7 @@ export default function PackagingManagement() {
       reorder_level: item.reorder_level,
       current_stock: item.current_stock,
       is_active: item.is_active,
+      supplier_id: item.supplier_id || undefined,
     });
     setDialogOpen(true);
   };
@@ -384,19 +401,46 @@ export default function PackagingManagement() {
                 />
               </div>
 
-              <FormField
-                control={form.control}
-                name="material"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Material</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Plastic, Cardboard" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="material"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Material</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Plastic, Cardboard" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="supplier_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Supplier</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select supplier (optional)" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {suppliers.map((supplier) => (
+                            <SelectItem key={supplier.id} value={supplier.id}>
+                              {supplier.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <div className="grid grid-cols-3 gap-4">
                 <FormField

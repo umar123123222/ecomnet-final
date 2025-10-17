@@ -1372,6 +1372,7 @@ export type Database = {
           shopify_variant_id: number | null
           size: string | null
           sku: string
+          supplier_id: string | null
           synced_from_shopify: boolean | null
           unit_type: string | null
           updated_at: string
@@ -1392,6 +1393,7 @@ export type Database = {
           shopify_variant_id?: number | null
           size?: string | null
           sku: string
+          supplier_id?: string | null
           synced_from_shopify?: boolean | null
           unit_type?: string | null
           updated_at?: string
@@ -1412,11 +1414,20 @@ export type Database = {
           shopify_variant_id?: number | null
           size?: string | null
           sku?: string
+          supplier_id?: string | null
           synced_from_shopify?: boolean | null
           unit_type?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "products_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -26,6 +26,7 @@ const productSchema = z.object({
   size: z.string().optional(),
   unit_type: z.enum(['ml', 'grams', 'liters', 'kg', 'pieces', 'boxes']).optional(),
   requires_packaging: z.boolean().default(false),
+  supplier_id: z.string().optional(),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -41,6 +42,20 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Fetch suppliers
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['suppliers-active'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('id, name')
+        .eq('status', 'active')
+        .order('name');
+      if (error) throw error;
+      return data;
+    }
+  });
+
   const {
     register,
     handleSubmit,
@@ -55,6 +70,7 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
       size: product.size || "",
       unit_type: product.unit_type || undefined,
       requires_packaging: product.requires_packaging || false,
+      supplier_id: product.supplier_id || undefined,
     } : {
       sku: "",
       name: "",
@@ -67,12 +83,14 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
       size: "",
       unit_type: undefined,
       requires_packaging: false,
+      supplier_id: undefined,
     },
   });
 
   const isActive = watch("is_active");
   const requiresPackaging = watch("requires_packaging");
   const unitType = watch("unit_type");
+  const supplierId = watch("supplier_id");
 
   const onSubmit = async (data: ProductFormData) => {
     setIsSubmitting(true);
@@ -167,16 +185,40 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="category">Category</Label>
-            <Input
-              id="category"
-              {...register("category")}
-              placeholder="Electronics, Clothing, etc."
-            />
-            {errors.category && (
-              <p className="text-sm text-red-500">{errors.category.message}</p>
-            )}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="category">Category</Label>
+              <Input
+                id="category"
+                {...register("category")}
+                placeholder="Electronics, Clothing, etc."
+              />
+              {errors.category && (
+                <p className="text-sm text-red-500">{errors.category.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="supplier_id">Supplier</Label>
+              <Select 
+                value={supplierId} 
+                onValueChange={(value) => setValue("supplier_id", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select supplier (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {suppliers.map((supplier) => (
+                    <SelectItem key={supplier.id} value={supplier.id}>
+                      {supplier.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.supplier_id && (
+                <p className="text-sm text-red-500">{errors.supplier_id.message}</p>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
