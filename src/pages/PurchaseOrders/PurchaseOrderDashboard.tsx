@@ -78,29 +78,28 @@ const PurchaseOrderDashboard = () => {
     }
   });
 
-  // Fetch outlets
-  const { data: outlets = [] } = useQuery({
-    queryKey: ['outlets-active'],
+  // Fetch main warehouse
+  const { data: mainWarehouse } = useQuery({
+    queryKey: ['main-warehouse'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('outlets')
-        .select('id, name, outlet_type')
+        .select('id, name')
+        .eq('outlet_type', 'warehouse')
         .eq('is_active', true)
-        .order('name');
+        .limit(1)
+        .single();
       if (error) throw error;
       return data;
     }
   });
 
-  // Set main warehouse as default when outlets are loaded
+  // Set main warehouse as default when loaded
   useEffect(() => {
-    if (outlets.length > 0 && !formData.outlet_id) {
-      const mainWarehouse = outlets.find(outlet => outlet.outlet_type === 'warehouse');
-      if (mainWarehouse) {
-        setFormData(prev => ({ ...prev, outlet_id: mainWarehouse.id }));
-      }
+    if (mainWarehouse && !formData.outlet_id) {
+      setFormData(prev => ({ ...prev, outlet_id: mainWarehouse.id }));
     }
-  }, [outlets]);
+  }, [mainWarehouse]);
 
   // Generate PO number
   const generatePONumber = () => {
@@ -218,19 +217,12 @@ const PurchaseOrderDashboard = () => {
               </div>
 
               <div>
-                <Label htmlFor="outlet_id">Receiving Location *</Label>
-                <Select value={formData.outlet_id} onValueChange={(value) => setFormData({ ...formData, outlet_id: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select outlet" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {outlets.map(outlet => (
-                      <SelectItem key={outlet.id} value={outlet.id}>
-                        {outlet.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="outlet_id">Receiving Location</Label>
+                <Input 
+                  value={mainWarehouse?.name || 'Main Warehouse'} 
+                  disabled 
+                  className="bg-muted"
+                />
               </div>
 
               <div>
