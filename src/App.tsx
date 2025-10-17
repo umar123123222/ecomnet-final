@@ -62,10 +62,7 @@ const StockTransferDashboard = lazy(() =>
 const LocationsDashboard = lazy(() => 
   import("@/pages/Locations/LocationsDashboard").then(module => ({ default: module.default }))
 );
-const WarehousesDashboard = lazy(() => 
-  import("@/pages/Warehouses/WarehousesDashboard").then(module => ({ default: module.default }))
-);
-const SupplierManagement = lazy(() => 
+const SupplierManagement = lazy(() =>
   import("@/pages/Suppliers/SupplierManagement").then(module => ({ default: module.default }))
 );
 const SupplierAnalyticsDashboard = lazy(() => 
@@ -235,11 +232,6 @@ const App = () => {
                 <Route path="locations" element={
                   <Suspense fallback={<PageLoader />}>
                     <LocationsDashboard />
-                  </Suspense>
-                } />
-                <Route path="warehouses" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <WarehousesDashboard />
                   </Suspense>
                 } />
                 <Route path="suppliers" element={

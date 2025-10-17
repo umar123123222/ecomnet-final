@@ -28,7 +28,6 @@ export const getRolePermissions = (role: UserRole) => {
     canAccessProducts: false,
     canAccessStockTransfer: false,
     canAccessLocations: false,
-    canAccessWarehouses: false,
     canAccessActivityLogs: false,
     canAccessSuppliers: false,
     canAccessPurchaseOrders: false,
@@ -68,7 +67,6 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessProducts: true,
         canAccessStockTransfer: true,
         canAccessLocations: true,
-        canAccessWarehouses: true,
         canAccessActivityLogs: true,
         canAccessSuppliers: true,
         canAccessPurchaseOrders: true,
@@ -98,7 +96,6 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessProducts: true,
         canAccessStockTransfer: true,
         canAccessLocations: true,
-        canAccessWarehouses: true,
         canAccessActivityLogs: true,
         canAccessSuppliers: true,
         canAccessPurchaseOrders: true,
@@ -124,7 +121,6 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessProducts: true,
         canAccessStockTransfer: true,
         canAccessLocations: true,
-        canAccessWarehouses: true,
         canAccessSettings: true,
         canAccessSuppliers: true,
         canAccessPurchaseOrders: true,
@@ -143,7 +139,6 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessProducts: true,
         canAccessStockTransfer: true,
         canAccessLocations: true,
-        canAccessWarehouses: true,
         canAccessSettings: true,
         canAccessSuppliers: true,
         canAccessPurchaseOrders: true,
@@ -308,14 +303,6 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       label: 'Locations',
       href: '/locations',
       icon: 'MapPin'
-    });
-  }
-
-  if (permissions.canAccessWarehouses) {
-    items.push({
-      label: 'Warehouses',
-      href: '/warehouses',
-      icon: 'Warehouse'
     });
   }
 
