@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -21,6 +21,7 @@ const outletSchema = z.object({
   address: z.string().trim().max(500, "Address must be less than 500 characters").optional(),
   city: z.string().trim().max(100, "City must be less than 100 characters").optional(),
   phone: z.string().trim().max(20, "Phone must be less than 20 characters").optional(),
+  manager_id: z.string().uuid("Please select a manager").optional().nullable(),
   is_active: z.boolean(),
 });
 
@@ -37,6 +38,21 @@ export function AddOutletDialog({ open, onOpenChange, outlet }: AddOutletDialogP
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Fetch available managers
+  const { data: managers = [] } = useQuery({
+    queryKey: ["managers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("role", ["super_admin", "super_manager", "warehouse_manager", "store_manager"])
+        .eq("is_active", true)
+        .order("full_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const {
     register,
     handleSubmit,
@@ -52,11 +68,13 @@ export function AddOutletDialog({ open, onOpenChange, outlet }: AddOutletDialogP
       address: "",
       city: "",
       phone: "",
+      manager_id: null,
       is_active: true,
     },
   });
 
   const outletType = watch("outlet_type");
+  const managerId = watch("manager_id");
   const isActive = watch("is_active");
 
   const onSubmit = async (data: OutletFormData) => {
@@ -181,6 +199,29 @@ export function AddOutletDialog({ open, onOpenChange, outlet }: AddOutletDialogP
                 <p className="text-sm text-red-500">{errors.phone.message}</p>
               )}
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="manager_id">Assign Manager</Label>
+            <Select
+              value={managerId || ""}
+              onValueChange={(value) => setValue("manager_id", value || null)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a manager" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">No Manager</SelectItem>
+                {managers.map((manager) => (
+                  <SelectItem key={manager.id} value={manager.id}>
+                    {manager.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.manager_id && (
+              <p className="text-sm text-red-500">{errors.manager_id.message}</p>
+            )}
           </div>
 
           <div className="flex items-center space-x-2">
