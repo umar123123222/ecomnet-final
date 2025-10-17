@@ -105,7 +105,7 @@ export function AddOutletDialog({ open, onOpenChange, outlet }: AddOutletDialogP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{outlet ? "Edit Outlet" : "Add New Outlet"}</DialogTitle>
+          <DialogTitle>{outlet ? "Edit Outlet/Warehouse" : "Add New Outlet/Warehouse"}</DialogTitle>
           <DialogDescription>
             {outlet ? "Update outlet information" : "Create a new warehouse or retail outlet"}
           </DialogDescription>
