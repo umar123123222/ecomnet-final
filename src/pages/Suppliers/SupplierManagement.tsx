@@ -223,49 +223,54 @@ const SupplierManagement = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="contact_person">Contact Person</Label>
+                  <Label htmlFor="contact_person">Contact Person *</Label>
                   <Input
                     id="contact_person"
                     value={formData.contact_person}
                     onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
+                    required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="phone">Phone</Label>
+                  <Label htmlFor="phone">Phone *</Label>
                   <Input
                     id="phone"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    required
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">Email *</Label>
                   <Input
                     id="email"
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="city">City</Label>
+                  <Label htmlFor="city">City *</Label>
                   <Input
                     id="city"
                     value={formData.city}
                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    required
                   />
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="address">Address</Label>
+                <Label htmlFor="address">Address *</Label>
                 <Textarea
                   id="address"
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  required
                 />
                </div>
 
@@ -280,12 +285,13 @@ const SupplierManagement = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="whatsapp_number">WhatsApp Number</Label>
+                  <Label htmlFor="whatsapp_number">WhatsApp Number *</Label>
                   <Input
                     id="whatsapp_number"
                     value={formData.whatsapp_number}
                     onChange={(e) => setFormData({ ...formData, whatsapp_number: e.target.value })}
                     placeholder="+92XXXXXXXXXX"
+                    required
                   />
                 </div>
               </div>
