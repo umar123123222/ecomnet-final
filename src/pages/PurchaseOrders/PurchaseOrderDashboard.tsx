@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -84,13 +84,23 @@ const PurchaseOrderDashboard = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('outlets')
-        .select('id, name')
+        .select('id, name, outlet_type')
         .eq('is_active', true)
         .order('name');
       if (error) throw error;
       return data;
     }
   });
+
+  // Set main warehouse as default when outlets are loaded
+  useEffect(() => {
+    if (outlets.length > 0 && !formData.outlet_id) {
+      const mainWarehouse = outlets.find(outlet => outlet.outlet_type === 'warehouse');
+      if (mainWarehouse) {
+        setFormData(prev => ({ ...prev, outlet_id: mainWarehouse.id }));
+      }
+    }
+  }, [outlets]);
 
   // Generate PO number
   const generatePONumber = () => {
