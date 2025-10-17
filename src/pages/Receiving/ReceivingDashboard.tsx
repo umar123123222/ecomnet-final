@@ -8,10 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Package, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Search, Package, AlertTriangle, CheckCircle2, ScanBarcode } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
+import UnifiedScanner, { ScanResult } from '@/components/UnifiedScanner';
 
 interface GRN {
   id: string;
@@ -35,6 +37,12 @@ const ReceivingDashboard = () => {
   const [selectedPO, setSelectedPO] = useState<any>(null);
   const [receivingItems, setReceivingItems] = useState<any[]>([]);
   const [notes, setNotes] = useState('');
+  
+  // Scanner states
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [currentScanningItemIndex, setCurrentScanningItemIndex] = useState<number | null>(null);
+  const [scannedItemsCount, setScannedItemsCount] = useState<Record<number, number>>({});
+  const [continuousScanMode, setContinuousScanMode] = useState(false);
 
   // Fetch GRNs
   const { data: grns = [], isLoading } = useQuery({
@@ -148,9 +156,82 @@ const ReceivingDashboard = () => {
     setReceivingItems(newItems);
   };
 
+  // Scanner functions
+  const openScannerForItem = (itemIndex: number) => {
+    setCurrentScanningItemIndex(itemIndex);
+    setContinuousScanMode(false);
+    setIsScannerOpen(true);
+  };
+
+  const startContinuousScanning = () => {
+    setContinuousScanMode(true);
+    setCurrentScanningItemIndex(null);
+    setIsScannerOpen(true);
+  };
+
+  const handleScanResult = (result: ScanResult) => {
+    // Extract SKU from rawData
+    const scannedSKU = result.rawData.trim();
+    
+    // Find matching item in receivingItems by SKU
+    const matchedIndex = receivingItems.findIndex(
+      item => item.sku.toLowerCase() === scannedSKU.toLowerCase()
+    );
+    
+    if (matchedIndex !== -1) {
+      // Increment received quantity
+      const newItems = [...receivingItems];
+      newItems[matchedIndex].quantity_received += 1;
+      setReceivingItems(newItems);
+      
+      // Track scan count
+      setScannedItemsCount(prev => ({
+        ...prev,
+        [matchedIndex]: (prev[matchedIndex] || 0) + 1
+      }));
+      
+      // Check for over-receiving
+      if (newItems[matchedIndex].quantity_received > newItems[matchedIndex].quantity_expected) {
+        toast({
+          title: 'Warning: Over-Receiving',
+          description: `Received quantity (${newItems[matchedIndex].quantity_received}) exceeds expected (${newItems[matchedIndex].quantity_expected})`,
+          duration: 4000
+        });
+      } else {
+        // Success toast
+        toast({
+          title: 'Item Scanned',
+          description: `${newItems[matchedIndex].name} - Quantity: ${newItems[matchedIndex].quantity_received}`,
+          duration: 2000
+        });
+      }
+      
+      // Auto-close if not in continuous mode
+      if (!continuousScanMode) {
+        setIsScannerOpen(false);
+        setCurrentScanningItemIndex(null);
+      }
+    } else {
+      // No match found
+      toast({
+        title: 'Item Not Found',
+        description: `SKU "${scannedSKU}" not found in this PO`,
+        variant: 'destructive',
+        duration: 3000
+      });
+    }
+  };
+
   // Create GRN mutation
   const createGRNMutation = useMutation({
     mutationFn: async () => {
+      // Validate at least one item received
+      const totalReceived = receivingItems.reduce((sum, item) => sum + item.quantity_received, 0);
+      
+      if (totalReceived === 0) {
+        throw new Error('Please scan or enter at least one item before completing');
+      }
+
       const { data, error } = await supabase.functions.invoke('process-grn', {
         body: {
           action: 'create',
@@ -170,6 +251,7 @@ const ReceivingDashboard = () => {
       setIsReceivingDialogOpen(false);
       setSelectedPO(null);
       setReceivingItems([]);
+      setScannedItemsCount({});
       
       if (data.hasDiscrepancy) {
         toast({
@@ -373,6 +455,8 @@ const ReceivingDashboard = () => {
           setSelectedPO(null);
           setReceivingItems([]);
           setNotes('');
+          setScannedItemsCount({});
+          setIsScannerOpen(false);
         }
       }}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
@@ -401,11 +485,45 @@ const ReceivingDashboard = () => {
             {/* Items to Receive */}
             {receivingItems.length > 0 ? (
               <div className="space-y-4">
+                {/* Header with scanning controls */}
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold">Items to Receive</h3>
-                  <Badge variant="outline">
-                    {receivingItems.length} item(s)
-                  </Badge>
+                  <div className="flex gap-2">
+                    <Badge variant="outline">
+                      {receivingItems.length} item(s)
+                    </Badge>
+                    <Badge variant="secondary">
+                      Scanned: {Object.values(scannedItemsCount).reduce((a, b) => a + b, 0)} / 
+                      {receivingItems.reduce((sum, item) => sum + item.quantity_expected, 0)}
+                    </Badge>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={startContinuousScanning}
+                    >
+                      <ScanBarcode className="h-4 w-4 mr-2" />
+                      Start Scanning
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Scanning Progress</span>
+                    <span className="text-muted-foreground">
+                      {Object.values(scannedItemsCount).reduce((a, b) => a + b, 0)} / 
+                      {receivingItems.reduce((sum, item) => sum + item.quantity_expected, 0)} items
+                    </span>
+                  </div>
+                  <Progress 
+                    value={
+                      receivingItems.reduce((sum, item) => sum + item.quantity_expected, 0) > 0
+                        ? (Object.values(scannedItemsCount).reduce((a, b) => a + b, 0) / 
+                          receivingItems.reduce((sum, item) => sum + item.quantity_expected, 0)) * 100
+                        : 0
+                    } 
+                  />
                 </div>
 
                 <div className="border rounded-lg overflow-hidden">
@@ -425,8 +543,18 @@ const ReceivingDashboard = () => {
                       <tbody className="divide-y">
                         {receivingItems.map((item, index) => {
                           const hasDiscrepancy = item.quantity_received !== item.quantity_expected;
+                          const isScanned = scannedItemsCount[index] > 0;
                           return (
-                            <tr key={index} className={hasDiscrepancy ? 'bg-amber-50' : ''}>
+                            <tr 
+                              key={index} 
+                              className={
+                                isScanned 
+                                  ? 'bg-green-50 border-l-4 border-green-500' 
+                                  : hasDiscrepancy 
+                                  ? 'bg-amber-50' 
+                                  : ''
+                              }
+                            >
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-2">
                                   {hasDiscrepancy && (
@@ -442,13 +570,26 @@ const ReceivingDashboard = () => {
                                 {item.quantity_expected}
                               </td>
                               <td className="px-4 py-3">
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  value={item.quantity_received}
-                                  onChange={(e) => updateReceivedQuantity(index, e.target.value)}
-                                  className={hasDiscrepancy ? 'border-amber-500' : ''}
-                                />
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={item.quantity_received}
+                                    onChange={(e) => updateReceivedQuantity(index, e.target.value)}
+                                    className={hasDiscrepancy ? 'border-amber-500' : ''}
+                                  />
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => openScannerForItem(index)}
+                                    title="Scan barcode"
+                                  >
+                                    <ScanBarcode className="h-4 w-4" />
+                                  </Button>
+                                  {isScanned && (
+                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                  )}
+                                </div>
                               </td>
                               <td className="px-4 py-3">
                                 <Input
@@ -533,6 +674,23 @@ const ReceivingDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Scanner Dialog */}
+      <UnifiedScanner
+        isOpen={isScannerOpen}
+        onClose={() => {
+          setIsScannerOpen(false);
+          setContinuousScanMode(false);
+          setCurrentScanningItemIndex(null);
+        }}
+        onScan={handleScanResult}
+        scanType="receiving"
+        title={
+          currentScanningItemIndex !== null
+            ? `Scan: ${receivingItems[currentScanningItemIndex]?.name}`
+            : 'Scan Items'
+        }
+      />
     </div>
   );
 };
