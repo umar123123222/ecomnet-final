@@ -194,20 +194,22 @@ export function StockTransferDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="to_outlet_id">To Outlet *</Label>
+            <Label htmlFor="to_outlet_id">To Outlet/Warehouse *</Label>
             <Select
               value={watch("to_outlet_id")}
               onValueChange={(value) => setValue("to_outlet_id", value)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select destination outlet" />
+                <SelectValue placeholder="Select destination outlet or warehouse" />
               </SelectTrigger>
               <SelectContent>
-                {outlets?.map((outlet) => (
-                  <SelectItem key={outlet.id} value={outlet.id}>
-                    {outlet.name}
-                  </SelectItem>
-                ))}
+                {outlets
+                  ?.filter((outlet) => outlet.id !== mainWarehouse?.id)
+                  ?.map((outlet) => (
+                    <SelectItem key={outlet.id} value={outlet.id}>
+                      {outlet.name} ({outlet.outlet_type === 'warehouse' ? 'Warehouse' : 'Outlet'})
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
             {errors.to_outlet_id && (
