@@ -1465,8 +1465,9 @@ export type Database = {
           discount_rate: number | null
           id: string
           notes: string | null
+          packaging_item_id: string | null
           po_id: string
-          product_id: string
+          product_id: string | null
           quantity_ordered: number
           quantity_received: number | null
           tax_rate: number | null
@@ -1478,8 +1479,9 @@ export type Database = {
           discount_rate?: number | null
           id?: string
           notes?: string | null
+          packaging_item_id?: string | null
           po_id: string
-          product_id: string
+          product_id?: string | null
           quantity_ordered: number
           quantity_received?: number | null
           tax_rate?: number | null
@@ -1491,8 +1493,9 @@ export type Database = {
           discount_rate?: number | null
           id?: string
           notes?: string | null
+          packaging_item_id?: string | null
           po_id?: string
-          product_id?: string
+          product_id?: string | null
           quantity_ordered?: number
           quantity_received?: number | null
           tax_rate?: number | null
@@ -1500,6 +1503,13 @@ export type Database = {
           unit_price?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "purchase_order_items_packaging_item_id_fkey"
+            columns: ["packaging_item_id"]
+            isOneToOne: false
+            referencedRelation: "packaging_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "purchase_order_items_po_id_fkey"
             columns: ["po_id"]
