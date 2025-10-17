@@ -292,7 +292,7 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
 
   if (permissions.canAccessOutlets) {
     items.push({
-      label: 'Outlets',
+      label: 'Outlets/Warehouses',
       href: '/outlets',
       icon: 'Building2'
     });

@@ -62,7 +62,7 @@ const OutletManagement = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-            Outlet Management
+            Outlets/Warehouses
           </h1>
           <p className="text-muted-foreground">Manage warehouses and retail outlets</p>
         </div>
