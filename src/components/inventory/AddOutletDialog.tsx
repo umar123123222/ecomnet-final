@@ -114,7 +114,7 @@ export function AddOutletDialog({ open, onOpenChange, outlet }: AddOutletDialogP
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Outlet Name *</Label>
+              <Label htmlFor="name">Name *</Label>
               <Input
                 id="name"
                 {...register("name")}
