@@ -7,10 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Search, Download, ChevronDown, ChevronUp } from 'lucide-react';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Textarea } from '@/components/ui/textarea';
+import { Search, Download, ChevronDown, ChevronUp, Edit } from 'lucide-react';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
+import { useForm } from 'react-hook-form';
 import TagsNotes from '@/components/TagsNotes';
 import { useToast } from '@/hooks/use-toast';
 import { logActivity, updateUserPerformance } from '@/utils/activityLogger';
@@ -29,6 +32,7 @@ const ReturnsDashboard = () => {
     to: addDays(new Date(), 7)
   });
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
+  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const {
     toast
   } = useToast();
@@ -39,6 +43,12 @@ const ReturnsDashboard = () => {
     progress,
     executeBulkOperation
   } = useBulkOperations();
+  
+  const form = useForm({
+    defaultValues: {
+      bulkEntries: ''
+    }
+  });
   useEffect(() => {
     const fetchReturns = async () => {
       setLoading(true);
@@ -117,6 +127,120 @@ const ReturnsDashboard = () => {
     setExpandedRows(prev => prev.includes(returnId) ? prev.filter(id => id !== returnId) : [...prev, returnId]);
   };
 
+  const handleManualEntry = async (formData: { bulkEntries: string }) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to perform this action",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Parse entries - one tracking ID per line
+      const trackingIds = formData.bulkEntries
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
+
+      for (const trackingId of trackingIds) {
+        // Find return by tracking_id
+        const { data: returnRecord, error: returnError } = await supabase
+          .from('returns')
+          .select('id, order_id')
+          .eq('tracking_id', trackingId)
+          .maybeSingle();
+
+        if (returnError || !returnRecord) {
+          errors.push(`Return not found for tracking ID: ${trackingId}`);
+          errorCount++;
+          continue;
+        }
+
+        // Update return status to received
+        const { error: updateReturnError } = await supabase
+          .from('returns')
+          .update({
+            return_status: 'received',
+            received_at: new Date().toISOString(),
+            received_by: user.id
+          })
+          .eq('id', returnRecord.id);
+
+        if (updateReturnError) {
+          errors.push(`Failed to update return for ${trackingId}: ${updateReturnError.message}`);
+          errorCount++;
+          continue;
+        }
+
+        // Update order status to 'returned'
+        const { error: updateOrderError } = await supabase
+          .from('orders')
+          .update({
+            status: 'returned'
+          })
+          .eq('id', returnRecord.order_id);
+
+        if (updateOrderError) {
+          errors.push(`Failed to update order status for ${trackingId}: ${updateOrderError.message}`);
+          errorCount++;
+          continue;
+        }
+
+        successCount++;
+      }
+
+      // Show results
+      if (successCount > 0) {
+        toast({
+          title: "Bulk Entry Complete",
+          description: `Successfully processed ${successCount} tracking ID(s)${errorCount > 0 ? `, ${errorCount} failed` : ''}`
+        });
+      }
+
+      if (errors.length > 0) {
+        console.error('Bulk entry errors:', errors);
+        toast({
+          title: "Some Entries Failed",
+          description: `${errorCount} tracking ID(s) could not be processed. Check console for details.`,
+          variant: "destructive"
+        });
+      }
+
+      // Reset form and close dialog
+      form.reset();
+      setIsManualEntryOpen(false);
+
+      // Refresh the returns list
+      const { data: refreshedReturns } = await supabase
+        .from('returns')
+        .select(`
+          *,
+          orders!returns_order_id_fkey (
+            order_number,
+            customer_name,
+            customer_phone,
+            customer_email
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (refreshedReturns) setReturns(refreshedReturns);
+    } catch (error) {
+      console.error('Error processing bulk entries:', error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive"
+      });
+    }
+  };
+
   // Bulk operations
   const bulkOperations: BulkOperation[] = [{
     id: 'receive',
@@ -179,6 +303,53 @@ const ReturnsDashboard = () => {
           <h1 className="text-3xl font-bold text-gray-900">Returns Management</h1>
           <p className="text-gray-600 mt-1">Track and manage returned orders</p>
         </div>
+        <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline">
+              <Edit className="h-4 w-4 mr-2" />
+              Bulk Entry
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Bulk Return Receipt Entry</DialogTitle>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(handleManualEntry)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="bulkEntries"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tracking IDs</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Enter tracking IDs (one per line)&#10;Example:&#10;RTN123456&#10;RTN789012&#10;RTN345678"
+                          className="min-h-[150px] font-mono text-sm"
+                          {...field}
+                        />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        Enter one tracking ID per line. Returns will be marked as received and orders updated to "Return Received" status.
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsManualEntryOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit">Process Entries</Button>
+                </div>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Metrics Cards */}
