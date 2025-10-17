@@ -230,7 +230,12 @@ const ReturnsDashboard = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Select</TableHead>
+                <TableHead>
+                  <Checkbox 
+                    checked={selectedReturns.length === filteredReturns.length && filteredReturns.length > 0}
+                    onCheckedChange={handleSelectAll}
+                  />
+                </TableHead>
                 <TableHead>Order ID</TableHead>
                 <TableHead>Tracking ID</TableHead>
                 <TableHead>Customer</TableHead>
