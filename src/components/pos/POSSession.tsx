@@ -165,20 +165,12 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <Label htmlFor="outlet">Outlet *</Label>
+              <Label>Assigned Outlet</Label>
               {accessibleOutlets && accessibleOutlets.length > 0 ? (
-                <Select value={outletId} onValueChange={setOutletId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select outlet" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accessibleOutlets.map((outlet: any) => (
-                      <SelectItem key={outlet.id} value={outlet.id}>
-                        {outlet.name} ({outlet.outlet_type})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="border rounded-md p-3 bg-muted">
+                  <p className="font-medium">{accessibleOutlets[0].name}</p>
+                  <p className="text-sm text-muted-foreground">{accessibleOutlets[0].outlet_type}</p>
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground border rounded-md p-4 bg-muted">
                   You don't have POS access to any outlets yet. Please contact your store manager.
