@@ -77,9 +77,9 @@ export default {
 				}
 			},
 			borderRadius: {
-				lg: '12px',
-				md: '8px',
-				sm: '6px',
+				lg: '14px',
+				md: '10px',
+				sm: '8px',
 				xl: '16px',
 				'2xl': '20px',
 				'3xl': '24px'
@@ -158,10 +158,10 @@ export default {
 				xs: '2px',
 			},
 			boxShadow: {
-				'soft': '0 2px 8px 0 rgba(0, 0, 0, 0.12)',
-				'medium': '0 4px 12px 0 rgba(0, 0, 0, 0.15)',
-				'strong': '0 8px 24px 0 rgba(0, 0, 0, 0.18)',
-				'colored': '0 4px 14px 0 rgba(var(--primary), 0.25)'
+				'soft': '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
+				'medium': '0 4px 6px -1px rgba(0, 0, 0, 0.10), 0 2px 4px -2px rgba(0, 0, 0, 0.10)',
+				'strong': '0 10px 15px -3px rgba(0, 0, 0, 0.10), 0 4px 6px -4px rgba(0, 0, 0, 0.10)',
+				'colored': '0 4px 14px 0 hsla(var(--primary), 0.25)'
 			},
 			backgroundImage: {
 				'gradient-primary': 'linear-gradient(135deg, hsl(var(--gradient-start)), hsl(var(--gradient-end)))',
