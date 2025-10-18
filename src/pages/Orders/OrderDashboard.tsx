@@ -610,34 +610,45 @@ const OrderDashboard = () => {
 
       {/* Orders Table with Integrated Filters */}
       <Card>
-        {/* Quick Filter Buttons */}
+        {/* Combined Quick Filter Buttons */}
         <div className="flex gap-2 p-4 border-b bg-muted/20">
-          <Button 
-            variant={quickFilter === 'needsConfirmation' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => applyQuickFilter('needsConfirmation')}
+          <Select 
+            value={quickFilter || 'none'} 
+            onValueChange={(value) => {
+              if (value === 'none') {
+                setQuickFilter(null);
+                setCombinedStatus('all');
+                resetFilters();
+              } else {
+                applyQuickFilter(value);
+              }
+            }}
           >
-            <AlertCircle className="h-4 w-4 mr-1" />
-            Needs Confirmation
-          </Button>
-          
-          <Button 
-            variant={quickFilter === 'needsVerification' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => applyQuickFilter('needsVerification')}
-          >
-            <MapPin className="h-4 w-4 mr-1" />
-            Needs Address Check
-          </Button>
-          
-          <Button 
-            variant={quickFilter === 'actionRequired' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => applyQuickFilter('actionRequired')}
-          >
-            <AlertTriangle className="h-4 w-4 mr-1" />
-            Action Required
-          </Button>
+            <SelectTrigger className="w-[250px] h-9">
+              <SelectValue placeholder="Quick Filters" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No Quick Filter</SelectItem>
+              <SelectItem value="needsConfirmation">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  Needs Confirmation
+                </div>
+              </SelectItem>
+              <SelectItem value="needsVerification">
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Needs Address Check
+                </div>
+              </SelectItem>
+              <SelectItem value="actionRequired">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Action Required
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Inline Filter Bar */}
@@ -669,32 +680,41 @@ const OrderDashboard = () => {
               />
             </div>
             
-            {/* Order Status Filter */}
+            {/* Combined Status & Verification Filter */}
             <Select 
               value={combinedStatus} 
               onValueChange={(value) => {
                 setCombinedStatus(value);
-                if (value === 'pending_order') {
+                setQuickFilter(null);
+                
+                // Handle combined status/verification values
+                if (value === 'all') {
+                  updateFilter('status', 'all');
+                  updateCustomFilter('verificationStatus', 'all');
+                } else if (value === 'pending_order') {
                   updateFilter('status', 'pending');
                   updateCustomFilter('verificationStatus', 'all');
-                  setQuickFilter(null);
                 } else if (value === 'pending_address') {
                   updateFilter('status', 'all');
                   updateCustomFilter('verificationStatus', 'pending');
-                  setQuickFilter(null);
-                } else if (value === 'all') {
+                } else if (value === 'pending_verification') {
                   updateFilter('status', 'all');
-                  updateCustomFilter('verificationStatus', 'all');
-                  setQuickFilter(null);
+                  updateCustomFilter('verificationStatus', 'pending');
+                } else if (value === 'approved_verification') {
+                  updateFilter('status', 'all');
+                  updateCustomFilter('verificationStatus', 'approved');
+                } else if (value === 'disapproved_verification') {
+                  updateFilter('status', 'all');
+                  updateCustomFilter('verificationStatus', 'disapproved');
                 } else {
+                  // For standard status values
                   updateFilter('status', value);
                   updateCustomFilter('verificationStatus', 'all');
-                  setQuickFilter(null);
                 }
               }}
             >
-              <SelectTrigger className="w-[230px] h-9">
-                <SelectValue placeholder="Order Status" />
+              <SelectTrigger className="w-[250px] h-9">
+                <SelectValue placeholder="All Statuses & Verification" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
@@ -705,22 +725,9 @@ const OrderDashboard = () => {
                 <SelectItem value="delivered">Delivered</SelectItem>
                 <SelectItem value="cancelled">Cancelled</SelectItem>
                 <SelectItem value="returned">Returned</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            {/* Verification Status Filter */}
-            <Select 
-              value={filters.customValues?.verificationStatus || 'all'} 
-              onValueChange={(value) => updateCustomFilter('verificationStatus', value)}
-            >
-              <SelectTrigger className="w-[190px] h-9">
-                <SelectValue placeholder="Verification" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Verification</SelectItem>
-                <SelectItem value="pending">Pending Verification</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="disapproved">Disapproved</SelectItem>
+                <SelectItem value="pending_verification">Pending Verification</SelectItem>
+                <SelectItem value="approved_verification">Approved</SelectItem>
+                <SelectItem value="disapproved_verification">Disapproved</SelectItem>
               </SelectContent>
             </Select>
             
