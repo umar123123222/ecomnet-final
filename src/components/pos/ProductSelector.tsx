@@ -9,6 +9,8 @@ import { Search, Plus, ScanBarcode } from 'lucide-react';
 import { Product } from '@/types/inventory';
 import { BarcodeScanner } from '@/components/barcode/BarcodeScanner';
 import type { ScanResult } from '@/components/barcode/BarcodeScanner';
+import { useCurrency } from '@/hooks/useCurrency';
+import { formatCurrency } from '@/utils/currency';
 
 interface ProductSelectorProps {
   outletId: string;
@@ -18,6 +20,7 @@ interface ProductSelectorProps {
 const ProductSelector = ({ outletId, onAddToCart }: ProductSelectorProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
+  const { currency } = useCurrency();
 
   const { data: products, isLoading } = useQuery({
     queryKey: ['pos-products', outletId, searchQuery],
@@ -108,7 +111,7 @@ const ProductSelector = ({ outletId, onAddToCart }: ProductSelectorProps) => {
                 </div>
                 
                 <div className="flex items-center justify-between">
-                  <p className="text-lg font-bold">${Number(product.price).toFixed(2)}</p>
+                  <p className="text-lg font-bold">{formatCurrency(Number(product.price), currency)}</p>
                   <Button 
                     size="sm" 
                     onClick={() => handleQuickAdd(product)}

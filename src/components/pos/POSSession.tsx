@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { POSSession as POSSessionType } from '@/types/pos';
 import { DoorOpen, DoorClosed } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCurrency } from '@/hooks/useCurrency';
+import { formatCurrency } from '@/utils/currency';
 
 interface POSSessionProps {
   currentSession?: POSSessionType | null;
@@ -20,6 +22,7 @@ interface POSSessionProps {
 
 const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSessionProps) => {
   const { user } = useAuth();
+  const { currency } = useCurrency();
   const [openDialogOpen, setOpenDialogOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [outletId, setOutletId] = useState('');
@@ -157,7 +160,7 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
 
       const difference = data.cash_difference;
       if (Math.abs(difference) > 0.01) {
-        toast.warning(`Session closed. Cash difference: ${difference >= 0 ? '+' : ''}${difference.toFixed(2)}`);
+        toast.warning(`Session closed. Cash difference: ${difference >= 0 ? '+' : ''}${formatCurrency(Math.abs(difference), currency)}`);
       } else {
         toast.success('Session closed successfully');
       }
@@ -201,8 +204,8 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
                       </div>
                     </div>
                     <div className="text-right">
-                      <div>Open: ${session.opening_cash.toFixed(2)}</div>
-                      <div>Close: ${session.closing_cash?.toFixed(2) || '0.00'}</div>
+                      <div>Open: {formatCurrency(session.opening_cash, currency)}</div>
+                      <div>Close: {formatCurrency(session.closing_cash || 0, currency)}</div>
                     </div>
                   </div>
                 ))}
@@ -248,7 +251,7 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
     <div className="flex items-center gap-4">
       <Card className="px-4 py-2">
         <p className="text-sm text-muted-foreground">Opening Cash</p>
-        <p className="text-lg font-semibold">${currentSession.opening_cash.toFixed(2)}</p>
+        <p className="text-lg font-semibold">{formatCurrency(currentSession.opening_cash, currency)}</p>
       </Card>
       
       <Dialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
@@ -267,7 +270,7 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
               <p className="text-sm text-muted-foreground">Session Number</p>
               <p className="font-semibold">{currentSession.session_number}</p>
               <p className="text-sm text-muted-foreground mt-2">Opening Cash</p>
-              <p className="font-semibold">${currentSession.opening_cash.toFixed(2)}</p>
+              <p className="font-semibold">{formatCurrency(currentSession.opening_cash, currency)}</p>
             </div>
             <div>
               <Label htmlFor="closing-cash">Closing Cash *</Label>

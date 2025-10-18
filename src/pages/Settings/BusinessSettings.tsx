@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { Navigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Building2, Link, Mail, Phone, Truck, ShoppingBag, MessageSquare } from "lucide-react";
+import { Plus, Trash2, Building2, Link, Mail, Phone, Truck, ShoppingBag, MessageSquare, DollarSign } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
+import { SUPPORTED_CURRENCIES } from "@/utils/currency";
+import { useQueryClient } from "@tanstack/react-query";
 const BusinessSettings = () => {
   const {
     hasRole
@@ -17,6 +21,7 @@ const BusinessSettings = () => {
   const {
     toast
   } = useToast();
+  const queryClient = useQueryClient();
 
   // Only super_admin can access business settings (security critical)
   if (!hasRole('super_admin')) {
@@ -28,6 +33,7 @@ const BusinessSettings = () => {
   const [portalUrl, setPortalUrl] = useState('');
   const [companyEmail, setCompanyEmail] = useState('');
   const [companyPhone, setCompanyPhone] = useState('');
+  const [companyCurrency, setCompanyCurrency] = useState('USD');
 
   // Couriers State
   const [couriers, setCouriers] = useState<Array<{
@@ -75,11 +81,52 @@ const BusinessSettings = () => {
     status: 'APPROVED',
     components: 'Header, Body, Button'
   }]);
-  const handleSaveCompanyInfo = () => {
-    toast({
-      title: "Company Information Saved",
-      description: "Your company details have been updated successfully."
-    });
+  // Load currency on mount
+  useEffect(() => {
+    const loadCurrency = async () => {
+      const { data } = await supabase
+        .from('api_settings')
+        .select('setting_value')
+        .eq('setting_key', 'company_currency')
+        .single();
+      
+      if (data?.setting_value) {
+        setCompanyCurrency(data.setting_value);
+      }
+    };
+    loadCurrency();
+  }, []);
+
+  const handleSaveCompanyInfo = async () => {
+    try {
+      // Save currency to api_settings
+      const { error } = await supabase
+        .from('api_settings')
+        .upsert({
+          setting_key: 'company_currency',
+          setting_value: companyCurrency,
+          description: 'Company default currency',
+          updated_by: (await supabase.auth.getUser()).data.user?.id,
+        }, {
+          onConflict: 'setting_key'
+        });
+
+      if (error) throw error;
+
+      // Invalidate currency cache
+      queryClient.invalidateQueries({ queryKey: ['company-currency'] });
+
+      toast({
+        title: "Company Information Saved",
+        description: "Your company details have been updated successfully."
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save company information.",
+        variant: "destructive"
+      });
+    }
   };
   const handleAddCourier = () => {
     setCouriers([...couriers, {
@@ -171,6 +218,28 @@ const BusinessSettings = () => {
               <div className="space-y-2">
                 <Label htmlFor="companyPhone">Company Phone Number</Label>
                 <Input id="companyPhone" placeholder="+92 300 1234567" value={companyPhone} onChange={e => setCompanyPhone(e.target.value)} />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="companyCurrency" className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Company Currency
+                </Label>
+                <Select value={companyCurrency} onValueChange={setCompanyCurrency}>
+                  <SelectTrigger id="companyCurrency">
+                    <SelectValue placeholder="Select currency" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SUPPORTED_CURRENCIES.map((currency) => (
+                      <SelectItem key={currency.code} value={currency.code}>
+                        {currency.symbol} {currency.name} ({currency.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  This currency will be used across the entire system for POS, orders, inventory, and reports.
+                </p>
               </div>
 
               <Separator />

@@ -2,6 +2,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { POSCartItem } from '@/types/pos';
 import { Trash2, Minus, Plus } from 'lucide-react';
+import { useCurrency } from '@/hooks/useCurrency';
+import { formatCurrency } from '@/utils/currency';
 
 interface POSCartProps {
   items: POSCartItem[];
@@ -11,6 +13,8 @@ interface POSCartProps {
 }
 
 const POSCart = ({ items, onUpdateQuantity, onUpdateDiscount, onRemoveItem }: POSCartProps) => {
+  const { currency } = useCurrency();
+  
   const calculateLineTotal = (item: POSCartItem) => {
     const discount = (item.unit_price * item.quantity * item.discount_percent) / 100;
     return (item.unit_price * item.quantity) - discount;
@@ -69,7 +73,7 @@ const POSCart = ({ items, onUpdateQuantity, onUpdateDiscount, onRemoveItem }: PO
               <Plus className="h-3 w-3" />
             </Button>
             <span className="text-sm font-medium ml-auto">
-              ${item.unit_price.toFixed(2)}
+              {formatCurrency(item.unit_price, currency)}
             </span>
           </div>
 
@@ -85,7 +89,7 @@ const POSCart = ({ items, onUpdateQuantity, onUpdateDiscount, onRemoveItem }: PO
               step="1"
             />
             <span className="text-sm font-semibold ml-auto">
-              ${calculateLineTotal(item).toFixed(2)}
+              {formatCurrency(calculateLineTotal(item), currency)}
             </span>
           </div>
         </div>
@@ -94,7 +98,7 @@ const POSCart = ({ items, onUpdateQuantity, onUpdateDiscount, onRemoveItem }: PO
       <div className="border-t pt-3 mt-4">
         <div className="flex justify-between text-lg font-bold">
           <span>Subtotal</span>
-          <span>${subtotal.toFixed(2)}</span>
+          <span>{formatCurrency(subtotal, currency)}</span>
         </div>
       </div>
     </div>

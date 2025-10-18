@@ -7,6 +7,8 @@ import { POSCartItem } from '@/types/pos';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ArrowLeft, CreditCard, Smartphone, Banknote, Printer } from 'lucide-react';
+import { useCurrency } from '@/hooks/useCurrency';
+import { formatCurrency } from '@/utils/currency';
 
 interface PaymentPanelProps {
   cart: POSCartItem[];
@@ -20,6 +22,7 @@ const PaymentPanel = ({ cart, sessionId, outletId, onBack, onComplete }: Payment
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile_wallet'>('cash');
   const [amountPaid, setAmountPaid] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const { currency } = useCurrency();
 
   const calculateTotal = () => {
     return cart.reduce((sum, item) => {
@@ -63,22 +66,22 @@ const PaymentPanel = ({ cart, sessionId, outletId, onBack, onComplete }: Payment
         ${cart.map(item => `
           <div class="item">
             <span>${item.name} x${item.quantity}</span>
-            <span>$${((item.unit_price * item.quantity) - ((item.unit_price * item.quantity * item.discount_percent) / 100)).toFixed(2)}</span>
+            <span>${((item.unit_price * item.quantity) - ((item.unit_price * item.quantity * item.discount_percent) / 100)).toFixed(2)}</span>
           </div>
           ${item.discount_percent > 0 ? `<div class="small" style="margin-left: 20px;">Discount ${item.discount_percent}%</div>` : ''}
         `).join('')}
         <div class="divider"></div>
         <div class="item total">
           <span>TOTAL</span>
-          <span>$${sale.total_amount.toFixed(2)}</span>
+          <span>${sale.total_amount.toFixed(2)}</span>
         </div>
         <div class="item">
           <span>Paid (${sale.payment_method})</span>
-          <span>$${sale.amount_paid.toFixed(2)}</span>
+          <span>${sale.amount_paid.toFixed(2)}</span>
         </div>
         <div class="item">
           <span>Change</span>
-          <span>$${sale.change_amount.toFixed(2)}</span>
+          <span>${sale.change_amount.toFixed(2)}</span>
         </div>
         <div class="divider"></div>
         <div class="center small">Thank you for your purchase!</div>
@@ -161,7 +164,7 @@ const PaymentPanel = ({ cart, sessionId, outletId, onBack, onComplete }: Payment
         {/* Total */}
         <div className="bg-primary/10 rounded-lg p-4">
           <p className="text-sm text-muted-foreground">Total Amount</p>
-          <p className="text-3xl font-bold">${total.toFixed(2)}</p>
+          <p className="text-3xl font-bold">{formatCurrency(total, currency)}</p>
         </div>
 
         {/* Payment Method */}
@@ -226,7 +229,7 @@ const PaymentPanel = ({ cart, sessionId, outletId, onBack, onComplete }: Payment
         {parseFloat(amountPaid) >= total && (
           <div className="bg-muted rounded-lg p-4">
             <p className="text-sm text-muted-foreground">Change</p>
-            <p className="text-2xl font-bold text-green-600">${change.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-green-600">{formatCurrency(change, currency)}</p>
           </div>
         )}
       </div>
