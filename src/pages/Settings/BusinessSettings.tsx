@@ -10,11 +10,14 @@ import { Navigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, Building2, Link, Mail, Phone, Truck, ShoppingBag, MessageSquare } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
 const BusinessSettings = () => {
-  const { hasRole } = useUserRoles();
-  const { toast } = useToast();
-  
+  const {
+    hasRole
+  } = useUserRoles();
+  const {
+    toast
+  } = useToast();
+
   // Only super_admin can access business settings (security critical)
   if (!hasRole('super_admin')) {
     return <Navigate to="/" replace />;
@@ -48,7 +51,7 @@ const BusinessSettings = () => {
   const [metaAccessToken, setMetaAccessToken] = useState('');
   const [metaPhoneNumberId, setMetaPhoneNumberId] = useState('');
   const [metaBusinessAccountId, setMetaBusinessAccountId] = useState('');
-  
+
   // WhatsApp Templates State
   const [whatsappTemplates, setWhatsappTemplates] = useState<Array<{
     id: string;
@@ -57,32 +60,27 @@ const BusinessSettings = () => {
     language: string;
     status: 'APPROVED' | 'PENDING' | 'REJECTED';
     components: string;
-  }>>([
-    {
-      id: '1',
-      name: 'order_confirmation',
-      category: 'UTILITY',
-      language: 'en',
-      status: 'APPROVED',
-      components: 'Header, Body, Footer'
-    },
-    {
-      id: '2',
-      name: 'promotional_offer',
-      category: 'MARKETING',
-      language: 'en',
-      status: 'APPROVED',
-      components: 'Header, Body, Button'
-    }
-  ]);
-
+  }>>([{
+    id: '1',
+    name: 'order_confirmation',
+    category: 'UTILITY',
+    language: 'en',
+    status: 'APPROVED',
+    components: 'Header, Body, Footer'
+  }, {
+    id: '2',
+    name: 'promotional_offer',
+    category: 'MARKETING',
+    language: 'en',
+    status: 'APPROVED',
+    components: 'Header, Body, Button'
+  }]);
   const handleSaveCompanyInfo = () => {
     toast({
       title: "Company Information Saved",
-      description: "Your company details have been updated successfully.",
+      description: "Your company details have been updated successfully."
     });
   };
-
   const handleAddCourier = () => {
     setCouriers([...couriers, {
       id: crypto.randomUUID(),
@@ -92,47 +90,40 @@ const BusinessSettings = () => {
       code: ''
     }]);
   };
-
   const handleRemoveCourier = (id: string) => {
     setCouriers(couriers.filter(c => c.id !== id));
   };
-
   const handleUpdateCourier = (id: string, field: string, value: string) => {
-    setCouriers(couriers.map(c => 
-      c.id === id ? { ...c, [field]: value } : c
-    ));
+    setCouriers(couriers.map(c => c.id === id ? {
+      ...c,
+      [field]: value
+    } : c));
   };
-
   const handleSaveCouriers = () => {
     toast({
       title: "Couriers Saved",
-      description: "Courier configurations have been updated.",
+      description: "Courier configurations have been updated."
     });
   };
-
   const handleSaveShopify = () => {
     toast({
       title: "Shopify Settings Saved",
-      description: "Shopify integration has been configured.",
+      description: "Shopify integration has been configured."
     });
   };
-
   const handleSaveWhatsAppCRM = () => {
     toast({
       title: "WhatsApp CRM Saved",
-      description: "WhatsApp CRM sync has been configured.",
+      description: "WhatsApp CRM sync has been configured."
     });
   };
-
   const handleSaveMetaWhatsApp = () => {
     toast({
       title: "Meta WhatsApp API Saved",
-      description: "Meta WhatsApp API has been configured.",
+      description: "Meta WhatsApp API has been configured."
     });
   };
-
-  return (
-    <div className="space-y-6">
+  return <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Business Settings</h1>
         <p className="text-muted-foreground mt-2">
@@ -140,7 +131,7 @@ const BusinessSettings = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="company" className="w-full">
+      <Tabs defaultValue="company" className="w-full mx-0 px-[30px] py-0">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="company">Company</TabsTrigger>
           <TabsTrigger value="couriers">Couriers</TabsTrigger>
@@ -164,25 +155,14 @@ const BusinessSettings = () => {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="companyName">Company Name</Label>
-                <Input
-                  id="companyName"
-                  placeholder="Enter company name"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                />
+                <Input id="companyName" placeholder="Enter company name" value={companyName} onChange={e => setCompanyName(e.target.value)} />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="portalUrl">Portal URL</Label>
                 <div className="flex gap-2">
                   <Link className="h-9 w-9 flex items-center justify-center border rounded-md" />
-                  <Input
-                    id="portalUrl"
-                    placeholder="https://yourcompany.com"
-                    value={portalUrl}
-                    onChange={(e) => setPortalUrl(e.target.value)}
-                    className="flex-1"
-                  />
+                  <Input id="portalUrl" placeholder="https://yourcompany.com" value={portalUrl} onChange={e => setPortalUrl(e.target.value)} className="flex-1" />
                 </div>
               </div>
 
@@ -190,14 +170,7 @@ const BusinessSettings = () => {
                 <Label htmlFor="companyEmail">Company Email</Label>
                 <div className="flex gap-2">
                   <Mail className="h-9 w-9 flex items-center justify-center border rounded-md" />
-                  <Input
-                    id="companyEmail"
-                    type="email"
-                    placeholder="contact@company.com"
-                    value={companyEmail}
-                    onChange={(e) => setCompanyEmail(e.target.value)}
-                    className="flex-1"
-                  />
+                  <Input id="companyEmail" type="email" placeholder="contact@company.com" value={companyEmail} onChange={e => setCompanyEmail(e.target.value)} className="flex-1" />
                 </div>
               </div>
 
@@ -205,13 +178,7 @@ const BusinessSettings = () => {
                 <Label htmlFor="companyPhone">Company Phone Number</Label>
                 <div className="flex gap-2">
                   <Phone className="h-9 w-9 flex items-center justify-center border rounded-md" />
-                  <Input
-                    id="companyPhone"
-                    placeholder="+92 300 1234567"
-                    value={companyPhone}
-                    onChange={(e) => setCompanyPhone(e.target.value)}
-                    className="flex-1"
-                  />
+                  <Input id="companyPhone" placeholder="+92 300 1234567" value={companyPhone} onChange={e => setCompanyPhone(e.target.value)} className="flex-1" />
                 </div>
               </div>
 
@@ -237,16 +204,11 @@ const BusinessSettings = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {couriers.map((courier) => (
-                <Card key={courier.id} className="p-4">
+              {couriers.map(courier => <Card key={courier.id} className="p-4">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <Label>Courier Configuration</Label>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveCourier(courier.id)}
-                      >
+                      <Button variant="ghost" size="sm" onClick={() => handleRemoveCourier(courier.id)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
@@ -254,50 +216,28 @@ const BusinessSettings = () => {
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <Label>Courier Name</Label>
-                        <Input
-                          placeholder="TCS, Leopards, etc."
-                          value={courier.name}
-                          onChange={(e) => handleUpdateCourier(courier.id, 'name', e.target.value)}
-                        />
+                        <Input placeholder="TCS, Leopards, etc." value={courier.name} onChange={e => handleUpdateCourier(courier.id, 'name', e.target.value)} />
                       </div>
 
                       <div className="space-y-2">
                         <Label>Courier Code</Label>
-                        <Input
-                          placeholder="tcs, leopards, etc."
-                          value={courier.code}
-                          onChange={(e) => handleUpdateCourier(courier.id, 'code', e.target.value)}
-                        />
+                        <Input placeholder="tcs, leopards, etc." value={courier.code} onChange={e => handleUpdateCourier(courier.id, 'code', e.target.value)} />
                       </div>
                     </div>
 
                     <div className="space-y-2">
                       <Label>API Endpoint</Label>
-                      <Input
-                        placeholder="https://api.courier.com/v1"
-                        value={courier.apiEndpoint}
-                        onChange={(e) => handleUpdateCourier(courier.id, 'apiEndpoint', e.target.value)}
-                      />
+                      <Input placeholder="https://api.courier.com/v1" value={courier.apiEndpoint} onChange={e => handleUpdateCourier(courier.id, 'apiEndpoint', e.target.value)} />
                     </div>
 
                     <div className="space-y-2">
                       <Label>API Key</Label>
-                      <Input
-                        type="password"
-                        placeholder="Enter API key"
-                        value={courier.apiKey}
-                        onChange={(e) => handleUpdateCourier(courier.id, 'apiKey', e.target.value)}
-                      />
+                      <Input type="password" placeholder="Enter API key" value={courier.apiKey} onChange={e => handleUpdateCourier(courier.id, 'apiKey', e.target.value)} />
                     </div>
                   </div>
-                </Card>
-              ))}
+                </Card>)}
 
-              <Button
-                variant="outline"
-                onClick={handleAddCourier}
-                className="w-full"
-              >
+              <Button variant="outline" onClick={handleAddCourier} className="w-full">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Courier
               </Button>
@@ -326,33 +266,17 @@ const BusinessSettings = () => {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="shopifyStoreUrl">Store URL</Label>
-                <Input
-                  id="shopifyStoreUrl"
-                  placeholder="yourstore.myshopify.com"
-                  value={shopifyStoreUrl}
-                  onChange={(e) => setShopifyStoreUrl(e.target.value)}
-                />
+                <Input id="shopifyStoreUrl" placeholder="yourstore.myshopify.com" value={shopifyStoreUrl} onChange={e => setShopifyStoreUrl(e.target.value)} />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="shopifyAccessToken">Admin API Access Token</Label>
-                <Input
-                  id="shopifyAccessToken"
-                  type="password"
-                  placeholder="shpat_xxxxxxxxxxxx"
-                  value={shopifyAccessToken}
-                  onChange={(e) => setShopifyAccessToken(e.target.value)}
-                />
+                <Input id="shopifyAccessToken" type="password" placeholder="shpat_xxxxxxxxxxxx" value={shopifyAccessToken} onChange={e => setShopifyAccessToken(e.target.value)} />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="shopifyApiVersion">API Version</Label>
-                <Input
-                  id="shopifyApiVersion"
-                  placeholder="2024-01"
-                  value={shopifyApiVersion}
-                  onChange={(e) => setShopifyApiVersion(e.target.value)}
-                />
+                <Input id="shopifyApiVersion" placeholder="2024-01" value={shopifyApiVersion} onChange={e => setShopifyApiVersion(e.target.value)} />
               </div>
 
               <Separator />
@@ -379,23 +303,12 @@ const BusinessSettings = () => {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="whatsappCrmUrl">CRM Project URL</Label>
-                <Input
-                  id="whatsappCrmUrl"
-                  placeholder="https://your-project.supabase.co"
-                  value={whatsappCrmUrl}
-                  onChange={(e) => setWhatsappCrmUrl(e.target.value)}
-                />
+                <Input id="whatsappCrmUrl" placeholder="https://your-project.supabase.co" value={whatsappCrmUrl} onChange={e => setWhatsappCrmUrl(e.target.value)} />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="whatsappCrmApiKey">CRM API Key</Label>
-                <Input
-                  id="whatsappCrmApiKey"
-                  type="password"
-                  placeholder="Enter CRM API key"
-                  value={whatsappCrmApiKey}
-                  onChange={(e) => setWhatsappCrmApiKey(e.target.value)}
-                />
+                <Input id="whatsappCrmApiKey" type="password" placeholder="Enter CRM API key" value={whatsappCrmApiKey} onChange={e => setWhatsappCrmApiKey(e.target.value)} />
               </div>
 
               <Separator />
@@ -423,33 +336,17 @@ const BusinessSettings = () => {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="metaAccessToken">Access Token</Label>
-                  <Input
-                    id="metaAccessToken"
-                    type="password"
-                    placeholder="EAAB..."
-                    value={metaAccessToken}
-                    onChange={(e) => setMetaAccessToken(e.target.value)}
-                  />
+                  <Input id="metaAccessToken" type="password" placeholder="EAAB..." value={metaAccessToken} onChange={e => setMetaAccessToken(e.target.value)} />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="metaPhoneNumberId">Phone Number ID</Label>
-                  <Input
-                    id="metaPhoneNumberId"
-                    placeholder="123456789012345"
-                    value={metaPhoneNumberId}
-                    onChange={(e) => setMetaPhoneNumberId(e.target.value)}
-                  />
+                  <Input id="metaPhoneNumberId" placeholder="123456789012345" value={metaPhoneNumberId} onChange={e => setMetaPhoneNumberId(e.target.value)} />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="metaBusinessAccountId">Business Account ID</Label>
-                  <Input
-                    id="metaBusinessAccountId"
-                    placeholder="987654321098765"
-                    value={metaBusinessAccountId}
-                    onChange={(e) => setMetaBusinessAccountId(e.target.value)}
-                  />
+                  <Input id="metaBusinessAccountId" placeholder="987654321098765" value={metaBusinessAccountId} onChange={e => setMetaBusinessAccountId(e.target.value)} />
                 </div>
 
                 <Separator />
@@ -470,34 +367,15 @@ const BusinessSettings = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {whatsappTemplates.map((template) => (
-                    <Card key={template.id} className="p-4">
+                  {whatsappTemplates.map(template => <Card key={template.id} className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="space-y-2 flex-1">
                           <div className="flex items-center gap-2">
                             <h4 className="font-semibold">{template.name}</h4>
-                            <Badge 
-                              variant={
-                                template.category === 'MARKETING' 
-                                  ? 'default' 
-                                  : template.category === 'UTILITY'
-                                  ? 'secondary'
-                                  : template.category === 'AUTHENTICATION'
-                                  ? 'outline'
-                                  : 'default'
-                              }
-                            >
+                            <Badge variant={template.category === 'MARKETING' ? 'default' : template.category === 'UTILITY' ? 'secondary' : template.category === 'AUTHENTICATION' ? 'outline' : 'default'}>
                               {template.category}
                             </Badge>
-                            <Badge 
-                              variant={
-                                template.status === 'APPROVED' 
-                                  ? 'default' 
-                                  : template.status === 'PENDING'
-                                  ? 'secondary'
-                                  : 'destructive'
-                              }
-                            >
+                            <Badge variant={template.status === 'APPROVED' ? 'default' : template.status === 'PENDING' ? 'secondary' : 'destructive'}>
                               {template.status}
                             </Badge>
                           </div>
@@ -509,32 +387,21 @@ const BusinessSettings = () => {
 
                           <div className="pt-2">
                             <p className="text-xs text-muted-foreground">
-                              {template.category === 'MARKETING' && (
-                                '📢 Marketing templates are for promotional content and require 24-hour opt-in'
-                              )}
-                              {template.category === 'UTILITY' && (
-                                '🔧 Utility templates for transactional updates like order confirmations'
-                              )}
-                              {template.category === 'AUTHENTICATION' && (
-                                '🔐 Authentication templates for OTP and verification codes'
-                              )}
-                              {template.category === 'SERVICE' && (
-                                '🛠️ Service templates for customer support and service notifications'
-                              )}
+                              {template.category === 'MARKETING' && '📢 Marketing templates are for promotional content and require 24-hour opt-in'}
+                              {template.category === 'UTILITY' && '🔧 Utility templates for transactional updates like order confirmations'}
+                              {template.category === 'AUTHENTICATION' && '🔐 Authentication templates for OTP and verification codes'}
+                              {template.category === 'SERVICE' && '🛠️ Service templates for customer support and service notifications'}
                             </p>
                           </div>
                         </div>
                       </div>
-                    </Card>
-                  ))}
+                    </Card>)}
 
-                  {whatsappTemplates.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
+                  {whatsappTemplates.length === 0 && <div className="text-center py-8 text-muted-foreground">
                       <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-50" />
                       <p>No templates configured</p>
                       <p className="text-sm">Add templates in Meta Business Manager</p>
-                    </div>
-                  )}
+                    </div>}
                 </div>
 
                 <Separator className="my-4" />
@@ -565,8 +432,6 @@ const BusinessSettings = () => {
           </div>
         </TabsContent>
       </Tabs>
-    </div>
-  );
+    </div>;
 };
-
 export default BusinessSettings;
