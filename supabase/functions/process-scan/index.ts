@@ -30,7 +30,14 @@ serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    const { barcode, scan_type, scan_method, outlet_id, context } = await req.json();
+    const body = await req.json();
+    
+    // Handle both camelCase (frontend) and snake_case (backend) parameter naming
+    const barcode = body.barcode;
+    const scan_type = body.scanType || body.scan_type || 'product';
+    const scan_method = body.method || body.scan_method || 'manual';
+    const outlet_id = body.outletId || body.outlet_id;
+    const context = body.context || {};
 
     console.log('Processing scan:', { barcode, scan_type, user_id: user.id });
 

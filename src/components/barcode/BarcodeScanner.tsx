@@ -4,10 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScanBarcode, Keyboard, Type } from 'lucide-react';
+import { ScanBarcode, Type, Wifi, WifiOff } from 'lucide-react';
 import { useHandheldScanner } from '@/contexts/HandheldScannerContext';
 import { useToast } from '@/hooks/use-toast';
-import UnifiedScanner from '@/components/UnifiedScanner';
 import { supabase } from '@/integrations/supabase/client';
 
 interface BarcodeScannerProps {
@@ -40,18 +39,27 @@ export const BarcodeScanner = ({
 }: BarcodeScannerProps) => {
   const [activeTab, setActiveTab] = useState<'scanner' | 'manual'>('scanner');
   const [manualBarcode, setManualBarcode] = useState('');
+  const { isConnected, deviceName, connect, onScan: onHandheldScan } = useHandheldScanner();
   const { toast } = useToast();
 
-  const handleScanResult = async (result: any) => {
-    const barcodeValue = result.rawData || result.trackingId || result.orderId || '';
-    
+  // Listen for handheld scanner input when scanner tab is active
+  useEffect(() => {
+    if (activeTab === 'scanner' && isConnected) {
+      const cleanup = onHandheldScan((barcode) => {
+        handleScanResult(barcode, 'handheld');
+      });
+      return cleanup;
+    }
+  }, [activeTab, isConnected]);
+
+  const handleScanResult = async (barcodeValue: string, method: 'handheld' | 'manual') => {
     // Call process-scan edge function
     try {
       const { data: scanData, error } = await supabase.functions.invoke('process-scan', {
         body: {
           barcode: barcodeValue,
           scanType: scanType,
-          method: result.method || 'camera',
+          method: method,
           outletId: outletId,
           context: context
         }
@@ -61,11 +69,11 @@ export const BarcodeScanner = ({
 
       const scanResult: ScanResult = {
         barcode: barcodeValue,
-        productId: scanData?.product?.id || result.productId,
-        method: result.method || 'camera',
-        confidence: result.confidence,
+        productId: scanData?.product?.id,
+        method: method,
+        confidence: 100,
         timestamp: new Date(),
-        rawData: result.rawData,
+        rawData: barcodeValue,
       };
 
       onScan(scanResult);
@@ -74,6 +82,11 @@ export const BarcodeScanner = ({
         toast({
           title: 'Product Found',
           description: `${scanData.product.name} (${scanData.product.sku})`,
+        });
+      } else {
+        toast({
+          title: 'Barcode Scanned',
+          description: barcodeValue,
         });
       }
     } catch (error: any) {
@@ -86,7 +99,7 @@ export const BarcodeScanner = ({
     }
   };
 
-  const handleManualSubmit = () => {
+  const handleManualSubmit = async () => {
     if (!manualBarcode.trim()) {
       toast({
         title: 'Invalid Input',
@@ -96,14 +109,7 @@ export const BarcodeScanner = ({
       return;
     }
 
-    const scanResult: ScanResult = {
-      barcode: manualBarcode.trim(),
-      method: 'manual',
-      timestamp: new Date(),
-      confidence: 100,
-    };
-
-    onScan(scanResult);
+    await handleScanResult(manualBarcode.trim(), 'manual');
     setManualBarcode('');
   };
 
@@ -118,7 +124,7 @@ export const BarcodeScanner = ({
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="scanner">
               <ScanBarcode className="mr-2 h-4 w-4" />
-              Scan
+              Handheld Scanner
             </TabsTrigger>
             <TabsTrigger value="manual">
               <Type className="mr-2 h-4 w-4" />
@@ -126,14 +132,36 @@ export const BarcodeScanner = ({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="scanner" className="mt-4">
-            <UnifiedScanner
-              isOpen={activeTab === 'scanner'}
-              onClose={onClose}
-              onScan={handleScanResult}
-              scanType="receiving"
-              title=""
-            />
+          <TabsContent value="scanner" className="mt-4 space-y-4">
+            <div className="flex flex-col items-center justify-center space-y-4 p-8 border rounded-lg">
+              {isConnected ? (
+                <>
+                  <div className="flex items-center gap-2 text-green-600">
+                    <Wifi className="h-8 w-8" />
+                    <span className="text-lg font-medium">Scanner Connected</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground text-center">
+                    {deviceName || 'HID Keyboard Scanner'}
+                  </p>
+                  <p className="text-sm text-muted-foreground text-center">
+                    Scan a barcode using your handheld scanner
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <WifiOff className="h-8 w-8" />
+                    <span className="text-lg font-medium">Scanner Disconnected</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground text-center">
+                    Connect your handheld scanner to begin scanning
+                  </p>
+                  <Button onClick={connect}>
+                    Connect Scanner
+                  </Button>
+                </>
+              )}
+            </div>
           </TabsContent>
 
           <TabsContent value="manual" className="mt-4 space-y-4">
