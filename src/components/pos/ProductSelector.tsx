@@ -23,25 +23,37 @@ const ProductSelector = ({ outletId, onAddToCart }: ProductSelectorProps) => {
     queryKey: ['pos-products', outletId, searchQuery],
     queryFn: async () => {
       let query = supabase
-        .from('inventory')
-        .select(`
-          *,
-          product:products(*)
-        `)
-        .eq('outlet_id', outletId)
-        .gt('available_quantity', 0);
+        .from('products')
+        .select('*')
+        .eq('is_active', true);
 
       if (searchQuery) {
-        query = query.or(`product.name.ilike.%${searchQuery}%,product.sku.ilike.%${searchQuery}%`);
+        query = query.or(`name.ilike.%${searchQuery}%,sku.ilike.%${searchQuery}%,barcode.ilike.%${searchQuery}%`);
       }
 
-      const { data, error } = await query.limit(50);
+      const { data: productsData, error } = await query.order('name').limit(50);
       if (error) throw error;
+
+      // Get inventory quantities for these products at this outlet
+      if (productsData && productsData.length > 0) {
+        const productIds = productsData.map(p => p.id);
+        const { data: inventoryData } = await supabase
+          .from('inventory')
+          .select('product_id, available_quantity')
+          .eq('outlet_id', outletId)
+          .in('product_id', productIds);
+
+        const inventoryMap = new Map(
+          inventoryData?.map(inv => [inv.product_id, inv.available_quantity]) || []
+        );
+
+        return productsData.map(product => ({
+          ...product,
+          available_quantity: inventoryMap.get(product.id) || 0,
+        }));
+      }
       
-      return data?.map(inv => ({
-        ...inv.product,
-        available_quantity: inv.available_quantity,
-      })) || [];
+      return [];
     },
   });
 
