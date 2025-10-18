@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -23,7 +23,6 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
   const [openDialogOpen, setOpenDialogOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [outletId, setOutletId] = useState('');
-  const [registerNumber, setRegisterNumber] = useState('');
   const [openingCash, setOpeningCash] = useState('');
   const [closingCash, setClosingCash] = useState('');
   const [notes, setNotes] = useState('');
@@ -79,6 +78,13 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
     enabled: !!user?.id,
   });
 
+  // Auto-select first accessible outlet
+  useEffect(() => {
+    if (accessibleOutlets && accessibleOutlets.length > 0 && !outletId) {
+      setOutletId(accessibleOutlets[0].id);
+    }
+  }, [accessibleOutlets, outletId]);
+
   const handleOpenSession = async () => {
     if (!outletId || !openingCash) {
       toast.error('Please fill all required fields');
@@ -90,7 +96,6 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
       const { data, error } = await supabase.functions.invoke('open-pos-session', {
         body: {
           outlet_id: outletId,
-          register_number: registerNumber,
           opening_cash: parseFloat(openingCash),
         },
       });
@@ -179,15 +184,6 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
                   You don't have POS access to any outlets yet. Please contact your store manager.
                 </p>
               )}
-            </div>
-            <div>
-              <Label htmlFor="register">Register Number</Label>
-              <Input
-                id="register"
-                placeholder="e.g., REG-01"
-                value={registerNumber}
-                onChange={(e) => setRegisterNumber(e.target.value)}
-              />
             </div>
             <div>
               <Label htmlFor="opening-cash">Opening Cash *</Label>
