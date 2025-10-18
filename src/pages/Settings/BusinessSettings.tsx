@@ -12,11 +12,11 @@ import { Plus, Trash2, Building2, Link, Mail, Phone, Truck, ShoppingBag, Message
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const BusinessSettings = () => {
-  const { hasAnyRole } = useUserRoles();
+  const { hasRole } = useUserRoles();
   const { toast } = useToast();
   
-  // Only super_admin and super_manager can access
-  if (!hasAnyRole(['super_admin', 'super_manager'])) {
+  // Only super_admin can access business settings (security critical)
+  if (!hasRole('super_admin')) {
     return <Navigate to="/" replace />;
   }
 

@@ -96,7 +96,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessProducts: true,
         canAccessStockTransfer: true,
         canAccessLocations: true,
-        canAccessActivityLogs: true,
+        canAccessActivityLogs: false, // Only super_admin for audit trail integrity
         canAccessSuppliers: true,
         canAccessPurchaseOrders: true,
         canAccessReceiving: true,
