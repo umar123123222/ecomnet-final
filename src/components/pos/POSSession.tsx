@@ -28,19 +28,22 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
   const [notes, setNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Fetch last 7 sessions
+  // Fetch sessions from last 7 days
   const { data: recentSessions } = useQuery({
     queryKey: ['recent-pos-sessions', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
+      
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       
       const { data, error } = await supabase
         .from('pos_sessions')
         .select('session_number, opening_cash, closing_cash, opened_at, closed_at, status')
         .eq('cashier_id', user.id)
         .eq('status', 'closed')
-        .order('closed_at', { ascending: false })
-        .limit(7);
+        .gte('closed_at', sevenDaysAgo.toISOString())
+        .order('closed_at', { ascending: false });
       
       if (error) throw error;
       return data;
