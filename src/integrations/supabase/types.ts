@@ -2292,69 +2292,44 @@ export type Database = {
       scans: {
         Row: {
           barcode: string
-          confidence_score: number | null
-          created_at: string
-          device_info: Json | null
+          created_at: string | null
+          error_message: string | null
           id: string
-          location_data: Json | null
-          order_id: string | null
+          metadata: Json | null
           outlet_id: string | null
-          processed: boolean | null
-          processed_at: string | null
-          processing_notes: string | null
-          processing_status: string | null
           product_id: string | null
-          raw_data: string | null
           scan_method: string
           scan_type: string
           scanned_by: string
+          status: string | null
         }
         Insert: {
           barcode: string
-          confidence_score?: number | null
-          created_at?: string
-          device_info?: Json | null
+          created_at?: string | null
+          error_message?: string | null
           id?: string
-          location_data?: Json | null
-          order_id?: string | null
+          metadata?: Json | null
           outlet_id?: string | null
-          processed?: boolean | null
-          processed_at?: string | null
-          processing_notes?: string | null
-          processing_status?: string | null
           product_id?: string | null
-          raw_data?: string | null
           scan_method: string
           scan_type: string
           scanned_by: string
+          status?: string | null
         }
         Update: {
           barcode?: string
-          confidence_score?: number | null
-          created_at?: string
-          device_info?: Json | null
+          created_at?: string | null
+          error_message?: string | null
           id?: string
-          location_data?: Json | null
-          order_id?: string | null
+          metadata?: Json | null
           outlet_id?: string | null
-          processed?: boolean | null
-          processed_at?: string | null
-          processing_notes?: string | null
-          processing_status?: string | null
           product_id?: string | null
-          raw_data?: string | null
           scan_method?: string
           scan_type?: string
           scanned_by?: string
+          status?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "scans_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "scans_outlet_id_fkey"
             columns: ["outlet_id"]
