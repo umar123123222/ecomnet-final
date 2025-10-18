@@ -140,14 +140,7 @@ const App = () => {
   }, []);
 
   return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider delayDuration={300}>
-          <AuthProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-            <Routes>
+    <Routes>
               <Route path="/" element={
                 <ProtectedRoute>
                   <Layout />
@@ -310,11 +303,6 @@ const App = () => {
                 } />
               </Route>
             </Routes>
-          </BrowserRouter>
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
-    </ErrorBoundary>
   );
 };
 
