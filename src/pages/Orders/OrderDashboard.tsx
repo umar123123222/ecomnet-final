@@ -268,33 +268,36 @@ const OrderDashboard = () => {
       setSelectedOrders([]);
     });
   };
-  const getStatusBadge = (status: string) => {
-    const statusMap = {
-      delivered: {
-        color: 'bg-green-100 text-green-800',
-        label: 'Delivered'
-      },
-      dispatched: {
-        color: 'bg-blue-100 text-blue-800',
-        label: 'Dispatched'
-      },
-      booked: {
-        color: 'bg-orange-100 text-orange-800',
-        label: 'Booked'
-      },
-      cancelled: {
-        color: 'bg-red-100 text-red-800',
-        label: 'Cancelled'
-      },
-      returned: {
-        color: 'bg-gray-100 text-gray-800',
-        label: 'Returned'
-      }
+  const getStatusBadge = (status: string, courierStatus?: string) => {
+    const statusMap: Record<string, { variant: any; label: string; icon?: any }> = {
+      // New comprehensive statuses
+      'received': { variant: 'secondary', label: 'Received', icon: Package },
+      'pending_confirmation': { variant: 'warning', label: 'Order Confirmation Needed', icon: AlertCircle },
+      'pending_address': { variant: 'warning', label: 'Address Confirmation Needed', icon: MapPin },
+      'pending_dispatch': { variant: 'info', label: 'Pending for Dispatch', icon: AlertTriangle },
+      'dispatched': { variant: 'default', label: 'Order Dispatched', icon: Truck },
+      'in_transit': { variant: 'default', label: courierStatus || 'In Transit', icon: Truck },
+      'out_for_delivery': { variant: 'default', label: 'Out for Delivery', icon: Truck },
+      'delivered': { variant: 'success', label: 'Delivered', icon: CheckCircle },
+      'return_marked': { variant: 'destructive', label: 'Returned - Marked by Courier', icon: AlertTriangle },
+      'return_received': { variant: 'secondary', label: 'Return Received at Warehouse', icon: Package },
+      
+      // Legacy statuses for backward compatibility
+      'booked': { variant: 'warning', label: 'Booked', icon: Package },
+      'cancelled': { variant: 'destructive', label: 'Cancelled', icon: X },
+      'returned': { variant: 'secondary', label: 'Returned', icon: Package },
+      'pending': { variant: 'secondary', label: 'Pending', icon: AlertCircle }
     };
-    const statusInfo = statusMap[status as keyof typeof statusMap] || statusMap.booked;
-    return <Badge className={statusInfo.color}>
+    
+    const statusInfo = statusMap[status] || statusMap.pending;
+    const StatusIcon = statusInfo.icon;
+    
+    return (
+      <Badge variant={statusInfo.variant} className="gap-1.5">
+        {StatusIcon && <StatusIcon className="h-3.5 w-3.5" />}
         {statusInfo.label}
-      </Badge>;
+      </Badge>
+    );
   };
   const summaryCards = [{
     title: 'Total Orders',
@@ -899,84 +902,99 @@ const OrderDashboard = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Select</TableHead>
-                <TableHead>Order Number</TableHead>
-                <TableHead>Tracking ID</TableHead>
-                <TableHead>Order Status</TableHead>
-                <TableHead>Verification</TableHead>
-                <TableHead>Courier</TableHead>
-                <TableHead>Assigned To</TableHead>
-                <TableHead>Expand</TableHead>
+                <TableHead className="w-[50px]">Select</TableHead>
+                <TableHead className="min-w-[140px]">Order ID</TableHead>
+                <TableHead className="min-w-[140px]">Tracking ID</TableHead>
+                <TableHead className="min-w-[240px]">Order Status</TableHead>
+                <TableHead className="min-w-[140px]">Courier Assigned</TableHead>
+                <TableHead className="w-[50px]">Expand</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? <TableRow>
-                  <TableCell colSpan={8} className="text-center">Loading orders...</TableCell>
+                  <TableCell colSpan={6} className="text-center py-12">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      <span className="text-sm text-muted-foreground">Loading orders...</span>
+                    </div>
+                  </TableCell>
                 </TableRow> : finalFilteredOrders.length === 0 ? <TableRow>
-                  <TableCell colSpan={8} className="text-center">No orders found</TableCell>
+                  <TableCell colSpan={6} className="text-center py-12">
+                    <div className="flex flex-col items-center gap-2">
+                      <Package className="h-12 w-12 text-muted-foreground/50" />
+                      <span className="text-sm text-muted-foreground">No orders found</span>
+                    </div>
+                  </TableCell>
                 </TableRow> : finalFilteredOrders.map(order => (
                   <React.Fragment key={order.id}>
-                  <TableRow>
+                  <TableRow className="hover:bg-muted/50">
                     <TableCell>
-                      <Checkbox checked={selectedOrders.includes(order.id)} onCheckedChange={() => handleSelectOrder(order.id)} />
+                      <Checkbox 
+                        checked={selectedOrders.includes(order.id)} 
+                        onCheckedChange={() => handleSelectOrder(order.id)} 
+                      />
                     </TableCell>
-                    <TableCell className="font-medium">{order.orderNumber || order.id}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {order.trackingId}
+                    
+                    <TableCell className="font-mono text-sm font-medium">
+                      <div className="flex flex-col gap-1">
+                        <span>{order.orderNumber || order.id.slice(0, 8)}</span>
                         {order.fraudIndicators?.isHighRisk && (
-                          <Badge variant="destructive" className="gap-1">
+                          <Badge variant="destructive" className="gap-1 w-fit text-xs">
                             <Shield className="h-3 w-3" />
-                            FRAUD: {order.fraudIndicators.riskScore}%
+                            Risk: {order.fraudIndicators.riskScore}%
                           </Badge>
                         )}
                       </div>
                     </TableCell>
+                    
                     <TableCell>
-                      {order.status === 'pending' ? (
-                        <Badge variant="secondary">⏳ Pending Confirmation</Badge>
+                      <div className="flex flex-col gap-1">
+                        <span className={`font-mono text-sm ${order.trackingId === 'N/A' ? 'text-muted-foreground' : 'font-medium'}`}>
+                          {order.trackingId}
+                        </span>
+                      </div>
+                    </TableCell>
+                    
+                    <TableCell>
+                      <div className="flex flex-col gap-1.5">
+                        {getStatusBadge(order.status)}
+                        {order.status === 'dispatched' && order.courier && order.courier !== 'N/A' && (
+                          <span className="text-xs text-muted-foreground">
+                            Via {order.courier.toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    
+                    <TableCell>
+                      {order.courier && order.courier !== 'N/A' ? (
+                        <Badge variant="outline" className="gap-1.5">
+                          <Truck className="h-3.5 w-3.5" />
+                          {order.courier.toUpperCase()}
+                        </Badge>
                       ) : (
-                        getStatusBadge(order.status)
+                        <span className="text-sm text-muted-foreground">Not Assigned</span>
                       )}
                     </TableCell>
+                    
                     <TableCell>
-                      <Badge variant={
-                        order.verificationStatus === 'approved' ? 'default' :
-                        order.verificationStatus === 'disapproved' ? 'destructive' :
-                        'secondary'
-                      }>
-                        {order.verificationStatus === 'pending' ? '⏳ Pending Verification' : 
-                         order.verificationStatus === 'approved' ? '✓ Approved' : 
-                         '✗ Disapproved'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{order.courier}</TableCell>
-                    <TableCell>
-                      <Select 
-                        value={order.assignedTo || "unassigned"} 
-                        onValueChange={(value) => handleAssignStaff(order.id, value)}
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => toggleExpanded(order.id)}
+                        className="h-8 w-8 p-0"
                       >
-                        <SelectTrigger className="w-40">
-                          <SelectValue placeholder="Assign Staff" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="unassigned">Unassigned</SelectItem>
-                          {staffUsers.map((staff) => (
-                            <SelectItem key={staff.id} value={staff.id}>
-                              {staff.full_name} ({staff.role})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="outline" size="sm" onClick={() => toggleExpanded(order.id)}>
-                        {expandedRows.includes(order.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        {expandedRows.includes(order.id) ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
                       </Button>
                     </TableCell>
                   </TableRow>
+                  
                   {expandedRows.includes(order.id) && <TableRow>
-                       <TableCell colSpan={8} className="bg-gray-50 p-6">
+                       <TableCell colSpan={6} className="bg-muted/30 p-6">
                          <Tabs defaultValue="customer-details" className="w-full">
                            <TabsList className="grid w-full grid-cols-2">
                              <TabsTrigger value="customer-details">Customer Details</TabsTrigger>
