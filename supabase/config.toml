@@ -1,5 +1,11 @@
 project_id = "lzitfcigdjbpymvebipp"
 
+[functions.process-production-batch]
+verify_jwt = true
+
+[functions.generate-barcode-labels]
+verify_jwt = true
+
 [functions.send-whatsapp]
 verify_jwt = true
 

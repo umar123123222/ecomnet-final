@@ -236,3 +236,67 @@ export const processReturnRestock = async (request: ReturnRestockRequest) => {
   if (error) throw error;
   return data;
 };
+
+// ============================================
+// PRODUCTION BATCHES
+// ============================================
+
+export interface ProductionBatchRequest {
+  action: 'create' | 'complete' | 'cancel';
+  data: {
+    batch_id?: string;
+    batch_number?: string;
+    finished_product_id?: string;
+    outlet_id?: string;
+    quantity_produced?: number;
+    production_date?: string;
+    expiry_date?: string;
+    notes?: string;
+    reason?: string;
+  };
+}
+
+export const processProductionBatch = async (request: ProductionBatchRequest) => {
+  const { data, error } = await supabase.functions.invoke('process-production-batch', {
+    body: request,
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+// ============================================
+// LABEL GENERATION
+// ============================================
+
+export interface LabelGenerationRequest {
+  label_type: 'raw_material' | 'finished_product' | 'packaging';
+  product_id?: string;
+  packaging_item_id?: string;
+  production_batch_id?: string;
+  quantity: number;
+  label_data: {
+    productName: string;
+    sku: string;
+    barcode: string;
+    barcodeFormat: string;
+    packagingDetails?: string;
+    batchNumber?: string;
+    productionDate?: string;
+    expiryDate?: string;
+    price?: number;
+    includePrice: boolean;
+    includeBarcode: boolean;
+    includeBatchInfo: boolean;
+    includeExpiryDate: boolean;
+  };
+}
+
+export const generateBarcodeLabels = async (request: LabelGenerationRequest) => {
+  const { data, error } = await supabase.functions.invoke('generate-barcode-labels', {
+    body: request,
+  });
+
+  if (error) throw error;
+  return data;
+};

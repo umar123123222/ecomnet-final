@@ -147,6 +147,64 @@ export type Database = {
         }
         Relationships: []
       }
+      bill_of_materials: {
+        Row: {
+          created_at: string
+          finished_product_id: string
+          id: string
+          notes: string | null
+          packaging_item_id: string | null
+          quantity_required: number
+          raw_material_id: string | null
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          finished_product_id: string
+          id?: string
+          notes?: string | null
+          packaging_item_id?: string | null
+          quantity_required: number
+          raw_material_id?: string | null
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          finished_product_id?: string
+          id?: string
+          notes?: string | null
+          packaging_item_id?: string | null
+          quantity_required?: number
+          raw_material_id?: string | null
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_of_materials_finished_product_id_fkey"
+            columns: ["finished_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_of_materials_packaging_item_id_fkey"
+            columns: ["packaging_item_id"]
+            isOneToOne: false
+            referencedRelation: "packaging_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_of_materials_raw_material_id_fkey"
+            columns: ["raw_material_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cash_drawer_events: {
         Row: {
           amount: number
@@ -804,6 +862,77 @@ export type Database = {
           },
         ]
       }
+      label_print_logs: {
+        Row: {
+          id: string
+          label_data: Json
+          label_type: string
+          notes: string | null
+          packaging_item_id: string | null
+          print_format: string | null
+          printed_at: string
+          printed_by: string | null
+          product_id: string | null
+          production_batch_id: string | null
+          quantity_printed: number
+        }
+        Insert: {
+          id?: string
+          label_data: Json
+          label_type: string
+          notes?: string | null
+          packaging_item_id?: string | null
+          print_format?: string | null
+          printed_at?: string
+          printed_by?: string | null
+          product_id?: string | null
+          production_batch_id?: string | null
+          quantity_printed: number
+        }
+        Update: {
+          id?: string
+          label_data?: Json
+          label_type?: string
+          notes?: string | null
+          packaging_item_id?: string | null
+          print_format?: string | null
+          printed_at?: string
+          printed_by?: string | null
+          product_id?: string | null
+          production_batch_id?: string | null
+          quantity_printed?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "label_print_logs_packaging_item_id_fkey"
+            columns: ["packaging_item_id"]
+            isOneToOne: false
+            referencedRelation: "packaging_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "label_print_logs_printed_by_fkey"
+            columns: ["printed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "label_print_logs_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "label_print_logs_production_batch_id_fkey"
+            columns: ["production_batch_id"]
+            isOneToOne: false
+            referencedRelation: "production_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leopard_table: {
         Row: {
           created_at: string
@@ -1365,6 +1494,8 @@ export type Database = {
       }
       packaging_items: {
         Row: {
+          barcode: string | null
+          barcode_format: string | null
           cost: number
           created_at: string
           current_stock: number
@@ -1380,6 +1511,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          barcode?: string | null
+          barcode_format?: string | null
           cost?: number
           created_at?: string
           current_stock?: number
@@ -1395,6 +1528,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          barcode?: string | null
+          barcode_format?: string | null
           cost?: number
           created_at?: string
           current_stock?: number
@@ -1855,9 +1990,129 @@ export type Database = {
           },
         ]
       }
+      production_batches: {
+        Row: {
+          batch_number: string
+          completed_at: string | null
+          created_at: string
+          expiry_date: string | null
+          finished_product_id: string
+          id: string
+          notes: string | null
+          outlet_id: string
+          produced_by: string | null
+          production_date: string
+          quantity_produced: number
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          batch_number: string
+          completed_at?: string | null
+          created_at?: string
+          expiry_date?: string | null
+          finished_product_id: string
+          id?: string
+          notes?: string | null
+          outlet_id: string
+          produced_by?: string | null
+          production_date?: string
+          quantity_produced: number
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          batch_number?: string
+          completed_at?: string | null
+          created_at?: string
+          expiry_date?: string | null
+          finished_product_id?: string
+          id?: string
+          notes?: string | null
+          outlet_id?: string
+          produced_by?: string | null
+          production_date?: string
+          quantity_produced?: number
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_batches_finished_product_id_fkey"
+            columns: ["finished_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_batches_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_batches_produced_by_fkey"
+            columns: ["produced_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_material_usage: {
+        Row: {
+          created_at: string
+          id: string
+          packaging_item_id: string | null
+          production_batch_id: string
+          quantity_used: number
+          raw_material_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          packaging_item_id?: string | null
+          production_batch_id: string
+          quantity_used: number
+          raw_material_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          packaging_item_id?: string | null
+          production_batch_id?: string
+          quantity_used?: number
+          raw_material_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_material_usage_packaging_item_id_fkey"
+            columns: ["packaging_item_id"]
+            isOneToOne: false
+            referencedRelation: "packaging_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_material_usage_production_batch_id_fkey"
+            columns: ["production_batch_id"]
+            isOneToOne: false
+            referencedRelation: "production_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_material_usage_raw_material_id_fkey"
+            columns: ["raw_material_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           barcode: string | null
+          barcode_format: string | null
           category: string | null
           cost: number | null
           created_at: string
@@ -1867,6 +2122,7 @@ export type Database = {
           name: string
           packaging_metadata: Json | null
           price: number
+          product_type: string | null
           reorder_level: number
           requires_packaging: boolean | null
           shopify_product_id: number | null
@@ -1880,6 +2136,7 @@ export type Database = {
         }
         Insert: {
           barcode?: string | null
+          barcode_format?: string | null
           category?: string | null
           cost?: number | null
           created_at?: string
@@ -1889,6 +2146,7 @@ export type Database = {
           name: string
           packaging_metadata?: Json | null
           price: number
+          product_type?: string | null
           reorder_level?: number
           requires_packaging?: boolean | null
           shopify_product_id?: number | null
@@ -1902,6 +2160,7 @@ export type Database = {
         }
         Update: {
           barcode?: string | null
+          barcode_format?: string | null
           category?: string | null
           cost?: number | null
           created_at?: string
@@ -1911,6 +2170,7 @@ export type Database = {
           name?: string
           packaging_metadata?: Json | null
           price?: number
+          product_type?: string | null
           reorder_level?: number
           requires_packaging?: boolean | null
           shopify_product_id?: number | null

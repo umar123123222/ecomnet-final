@@ -102,6 +102,15 @@ const ScanHistory = lazy(() =>
 const ConfirmationDashboard = lazy(() =>
   import("@/pages/Confirmations/ConfirmationDashboard").then(module => ({ default: module.default }))
 );
+const ProductionDashboard = lazy(() =>
+  import("@/pages/Production/ProductionDashboard").then(module => ({ default: module.default }))
+);
+const BOMManagement = lazy(() =>
+  import("@/pages/Production/BOMManagement").then(module => ({ default: module.default }))
+);
+const LabelPrinter = lazy(() =>
+  import("@/components/production/LabelPrinter").then(module => ({ default: module.LabelPrinter }))
+);
 
 // Optimized QueryClient configuration for performance
 const queryClient = new QueryClient({
@@ -294,6 +303,21 @@ const App = () => {
                 <Route path="confirmations" element={
                   <Suspense fallback={<PageLoader />}>
                     <ConfirmationDashboard />
+                  </Suspense>
+                } />
+                <Route path="production" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <ProductionDashboard />
+                  </Suspense>
+                } />
+                <Route path="production/bom" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <BOMManagement />
+                  </Suspense>
+                } />
+                <Route path="production/labels" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <LabelPrinter />
                   </Suspense>
                 } />
                 <Route path="*" element={
