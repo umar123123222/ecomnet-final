@@ -10,9 +10,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, ClipboardCheck, AlertTriangle, BarChart3, Camera } from 'lucide-react';
+import { Plus, Search, ClipboardCheck, AlertTriangle, BarChart3, Camera, ScanBarcode } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
+import { BarcodeScanner } from '@/components/barcode/BarcodeScanner';
+import type { ScanResult } from '@/components/barcode/BarcodeScanner';
 
 interface StockCount {
   id: string;
@@ -40,6 +42,7 @@ const StockAuditDashboard = () => {
   const [isStartCountDialogOpen, setIsStartCountDialogOpen] = useState(false);
   const [isCountingDialogOpen, setIsCountingDialogOpen] = useState(false);
   const [activeCount, setActiveCount] = useState<any>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
   
   const [newCountData, setNewCountData] = useState({
     outlet_id: '',
@@ -257,6 +260,17 @@ const StockAuditDashboard = () => {
   const handleStartCount = (e: React.FormEvent) => {
     e.preventDefault();
     startCountMutation.mutate(newCountData);
+  };
+
+  const handleScanResult = (result: ScanResult) => {
+    if (result.productId) {
+      setCountingData({
+        ...countingData,
+        product_id: result.productId,
+        barcode: result.barcode
+      });
+      setScannerOpen(false);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -482,6 +496,13 @@ const StockAuditDashboard = () => {
               </CardContent>
             </Card>
 
+            <div className="flex gap-2">
+              <Button onClick={() => setScannerOpen(true)} variant="outline" className="flex-1">
+                <ScanBarcode className="mr-2 h-4 w-4" />
+                Scan to Count
+              </Button>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="product_id">Product *</Label>
@@ -547,6 +568,17 @@ const StockAuditDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Barcode Scanner */}
+      <BarcodeScanner
+        isOpen={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={handleScanResult}
+        scanType="product"
+        title="Scan Product for Counting"
+        outletId={activeCount?.outlet_id}
+        context={{ count_id: activeCount?.id }}
+      />
     </div>
   );
 };

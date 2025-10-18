@@ -99,6 +99,9 @@ const POSMain = lazy(() =>
 const ScanHistory = lazy(() =>
   import("@/pages/Barcode/ScanHistory").then(module => ({ default: module.default }))
 );
+const ConfirmationDashboard = lazy(() =>
+  import("@/pages/Confirmations/ConfirmationDashboard").then(module => ({ default: module.default }))
+);
 
 // Optimized QueryClient configuration for performance
 const queryClient = new QueryClient({
@@ -293,6 +296,11 @@ const App = () => {
                 <Route path="scan-history" element={
                   <Suspense fallback={<PageLoader />}>
                     <ScanHistory />
+                  </Suspense>
+                } />
+                <Route path="confirmations" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <ConfirmationDashboard />
                   </Suspense>
                 } />
                 <Route path="*" element={

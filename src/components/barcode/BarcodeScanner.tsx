@@ -8,6 +8,7 @@ import { ScanBarcode, Keyboard, Type } from 'lucide-react';
 import { useHandheldScanner } from '@/contexts/HandheldScannerContext';
 import { useToast } from '@/hooks/use-toast';
 import UnifiedScanner from '@/components/UnifiedScanner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface BarcodeScannerProps {
   isOpen: boolean;
@@ -41,17 +42,48 @@ export const BarcodeScanner = ({
   const [manualBarcode, setManualBarcode] = useState('');
   const { toast } = useToast();
 
-  const handleScanResult = (result: any) => {
-    const scanResult: ScanResult = {
-      barcode: result.rawData || result.trackingId || result.orderId || '',
-      productId: result.productId,
-      method: result.method,
-      confidence: result.confidence,
-      timestamp: new Date(),
-      rawData: result.rawData,
-    };
+  const handleScanResult = async (result: any) => {
+    const barcodeValue = result.rawData || result.trackingId || result.orderId || '';
+    
+    // Call process-scan edge function
+    try {
+      const { data: scanData, error } = await supabase.functions.invoke('process-scan', {
+        body: {
+          barcode: barcodeValue,
+          scanType: scanType,
+          method: result.method || 'camera',
+          outletId: outletId,
+          context: context
+        }
+      });
 
-    onScan(scanResult);
+      if (error) throw error;
+
+      const scanResult: ScanResult = {
+        barcode: barcodeValue,
+        productId: scanData?.product?.id || result.productId,
+        method: result.method || 'camera',
+        confidence: result.confidence,
+        timestamp: new Date(),
+        rawData: result.rawData,
+      };
+
+      onScan(scanResult);
+      
+      if (scanData?.product) {
+        toast({
+          title: 'Product Found',
+          description: `${scanData.product.name} (${scanData.product.sku})`,
+        });
+      }
+    } catch (error: any) {
+      console.error('Scan processing error:', error);
+      toast({
+        title: 'Scan Error',
+        description: error.message || 'Failed to process scan',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleManualSubmit = () => {

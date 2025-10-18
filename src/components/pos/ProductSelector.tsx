@@ -5,8 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, ScanBarcode } from 'lucide-react';
 import { Product } from '@/types/inventory';
+import { BarcodeScanner } from '@/components/barcode/BarcodeScanner';
+import type { ScanResult } from '@/components/barcode/BarcodeScanner';
 
 interface ProductSelectorProps {
   outletId: string;
@@ -15,6 +17,7 @@ interface ProductSelectorProps {
 
 const ProductSelector = ({ outletId, onAddToCart }: ProductSelectorProps) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   const { data: products, isLoading } = useQuery({
     queryKey: ['pos-products', outletId, searchQuery],
@@ -46,16 +49,31 @@ const ProductSelector = ({ outletId, onAddToCart }: ProductSelectorProps) => {
     onAddToCart(product, 1);
   };
 
+  const handleScanResult = (result: ScanResult) => {
+    if (result.productId) {
+      const product = products?.find(p => p.id === result.productId);
+      if (product) {
+        onAddToCart(product, 1);
+        setScannerOpen(false);
+      }
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-        <Input
-          placeholder="Search products by name or SKU..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+          <Input
+            placeholder="Search products by name or SKU..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Button onClick={() => setScannerOpen(true)} variant="outline">
+          <ScanBarcode className="h-4 w-4" />
+        </Button>
       </div>
 
       {isLoading ? (
@@ -92,6 +110,15 @@ const ProductSelector = ({ outletId, onAddToCart }: ProductSelectorProps) => {
           ))}
         </div>
       )}
+
+      <BarcodeScanner
+        isOpen={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={handleScanResult}
+        scanType="product"
+        title="Scan Product Barcode"
+        outletId={outletId}
+      />
     </div>
   );
 };
