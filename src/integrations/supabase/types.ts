@@ -1278,6 +1278,44 @@ export type Database = {
           },
         ]
       }
+      outlet_staff: {
+        Row: {
+          assigned_by: string | null
+          can_access_pos: boolean
+          created_at: string | null
+          id: string
+          outlet_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          can_access_pos?: boolean
+          created_at?: string | null
+          id?: string
+          outlet_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          assigned_by?: string | null
+          can_access_pos?: boolean
+          created_at?: string | null
+          id?: string
+          outlet_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outlet_staff_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outlets: {
         Row: {
           address: string | null
@@ -3335,6 +3373,10 @@ export type Database = {
       get_user_roles: {
         Args: { user_id: string }
         Returns: Database["public"]["Enums"]["user_role"][]
+      }
+      has_outlet_access: {
+        Args: { _outlet_id: string; _user_id: string }
+        Returns: boolean
       }
       is_manager: {
         Args: { _user_id: string }

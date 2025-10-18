@@ -1,13 +1,16 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { POSSession as POSSessionType } from '@/types/pos';
 import { DoorOpen, DoorClosed } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface POSSessionProps {
   currentSession?: POSSessionType | null;
@@ -16,6 +19,7 @@ interface POSSessionProps {
 }
 
 const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSessionProps) => {
+  const { user } = useAuth();
   const [openDialogOpen, setOpenDialogOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [outletId, setOutletId] = useState('');
@@ -24,6 +28,56 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
   const [closingCash, setClosingCash] = useState('');
   const [notes, setNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch accessible outlets for the current user
+  const { data: accessibleOutlets } = useQuery({
+    queryKey: ['accessible-outlets', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+
+      // Get user roles to check if super admin/manager
+      const { data: userRoles } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('is_active', true);
+
+      const isSuperUser = userRoles?.some(r => r.role === 'super_admin' || r.role === 'super_manager');
+
+      if (isSuperUser) {
+        // Super users can access all outlets
+        const { data, error } = await supabase
+          .from('outlets')
+          .select('id, name, outlet_type')
+          .eq('is_active', true);
+        if (error) throw error;
+        return data;
+      }
+
+      // Get outlets where user is manager
+      const { data: managedOutlets } = await supabase
+        .from('outlets')
+        .select('id, name, outlet_type')
+        .eq('manager_id', user.id)
+        .eq('is_active', true);
+
+      // Get outlets where user has staff assignment with POS access
+      const { data: staffOutlets } = await supabase
+        .from('outlet_staff')
+        .select('outlet_id, outlets(id, name, outlet_type)')
+        .eq('user_id', user.id)
+        .eq('can_access_pos', true);
+
+      const staffOutletData = staffOutlets?.map(s => s.outlets).filter(Boolean) || [];
+
+      // Combine and deduplicate
+      const allOutlets = [...(managedOutlets || []), ...staffOutletData];
+      const uniqueOutlets = Array.from(new Map(allOutlets.map(o => [o.id, o])).values());
+
+      return uniqueOutlets;
+    },
+    enabled: !!user?.id,
+  });
 
   const handleOpenSession = async () => {
     if (!outletId || !openingCash) {
@@ -107,12 +161,24 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
           <div className="space-y-4 py-4">
             <div>
               <Label htmlFor="outlet">Outlet *</Label>
-              <Input
-                id="outlet"
-                placeholder="Enter outlet ID"
-                value={outletId}
-                onChange={(e) => setOutletId(e.target.value)}
-              />
+              {accessibleOutlets && accessibleOutlets.length > 0 ? (
+                <Select value={outletId} onValueChange={setOutletId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select outlet" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accessibleOutlets.map((outlet: any) => (
+                      <SelectItem key={outlet.id} value={outlet.id}>
+                        {outlet.name} ({outlet.outlet_type})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-sm text-muted-foreground border rounded-md p-4 bg-muted">
+                  You don't have POS access to any outlets yet. Please contact your store manager.
+                </p>
+              )}
             </div>
             <div>
               <Label htmlFor="register">Register Number</Label>
