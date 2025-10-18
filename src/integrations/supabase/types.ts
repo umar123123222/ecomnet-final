@@ -1819,6 +1819,7 @@ export type Database = {
       }
       products: {
         Row: {
+          barcode: string | null
           category: string | null
           cost: number | null
           created_at: string
@@ -1840,6 +1841,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          barcode?: string | null
           category?: string | null
           cost?: number | null
           created_at?: string
@@ -1861,6 +1863,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          barcode?: string | null
           category?: string | null
           cost?: number | null
           created_at?: string
@@ -2286,6 +2289,88 @@ export type Database = {
         }
         Relationships: []
       }
+      scans: {
+        Row: {
+          barcode: string
+          confidence_score: number | null
+          created_at: string
+          device_info: Json | null
+          id: string
+          location_data: Json | null
+          order_id: string | null
+          outlet_id: string | null
+          processed: boolean | null
+          processed_at: string | null
+          processing_notes: string | null
+          processing_status: string | null
+          product_id: string | null
+          raw_data: string | null
+          scan_method: string
+          scan_type: string
+          scanned_by: string
+        }
+        Insert: {
+          barcode: string
+          confidence_score?: number | null
+          created_at?: string
+          device_info?: Json | null
+          id?: string
+          location_data?: Json | null
+          order_id?: string | null
+          outlet_id?: string | null
+          processed?: boolean | null
+          processed_at?: string | null
+          processing_notes?: string | null
+          processing_status?: string | null
+          product_id?: string | null
+          raw_data?: string | null
+          scan_method: string
+          scan_type: string
+          scanned_by: string
+        }
+        Update: {
+          barcode?: string
+          confidence_score?: number | null
+          created_at?: string
+          device_info?: Json | null
+          id?: string
+          location_data?: Json | null
+          order_id?: string | null
+          outlet_id?: string | null
+          processed?: boolean | null
+          processed_at?: string | null
+          processing_notes?: string | null
+          processing_status?: string | null
+          product_id?: string | null
+          raw_data?: string | null
+          scan_method?: string
+          scan_type?: string
+          scanned_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scans_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scans_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scans_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shopify_sync_log: {
         Row: {
           completed_at: string | null
@@ -2338,6 +2423,9 @@ export type Database = {
           product_id: string
           recount_count: number | null
           recount_required: boolean | null
+          scan_timestamp: string | null
+          scanned: boolean | null
+          scanned_by: string | null
           system_quantity: number
           unit_cost: number | null
           variance: number | null
@@ -2357,6 +2445,9 @@ export type Database = {
           product_id: string
           recount_count?: number | null
           recount_required?: boolean | null
+          scan_timestamp?: string | null
+          scanned?: boolean | null
+          scanned_by?: string | null
           system_quantity: number
           unit_cost?: number | null
           variance?: number | null
@@ -2376,6 +2467,9 @@ export type Database = {
           product_id?: string
           recount_count?: number | null
           recount_required?: boolean | null
+          scan_timestamp?: string | null
+          scanned?: boolean | null
+          scanned_by?: string | null
           system_quantity?: number
           unit_cost?: number | null
           variance?: number | null
@@ -3286,6 +3380,10 @@ export type Database = {
       mark_expired_confirmations: {
         Args: Record<PropertyKey, never>
         Returns: number
+      }
+      match_barcode_to_product: {
+        Args: { p_barcode: string }
+        Returns: string
       }
       normalize_phone: {
         Args: { p_phone: string }

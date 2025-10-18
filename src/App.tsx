@@ -96,6 +96,9 @@ const ActivityLogs = lazy(() =>
 const POSMain = lazy(() =>
   import("@/pages/POS/POSMain").then(module => ({ default: module.default }))
 );
+const ScanHistory = lazy(() =>
+  import("@/pages/Barcode/ScanHistory").then(module => ({ default: module.default }))
+);
 
 // Optimized QueryClient configuration for performance
 const queryClient = new QueryClient({
@@ -285,6 +288,11 @@ const App = () => {
                 <Route path="pos" element={
                   <Suspense fallback={<PageLoader />}>
                     <POSMain />
+                  </Suspense>
+                } />
+                <Route path="scan-history" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <ScanHistory />
                   </Suspense>
                 } />
                 <Route path="*" element={
