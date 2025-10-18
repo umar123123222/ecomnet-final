@@ -1001,6 +1001,78 @@ export type Database = {
         }
         Relationships: []
       }
+      order_confirmations: {
+        Row: {
+          confirmation_type: string
+          created_at: string | null
+          customer_id: string
+          customer_response: string | null
+          error_message: string | null
+          id: string
+          message_content: string | null
+          message_id: string | null
+          order_id: string
+          response_at: string | null
+          retry_count: number | null
+          retry_scheduled_at: string | null
+          sent_at: string | null
+          sent_via: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          confirmation_type: string
+          created_at?: string | null
+          customer_id: string
+          customer_response?: string | null
+          error_message?: string | null
+          id?: string
+          message_content?: string | null
+          message_id?: string | null
+          order_id: string
+          response_at?: string | null
+          retry_count?: number | null
+          retry_scheduled_at?: string | null
+          sent_at?: string | null
+          sent_via?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          confirmation_type?: string
+          created_at?: string | null
+          customer_id?: string
+          customer_response?: string | null
+          error_message?: string | null
+          id?: string
+          message_content?: string | null
+          message_id?: string | null
+          order_id?: string
+          response_at?: string | null
+          retry_count?: number | null
+          retry_scheduled_at?: string | null
+          sent_at?: string | null
+          sent_via?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_confirmations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_confirmations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           created_at: string
@@ -1041,6 +1113,11 @@ export type Database = {
           assigned_to: string | null
           city: string
           comments: Json | null
+          confirmation_deadline: string | null
+          confirmation_required: boolean | null
+          confirmation_status: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
           courier: Database["public"]["Enums"]["courier_type"] | null
           created_at: string | null
           customer_address: string
@@ -1082,6 +1159,11 @@ export type Database = {
           assigned_to?: string | null
           city: string
           comments?: Json | null
+          confirmation_deadline?: string | null
+          confirmation_required?: boolean | null
+          confirmation_status?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           courier?: Database["public"]["Enums"]["courier_type"] | null
           created_at?: string | null
           customer_address: string
@@ -1123,6 +1205,11 @@ export type Database = {
           assigned_to?: string | null
           city?: string
           comments?: Json | null
+          confirmation_deadline?: string | null
+          confirmation_required?: boolean | null
+          confirmation_status?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           courier?: Database["public"]["Enums"]["courier_type"] | null
           created_at?: string | null
           customer_address?: string
@@ -3195,6 +3282,10 @@ export type Database = {
       mark_all_notifications_read: {
         Args: { p_user_id: string }
         Returns: undefined
+      }
+      mark_expired_confirmations: {
+        Args: Record<PropertyKey, never>
+        Returns: number
       }
       normalize_phone: {
         Args: { p_phone: string }
