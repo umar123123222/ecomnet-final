@@ -160,26 +160,17 @@ const BusinessSettings = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="portalUrl">Portal URL</Label>
-                <div className="flex gap-2">
-                  <Link className="h-9 w-9 flex items-center justify-center border rounded-md" />
-                  <Input id="portalUrl" placeholder="https://yourcompany.com" value={portalUrl} onChange={e => setPortalUrl(e.target.value)} className="flex-1" />
-                </div>
+                <Input id="portalUrl" placeholder="https://yourcompany.com" value={portalUrl} onChange={e => setPortalUrl(e.target.value)} />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="companyEmail">Company Email</Label>
-                <div className="flex gap-2">
-                  <Mail className="h-9 w-9 flex items-center justify-center border rounded-md" />
-                  <Input id="companyEmail" type="email" placeholder="contact@company.com" value={companyEmail} onChange={e => setCompanyEmail(e.target.value)} className="flex-1" />
-                </div>
+                <Input id="companyEmail" type="email" placeholder="contact@company.com" value={companyEmail} onChange={e => setCompanyEmail(e.target.value)} />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="companyPhone">Company Phone Number</Label>
-                <div className="flex gap-2">
-                  <Phone className="h-9 w-9 flex items-center justify-center border rounded-md" />
-                  <Input id="companyPhone" placeholder="+92 300 1234567" value={companyPhone} onChange={e => setCompanyPhone(e.target.value)} className="flex-1" />
-                </div>
+                <Input id="companyPhone" placeholder="+92 300 1234567" value={companyPhone} onChange={e => setCompanyPhone(e.target.value)} />
               </div>
 
               <Separator />
