@@ -56,3 +56,24 @@ verify_jwt = false
 
 [functions.process-stock-count]
 verify_jwt = true
+
+[functions.process-scan]
+verify_jwt = true
+
+[functions.process-pos-sale]
+verify_jwt = true
+
+[functions.open-pos-session]
+verify_jwt = true
+
+[functions.close-pos-session]
+verify_jwt = true
+
+[functions.send-order-confirmation]
+verify_jwt = true
+
+[functions.process-confirmation-response]
+verify_jwt = false
+
+[functions.retry-failed-confirmations]
+verify_jwt = false

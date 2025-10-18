@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download } from "lucide-react";
+import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, ScanBarcode } from "lucide-react";
+import { BarcodeScanner } from '@/components/barcode/BarcodeScanner';
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
@@ -15,11 +16,15 @@ import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
 import { BulkOperationsPanel } from '@/components/BulkOperationsPanel';
 import { bulkToggleProducts, bulkUpdateProductCategory, exportToCSV } from '@/utils/bulkOperations';
+import { useToast } from '@/hooks/use-toast';
 
 const ProductManagement = () => {
+  const { toast } = useToast();
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanningProductId, setScanningProductId] = useState<string | null>(null);
   const { progress, executeBulkOperation } = useBulkOperations();
 
 
@@ -199,11 +204,10 @@ const ProductManagement = () => {
                       />
                     </TableHead>
                     <TableHead>SKU</TableHead>
+                    <TableHead>Barcode</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead className="text-right">Price</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
-                    <TableHead className="text-right">Reorder Level</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -219,13 +223,26 @@ const ProductManagement = () => {
                           />
                         </TableCell>
                         <TableCell className="font-mono text-sm">{product.sku}</TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {(product as any).barcode || (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setScanningProductId(product.id);
+                                setScannerOpen(true);
+                              }}
+                            >
+                              <ScanBarcode className="h-3 w-3 mr-1" />
+                              Add
+                            </Button>
+                          )}
+                        </TableCell>
                         <TableCell className="font-medium">{product.name}</TableCell>
                         <TableCell>
                           <Badge variant="outline">{product.category || 'Uncategorized'}</Badge>
                         </TableCell>
                         <TableCell className="text-right">Rs. {product.price?.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">Rs. {product.cost?.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">{product.reorder_level || 10}</TableCell>
                         <TableCell>
                           {product.is_active ? (
                             <Badge variant="outline" className="border-green-500 text-green-500">
@@ -253,9 +270,9 @@ const ProductManagement = () => {
                         </TableCell>
                       </TableRow>
                     ))
-                  ) : (
+                   ) : (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         No products found
                       </TableCell>
                     </TableRow>
@@ -275,6 +292,33 @@ const ProductManagement = () => {
           if (!open) setSelectedProduct(null);
         }}
         product={selectedProduct}
+      />
+
+      <BarcodeScanner
+        isOpen={scannerOpen}
+        onClose={() => {
+          setScannerOpen(false);
+          setScanningProductId(null);
+        }}
+        onScan={async (result) => {
+          if (scanningProductId) {
+            const { error } = await supabase
+              .from('products')
+              .update({ barcode: result.barcode })
+              .eq('id', scanningProductId);
+            
+            if (!error) {
+              toast({
+                title: 'Barcode Added',
+                description: `Barcode ${result.barcode} assigned to product`,
+              });
+            }
+          }
+          setScannerOpen(false);
+          setScanningProductId(null);
+        }}
+        scanType="product"
+        title="Scan Product Barcode"
       />
     </div>
   );

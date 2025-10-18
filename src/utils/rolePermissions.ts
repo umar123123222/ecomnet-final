@@ -37,6 +37,8 @@ export const getRolePermissions = (role: UserRole) => {
     canAccessFraudReporting: false,
     canAccessSupplierPortal: false,
     canAccessPackaging: false,
+    canAccessPOS: false,
+    canAccessScanHistory: false,
   };
 
   switch (role) {
@@ -75,6 +77,8 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessVarianceManagement: true,
         canAccessFraudReporting: true,
         canAccessPackaging: true,
+        canAccessPOS: true,
+        canAccessScanHistory: true,
       };
     
     case 'super_manager':
@@ -104,6 +108,8 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessVarianceManagement: true,
         canAccessFraudReporting: true,
         canAccessPackaging: true,
+        canAccessPOS: true,
+        canAccessScanHistory: true,
         // No admin panel access
       };
     
@@ -128,6 +134,8 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessStockAudit: true,
         canAccessVarianceManagement: true,
         canAccessFraudReporting: true,
+        canAccessPOS: true,
+        canAccessScanHistory: true,
       };
     
     case 'warehouse_manager':
@@ -146,6 +154,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessStockAudit: true,
         canAccessVarianceManagement: true,
         canAccessPackaging: true,
+        canAccessScanHistory: true,
       };
     
     case 'dispatch_manager':
@@ -362,6 +371,24 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       label: 'Business Settings',
       href: '/business-settings',
       icon: 'Building'
+    });
+  }
+
+  if (permissions.canAccessPOS || permissions.canAccessScanHistory) {
+    const operationsSubItems: NavigationItem[] = [];
+    
+    if (permissions.canAccessPOS) {
+      operationsSubItems.push({ label: 'Point of Sale', href: '/pos', icon: '' });
+    }
+    if (permissions.canAccessScanHistory) {
+      operationsSubItems.push({ label: 'Scan History', href: '/scan-history', icon: '' });
+    }
+
+    items.push({
+      label: 'Operations',
+      href: '/pos',
+      icon: 'Activity',
+      subItems: operationsSubItems
     });
   }
 
