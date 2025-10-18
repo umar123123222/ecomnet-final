@@ -35,7 +35,7 @@ const Layout = () => {
     const icons = {
       Home, Package, Truck, RotateCcw, Users, Settings, Shield, MapPin, Box, Building2, ArrowRightLeft, Warehouse, Activity
     };
-    return icons[iconName as keyof typeof icons] || Home;
+    return icons[iconName as keyof typeof icons] || Package;
   };
 
   // Check if current route matches any navigation item

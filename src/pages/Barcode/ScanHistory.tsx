@@ -31,18 +31,17 @@ const ScanHistory = () => {
         .select(`
           *,
           product:products(name, sku, barcode),
-          order:orders(order_number),
           outlet:outlets(name)
         `)
         .order('created_at', { ascending: false })
         .limit(100);
 
       if (searchQuery) {
-        query = query.or(`barcode.ilike.%${searchQuery}%,raw_data.ilike.%${searchQuery}%`);
+        query = query.or(`barcode.ilike.%${searchQuery}%,metadata.ilike.%${searchQuery}%`);
       }
 
       if (statusFilter !== 'all') {
-        query = query.eq('processing_status', statusFilter);
+        query = query.eq('status', statusFilter);
       }
 
       if (typeFilter !== 'all') {
@@ -60,21 +59,21 @@ const ScanHistory = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('scans')
-        .select('processing_status, scan_type, scan_method')
+        .select('status, scan_type, scan_method')
         .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 
       if (error) throw error;
 
       const totalScans = data.length;
-      const successfulScans = data.filter((s) => s.processing_status === 'processed').length;
-      const failedScans = data.filter((s) => s.processing_status === 'failed').length;
-      const duplicateScans = data.filter((s) => s.processing_status === 'duplicate').length;
+      const successfulScans = data.filter((s) => s.status === 'success').length;
+      const failedScans = data.filter((s) => s.status === 'failed').length;
+      const errorScans = data.filter((s) => s.status === 'error').length;
 
       return {
         total: totalScans,
         successful: successfulScans,
-        failed: failedScans,
-        duplicate: duplicateScans,
+        failed: failedScans + errorScans,
+        duplicate: 0,
         successRate: totalScans > 0 ? ((successfulScans / totalScans) * 100).toFixed(1) : '0',
       };
     },
