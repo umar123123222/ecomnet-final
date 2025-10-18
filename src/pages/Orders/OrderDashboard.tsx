@@ -1026,6 +1026,48 @@ const OrderDashboard = () => {
                                       <p><span className="font-medium">Delivered At:</span> {order.deliveredAt}</p>
                                       <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
                                     </div>
+                                    
+                                    {/* Manual Verification Buttons */}
+                                    {(order.status === 'pending_confirmation' || order.status === 'pending_address') && (
+                                      <div className="mt-4 flex flex-col gap-2">
+                                        {order.status === 'pending_confirmation' && (
+                                          <Button
+                                            size="sm"
+                                            variant="default"
+                                            onClick={() => {
+                                              toast({
+                                                title: "Order Verified",
+                                                description: "Order has been manually verified.",
+                                              });
+                                              // TODO: Implement actual verification logic
+                                            }}
+                                            className="w-full"
+                                          >
+                                            <CheckCircle className="h-4 w-4 mr-2" />
+                                            Verify Order
+                                          </Button>
+                                        )}
+                                        
+                                        {order.status === 'pending_address' && (
+                                          <Button
+                                            size="sm"
+                                            variant="default"
+                                            onClick={() => {
+                                              toast({
+                                                title: "Address Verified",
+                                                description: "Address has been manually verified.",
+                                              });
+                                              // TODO: Implement actual verification logic
+                                            }}
+                                            className="w-full"
+                                          >
+                                            <MapPin className="h-4 w-4 mr-2" />
+                                            Verify Address
+                                          </Button>
+                                        )}
+                                      </div>
+                                    )}
+                                    
                                     {order.status === 'booked' && (
                                       <Button
                                         size="sm"
