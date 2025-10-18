@@ -147,6 +147,54 @@ export type Database = {
         }
         Relationships: []
       }
+      cash_drawer_events: {
+        Row: {
+          amount: number
+          created_at: string | null
+          created_by: string
+          event_type: string
+          id: string
+          notes: string | null
+          reference_id: string | null
+          session_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          created_by: string
+          event_type: string
+          id?: string
+          notes?: string | null
+          reference_id?: string | null
+          session_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          created_by?: string
+          event_type?: string
+          id?: string
+          notes?: string | null
+          reference_id?: string | null
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_drawer_events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_drawer_events_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "pos_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           created_at: string
@@ -1242,6 +1290,323 @@ export type Database = {
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_receipts: {
+        Row: {
+          created_at: string | null
+          id: string
+          printed_at: string | null
+          printed_by: string | null
+          receipt_data: Json
+          receipt_number: string
+          receipt_type: string
+          sale_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          printed_at?: string | null
+          printed_by?: string | null
+          receipt_data: Json
+          receipt_number: string
+          receipt_type: string
+          sale_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          printed_at?: string | null
+          printed_by?: string | null
+          receipt_data?: Json
+          receipt_number?: string
+          receipt_type?: string
+          sale_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_receipts_printed_by_fkey"
+            columns: ["printed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_receipts_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "pos_sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_sale_items: {
+        Row: {
+          created_at: string | null
+          discount_amount: number | null
+          discount_percent: number | null
+          id: string
+          line_total: number
+          product_id: string
+          quantity: number
+          sale_id: string
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string | null
+          discount_amount?: number | null
+          discount_percent?: number | null
+          id?: string
+          line_total: number
+          product_id: string
+          quantity: number
+          sale_id: string
+          unit_price: number
+        }
+        Update: {
+          created_at?: string | null
+          discount_amount?: number | null
+          discount_percent?: number | null
+          id?: string
+          line_total?: number
+          product_id?: string
+          quantity?: number
+          sale_id?: string
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_sale_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_sale_items_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "pos_sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_sales: {
+        Row: {
+          amount_paid: number
+          cashier_id: string
+          change_amount: number | null
+          created_at: string | null
+          customer_id: string | null
+          discount_amount: number | null
+          id: string
+          notes: string | null
+          outlet_id: string
+          payment_method: string
+          payment_reference: string | null
+          receipt_printed: boolean | null
+          sale_date: string | null
+          sale_number: string
+          session_id: string
+          status: string
+          subtotal: number
+          tax_amount: number | null
+          total_amount: number
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        Insert: {
+          amount_paid: number
+          cashier_id: string
+          change_amount?: number | null
+          created_at?: string | null
+          customer_id?: string | null
+          discount_amount?: number | null
+          id?: string
+          notes?: string | null
+          outlet_id: string
+          payment_method: string
+          payment_reference?: string | null
+          receipt_printed?: boolean | null
+          sale_date?: string | null
+          sale_number: string
+          session_id: string
+          status?: string
+          subtotal: number
+          tax_amount?: number | null
+          total_amount: number
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Update: {
+          amount_paid?: number
+          cashier_id?: string
+          change_amount?: number | null
+          created_at?: string | null
+          customer_id?: string | null
+          discount_amount?: number | null
+          id?: string
+          notes?: string | null
+          outlet_id?: string
+          payment_method?: string
+          payment_reference?: string | null
+          receipt_printed?: boolean | null
+          sale_date?: string | null
+          sale_number?: string
+          session_id?: string
+          status?: string
+          subtotal?: number
+          tax_amount?: number | null
+          total_amount?: number
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_sales_cashier_id_fkey"
+            columns: ["cashier_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_sales_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_sales_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_sales_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "pos_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_sales_voided_by_fkey"
+            columns: ["voided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_sessions: {
+        Row: {
+          cash_difference: number | null
+          cashier_id: string
+          closed_at: string | null
+          closing_cash: number | null
+          created_at: string | null
+          expected_cash: number | null
+          id: string
+          notes: string | null
+          opened_at: string | null
+          opening_cash: number
+          outlet_id: string
+          register_number: string | null
+          session_number: string
+          status: string
+        }
+        Insert: {
+          cash_difference?: number | null
+          cashier_id: string
+          closed_at?: string | null
+          closing_cash?: number | null
+          created_at?: string | null
+          expected_cash?: number | null
+          id?: string
+          notes?: string | null
+          opened_at?: string | null
+          opening_cash?: number
+          outlet_id: string
+          register_number?: string | null
+          session_number: string
+          status?: string
+        }
+        Update: {
+          cash_difference?: number | null
+          cashier_id?: string
+          closed_at?: string | null
+          closing_cash?: number | null
+          created_at?: string | null
+          expected_cash?: number | null
+          id?: string
+          notes?: string | null
+          opened_at?: string | null
+          opening_cash?: number
+          outlet_id?: string
+          register_number?: string | null
+          session_number?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_sessions_cashier_id_fkey"
+            columns: ["cashier_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_sessions_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_transactions: {
+        Row: {
+          amount: number
+          created_at: string | null
+          id: string
+          payment_method: string
+          payment_reference: string | null
+          processed_at: string | null
+          sale_id: string
+          transaction_status: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          id?: string
+          payment_method: string
+          payment_reference?: string | null
+          processed_at?: string | null
+          sale_id: string
+          transaction_status?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          id?: string
+          payment_method?: string
+          payment_reference?: string | null
+          processed_at?: string | null
+          sale_id?: string
+          transaction_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_transactions_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "pos_sales"
             referencedColumns: ["id"]
           },
         ]
@@ -2793,6 +3158,18 @@ export type Database = {
     Functions: {
       calculate_variance_severity: {
         Args: { variance_value: number }
+        Returns: string
+      }
+      generate_receipt_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      generate_sale_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      generate_session_number: {
+        Args: Record<PropertyKey, never>
         Returns: string
       }
       get_current_user_role: {
