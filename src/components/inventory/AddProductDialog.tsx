@@ -27,6 +27,9 @@ const productSchema = z.object({
   unit_type: z.enum(['ml', 'grams', 'liters', 'kg', 'pieces', 'boxes']).optional(),
   requires_packaging: z.boolean().default(false),
   supplier_id: z.string().optional(),
+  product_type: z.enum(['raw_material', 'finished', 'both']).optional(),
+  barcode: z.string().optional(),
+  barcode_format: z.enum(['CODE128', 'EAN13', 'EAN8', 'UPC', 'QR']).optional(),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -71,6 +74,9 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
       unit_type: product.unit_type || undefined,
       requires_packaging: product.requires_packaging || false,
       supplier_id: product.supplier_id || undefined,
+      product_type: product.product_type || 'finished',
+      barcode: product.barcode || "",
+      barcode_format: product.barcode_format || 'CODE128',
     } : {
       sku: "",
       name: "",
@@ -84,6 +90,9 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
       unit_type: undefined,
       requires_packaging: false,
       supplier_id: undefined,
+      product_type: 'finished',
+      barcode: "",
+      barcode_format: 'CODE128',
     },
   });
 
@@ -91,6 +100,8 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
   const requiresPackaging = watch("requires_packaging");
   const unitType = watch("unit_type");
   const supplierId = watch("supplier_id");
+  const productType = watch("product_type");
+  const barcodeFormat = watch("barcode_format");
 
   const onSubmit = async (data: ProductFormData) => {
     setIsSubmitting(true);
@@ -298,6 +309,53 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
               {errors.reorder_level && (
                 <p className="text-sm text-red-500">{errors.reorder_level.message}</p>
               )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="product_type">Product Type</Label>
+              <Select 
+                value={productType} 
+                onValueChange={(value) => setValue("product_type", value as any)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="finished">Finished Product</SelectItem>
+                  <SelectItem value="raw_material">Raw Material</SelectItem>
+                  <SelectItem value="both">Both</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="barcode">Barcode</Label>
+              <Input
+                id="barcode"
+                {...register("barcode")}
+                placeholder="Optional barcode"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="barcode_format">Barcode Format</Label>
+              <Select 
+                value={barcodeFormat} 
+                onValueChange={(value) => setValue("barcode_format", value as any)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select format" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CODE128">CODE128</SelectItem>
+                  <SelectItem value="EAN13">EAN13</SelectItem>
+                  <SelectItem value="EAN8">EAN8</SelectItem>
+                  <SelectItem value="UPC">UPC</SelectItem>
+                  <SelectItem value="QR">QR Code</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

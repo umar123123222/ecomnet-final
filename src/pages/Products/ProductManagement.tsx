@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, ScanBarcode } from "lucide-react";
+import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, ScanBarcode, Printer } from "lucide-react";
 import { BarcodeScanner } from '@/components/barcode/BarcodeScanner';
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
@@ -255,18 +255,31 @@ const ProductManagement = () => {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-2"
-                            onClick={() => {
-                              setSelectedProduct(product);
-                              setProductDialogOpen(true);
-                            }}
-                          >
-                            <Edit className="h-3 w-3" />
-                            Edit
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="gap-2"
+                              onClick={() => {
+                                setSelectedProduct(product);
+                                setProductDialogOpen(true);
+                              }}
+                            >
+                              <Edit className="h-3 w-3" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="gap-2"
+                              onClick={() => {
+                                window.open(`/production/labels?product=${product.id}&type=finished_product`, '_blank');
+                              }}
+                            >
+                              <Printer className="h-3 w-3" />
+                              Labels
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

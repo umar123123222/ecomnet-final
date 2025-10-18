@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Package, AlertTriangle } from "lucide-react";
+import { Plus, Search, Package, AlertTriangle, Printer, Edit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Table,
@@ -297,13 +297,26 @@ export default function PackagingManagement() {
                     </TableCell>
                     <TableCell>PKR {item.cost.toFixed(2)}</TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEdit(item)}
-                      >
-                        Edit
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEdit(item)}
+                        >
+                          <Edit className="h-3 w-3 mr-1" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            window.open(`/production/labels?packaging=${item.id}&type=packaging`, '_blank');
+                          }}
+                        >
+                          <Printer className="h-3 w-3 mr-1" />
+                          Labels
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

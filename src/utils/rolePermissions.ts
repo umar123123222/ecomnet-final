@@ -298,6 +298,20 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     });
   }
 
+  // 6.5 PRODUCTION - Manufacturing & barcode printing
+  if (['super_admin', 'super_manager', 'warehouse_manager', 'store_manager'].includes(role)) {
+    items.push({
+      label: 'Production',
+      href: '/production',
+      icon: 'Factory',
+      subItems: [
+        { label: 'Production Batches', href: '/production', icon: '' },
+        { label: 'Bill of Materials', href: '/production/bom', icon: '' },
+        { label: 'Print Labels', href: '/production/labels', icon: '' }
+      ]
+    });
+  }
+
   // 7. PROCUREMENT - Supplier & purchasing operations
   if (permissions.canAccessSuppliers || permissions.canAccessPurchaseOrders || permissions.canAccessReceiving || permissions.canAccessStockAudit || permissions.canAccessVarianceManagement) {
     const procurementSubItems: NavigationItem[] = [];
