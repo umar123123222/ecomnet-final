@@ -28,6 +28,26 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
   const [notes, setNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Fetch last 7 sessions
+  const { data: recentSessions } = useQuery({
+    queryKey: ['recent-pos-sessions', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('pos_sessions')
+        .select('session_number, opening_cash, closing_cash, opened_at, closed_at, status')
+        .eq('cashier_id', user.id)
+        .eq('status', 'closed')
+        .order('closed_at', { ascending: false })
+        .limit(7);
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
   // Fetch accessible outlets for the current user
   const { data: accessibleOutlets } = useQuery({
     queryKey: ['accessible-outlets', user?.id],
@@ -163,6 +183,30 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
           <DialogHeader>
             <DialogTitle>Open POS Session</DialogTitle>
           </DialogHeader>
+          
+          {/* Recent Sessions History */}
+          {recentSessions && recentSessions.length > 0 && (
+            <div className="border rounded-lg p-3 mb-4 bg-muted/50">
+              <h4 className="text-sm font-semibold mb-2">Recent Sessions (Last 7 Days)</h4>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {recentSessions.map((session) => (
+                  <div key={session.session_number} className="flex justify-between text-xs border-b pb-1">
+                    <div>
+                      <div className="font-medium">{session.session_number}</div>
+                      <div className="text-muted-foreground">
+                        {new Date(session.closed_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div>Open: ${session.opening_cash.toFixed(2)}</div>
+                      <div>Close: ${session.closing_cash?.toFixed(2) || '0.00'}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-4 py-4">
             <div>
               <Label>Assigned Outlet</Label>

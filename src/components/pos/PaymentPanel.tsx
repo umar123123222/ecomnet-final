@@ -6,7 +6,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { POSCartItem } from '@/types/pos';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { ArrowLeft, CreditCard, Smartphone, Banknote } from 'lucide-react';
+import { ArrowLeft, CreditCard, Smartphone, Banknote, Printer } from 'lucide-react';
 
 interface PaymentPanelProps {
   cart: POSCartItem[];
@@ -30,6 +30,71 @@ const PaymentPanel = ({ cart, sessionId, outletId, onBack, onComplete }: Payment
 
   const total = calculateTotal();
   const change = parseFloat(amountPaid || '0') - total;
+
+  const printReceipt = (sale: any, outlet: any) => {
+    const receiptWindow = window.open('', '', 'width=300,height=600');
+    if (!receiptWindow) return;
+
+    const receiptHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Receipt - ${sale.sale_number}</title>
+        <style>
+          body { font-family: monospace; width: 300px; margin: 0; padding: 20px; }
+          h1 { text-align: center; font-size: 18px; margin: 10px 0; }
+          .divider { border-top: 1px dashed #000; margin: 10px 0; }
+          .item { display: flex; justify-content: space-between; margin: 5px 0; }
+          .total { font-weight: bold; font-size: 16px; margin-top: 10px; }
+          .center { text-align: center; }
+          .small { font-size: 11px; }
+        </style>
+      </head>
+      <body>
+        <h1>${outlet?.name || 'POS Receipt'}</h1>
+        <div class="center small">${outlet?.address || ''}</div>
+        <div class="divider"></div>
+        <div class="small">
+          <div>Receipt: ${sale.sale_number}</div>
+          <div>Date: ${new Date(sale.created_at).toLocaleString()}</div>
+          <div>Cashier: ${sale.cashier_id}</div>
+        </div>
+        <div class="divider"></div>
+        ${cart.map(item => `
+          <div class="item">
+            <span>${item.name} x${item.quantity}</span>
+            <span>$${((item.unit_price * item.quantity) - ((item.unit_price * item.quantity * item.discount_percent) / 100)).toFixed(2)}</span>
+          </div>
+          ${item.discount_percent > 0 ? `<div class="small" style="margin-left: 20px;">Discount ${item.discount_percent}%</div>` : ''}
+        `).join('')}
+        <div class="divider"></div>
+        <div class="item total">
+          <span>TOTAL</span>
+          <span>$${sale.total_amount.toFixed(2)}</span>
+        </div>
+        <div class="item">
+          <span>Paid (${sale.payment_method})</span>
+          <span>$${sale.amount_paid.toFixed(2)}</span>
+        </div>
+        <div class="item">
+          <span>Change</span>
+          <span>$${sale.change_amount.toFixed(2)}</span>
+        </div>
+        <div class="divider"></div>
+        <div class="center small">Thank you for your purchase!</div>
+        <script>
+          window.onload = () => {
+            window.print();
+            setTimeout(() => window.close(), 500);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    receiptWindow.document.write(receiptHTML);
+    receiptWindow.document.close();
+  };
 
   const handlePayment = async () => {
     if (parseFloat(amountPaid) < total) {
@@ -59,7 +124,18 @@ const PaymentPanel = ({ cart, sessionId, outletId, onBack, onComplete }: Payment
 
       if (error) throw error;
 
+      // Fetch outlet details for receipt
+      const { data: outletData } = await supabase
+        .from('outlets')
+        .select('name, address')
+        .eq('id', outletId)
+        .single();
+
       toast.success(`Sale completed: ${data.sale.sale_number}`);
+      
+      // Print receipt
+      printReceipt(data.sale, outletData);
+      
       onComplete();
     } catch (error: any) {
       toast.error(error.message || 'Payment failed');
