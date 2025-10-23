@@ -27,6 +27,7 @@ import { bulkUpdateOrderStatus, bulkUpdateOrderCourier, bulkAssignOrders, export
 import { useToast } from '@/hooks/use-toast';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { batchAnalyzeOrders } from '@/utils/orderFraudDetection';
+import { BulkUploadDialog } from '@/components/orders/BulkUploadDialog';
 
 const OrderDashboard = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
@@ -59,6 +60,7 @@ const OrderDashboard = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
   const [combinedStatus, setCombinedStatus] = useState<string>('all');
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
 
   const { user } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
@@ -577,10 +579,15 @@ const OrderDashboard = () => {
               Refresh
             </Button>
             <NewOrderDialog onOrderCreated={handleNewOrderCreated} />
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => setShowBulkUpload(true)}>
               <Upload className="h-4 w-4 mr-2" />
               Bulk Upload
             </Button>
+            <BulkUploadDialog 
+              open={showBulkUpload} 
+              onOpenChange={setShowBulkUpload}
+              onSuccess={handleNewOrderCreated}
+            />
           </div>
         </div>
 
