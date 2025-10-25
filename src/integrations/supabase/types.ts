@@ -3614,20 +3614,11 @@ export type Database = {
         Args: { variance_value: number }
         Returns: string
       }
-      generate_receipt_number: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      generate_sale_number: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      generate_session_number: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      generate_receipt_number: { Args: never; Returns: string }
+      generate_sale_number: { Args: never; Returns: string }
+      generate_session_number: { Args: never; Returns: string }
       get_current_user_role: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
       get_user_roles: {
@@ -3638,34 +3629,16 @@ export type Database = {
         Args: { _outlet_id: string; _user_id: string }
         Returns: boolean
       }
-      is_manager: {
-        Args: { _user_id: string }
-        Returns: boolean
-      }
-      is_super_admin: {
-        Args: { _user_id: string }
-        Returns: boolean
-      }
-      is_supplier: {
-        Args: { _user_id: string }
-        Returns: boolean
-      }
+      is_manager: { Args: { _user_id: string }; Returns: boolean }
+      is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_supplier: { Args: { _user_id: string }; Returns: boolean }
       mark_all_notifications_read: {
         Args: { p_user_id: string }
         Returns: undefined
       }
-      mark_expired_confirmations: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      match_barcode_to_product: {
-        Args: { p_barcode: string }
-        Returns: string
-      }
-      normalize_phone: {
-        Args: { p_phone: string }
-        Returns: string
-      }
+      mark_expired_confirmations: { Args: never; Returns: number }
+      match_barcode_to_product: { Args: { p_barcode: string }; Returns: string }
+      normalize_phone: { Args: { p_phone: string }; Returns: string }
       user_has_role: {
         Args: {
           check_role: Database["public"]["Enums"]["user_role"]
