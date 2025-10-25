@@ -279,7 +279,7 @@ serve(async (req) => {
         
         console.log('User created successfully');
         
-        // Fetch complete user data with roles
+        // Fetch complete user data with roles (LEFT join to include users even without roles)
         const { data: newUserProfile, error: fetchError } = await supabaseAdmin
           .from('profiles')
           .select(`
@@ -290,17 +290,23 @@ serve(async (req) => {
             is_active,
             created_at,
             updated_at,
-            user_roles!inner (
+            user_roles (
               role,
               is_active
             )
           `)
           .eq('id', authData.user.id)
-          .single()
-        
-        if (fetchError) {
+          .maybeSingle();
+
+        if (fetchError || !newUserProfile) {
           console.error('Error fetching user profile:', fetchError);
-          throw fetchError;
+          return new Response(
+            JSON.stringify({ 
+              error: 'User created but failed to fetch profile',
+              details: fetchError?.message || 'Profile not found after creation'
+            }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
         
         console.log('Fetched user profile with roles:', JSON.stringify(newUserProfile, null, 2));
@@ -368,14 +374,47 @@ serve(async (req) => {
         
         console.log('Validated roles:', roles);
 
-        // Get old email before updating
-        const { data: oldProfile } = await supabaseAdmin
+        // Fetch the old email to check if it's changing
+        const { data: oldProfile, error: profileCheckError } = await supabaseAdmin
           .from('profiles')
           .select('email')
           .eq('id', userId)
-          .single()
-        
-        const oldEmail = oldProfile?.email
+          .maybeSingle();
+
+        // If user doesn't exist, return 404
+        if (profileCheckError || !oldProfile) {
+          console.error('User not found:', userId, profileCheckError?.message);
+          return new Response(
+            JSON.stringify({ 
+              error: 'User not found',
+              details: 'No user exists with this ID'
+            }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const oldEmail = oldProfile.email;
+
+        // If email is changing, check for duplicates
+        if (email !== oldEmail) {
+          const { data: duplicateProfile } = await supabaseAdmin
+            .from('profiles')
+            .select('id')
+            .eq('email', email)
+            .neq('id', userId)
+            .maybeSingle();
+          
+          if (duplicateProfile) {
+            console.error('Email already in use by another user');
+            return new Response(
+              JSON.stringify({ 
+                error: 'Email already in use',
+                details: 'Another user is already registered with this email'
+              }),
+              { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
 
         // Update auth email first if changed
         if (oldEmail && email !== oldEmail) {
@@ -459,7 +498,7 @@ serve(async (req) => {
 
         console.log('User updated successfully');
         
-        // Fetch updated user data with roles
+        // Fetch updated user data with roles (LEFT join to include users even without roles)
         const { data: updatedUserProfile, error: fetchError } = await supabaseAdmin
           .from('profiles')
           .select(`
@@ -470,17 +509,24 @@ serve(async (req) => {
             is_active,
             created_at,
             updated_at,
-            user_roles!inner (
+            user_roles (
               role,
               is_active
             )
           `)
           .eq('id', userId)
-          .single()
-        
-        if (fetchError) {
-          console.error('Error fetching updated profile:', fetchError);
-          throw fetchError;
+          .maybeSingle();
+
+        // Check if user was found
+        if (fetchError || !updatedUserProfile) {
+          console.error('Error fetching updated profile or user deleted:', fetchError);
+          return new Response(
+            JSON.stringify({ 
+              error: 'Failed to fetch updated user',
+              details: 'User may have been deleted during update'
+            }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
         
         console.log('Fetched updated profile with roles:', JSON.stringify(updatedUserProfile, null, 2));
