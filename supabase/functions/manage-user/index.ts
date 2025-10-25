@@ -230,20 +230,30 @@ serve(async (req) => {
         console.log('User created successfully');
         
         // Fetch complete user data with roles
-        const { data: newUserProfile } = await supabaseAdmin
+        const { data: newUserProfile, error: fetchError } = await supabaseAdmin
           .from('profiles')
           .select(`
             id,
             email,
             full_name,
             role,
-            user_roles (
+            is_active,
+            created_at,
+            updated_at,
+            user_roles!inner (
               role,
               is_active
             )
           `)
           .eq('id', authData.user.id)
           .single()
+        
+        if (fetchError) {
+          console.error('Error fetching user profile:', fetchError);
+          throw fetchError;
+        }
+        
+        console.log('Fetched user profile with roles:', JSON.stringify(newUserProfile, null, 2));
 
         return new Response(
           JSON.stringify({ 
@@ -360,20 +370,30 @@ serve(async (req) => {
         console.log('User updated successfully');
         
         // Fetch updated user data with roles
-        const { data: updatedUserProfile } = await supabaseAdmin
+        const { data: updatedUserProfile, error: fetchError } = await supabaseAdmin
           .from('profiles')
           .select(`
             id,
             email,
             full_name,
             role,
-            user_roles (
+            is_active,
+            created_at,
+            updated_at,
+            user_roles!inner (
               role,
               is_active
             )
           `)
           .eq('id', userId)
           .single()
+        
+        if (fetchError) {
+          console.error('Error fetching updated profile:', fetchError);
+          throw fetchError;
+        }
+        
+        console.log('Fetched updated profile with roles:', JSON.stringify(updatedUserProfile, null, 2));
 
         return new Response(
           JSON.stringify({ 

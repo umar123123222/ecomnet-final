@@ -152,18 +152,24 @@ const UserManagement = () => {
 
       return result;
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
+      console.log('User creation result:', result);
+      console.log('Profile with roles:', result?.profile);
+      console.log('User roles array:', result?.profile?.user_roles);
+      
       // Optimistically update cache with new user
       if (result?.profile) {
         queryClient.setQueryData(['users'], (prev: UserWithRoles[] = []) => {
-          // Only add if not already present
+          console.log('Previous users:', prev);
           const exists = prev.some(u => u.id === result.profile.id);
-          return exists ? prev : [result.profile, ...prev];
+          const newUsers = exists ? prev : [result.profile, ...prev];
+          console.log('New users array:', newUsers);
+          return newUsers;
         });
       }
       
-      // Still invalidate to ensure consistency
-      queryClient.invalidateQueries({
+      // Wait for refetch to complete before closing dialog
+      await queryClient.invalidateQueries({
         queryKey: ['users']
       });
       
@@ -209,9 +215,14 @@ const UserManagement = () => {
       });
     },
     onSuccess: async (result, variables) => {
+      console.log('User update result:', result);
+      console.log('Updated profile with roles:', result?.profile);
+      console.log('Updated user roles array:', result?.profile?.user_roles);
+      
       // Optimistically update cache with updated user
       if (result?.profile) {
         queryClient.setQueryData(['users'], (prev: UserWithRoles[] = []) => {
+          console.log('Updating user in cache:', result.profile.id);
           return prev.map(u => u.id === result.profile.id ? result.profile : u);
         });
       }
@@ -221,8 +232,8 @@ const UserManagement = () => {
         await refreshProfile();
       }
       
-      // Still invalidate to ensure consistency
-      queryClient.invalidateQueries({
+      // Wait for refetch to complete
+      await queryClient.invalidateQueries({
         queryKey: ['users']
       });
       
