@@ -1948,6 +1948,56 @@ export type Database = {
         }
         Relationships: []
       }
+      product_barcodes: {
+        Row: {
+          barcode_format: string
+          barcode_type: string
+          barcode_value: string
+          created_at: string
+          generated_at: string
+          generated_by: string | null
+          id: string
+          metadata: Json | null
+          product_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          barcode_format?: string
+          barcode_type: string
+          barcode_value: string
+          created_at?: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          metadata?: Json | null
+          product_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          barcode_format?: string
+          barcode_type?: string
+          barcode_value?: string
+          created_at?: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          metadata?: Json | null
+          product_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_barcodes_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_packaging: {
         Row: {
           created_at: string
@@ -3620,6 +3670,20 @@ export type Database = {
       get_current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      get_product_lifecycle: {
+        Args: { p_barcode: string }
+        Returns: {
+          barcode_format: string
+          barcode_type: string
+          barcode_value: string
+          generated_at: string
+          generated_by_name: string
+          product_id: string
+          product_name: string
+          product_sku: string
+          status: string
+        }[]
       }
       get_user_roles: {
         Args: { user_id: string }

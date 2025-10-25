@@ -7,10 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, ScanBarcode, Printer } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, ScanBarcode, Printer, QrCode } from "lucide-react";
 import { BarcodeScanner } from '@/components/barcode/BarcodeScanner';
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
+import { ProductBarcodeManager } from "@/components/barcode/ProductBarcodeManager";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
@@ -25,6 +27,8 @@ const ProductManagement = () => {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanningProductId, setScanningProductId] = useState<string | null>(null);
+  const [barcodeManagerOpen, setBarcodeManagerOpen] = useState(false);
+  const [barcodeProduct, setBarcodeProduct] = useState<Product | null>(null);
   const { progress, executeBulkOperation } = useBulkOperations();
 
 
@@ -269,6 +273,18 @@ const ProductManagement = () => {
                               Edit
                             </Button>
                             <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-2"
+                              onClick={() => {
+                                setBarcodeProduct(product);
+                                setBarcodeManagerOpen(true);
+                              }}
+                            >
+                              <QrCode className="h-3 w-3" />
+                              Barcodes
+                            </Button>
+                            <Button
                               variant="secondary"
                               size="sm"
                               className="gap-2"
@@ -333,6 +349,21 @@ const ProductManagement = () => {
         scanType="product"
         title="Scan Product Barcode"
       />
+
+      <Dialog open={barcodeManagerOpen} onOpenChange={setBarcodeManagerOpen}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>3-Level Barcode Management</DialogTitle>
+          </DialogHeader>
+          {barcodeProduct && (
+            <ProductBarcodeManager
+              productId={barcodeProduct.id}
+              productName={barcodeProduct.name}
+              productSku={barcodeProduct.sku}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

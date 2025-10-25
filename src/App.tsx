@@ -111,6 +111,9 @@ const BOMManagement = lazy(() =>
 const LabelPrinter = lazy(() =>
   import("@/components/production/LabelPrinter").then(module => ({ default: module.LabelPrinter }))
 );
+const BarcodeManagement = lazy(() =>
+  import("@/pages/Barcode/BarcodeManagement").then(module => ({ default: module.default }))
+);
 
 // Optimized QueryClient configuration for performance
 const queryClient = new QueryClient({
@@ -318,6 +321,11 @@ const App = () => {
                 <Route path="production/labels" element={
                   <Suspense fallback={<PageLoader />}>
                     <LabelPrinter />
+                  </Suspense>
+                } />
+                <Route path="barcode-management" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <BarcodeManagement />
                   </Suspense>
                 } />
                 <Route path="*" element={

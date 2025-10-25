@@ -300,3 +300,25 @@ export const generateBarcodeLabels = async (request: LabelGenerationRequest) => 
   if (error) throw error;
   return data;
 };
+
+// ============================================
+// Product Barcode Management
+// ============================================
+
+/**
+ * Generate product barcode for 3-level lifecycle tracking
+ */
+export const generateProductBarcode = async (request: {
+  product_id: string;
+  barcode_type: 'raw' | 'finished' | 'distribution';
+  barcode_format?: string;
+  metadata?: Record<string, any>;
+}) => {
+  const { data, error } = await supabase.functions.invoke('generate-product-barcode', {
+    body: request,
+  });
+
+  if (error) throw error;
+  return data;
+};
+
