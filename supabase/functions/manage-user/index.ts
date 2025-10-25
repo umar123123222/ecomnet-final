@@ -79,11 +79,43 @@ serve(async (req) => {
 
     const requestBody = await req.json()
     const { action, userData } = requestBody
+
+    // Validate request payload
+    if (!action || !userData) {
+      console.error('Invalid request payload');
+      return new Response(
+        JSON.stringify({ error: 'Invalid request: action and userData are required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     console.log('Action:', action, 'UserData:', { ...userData, password: '***' });
 
     switch (action) {
       case 'create': {
         console.log('Creating user:', userData.email);
+
+        // Validate required fields
+        if (!userData.email || !userData.roles || userData.roles.length === 0) {
+          console.error('Missing required fields');
+          return new Response(
+            JSON.stringify({ error: 'Email and at least one role are required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        // Check if user already exists
+        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
+        const userExists = existingUsers?.users?.some(u => u.email === userData.email)
+        
+        if (userExists) {
+          console.error('User with this email already exists');
+          return new Response(
+            JSON.stringify({ error: 'A user with this email already exists' }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
         // Create user in auth
         const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
           email: userData.email,
@@ -96,7 +128,17 @@ serve(async (req) => {
 
         if (createError) {
           console.error('Error creating user:', createError);
-          throw createError;
+          // Handle specific auth errors
+          if (createError.message?.includes('already registered')) {
+            return new Response(
+              JSON.stringify({ error: 'A user with this email already exists' }),
+              { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+          return new Response(
+            JSON.stringify({ error: createError.message || 'Failed to create user' }),
+            { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
         }
         
         console.log('User created in auth:', authData.user.id);
@@ -136,15 +178,45 @@ serve(async (req) => {
         }
         
         console.log('User created successfully');
+        
+        // Fetch complete user data with roles
+        const { data: newUserProfile } = await supabaseAdmin
+          .from('profiles')
+          .select(`
+            id,
+            email,
+            full_name,
+            role,
+            user_roles (
+              role,
+              is_active
+            )
+          `)
+          .eq('id', authData.user.id)
+          .single()
+
         return new Response(
-          JSON.stringify({ success: true, user: authData.user }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ 
+            success: true, 
+            user: authData.user,
+            profile: newUserProfile 
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
       case 'update': {
         const { userId } = userData
         console.log('Updating user:', userId);
+
+        // Validate required fields
+        if (!userId || !userData.roles || userData.roles.length === 0) {
+          console.error('Missing required fields for update');
+          return new Response(
+            JSON.stringify({ error: 'User ID and at least one role are required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
 
         // Update profile
         const primaryRole = userData.roles[0]
@@ -210,26 +282,58 @@ serve(async (req) => {
         }
 
         console.log('User updated successfully');
+        
+        // Fetch updated user data with roles
+        const { data: updatedUserProfile } = await supabaseAdmin
+          .from('profiles')
+          .select(`
+            id,
+            email,
+            full_name,
+            role,
+            user_roles (
+              role,
+              is_active
+            )
+          `)
+          .eq('id', userId)
+          .single()
+
         return new Response(
-          JSON.stringify({ success: true }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ 
+            success: true,
+            profile: updatedUserProfile
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
       case 'delete': {
         const { userId } = userData
         console.log('Deleting user:', userId);
+
+        // Validate required field
+        if (!userId) {
+          console.error('Missing userId for delete');
+          return new Response(
+            JSON.stringify({ error: 'User ID is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
         
         const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
         if (error) {
           console.error('Error deleting user:', error);
-          throw error;
+          return new Response(
+            JSON.stringify({ error: error.message || 'Failed to delete user' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
         }
 
         console.log('User deleted successfully');
         return new Response(
           JSON.stringify({ success: true }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
@@ -241,9 +345,17 @@ serve(async (req) => {
     }
   } catch (error) {
     console.error('Error in manage-user function:', error);
+    
+    // Handle different error types
+    const errorMessage = error?.message || 'An unexpected error occurred'
+    const statusCode = error?.status || 500
+    
     return new Response(
-      JSON.stringify({ error: error.message || 'An error occurred' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        error: errorMessage,
+        details: error?.details || null
+      }),
+      { status: statusCode, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
