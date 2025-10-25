@@ -53,7 +53,8 @@ const UserManagement = () => {
   const [isViewUserOpen, setIsViewUserOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithRoles | null>(null);
   const {
-    user: currentUser
+    user: currentUser,
+    refreshProfile
   } = useAuth();
   const {
     permissions
@@ -151,10 +152,21 @@ const UserManagement = () => {
 
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      // Optimistically update cache with new user
+      if (result?.profile) {
+        queryClient.setQueryData(['users'], (prev: UserWithRoles[] = []) => {
+          // Only add if not already present
+          const exists = prev.some(u => u.id === result.profile.id);
+          return exists ? prev : [result.profile, ...prev];
+        });
+      }
+      
+      // Still invalidate to ensure consistency
       queryClient.invalidateQueries({
         queryKey: ['users']
       });
+      
       toast({
         title: 'Success',
         description: 'User created successfully'
@@ -163,9 +175,15 @@ const UserManagement = () => {
       form.reset();
     },
     onError: (error: any) => {
+      // Map friendly error messages
+      let errorMessage = error.message || 'Failed to create user';
+      if (error.message?.includes('already exists')) {
+        errorMessage = 'A user with this email already exists';
+      }
+      
       toast({
         title: 'Error',
-        description: error.message || 'Failed to create user',
+        description: errorMessage,
         variant: 'destructive'
       });
     }
@@ -190,10 +208,24 @@ const UserManagement = () => {
         }
       });
     },
-    onSuccess: () => {
+    onSuccess: async (result, variables) => {
+      // Optimistically update cache with updated user
+      if (result?.profile) {
+        queryClient.setQueryData(['users'], (prev: UserWithRoles[] = []) => {
+          return prev.map(u => u.id === result.profile.id ? result.profile : u);
+        });
+      }
+      
+      // If updating current user's roles, refresh the auth context
+      if (variables.userId === currentUser?.id) {
+        await refreshProfile();
+      }
+      
+      // Still invalidate to ensure consistency
       queryClient.invalidateQueries({
         queryKey: ['users']
       });
+      
       toast({
         title: 'Success',
         description: 'User updated successfully'
@@ -202,9 +234,17 @@ const UserManagement = () => {
       form.reset();
     },
     onError: (error: any) => {
+      // Map friendly error messages
+      let errorMessage = error.message || 'Failed to update user';
+      if (error.message?.includes('already assigned')) {
+        errorMessage = 'One or more roles are already assigned to this user';
+      } else if (error.message?.includes('Insufficient permissions')) {
+        errorMessage = 'You do not have permission to modify this user';
+      }
+      
       toast({
         title: 'Error',
-        description: error.message || 'Failed to update user',
+        description: errorMessage,
         variant: 'destructive'
       });
     }

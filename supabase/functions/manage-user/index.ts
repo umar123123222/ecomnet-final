@@ -14,9 +14,24 @@ serve(async (req) => {
   try {
     console.log('Manage user function called');
     
+    // Verify environment configuration
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing environment configuration:', { 
+        hasUrl: !!supabaseUrl, 
+        hasServiceKey: !!supabaseServiceKey 
+      });
+      return new Response(
+        JSON.stringify({ error: 'Service configuration is missing' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
     const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      supabaseUrl,
+      supabaseServiceKey,
       {
         auth: {
           autoRefreshToken: false,
@@ -93,23 +108,43 @@ serve(async (req) => {
 
     switch (action) {
       case 'create': {
-        console.log('Creating user:', userData.email);
+        // Normalize and validate input
+        const email = userData.email?.trim()
+        const full_name = userData.full_name?.trim()
+        const roles = Array.from(new Set(userData.roles || [])) // Deduplicate
+        
+        console.log('Creating user:', email);
 
         // Validate required fields
-        if (!userData.email || !userData.roles || userData.roles.length === 0) {
+        if (!email || !full_name || roles.length === 0) {
           console.error('Missing required fields');
           return new Response(
-            JSON.stringify({ error: 'Email and at least one role are required' }),
+            JSON.stringify({ error: 'Email, full name, and at least one role are required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
 
-        // Check if user already exists
+        // Check if user already exists in profiles first (fastest check)
+        const { data: existingProfile } = await supabaseAdmin
+          .from('profiles')
+          .select('id')
+          .eq('email', email)
+          .maybeSingle()
+        
+        if (existingProfile) {
+          console.error('User with this email already exists in profiles');
+          return new Response(
+            JSON.stringify({ error: 'A user with this email already exists' }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        // Fallback: Check auth.users
         const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
-        const userExists = existingUsers?.users?.some(u => u.email === userData.email)
+        const userExists = existingUsers?.users?.some(u => u.email === email)
         
         if (userExists) {
-          console.error('User with this email already exists');
+          console.error('User with this email already exists in auth');
           return new Response(
             JSON.stringify({ error: 'A user with this email already exists' }),
             { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -118,18 +153,18 @@ serve(async (req) => {
 
         // Create user in auth
         const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
-          email: userData.email,
+          email,
           password: userData.password || Math.random().toString(36).slice(-12),
           email_confirm: true,
           user_metadata: {
-            full_name: userData.full_name,
+            full_name,
           },
         })
 
         if (createError) {
           console.error('Error creating user:', createError);
           // Handle specific auth errors
-          if (createError.message?.includes('already registered')) {
+          if (createError.message?.includes('already registered') || createError.message?.includes('email_exists')) {
             return new Response(
               JSON.stringify({ error: 'A user with this email already exists' }),
               { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -143,25 +178,35 @@ serve(async (req) => {
         
         console.log('User created in auth:', authData.user.id);
 
-        // Update profile
-        const primaryRole = userData.roles[0]
+        // Upsert profile to prevent race conditions with the auth trigger
+        const primaryRole = roles[0]
         const { error: profileError } = await supabaseAdmin
           .from('profiles')
-          .update({
-            full_name: userData.full_name,
+          .upsert({
+            id: authData.user.id,
+            email,
+            full_name,
             role: primaryRole,
+            is_active: true
+          }, { 
+            onConflict: 'id',
+            ignoreDuplicates: false 
           })
-          .eq('id', authData.user.id)
 
         if (profileError) {
-          console.error('Error updating profile:', profileError);
-          throw profileError;
+          console.error('Error upserting profile:', profileError);
+          // Try to clean up the created auth user
+          await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+          return new Response(
+            JSON.stringify({ error: 'Failed to create user profile', details: profileError.message }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
         }
         
-        console.log('Profile updated successfully');
+        console.log('Profile upserted successfully');
 
-        // Add roles
-        const roleRecords = userData.roles.map((role: string) => ({
+        // Add roles (deduplicated)
+        const roleRecords = roles.map((role: string) => ({
           user_id: authData.user.id,
           role: role,
           assigned_by: user.id,
@@ -174,7 +219,12 @@ serve(async (req) => {
 
         if (rolesError) {
           console.error('Error inserting roles:', rolesError);
-          throw rolesError;
+          // Check for duplicate role errors
+          if (rolesError.code === '23505') {
+            console.warn('Duplicate role detected, continuing...');
+          } else {
+            throw rolesError;
+          }
         }
         
         console.log('User created successfully');
@@ -207,46 +257,65 @@ serve(async (req) => {
 
       case 'update': {
         const { userId } = userData
+        
+        // Normalize and validate input
+        const email = userData.email?.trim()
+        const full_name = userData.full_name?.trim()
+        const roles = Array.from(new Set(userData.roles || [])) // Deduplicate
+        
         console.log('Updating user:', userId);
 
+        // Validate UUID format
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        if (!userId || !uuidRegex.test(userId)) {
+          console.error('Invalid userId format');
+          return new Response(
+            JSON.stringify({ error: 'Invalid user ID format' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
         // Validate required fields
-        if (!userId || !userData.roles || userData.roles.length === 0) {
+        if (!email || !full_name || roles.length === 0) {
           console.error('Missing required fields for update');
           return new Response(
-            JSON.stringify({ error: 'User ID and at least one role are required' }),
+            JSON.stringify({ error: 'Email, full name, and at least one role are required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
 
         // Update profile
-        const primaryRole = userData.roles[0]
+        const primaryRole = roles[0]
         const { error: profileError } = await supabaseAdmin
           .from('profiles')
           .update({
-            full_name: userData.full_name,
-            email: userData.email,
+            full_name,
+            email,
             role: primaryRole,
           })
           .eq('id', userId)
 
         if (profileError) {
           console.error('Error updating profile:', profileError);
+          // Map specific error codes
+          if (profileError.code === '42501') {
+            return new Response(
+              JSON.stringify({ error: 'Insufficient permissions to modify user' }),
+              { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
           throw profileError;
         }
         
         console.log('Profile updated');
 
-        // Update roles
-        const { error: deleteRolesError } = await supabaseAdmin
+        // Update roles (delete all, then insert new - idempotent)
+        await supabaseAdmin
           .from('user_roles')
           .delete()
           .eq('user_id', userId)
-          
-        if (deleteRolesError) {
-          console.error('Error deleting old roles:', deleteRolesError);
-        }
 
-        const roleRecords = userData.roles.map((role: string) => ({
+        const roleRecords = roles.map((role: string) => ({
           user_id: userId,
           role: role,
           assigned_by: user.id,
@@ -259,6 +328,13 @@ serve(async (req) => {
 
         if (rolesError) {
           console.error('Error inserting new roles:', rolesError);
+          // Map specific error codes
+          if (rolesError.code === '23505') {
+            return new Response(
+              JSON.stringify({ error: 'One or more roles are already assigned to this user' }),
+              { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
           throw rolesError;
         }
         
@@ -346,14 +422,27 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in manage-user function:', error);
     
-    // Handle different error types
-    const errorMessage = error?.message || 'An unexpected error occurred'
-    const statusCode = error?.status || 500
+    // Map database errors to friendly messages
+    let errorMessage = error?.message || 'An unexpected error occurred'
+    let statusCode = 500
+    
+    // PostgreSQL error codes
+    if (error?.code === '23505') {
+      errorMessage = 'Duplicate entry: this record already exists'
+      statusCode = 409
+    } else if (error?.code === '42501') {
+      errorMessage = 'Insufficient permissions to perform this action'
+      statusCode = 403
+    } else if (error?.code?.startsWith('23')) {
+      // Other integrity constraint violations
+      errorMessage = 'Database constraint violation: ' + (error?.message || 'invalid data')
+      statusCode = 422
+    }
     
     return new Response(
       JSON.stringify({ 
         error: errorMessage,
-        details: error?.details || null
+        details: error?.details || error?.hint || null
       }),
       { status: statusCode, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

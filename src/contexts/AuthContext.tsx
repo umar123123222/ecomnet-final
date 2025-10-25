@@ -21,6 +21,7 @@ interface SupabaseAuthContextType {
   userRoles: UserRole[];
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
   isLoading: boolean;
 }
 
@@ -113,8 +114,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   };
 
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchUserProfile(user.id);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, profile, userRoles, signIn, signOut, isLoading }}>
+    <AuthContext.Provider value={{ user, session, profile, userRoles, signIn, signOut, refreshProfile, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
