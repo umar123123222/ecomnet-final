@@ -117,6 +117,8 @@ serve(async (req) => {
       targetUserId = matches[0].id;
     }
 
+    console.log('Target user resolved:', { targetUserId, email });
+
     // Fetch old profile
     const { data: oldProfile, error: oldProfileError } = await supabase
       .from('profiles')
@@ -172,6 +174,8 @@ serve(async (req) => {
       profileUpdate.email = email;
     }
 
+    console.log('Updating profile for user:', targetUserId, profileUpdate);
+
     // Update profile
     const { error: profileError } = await supabase
       .from('profiles')
@@ -186,20 +190,36 @@ serve(async (req) => {
       assigned_by: user.id,
       is_active: true,
     }));
+    
+    console.log(`Upserting roles for user ${targetUserId}:`, roles);
+    
     const { error: rolesError } = await supabase
       .from('user_roles')
-      .upsert(roleRecords, { onConflict: 'user_id,role', ignoreDuplicates: false });
+      .upsert(roleRecords, { onConflict: 'unique_user_role', ignoreDuplicates: false });
     if (rolesError) throw rolesError;
 
-    // Deactivate roles not present
-    const { error: deactivateError } = await supabase
+    // Deactivate roles not in the new set
+    const { data: existingRoles } = await supabase
       .from('user_roles')
-      .update({ is_active: false })
-      .eq('user_id', targetUserId)
-      .not('role', 'in', `(${roles.map(r => `"${r}"`).join(',')})`);
-    if (deactivateError) {
-      // Non-fatal
-      console.warn('Error deactivating old roles:', deactivateError);
+      .select('id, role')
+      .eq('user_id', targetUserId);
+
+    if (existingRoles && existingRoles.length > 0) {
+      const rolesToDeactivate = existingRoles
+        .filter(er => !roles.includes(er.role as AllowedRole))
+        .map(er => er.id);
+      
+      if (rolesToDeactivate.length > 0) {
+        console.log(`Deactivating ${rolesToDeactivate.length} roles for user ${targetUserId}`);
+        const { error: deactivateError } = await supabase
+          .from('user_roles')
+          .update({ is_active: false })
+          .in('id', rolesToDeactivate);
+        
+        if (deactivateError) {
+          console.warn('Error deactivating old roles:', deactivateError);
+        }
+      }
     }
 
     // Fetch updated profile with roles
@@ -226,6 +246,8 @@ serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('Successfully updated user:', targetUserId);
 
     return new Response(
       JSON.stringify({ success: true, profile: updatedUserProfile }),
