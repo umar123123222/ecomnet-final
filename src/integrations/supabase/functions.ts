@@ -16,6 +16,14 @@ export interface ManageUserRequest {
   };
 }
 
+// New: dedicated updater for robust role/profile updates
+export interface UpdateUserRequest {
+  userId?: string;
+  email?: string;
+  full_name?: string;
+  roles: string[];
+}
+
 export const manageUser = async (request: ManageUserRequest) => {
   const { data, error } = await supabase.functions.invoke('manage-user', {
     body: request,
@@ -44,6 +52,26 @@ export const manageUser = async (request: ManageUserRequest) => {
     throw new Error(errorMessage);
   }
   
+  return data;
+};
+
+export const updateUser = async (request: UpdateUserRequest) => {
+  const { data, error } = await supabase.functions.invoke('update-user', {
+    body: request,
+  });
+  if (error) {
+    let errorMessage = 'Failed to update user';
+    if (error.context?.json) {
+      try {
+        const errorJson = await error.context.json();
+        errorMessage = errorJson.error || errorMessage;
+        if (errorJson.details) errorMessage += `: ${errorJson.details}`;
+      } catch {}
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    throw new Error(errorMessage);
+  }
   return data;
 };
 

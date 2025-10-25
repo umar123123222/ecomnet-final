@@ -19,7 +19,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { supabase } from '@/integrations/supabase/client';
-import { manageUser } from '@/integrations/supabase/functions';
+import { manageUser, updateUser } from '@/integrations/supabase/functions';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { UserRole } from '@/types/auth';
@@ -204,14 +204,11 @@ const UserManagement = () => {
       userId: string;
       userData: UserFormData;
     }) => {
-      return await manageUser({
-        action: 'update',
-        userData: {
-          userId,
-          email: userData.email,
-          full_name: userData.full_name,
-          roles: userData.roles
-        }
+      return await updateUser({
+        userId,
+        email: userData.email,
+        full_name: userData.full_name,
+        roles: userData.roles,
       });
     },
     onSuccess: async (result, variables) => {
