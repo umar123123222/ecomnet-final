@@ -21,7 +21,29 @@ export const manageUser = async (request: ManageUserRequest) => {
     body: request,
   });
 
-  if (error) throw error;
+  if (error) {
+    // Extract server error message if available
+    let errorMessage = 'Failed to manage user';
+    
+    if (error.context?.json) {
+      try {
+        const errorJson = await error.context.json();
+        errorMessage = errorJson.error || errorMessage;
+        
+        if (errorJson.details) {
+          errorMessage += `: ${errorJson.details}`;
+        }
+      } catch (e) {
+        // Failed to parse error JSON, use default message
+        console.error('Failed to parse error JSON:', e);
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    throw new Error(errorMessage);
+  }
+  
   return data;
 };
 

@@ -102,31 +102,20 @@ serve(async (req) => {
 
     console.log('User authenticated:', user.id);
 
-    // Check if user has permission (super_admin, super_manager, or store_manager)
-    const allowedRoles = ['super_admin', 'super_manager', 'store_manager']
-
-    // Prefer checking roles from user_roles; fall back to profile.role for backward compatibility
-    const { data: rolesData } = await supabaseAdmin
-      .from('user_roles')
-      .select('role, is_active')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    const effectiveRoles = [
-      ...(rolesData?.map((r: any) => r.role) ?? []),
-      profile?.role,
-    ].filter(Boolean)
-
-    const hasPermission = effectiveRoles.some((r: string) => allowedRoles.includes(r))
-    if (!hasPermission) {
+    // Check if user has permission using security definer RPC functions
+    const { data: isSuperAdmin } = await supabaseAdmin
+      .rpc('is_super_admin', { _user_id: user.id })
+    
+    const { data: isManager } = await supabaseAdmin
+      .rpc('is_manager', { _user_id: user.id })
+    
+    if (!isSuperAdmin && !isManager) {
+      console.error('User lacks required permissions:', user.id);
       return new Response(
-        JSON.stringify({ error: 'Insufficient permissions' }),
+        JSON.stringify({ 
+          error: 'Insufficient permissions to perform this action',
+          details: 'Only super admins and managers can manage users'
+        }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -268,7 +257,7 @@ serve(async (req) => {
         
         console.log('Profile upserted successfully');
 
-        // Add roles (deduplicated)
+        // Add roles using upsert to handle potential race conditions
         const roleRecords = roles.map((role: string) => ({
           user_id: authData.user.id,
           role: role,
@@ -278,16 +267,14 @@ serve(async (req) => {
 
         const { error: rolesError } = await supabaseAdmin
           .from('user_roles')
-          .insert(roleRecords)
+          .upsert(roleRecords, {
+            onConflict: 'user_id,role',
+            ignoreDuplicates: false
+          })
 
         if (rolesError) {
-          console.error('Error inserting roles:', rolesError);
-          // Check for duplicate role errors
-          if (rolesError.code === '23505') {
-            console.warn('Duplicate role detected, continuing...');
-          } else {
-            throw rolesError;
-          }
+          console.error('Error upserting roles:', rolesError);
+          throw rolesError;
         }
         
         console.log('User created successfully');
@@ -381,6 +368,33 @@ serve(async (req) => {
         
         console.log('Validated roles:', roles);
 
+        // Get old email before updating
+        const { data: oldProfile } = await supabaseAdmin
+          .from('profiles')
+          .select('email')
+          .eq('id', userId)
+          .single()
+        
+        const oldEmail = oldProfile?.email
+
+        // Update auth email first if changed
+        if (oldEmail && email !== oldEmail) {
+          console.log('Updating auth email from', oldEmail, 'to', email);
+          const { error: emailError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+            email
+          })
+          if (emailError) {
+            console.error('Error updating auth email:', emailError);
+            return new Response(
+              JSON.stringify({ 
+                error: 'Failed to update email in authentication system',
+                details: emailError.message
+              }),
+              { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+        }
+
         // Update profile
         const primaryRole = roles[0]
         const { error: profileError } = await supabaseAdmin
@@ -397,7 +411,10 @@ serve(async (req) => {
           // Map specific error codes
           if (profileError.code === '42501') {
             return new Response(
-              JSON.stringify({ error: 'Insufficient permissions to modify user' }),
+              JSON.stringify({ 
+                error: 'Insufficient permissions to modify user',
+                details: 'You do not have permission to update this user profile'
+              }),
               { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             )
           }
@@ -406,12 +423,7 @@ serve(async (req) => {
         
         console.log('Profile updated');
 
-        // Update roles (delete all, then insert new - idempotent)
-        await supabaseAdmin
-          .from('user_roles')
-          .delete()
-          .eq('user_id', userId)
-
+        // Update roles using upsert to activate new roles
         const roleRecords = roles.map((role: string) => ({
           user_id: userId,
           role: role,
@@ -421,38 +433,29 @@ serve(async (req) => {
 
         const { error: rolesError } = await supabaseAdmin
           .from('user_roles')
-          .insert(roleRecords)
+          .upsert(roleRecords, {
+            onConflict: 'user_id,role',
+            ignoreDuplicates: false
+          })
 
         if (rolesError) {
-          console.error('Error inserting new roles:', rolesError);
-          // Map specific error codes
-          if (rolesError.code === '23505') {
-            return new Response(
-              JSON.stringify({ error: 'One or more roles are already assigned to this user' }),
-              { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            )
-          }
+          console.error('Error upserting roles:', rolesError);
           throw rolesError;
         }
         
-        console.log('Roles updated successfully');
-
-        // Update auth email if changed
-        const { data: profile } = await supabaseAdmin
-          .from('profiles')
-          .select('email')
-          .eq('id', userId)
-          .single()
-
-        if (profile && userData.email !== profile.email) {
-          console.log('Updating auth email');
-          const { error: emailError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-            email: userData.email
-          })
-          if (emailError) {
-            console.error('Error updating email:', emailError);
-          }
+        // Deactivate roles that are no longer assigned
+        const { error: deactivateError } = await supabaseAdmin
+          .from('user_roles')
+          .update({ is_active: false })
+          .eq('user_id', userId)
+          .not('role', 'in', `(${roles.map(r => `"${r}"`).join(',')})`)
+        
+        if (deactivateError) {
+          console.error('Error deactivating old roles:', deactivateError);
+          // Non-critical, continue
         }
+        
+        console.log('Roles updated successfully');
 
         console.log('User updated successfully');
         
