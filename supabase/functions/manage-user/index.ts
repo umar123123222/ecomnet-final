@@ -150,18 +150,42 @@ serve(async (req) => {
         // Normalize and validate input
         const email = userData.email?.trim()
         const full_name = userData.full_name?.trim()
-        const roles = Array.from(new Set(userData.roles || [])) // Deduplicate
+        const inputRoles = Array.from(new Set(userData.roles || ['staff'])) // Deduplicate
         
-        console.log('Creating user:', email);
+        console.log('Creating user:', email, 'with roles:', inputRoles);
 
         // Validate required fields
-        if (!email || !full_name || roles.length === 0) {
+        if (!email || !full_name) {
           console.error('Missing required fields');
           return new Response(
-            JSON.stringify({ error: 'Email, full name, and at least one role are required' }),
+            JSON.stringify({ error: 'Email and full name are required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
+
+        // Validate and normalize roles
+        const { valid: roles, invalid: invalidRoles } = validateRoles(inputRoles)
+        
+        if (invalidRoles.length > 0) {
+          console.error('Invalid roles:', invalidRoles);
+          return new Response(
+            JSON.stringify({ 
+              error: `Invalid roles: ${invalidRoles.join(', ')}`,
+              validRoles: ALLOWED_ROLES 
+            }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        
+        if (roles.length === 0) {
+          console.error('No valid roles provided');
+          return new Response(
+            JSON.stringify({ error: 'At least one valid role is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        
+        console.log('Validated roles:', roles);
 
         // Check if user already exists in profiles first (fastest check)
         const { data: existingProfile } = await supabaseAdmin
@@ -310,9 +334,9 @@ serve(async (req) => {
         // Normalize and validate input
         const email = userData.email?.trim()
         const full_name = userData.full_name?.trim()
-        const roles = Array.from(new Set(userData.roles || [])) // Deduplicate
+        const inputRoles = Array.from(new Set(userData.roles || ['staff'])) // Deduplicate
         
-        console.log('Updating user:', userId);
+        console.log('Updating user:', userId, 'with roles:', inputRoles);
 
         // Validate UUID format
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -325,13 +349,37 @@ serve(async (req) => {
         }
 
         // Validate required fields
-        if (!email || !full_name || roles.length === 0) {
+        if (!email || !full_name) {
           console.error('Missing required fields for update');
           return new Response(
-            JSON.stringify({ error: 'Email, full name, and at least one role are required' }),
+            JSON.stringify({ error: 'Email and full name are required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
+
+        // Validate and normalize roles
+        const { valid: roles, invalid: invalidRoles } = validateRoles(inputRoles)
+        
+        if (invalidRoles.length > 0) {
+          console.error('Invalid roles:', invalidRoles);
+          return new Response(
+            JSON.stringify({ 
+              error: `Invalid roles: ${invalidRoles.join(', ')}`,
+              validRoles: ALLOWED_ROLES 
+            }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        
+        if (roles.length === 0) {
+          console.error('No valid roles provided');
+          return new Response(
+            JSON.stringify({ error: 'At least one valid role is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        
+        console.log('Validated roles:', roles);
 
         // Update profile
         const primaryRole = roles[0]

@@ -614,7 +614,8 @@ const UserManagement = () => {
             </TableHeader>
             <TableBody>
               {filteredUsers.map(user => {
-                  const userRoles = user.user_roles?.filter(ur => ur.is_active).map(ur => ur.role) || [];
+                  // Get roles from user_roles array, or fallback to profile.role
+                  const userRoles = user.user_roles?.filter(ur => ur.is_active).map(ur => ur.role) || (user.role ? [user.role] : []);
                   return <TableRow key={user.id}>
                     <TableCell>
                       <Checkbox checked={selectedUsers.includes(user.id)} onCheckedChange={() => handleSelectUser(user.id)} />
