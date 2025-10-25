@@ -6,6 +6,45 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Allowed roles in the system
+const ALLOWED_ROLES = [
+  'super_admin',
+  'super_manager', 
+  'warehouse_manager',
+  'store_manager',
+  'dispatch_manager',
+  'returns_manager',
+  'staff',
+  'supplier'
+] as const
+
+// Normalize role string to match database enum
+function normalizeRole(role: string): string {
+  return role
+    .toLowerCase()
+    .trim()
+    .replace(/[\s-]+/g, '_')
+}
+
+// Validate and normalize roles
+function validateRoles(roles: string[]): { valid: string[], invalid: string[] } {
+  const valid: string[] = []
+  const invalid: string[] = []
+  
+  for (const role of roles) {
+    const normalized = normalizeRole(role)
+    if (ALLOWED_ROLES.includes(normalized as any)) {
+      if (!valid.includes(normalized)) {
+        valid.push(normalized)
+      }
+    } else {
+      invalid.push(role)
+    }
+  }
+  
+  return { valid, invalid }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
