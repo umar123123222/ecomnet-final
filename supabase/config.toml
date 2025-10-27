@@ -78,6 +78,9 @@ verify_jwt = true
 [functions.manage-outlet-staff]
 verify_jwt = true
 
+[functions.update-user]
+verify_jwt = true
+
 [functions.send-order-confirmation]
 verify_jwt = true
 

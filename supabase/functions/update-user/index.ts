@@ -195,7 +195,7 @@ serve(async (req) => {
     
     const { error: rolesError } = await supabase
       .from('user_roles')
-      .upsert(roleRecords, { onConflict: 'user_id,role' });
+      .upsert(roleRecords, { onConflict: 'unique_user_role', ignoreDuplicates: false });
     if (rolesError) throw rolesError;
 
     // Deactivate roles not in the new set
