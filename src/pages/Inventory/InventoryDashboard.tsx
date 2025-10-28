@@ -15,6 +15,7 @@ import { Inventory, Outlet, Product } from "@/types/inventory";
 import { StockAdjustmentDialog } from "@/components/inventory/StockAdjustmentDialog";
 import { LowStockAlerts } from "@/components/inventory/LowStockAlerts";
 import { RecentStockMovements } from "@/components/inventory/RecentStockMovements";
+import { SmartReorderRecommendations } from "@/components/inventory/SmartReorderRecommendations";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 
@@ -381,6 +382,9 @@ const InventoryDashboard = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Smart Reorder Recommendations */}
+      <SmartReorderRecommendations />
 
       {/* Alerts and Movements */}
       <div className="grid gap-6 md:grid-cols-2">

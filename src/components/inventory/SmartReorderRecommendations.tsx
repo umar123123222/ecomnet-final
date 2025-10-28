@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeSmartReorder } from "@/integrations/supabase/client";
 import { Loader2, ShoppingCart, TrendingUp, AlertTriangle, Package } from "lucide-react";
 import {
   Table,
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/table";
 
 interface Recommendation {
-  type: 'product' | 'packaging';
+  item_type: 'product' | 'packaging';
   item_id: string;
   item_name: string;
   item_sku: string;
@@ -39,11 +39,7 @@ export function SmartReorderRecommendations() {
   const fetchRecommendations = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('smart-reorder', {
-        body: {
-          action: 'get_recommendations'
-        }
-      });
+      const { data, error } = await invokeSmartReorder('get_recommendations', {});
 
       if (error) throw error;
 
@@ -67,12 +63,11 @@ export function SmartReorderRecommendations() {
   const handleGeneratePO = async (rec: Recommendation) => {
     setGenerating(rec.item_id);
     try {
-      const { data, error } = await supabase.functions.invoke('smart-reorder', {
-        body: {
-          action: 'generate_po',
-          [`${rec.type}_id`]: rec.item_id,
-        }
-      });
+      const params = rec.item_type === 'product'
+        ? { product_id: rec.item_id }
+        : { packaging_item_id: rec.item_id };
+
+      const { data, error } = await invokeSmartReorder('generate_po', params);
 
       if (error) throw error;
 
@@ -160,7 +155,7 @@ export function SmartReorderRecommendations() {
                   const urgency = getUrgencyColor(rec.current_stock, rec.reorder_point);
                   
                   return (
-                    <TableRow key={`${rec.type}-${rec.item_id}`}>
+                    <TableRow key={`${rec.item_type}-${rec.item_id}`}>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {rec.current_stock < rec.reorder_point * 0.5 && (
@@ -174,7 +169,7 @@ export function SmartReorderRecommendations() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {rec.type === 'product' ? 'Product' : 'Packaging'}
+                          {rec.item_type === 'product' ? 'Product' : 'Packaging'}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">

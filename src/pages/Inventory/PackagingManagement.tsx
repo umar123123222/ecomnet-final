@@ -42,6 +42,7 @@ import { Switch } from "@/components/ui/switch";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { SmartReorderSettings } from "@/components/inventory/SmartReorderSettings";
 
 const packagingSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -62,6 +63,8 @@ export default function PackagingManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
+  const [reorderSettingsOpen, setReorderSettingsOpen] = useState(false);
+  const [reorderItem, setReorderItem] = useState<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -310,6 +313,16 @@ export default function PackagingManagement() {
                           variant="secondary"
                           size="sm"
                           onClick={() => {
+                            setReorderItem(item);
+                            setReorderSettingsOpen(true);
+                          }}
+                        >
+                          Smart Reorder
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
                             window.open(`/production/labels?packaging=${item.id}&type=packaging`, '_blank');
                           }}
                         >
@@ -546,11 +559,29 @@ export default function PackagingManagement() {
                   type="submit"
                   disabled={createMutation.isPending || updateMutation.isPending}
                 >
-                  {editingItem ? "Update" : "Create"}
+                  {editingItem ? "Update" : "Create"} Packaging Item
                 </Button>
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={reorderSettingsOpen} onOpenChange={setReorderSettingsOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Smart Reorder Settings</DialogTitle>
+          </DialogHeader>
+          {reorderItem && (
+            <SmartReorderSettings
+              item={reorderItem}
+              itemType="packaging"
+              suppliers={suppliers}
+              onUpdate={() => {
+                setReorderSettingsOpen(false);
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>

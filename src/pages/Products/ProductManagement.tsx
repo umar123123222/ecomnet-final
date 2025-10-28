@@ -13,6 +13,7 @@ import { BarcodeScanner } from '@/components/barcode/BarcodeScanner';
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
 import { ProductBarcodeManager } from "@/components/barcode/ProductBarcodeManager";
+import { SmartReorderSettings } from "@/components/inventory/SmartReorderSettings";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
@@ -29,6 +30,8 @@ const ProductManagement = () => {
   const [scanningProductId, setScanningProductId] = useState<string | null>(null);
   const [barcodeManagerOpen, setBarcodeManagerOpen] = useState(false);
   const [barcodeProduct, setBarcodeProduct] = useState<Product | null>(null);
+  const [reorderSettingsOpen, setReorderSettingsOpen] = useState(false);
+  const [reorderProduct, setReorderProduct] = useState<Product | null>(null);
   const { progress, executeBulkOperation } = useBulkOperations();
 
 
@@ -43,6 +46,20 @@ const ProductManagement = () => {
       if (error) throw error;
       return data;
     },
+  });
+
+  // Fetch suppliers for smart reorder
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['suppliers-active'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('id, name')
+        .eq('status', 'active')
+        .order('name');
+      if (error) throw error;
+      return data;
+    }
   });
 
   // Advanced filtering
@@ -289,6 +306,17 @@ const ProductManagement = () => {
                               size="sm"
                               className="gap-2"
                               onClick={() => {
+                                setReorderProduct(product);
+                                setReorderSettingsOpen(true);
+                              }}
+                            >
+                              Smart Reorder
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="gap-2"
+                              onClick={() => {
                                 window.open(`/production/labels?product=${product.id}&type=finished_product`, '_blank');
                               }}
                             >
@@ -360,6 +388,24 @@ const ProductManagement = () => {
               productId={barcodeProduct.id}
               productName={barcodeProduct.name}
               productSku={barcodeProduct.sku}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={reorderSettingsOpen} onOpenChange={setReorderSettingsOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Smart Reorder Settings</DialogTitle>
+          </DialogHeader>
+          {reorderProduct && (
+            <SmartReorderSettings
+              item={reorderProduct}
+              itemType="product"
+              suppliers={suppliers}
+              onUpdate={() => {
+                setReorderSettingsOpen(false);
+              }}
             />
           )}
         </DialogContent>

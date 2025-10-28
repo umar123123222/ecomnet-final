@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, invokeSmartReorder } from "@/integrations/supabase/client";
 import { Loader2, Save, TrendingUp } from "lucide-react";
 
 interface SmartReorderSettingsProps {
@@ -35,12 +35,13 @@ export function SmartReorderSettings({ item, itemType, suppliers = [], onUpdate 
   const handleUpdateVelocity = async () => {
     setUpdating(true);
     try {
-      const { error } = await supabase.functions.invoke('smart-reorder', {
-        body: {
-          action: 'update_velocity',
-          [`${itemType}_id`]: item.id,
-          days_to_analyze: 30
-        }
+      const params = itemType === 'product' 
+        ? { product_id: item.id }
+        : { packaging_item_id: item.id };
+
+      const { error } = await invokeSmartReorder('update_velocity', {
+        ...params,
+        days_to_analyze: 30
       });
 
       if (error) throw error;

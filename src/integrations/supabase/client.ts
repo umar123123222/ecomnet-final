@@ -15,3 +15,10 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
   }
 });
+
+// Export function to call smart-reorder edge function
+export async function invokeSmartReorder(action: string, params: any) {
+  return await supabase.functions.invoke('smart-reorder', {
+    body: { action, ...params }
+  });
+}
