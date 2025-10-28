@@ -118,18 +118,21 @@ Deno.serve(async (req) => {
     if (recError) {
       console.error('Error getting recommendations:', recError);
       result.errors.push(`Failed to get recommendations: ${recError.message}`);
-    } else if (recommendations?.data) {
-      const recsData = recommendations.data;
+    } else if (recommendations?.success && recommendations?.recommendations) {
+      const recsData = recommendations.recommendations;
+      
+      console.log(`Processing ${recsData.length} recommendations`);
       
       for (const rec of recsData) {
         if (rec.recommended_quantity <= 0) continue;
 
         try {
           // Check if PO was generated in last 7 days to avoid duplicates
+          const metadataKey = rec.type === 'product' ? 'metadata->>product_id' : 'metadata->>packaging_item_id';
           const { data: recentPO, error: checkError } = await supabase
             .from('auto_purchase_orders')
             .select('id')
-            .eq(rec.item_type === 'product' ? 'metadata->>product_id' : 'metadata->>packaging_item_id', rec.item_id)
+            .eq(metadataKey, rec.item_id)
             .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
             .limit(1);
 
@@ -139,24 +142,28 @@ Deno.serve(async (req) => {
           }
 
           if (recentPO && recentPO.length > 0) {
-            console.log(`Skipping ${rec.item_type} ${rec.item_id} - PO generated within last 7 days`);
+            console.log(`Skipping ${rec.type} ${rec.item_id} (${rec.item_name}) - PO generated within last 7 days`);
             continue;
           }
 
           // Generate PO
+          const poBody = {
+            action: 'generate_po',
+            [rec.type === 'product' ? 'product_id' : 'packaging_item_id']: rec.item_id,
+          };
+          
+          console.log(`Generating PO for ${rec.type} ${rec.item_name}:`, poBody);
+          
           const { data: poData, error: poError } = await supabase.functions.invoke('smart-reorder', {
-            body: {
-              action: 'generate_po',
-              [rec.item_type === 'product' ? 'product_id' : 'packaging_item_id']: rec.item_id,
-            },
+            body: poBody,
           });
 
           if (poError) {
-            console.error(`Error generating PO for ${rec.item_type} ${rec.item_id}:`, poError);
-            result.errors.push(`PO for ${rec.item_type} ${rec.item_id}: ${poError.message}`);
-          } else if (poData?.data) {
+            console.error(`Error generating PO for ${rec.type} ${rec.item_id}:`, poError);
+            result.errors.push(`PO for ${rec.type} ${rec.item_id}: ${poError.message}`);
+          } else if (poData?.success && poData?.po_number) {
             result.pos_generated++;
-            console.log(`Generated PO for ${rec.item_type} ${rec.item_name}: ${poData.data.po_number}`);
+            console.log(`Generated PO for ${rec.type} ${rec.item_name}: ${poData.po_number}`);
 
             // Create notification for managers
             const { data: managers } = await supabase
@@ -172,11 +179,11 @@ Deno.serve(async (req) => {
                   type: 'purchase_order',
                   priority: 'high',
                   title: 'Auto-Generated Purchase Order',
-                  message: `PO ${poData.data.po_number} created for ${rec.item_name} (Qty: ${rec.recommended_quantity})`,
+                  message: `PO ${poData.po_number} created for ${rec.item_name} (Qty: ${rec.recommended_quantity})`,
                   metadata: {
-                    po_id: poData.data.po_id,
-                    po_number: poData.data.po_number,
-                    item_type: rec.item_type,
+                    po_id: poData.po_id,
+                    po_number: poData.po_number,
+                    item_type: rec.type,
                     item_id: rec.item_id,
                     item_name: rec.item_name,
                   },
@@ -186,8 +193,8 @@ Deno.serve(async (req) => {
             }
           }
         } catch (err) {
-          console.error(`Exception generating PO for ${rec.item_type} ${rec.item_id}:`, err);
-          result.errors.push(`PO for ${rec.item_type} ${rec.item_id}: ${err.message}`);
+          console.error(`Exception generating PO for ${rec.type} ${rec.item_id}:`, err);
+          result.errors.push(`PO for ${rec.type} ${rec.item_id}: ${err.message}`);
         }
       }
     }

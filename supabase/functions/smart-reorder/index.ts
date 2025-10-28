@@ -38,13 +38,23 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Check if this is a service role call (automated)
+    const isServiceRole = token === supabaseServiceKey;
+    
+    let user: any = null;
+    
+    if (!isServiceRole) {
+      const { data: { user: authenticatedUser }, error: authError } = await supabase.auth.getUser(token);
+      
+      if (authError || !authenticatedUser) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      user = authenticatedUser;
     }
 
     const body: SmartReorderRequest = await req.json();
@@ -358,25 +368,31 @@ serve(async (req) => {
       }
 
       // Log auto PO
+      const autoPOData: any = {
+        po_id: po.id,
+        trigger_reason: `Stock below reorder point (${currentStock} < ${reorderPoint})`,
+        recommended_quantity: reorderQty,
+        calculated_reorder_point: reorderPoint,
+        current_stock: currentStock,
+        avg_daily_consumption: avgConsumption || 0,
+        lead_time_days: itemData.lead_time_days || 7,
+        auto_approved: false,
+        metadata: {
+          item_type: itemType,
+          item_id: itemType === 'product' ? product_id : packaging_item_id,
+          item_name: itemData.name,
+          item_sku: itemData.sku
+        }
+      };
+      
+      // Only add created_by if we have a user (not service role)
+      if (user) {
+        autoPOData.created_by = user.id;
+      }
+      
       await supabase
         .from('auto_purchase_orders')
-        .insert({
-          po_id: po.id,
-          trigger_reason: `Stock below reorder point (${currentStock} < ${reorderPoint})`,
-          recommended_quantity: reorderQty,
-          calculated_reorder_point: reorderPoint,
-          current_stock: currentStock,
-          avg_daily_consumption: avgConsumption || 0,
-          lead_time_days: itemData.lead_time_days || 7,
-          auto_approved: false,
-          created_by: user.id,
-          metadata: {
-            item_type: itemType,
-            item_id: itemType === 'product' ? product_id : packaging_item_id,
-            item_name: itemData.name,
-            item_sku: itemData.sku
-          }
-        });
+        .insert(autoPOData);
 
       console.log(`Generated automatic PO ${poNumber} for ${itemData.name}`);
 
