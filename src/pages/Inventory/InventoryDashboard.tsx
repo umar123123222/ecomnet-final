@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2, Settings, X, Save, Filter, PlayCircle } from "lucide-react";
+import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2, Settings, X, Save, Filter, PlayCircle, History } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
@@ -150,6 +151,12 @@ const InventoryDashboard = () => {
             <PlayCircle className="h-4 w-4" />
             {triggering ? 'Running...' : 'Run Smart Reorder'}
           </Button>
+          <Link to="/automation-history">
+            <Button variant="outline" className="gap-2">
+              <History className="h-4 w-4" />
+              Automation History
+            </Button>
+          </Link>
           <Button
             onClick={() => setAdjustmentDialogOpen(true)}
             className="gap-2"

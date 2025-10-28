@@ -114,6 +114,9 @@ const LabelPrinter = lazy(() =>
 const BarcodeManagement = lazy(() =>
   import("@/pages/Barcode/BarcodeManagement").then(module => ({ default: module.default }))
 );
+const AutomationHistory = lazy(() =>
+  import("@/pages/Inventory/AutomationHistory").then(module => ({ default: module.default }))
+);
 
 // Optimized QueryClient configuration for performance
 const queryClient = new QueryClient({
@@ -326,6 +329,11 @@ const App = () => {
                 <Route path="barcode-management" element={
                   <Suspense fallback={<PageLoader />}>
                     <BarcodeManagement />
+                  </Suspense>
+                } />
+                <Route path="automation-history" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <AutomationHistory />
                   </Suspense>
                 } />
                 <Route path="*" element={

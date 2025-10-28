@@ -279,6 +279,7 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     
     if (permissions.canAccessInventory) {
       inventorySubItems.push({ label: 'Overview', href: '/inventory', icon: '' });
+      inventorySubItems.push({ label: 'Automation History', href: '/automation-history', icon: '' });
     }
     if (permissions.canAccessProducts) {
       inventorySubItems.push({ label: 'Products', href: '/products', icon: '' });
