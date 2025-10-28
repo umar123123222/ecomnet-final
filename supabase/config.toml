@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.assess-order-fraud-risk]
 verify_jwt = true
+
+[functions.smart-reorder]
+verify_jwt = true
