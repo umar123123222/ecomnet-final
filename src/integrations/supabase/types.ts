@@ -162,6 +162,66 @@ export type Database = {
         }
         Relationships: []
       }
+      auto_purchase_orders: {
+        Row: {
+          auto_approved: boolean | null
+          avg_daily_consumption: number
+          calculated_reorder_point: number
+          created_at: string | null
+          created_by: string | null
+          current_stock: number
+          id: string
+          lead_time_days: number
+          metadata: Json | null
+          po_id: string | null
+          recommended_quantity: number
+          trigger_reason: string
+        }
+        Insert: {
+          auto_approved?: boolean | null
+          avg_daily_consumption: number
+          calculated_reorder_point: number
+          created_at?: string | null
+          created_by?: string | null
+          current_stock: number
+          id?: string
+          lead_time_days: number
+          metadata?: Json | null
+          po_id?: string | null
+          recommended_quantity: number
+          trigger_reason: string
+        }
+        Update: {
+          auto_approved?: boolean | null
+          avg_daily_consumption?: number
+          calculated_reorder_point?: number
+          created_at?: string | null
+          created_by?: string | null
+          current_stock?: number
+          id?: string
+          lead_time_days?: number
+          metadata?: Json | null
+          po_id?: string | null
+          recommended_quantity?: number
+          trigger_reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auto_purchase_orders_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "auto_purchase_orders_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bill_of_materials: {
         Row: {
           created_at: string
@@ -1542,6 +1602,8 @@ export type Database = {
       }
       packaging_items: {
         Row: {
+          auto_reorder_enabled: boolean | null
+          avg_daily_usage: number | null
           barcode: string | null
           barcode_format: string | null
           cost: number
@@ -1549,16 +1611,22 @@ export type Database = {
           current_stock: number
           id: string
           is_active: boolean
+          lead_time_days: number | null
           material: string | null
           name: string
+          preferred_supplier_id: string | null
           reorder_level: number
+          safety_stock_level: number | null
           size: string | null
           sku: string
           supplier_id: string | null
           type: string
           updated_at: string
+          usage_velocity_updated_at: string | null
         }
         Insert: {
+          auto_reorder_enabled?: boolean | null
+          avg_daily_usage?: number | null
           barcode?: string | null
           barcode_format?: string | null
           cost?: number
@@ -1566,16 +1634,22 @@ export type Database = {
           current_stock?: number
           id?: string
           is_active?: boolean
+          lead_time_days?: number | null
           material?: string | null
           name: string
+          preferred_supplier_id?: string | null
           reorder_level?: number
+          safety_stock_level?: number | null
           size?: string | null
           sku: string
           supplier_id?: string | null
           type: string
           updated_at?: string
+          usage_velocity_updated_at?: string | null
         }
         Update: {
+          auto_reorder_enabled?: boolean | null
+          avg_daily_usage?: number | null
           barcode?: string | null
           barcode_format?: string | null
           cost?: number
@@ -1583,16 +1657,27 @@ export type Database = {
           current_stock?: number
           id?: string
           is_active?: boolean
+          lead_time_days?: number | null
           material?: string | null
           name?: string
+          preferred_supplier_id?: string | null
           reorder_level?: number
+          safety_stock_level?: number | null
           size?: string | null
           sku?: string
           supplier_id?: string | null
           type?: string
           updated_at?: string
+          usage_velocity_updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "packaging_items_preferred_supplier_id_fkey"
+            columns: ["preferred_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "packaging_items_supplier_id_fkey"
             columns: ["supplier_id"]
@@ -2209,6 +2294,8 @@ export type Database = {
       }
       products: {
         Row: {
+          auto_reorder_enabled: boolean | null
+          avg_daily_sales: number | null
           barcode: string | null
           barcode_format: string | null
           category: string | null
@@ -2217,12 +2304,16 @@ export type Database = {
           description: string | null
           id: string
           is_active: boolean
+          lead_time_days: number | null
           name: string
           packaging_metadata: Json | null
+          preferred_supplier_id: string | null
           price: number
           product_type: string | null
           reorder_level: number
           requires_packaging: boolean | null
+          safety_stock_level: number | null
+          sales_velocity_updated_at: string | null
           shopify_product_id: number | null
           shopify_variant_id: number | null
           size: string | null
@@ -2233,6 +2324,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auto_reorder_enabled?: boolean | null
+          avg_daily_sales?: number | null
           barcode?: string | null
           barcode_format?: string | null
           category?: string | null
@@ -2241,12 +2334,16 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean
+          lead_time_days?: number | null
           name: string
           packaging_metadata?: Json | null
+          preferred_supplier_id?: string | null
           price: number
           product_type?: string | null
           reorder_level?: number
           requires_packaging?: boolean | null
+          safety_stock_level?: number | null
+          sales_velocity_updated_at?: string | null
           shopify_product_id?: number | null
           shopify_variant_id?: number | null
           size?: string | null
@@ -2257,6 +2354,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auto_reorder_enabled?: boolean | null
+          avg_daily_sales?: number | null
           barcode?: string | null
           barcode_format?: string | null
           category?: string | null
@@ -2265,12 +2364,16 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean
+          lead_time_days?: number | null
           name?: string
           packaging_metadata?: Json | null
+          preferred_supplier_id?: string | null
           price?: number
           product_type?: string | null
           reorder_level?: number
           requires_packaging?: boolean | null
+          safety_stock_level?: number | null
+          sales_velocity_updated_at?: string | null
           shopify_product_id?: number | null
           shopify_variant_id?: number | null
           size?: string | null
@@ -2281,6 +2384,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "products_preferred_supplier_id_fkey"
+            columns: ["preferred_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "products_supplier_id_fkey"
             columns: ["supplier_id"]
@@ -2651,6 +2761,61 @@ export type Database = {
           permissions?: Json | null
         }
         Relationships: []
+      }
+      sales_velocity_history: {
+        Row: {
+          created_at: string | null
+          date: string
+          id: string
+          outlet_id: string | null
+          packaging_item_id: string | null
+          product_id: string | null
+          quantity_sold: number
+          quantity_used: number
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          id?: string
+          outlet_id?: string | null
+          packaging_item_id?: string | null
+          product_id?: string | null
+          quantity_sold?: number
+          quantity_used?: number
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          id?: string
+          outlet_id?: string | null
+          packaging_item_id?: string | null
+          product_id?: string | null
+          quantity_sold?: number
+          quantity_used?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_velocity_history_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_velocity_history_packaging_item_id_fkey"
+            columns: ["packaging_item_id"]
+            isOneToOne: false
+            referencedRelation: "packaging_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_velocity_history_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       scan_results: {
         Row: {
@@ -3708,6 +3873,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_reorder_quantity: {
+        Args: {
+          p_avg_daily_sales: number
+          p_current_stock: number
+          p_lead_time_days: number
+          p_safety_stock: number
+        }
+        Returns: number
+      }
       calculate_variance_severity: {
         Args: { variance_value: number }
         Returns: string
