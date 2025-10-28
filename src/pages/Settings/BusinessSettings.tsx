@@ -11,29 +11,34 @@ import { Navigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, Building2, Link, Mail, Phone, Truck, ShoppingBag, MessageSquare, DollarSign } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from "@/integrations/supabase/client";
 import { SUPPORTED_CURRENCIES } from "@/utils/currency";
-import { useQueryClient } from "@tanstack/react-query";
+import { useBusinessSettings } from "@/hooks/useBusinessSettings";
+
 const BusinessSettings = () => {
-  const {
-    hasRole
-  } = useUserRoles();
-  const {
-    toast
-  } = useToast();
-  const queryClient = useQueryClient();
+  const { hasRole } = useUserRoles();
+  const { toast } = useToast();
+  const { getSetting, updateSetting, isUpdating } = useBusinessSettings();
 
   // Only super_admin can access business settings (security critical)
   if (!hasRole('super_admin')) {
     return <Navigate to="/" replace />;
   }
 
-  // Company Info State
+  // Company Info State - synced with database
   const [companyName, setCompanyName] = useState('');
   const [portalUrl, setPortalUrl] = useState('');
   const [companyEmail, setCompanyEmail] = useState('');
   const [companyPhone, setCompanyPhone] = useState('');
   const [companyCurrency, setCompanyCurrency] = useState('USD');
+
+  // Load settings from database
+  useEffect(() => {
+    setCompanyName(getSetting('company_name') || '');
+    setPortalUrl(getSetting('portal_url') || '');
+    setCompanyEmail(getSetting('company_email') || '');
+    setCompanyPhone(getSetting('company_phone') || '');
+    setCompanyCurrency(getSetting('company_currency') || 'USD');
+  }, [getSetting]);
 
   // Couriers State
   const [couriers, setCouriers] = useState<Array<{
@@ -81,40 +86,16 @@ const BusinessSettings = () => {
     status: 'APPROVED',
     components: 'Header, Body, Button'
   }]);
-  // Load currency on mount
-  useEffect(() => {
-    const loadCurrency = async () => {
-      const { data } = await supabase
-        .from('api_settings')
-        .select('setting_value')
-        .eq('setting_key', 'company_currency')
-        .single();
-      
-      if (data?.setting_value) {
-        setCompanyCurrency(data.setting_value);
-      }
-    };
-    loadCurrency();
-  }, []);
-
   const handleSaveCompanyInfo = async () => {
     try {
-      // Save currency to api_settings
-      const { error } = await supabase
-        .from('api_settings')
-        .upsert({
-          setting_key: 'company_currency',
-          setting_value: companyCurrency,
-          description: 'Company default currency',
-          updated_by: (await supabase.auth.getUser()).data.user?.id,
-        }, {
-          onConflict: 'setting_key'
-        });
-
-      if (error) throw error;
-
-      // Invalidate currency cache
-      queryClient.invalidateQueries({ queryKey: ['company-currency'] });
+      // Save all company settings
+      await Promise.all([
+        updateSetting('company_name', companyName, 'Company name'),
+        updateSetting('portal_url', portalUrl, 'Company portal URL'),
+        updateSetting('company_email', companyEmail, 'Company contact email'),
+        updateSetting('company_phone', companyPhone, 'Company contact phone'),
+        updateSetting('company_currency', companyCurrency, 'Company default currency'),
+      ]);
 
       toast({
         title: "Company Information Saved",
@@ -244,8 +225,8 @@ const BusinessSettings = () => {
 
               <Separator />
 
-              <Button onClick={handleSaveCompanyInfo} className="w-full">
-                Save Company Information
+              <Button onClick={handleSaveCompanyInfo} className="w-full" disabled={isUpdating}>
+                {isUpdating ? "Saving..." : "Save Company Information"}
               </Button>
             </CardContent>
           </Card>
