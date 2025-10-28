@@ -280,6 +280,9 @@ serve(async (req) => {
         
         console.log('User created successfully');
         
+        // Wait for database transaction to commit (fixes race condition)
+        await new Promise(resolve => setTimeout(resolve, 150));
+        
         // Fetch complete user data with roles (LEFT join to include users even without roles)
         const { data: newUserProfile, error: fetchError } = await supabaseAdmin
           .from('profiles')

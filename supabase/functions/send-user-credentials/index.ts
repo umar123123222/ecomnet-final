@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import nodemailer from "npm:nodemailer@6.9.7";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,17 +48,18 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("SMTP configuration is incomplete. Please check your secrets.");
     }
 
-    // Initialize SMTP client
-    const client = new SMTPClient({
-      connection: {
-        hostname: smtpHost,
-        port: smtpPort,
-        tls: smtpPort === 465,
-        auth: {
-          username: smtpUser,
-          password: smtpPassword,
-        },
+    // Initialize SMTP transporter with nodemailer
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465, // true for 465, false for other ports
+      auth: {
+        user: smtpUser,
+        pass: smtpPassword,
       },
+      tls: {
+        rejectUnauthorized: false
+      }
     });
 
     // Format roles for display
@@ -220,15 +221,13 @@ This is an automated message. Please do not reply to this email.
     `;
 
     // Send email
-    await client.send({
+    await transporter.sendMail({
       from: `${fromName} <${fromEmail}>`,
       to: email,
       subject: `Welcome to ${fromName} - Your Portal Access`,
-      content: textContent,
+      text: textContent,
       html: htmlContent,
     });
-
-    await client.close();
 
     console.log(`Credentials email sent successfully to ${email}`);
 
