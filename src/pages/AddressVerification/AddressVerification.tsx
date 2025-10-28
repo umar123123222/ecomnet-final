@@ -105,62 +105,238 @@ const AddressVerification = () => {
     );
   };
 
-  const handleBulkApprove = () => {
-    const currentTime = new Date().toISOString();
-    setAddresses(prev => prev.map(address => 
-      selectedAddresses.includes(address.id)
-        ? {
-            ...address,
-            status: 'approved' as const,
-            approvedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
-            approvedAt: currentTime
-          }
-        : address
-    ));
-    setSelectedAddresses([]);
+  const handleBulkApprove = async () => {
+    try {
+      const { error } = await supabase
+        .from('address_verifications')
+        .update({
+          verified: true,
+          verified_by: user?.id,
+          verified_at: new Date().toISOString()
+        })
+        .in('id', selectedAddresses);
+
+      if (error) throw error;
+
+      // Also update orders verification status
+      const { data: verifications } = await supabase
+        .from('address_verifications')
+        .select('order_id')
+        .in('id', selectedAddresses);
+
+      if (verifications) {
+        await supabase
+          .from('orders')
+          .update({ 
+            verification_status: 'approved',
+            verified_at: new Date().toISOString(),
+            verified_by: user?.id
+          })
+          .in('id', verifications.map(v => v.order_id));
+      }
+
+      toast({
+        title: "Success",
+        description: `Approved ${selectedAddresses.length} addresses`,
+      });
+
+      const currentTime = new Date().toISOString();
+      setAddresses(prev => prev.map(address => 
+        selectedAddresses.includes(address.id)
+          ? {
+              ...address,
+              status: 'approved' as const,
+              approvedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
+              approvedAt: currentTime
+            }
+          : address
+      ));
+      setSelectedAddresses([]);
+    } catch (error: any) {
+      console.error('Error approving addresses:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to approve addresses",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleBulkDisapprove = () => {
-    const currentTime = new Date().toISOString();
-    setAddresses(prev => prev.map(address => 
-      selectedAddresses.includes(address.id)
-        ? {
-            ...address,
-            status: 'disapproved' as const,
-            disapprovedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
-            disapprovedAt: currentTime
-          }
-        : address
-    ));
-    setSelectedAddresses([]);
+  const handleBulkDisapprove = async () => {
+    try {
+      const { error } = await supabase
+        .from('address_verifications')
+        .update({
+          verified: false,
+          verified_by: user?.id,
+          verified_at: new Date().toISOString()
+        })
+        .in('id', selectedAddresses);
+
+      if (error) throw error;
+
+      // Also update orders verification status
+      const { data: verifications } = await supabase
+        .from('address_verifications')
+        .select('order_id')
+        .in('id', selectedAddresses);
+
+      if (verifications) {
+        await supabase
+          .from('orders')
+          .update({ 
+            verification_status: 'disapproved',
+            verified_at: new Date().toISOString(),
+            verified_by: user?.id
+          })
+          .in('id', verifications.map(v => v.order_id));
+      }
+
+      toast({
+        title: "Success",
+        description: `Disapproved ${selectedAddresses.length} addresses`,
+      });
+
+      const currentTime = new Date().toISOString();
+      setAddresses(prev => prev.map(address => 
+        selectedAddresses.includes(address.id)
+          ? {
+              ...address,
+              status: 'disapproved' as const,
+              disapprovedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
+              disapprovedAt: currentTime
+            }
+          : address
+      ));
+      setSelectedAddresses([]);
+    } catch (error: any) {
+      console.error('Error disapproving addresses:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to disapprove addresses",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleIndividualApprove = (addressId: string) => {
-    const currentTime = new Date().toISOString();
-    setAddresses(prev => prev.map(address => 
-      address.id === addressId
-        ? {
-            ...address,
-            status: 'approved' as const,
-            approvedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
-            approvedAt: currentTime
-          }
-        : address
-    ));
+  const handleIndividualApprove = async (addressId: string) => {
+    try {
+      const address = addresses.find(a => a.id === addressId);
+      if (!address) return;
+
+      const { error } = await supabase
+        .from('address_verifications')
+        .update({
+          verified: true,
+          verified_by: user?.id,
+          verified_at: new Date().toISOString()
+        })
+        .eq('id', addressId);
+
+      if (error) throw error;
+
+      // Also update order verification status
+      const { data: verification } = await supabase
+        .from('address_verifications')
+        .select('order_id')
+        .eq('id', addressId)
+        .single();
+
+      if (verification) {
+        await supabase
+          .from('orders')
+          .update({ 
+            verification_status: 'approved',
+            verified_at: new Date().toISOString(),
+            verified_by: user?.id
+          })
+          .eq('id', verification.order_id);
+      }
+
+      toast({
+        title: "Success",
+        description: "Address approved successfully",
+      });
+
+      const currentTime = new Date().toISOString();
+      setAddresses(prev => prev.map(address => 
+        address.id === addressId
+          ? {
+              ...address,
+              status: 'approved' as const,
+              approvedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
+              approvedAt: currentTime
+            }
+          : address
+      ));
+    } catch (error: any) {
+      console.error('Error approving address:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to approve address",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleIndividualDisapprove = (addressId: string) => {
-    const currentTime = new Date().toISOString();
-    setAddresses(prev => prev.map(address => 
-      address.id === addressId
-        ? {
-            ...address,
-            status: 'disapproved' as const,
-            disapprovedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
-            disapprovedAt: currentTime
-          }
-        : address
-    ));
+  const handleIndividualDisapprove = async (addressId: string) => {
+    try {
+      const address = addresses.find(a => a.id === addressId);
+      if (!address) return;
+
+      const { error } = await supabase
+        .from('address_verifications')
+        .update({
+          verified: false,
+          verified_by: user?.id,
+          verified_at: new Date().toISOString()
+        })
+        .eq('id', addressId);
+
+      if (error) throw error;
+
+      // Also update order verification status
+      const { data: verification } = await supabase
+        .from('address_verifications')
+        .select('order_id')
+        .eq('id', addressId)
+        .single();
+
+      if (verification) {
+        await supabase
+          .from('orders')
+          .update({ 
+            verification_status: 'disapproved',
+            verified_at: new Date().toISOString(),
+            verified_by: user?.id
+          })
+          .eq('id', verification.order_id);
+      }
+
+      toast({
+        title: "Success",
+        description: "Address disapproved successfully",
+      });
+
+      const currentTime = new Date().toISOString();
+      setAddresses(prev => prev.map(address => 
+        address.id === addressId
+          ? {
+              ...address,
+              status: 'disapproved' as const,
+              disapprovedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
+              disapprovedAt: currentTime
+            }
+          : address
+      ));
+    } catch (error: any) {
+      console.error('Error disapproving address:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to disapprove address",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleWhatsAppMessage = (phone: string) => {

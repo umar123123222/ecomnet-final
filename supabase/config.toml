@@ -89,3 +89,6 @@ verify_jwt = false
 
 [functions.retry-failed-confirmations]
 verify_jwt = false
+
+[functions.assess-order-fraud-risk]
+verify_jwt = true

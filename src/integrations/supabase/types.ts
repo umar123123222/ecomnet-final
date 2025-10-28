@@ -63,6 +63,11 @@ export type Database = {
         Row: {
           created_at: string
           flagged_reason: string | null
+          gps_distance_from_address: number | null
+          gps_latitude: number | null
+          gps_longitude: number | null
+          gps_verification_notes: string | null
+          gps_verified: boolean | null
           gpt_score: number | null
           id: string
           order_id: string
@@ -74,6 +79,11 @@ export type Database = {
         Insert: {
           created_at?: string
           flagged_reason?: string | null
+          gps_distance_from_address?: number | null
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          gps_verification_notes?: string | null
+          gps_verified?: boolean | null
           gpt_score?: number | null
           id?: string
           order_id: string
@@ -85,6 +95,11 @@ export type Database = {
         Update: {
           created_at?: string
           flagged_reason?: string | null
+          gps_distance_from_address?: number | null
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          gps_verification_notes?: string | null
+          gps_verified?: boolean | null
           gpt_score?: number | null
           id?: string
           order_id?: string
@@ -1240,6 +1255,8 @@ export type Database = {
       orders: {
         Row: {
           assigned_to: string | null
+          auto_block_reason: string | null
+          auto_blocked: boolean | null
           city: string
           comments: Json | null
           confirmation_deadline: string | null
@@ -1252,6 +1269,7 @@ export type Database = {
           customer_address: string
           customer_email: string | null
           customer_id: string | null
+          customer_ip: string | null
           customer_name: string
           customer_new_address: string | null
           customer_phone: string
@@ -1259,6 +1277,12 @@ export type Database = {
           delivered_at: string | null
           delivery_notes: string | null
           dispatched_at: string | null
+          fraud_flags: Json | null
+          gps_distance_from_address: number | null
+          gps_latitude: number | null
+          gps_longitude: number | null
+          gps_verified: boolean | null
+          gps_verified_at: string | null
           gpt_score: number | null
           id: string
           items: Json
@@ -1266,6 +1290,8 @@ export type Database = {
           notes: string | null
           order_number: string
           order_type: string | null
+          risk_level: string | null
+          risk_score: number | null
           shopify_fulfillment_id: number | null
           shopify_order_id: number | null
           shopify_order_number: string | null
@@ -1286,6 +1312,8 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          auto_block_reason?: string | null
+          auto_blocked?: boolean | null
           city: string
           comments?: Json | null
           confirmation_deadline?: string | null
@@ -1298,6 +1326,7 @@ export type Database = {
           customer_address: string
           customer_email?: string | null
           customer_id?: string | null
+          customer_ip?: string | null
           customer_name: string
           customer_new_address?: string | null
           customer_phone: string
@@ -1305,6 +1334,12 @@ export type Database = {
           delivered_at?: string | null
           delivery_notes?: string | null
           dispatched_at?: string | null
+          fraud_flags?: Json | null
+          gps_distance_from_address?: number | null
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          gps_verified?: boolean | null
+          gps_verified_at?: string | null
           gpt_score?: number | null
           id?: string
           items: Json
@@ -1312,6 +1347,8 @@ export type Database = {
           notes?: string | null
           order_number: string
           order_type?: string | null
+          risk_level?: string | null
+          risk_score?: number | null
           shopify_fulfillment_id?: number | null
           shopify_order_id?: number | null
           shopify_order_number?: string | null
@@ -1332,6 +1369,8 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          auto_block_reason?: string | null
+          auto_blocked?: boolean | null
           city?: string
           comments?: Json | null
           confirmation_deadline?: string | null
@@ -1344,6 +1383,7 @@ export type Database = {
           customer_address?: string
           customer_email?: string | null
           customer_id?: string | null
+          customer_ip?: string | null
           customer_name?: string
           customer_new_address?: string | null
           customer_phone?: string
@@ -1351,6 +1391,12 @@ export type Database = {
           delivered_at?: string | null
           delivery_notes?: string | null
           dispatched_at?: string | null
+          fraud_flags?: Json | null
+          gps_distance_from_address?: number | null
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          gps_verified?: boolean | null
+          gps_verified_at?: string | null
           gpt_score?: number | null
           id?: string
           items?: Json
@@ -1358,6 +1404,8 @@ export type Database = {
           notes?: string | null
           order_number?: string
           order_type?: string | null
+          risk_level?: string | null
+          risk_score?: number | null
           shopify_fulfillment_id?: number | null
           shopify_order_id?: number | null
           shopify_order_number?: string | null
