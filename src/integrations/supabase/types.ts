@@ -170,12 +170,15 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           current_stock: number
+          error_message: string | null
           id: string
           lead_time_days: number
           metadata: Json | null
           po_id: string | null
+          processing_duration_ms: number | null
           recommended_quantity: number
           trigger_reason: string
+          trigger_type: string | null
         }
         Insert: {
           auto_approved?: boolean | null
@@ -184,12 +187,15 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           current_stock: number
+          error_message?: string | null
           id?: string
           lead_time_days: number
           metadata?: Json | null
           po_id?: string | null
+          processing_duration_ms?: number | null
           recommended_quantity: number
           trigger_reason: string
+          trigger_type?: string | null
         }
         Update: {
           auto_approved?: boolean | null
@@ -198,12 +204,15 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           current_stock?: number
+          error_message?: string | null
           id?: string
           lead_time_days?: number
           metadata?: Json | null
           po_id?: string | null
+          processing_duration_ms?: number | null
           recommended_quantity?: number
           trigger_reason?: string
+          trigger_type?: string | null
         }
         Relationships: [
           {
@@ -3925,6 +3934,7 @@ export type Database = {
       mark_expired_confirmations: { Args: never; Returns: number }
       match_barcode_to_product: { Args: { p_barcode: string }; Returns: string }
       normalize_phone: { Args: { p_phone: string }; Returns: string }
+      trigger_smart_reorder_now: { Args: never; Returns: Json }
       user_has_role: {
         Args: {
           check_role: Database["public"]["Enums"]["user_role"]

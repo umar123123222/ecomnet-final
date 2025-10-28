@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2, Settings, X, Save, Filter } from "lucide-react";
+import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2, Settings, X, Save, Filter, PlayCircle } from "lucide-react";
+import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,6 +24,27 @@ const InventoryDashboard = () => {
   const { user } = useAuth();
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
   const [presetName, setPresetName] = useState('');
+  const [triggering, setTriggering] = useState(false);
+
+  const handleTriggerAutomation = async () => {
+    setTriggering(true);
+    try {
+      const { data, error } = await supabase.rpc('trigger_smart_reorder_now');
+      
+      if (error) {
+        console.error('Error triggering automation:', error);
+        toast.error('Failed to trigger smart reorder automation');
+      } else {
+        console.log('Automation triggered:', data);
+        toast.success('Smart reorder automation triggered successfully! Check notifications for results.');
+      }
+    } catch (err) {
+      console.error('Exception triggering automation:', err);
+      toast.error('Failed to trigger automation');
+    } finally {
+      setTriggering(false);
+    }
+  };
 
   // Fetch products for the dialog
   const { data: products } = useQuery<Product[]>({
@@ -118,13 +140,24 @@ const InventoryDashboard = () => {
           </h1>
           <p className="text-muted-foreground">Track and manage stock levels across outlets</p>
         </div>
-        <Button
-          onClick={() => setAdjustmentDialogOpen(true)}
-          className="gap-2"
-        >
-          <Settings className="h-4 w-4" />
-          Stock Adjustment
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={handleTriggerAutomation}
+            disabled={triggering}
+            variant="outline"
+            className="gap-2"
+          >
+            <PlayCircle className="h-4 w-4" />
+            {triggering ? 'Running...' : 'Run Smart Reorder'}
+          </Button>
+          <Button
+            onClick={() => setAdjustmentDialogOpen(true)}
+            className="gap-2"
+          >
+            <Settings className="h-4 w-4" />
+            Stock Adjustment
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}

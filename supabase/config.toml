@@ -1,5 +1,8 @@
 project_id = "lzitfcigdjbpymvebipp"
 
+[functions.scheduled-smart-reorder]
+verify_jwt = false
+
 [functions.process-production-batch]
 verify_jwt = true
 
