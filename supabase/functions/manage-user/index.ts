@@ -204,9 +204,10 @@ serve(async (req) => {
         }
 
         // Create user in auth
+        const userPassword = userData.password || Math.random().toString(36).slice(-12);
         const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
           email,
-          password: userData.password || Math.random().toString(36).slice(-12),
+          password: userPassword,
           email_confirm: true,
           user_metadata: {
             full_name,
@@ -311,11 +312,48 @@ serve(async (req) => {
         
         console.log('Fetched user profile with roles:', JSON.stringify(newUserProfile, null, 2));
 
+        // Send credentials email
+        let emailSent = false;
+        let emailError = null;
+        
+        try {
+          // Construct portal URL
+          const portalUrl = `${Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '.lovable.app') || 'https://your-portal.com'}/auth`;
+          
+          console.log('Sending credentials email to:', email);
+          
+          const emailResponse = await supabaseAdmin.functions.invoke('send-user-credentials', {
+            body: {
+              email: email,
+              full_name: full_name,
+              password: userPassword,
+              roles: roles,
+              portal_url: portalUrl,
+            }
+          });
+
+          if (emailResponse.error) {
+            throw emailResponse.error;
+          }
+
+          emailSent = true;
+          console.log('Welcome email sent successfully to:', email);
+        } catch (error: any) {
+          emailError = error.message;
+          console.error('Failed to send welcome email:', error);
+          // Don't fail user creation if email fails
+        }
+
         return new Response(
           JSON.stringify({ 
             success: true, 
             user: authData.user,
-            profile: newUserProfile 
+            profile: newUserProfile,
+            emailSent,
+            emailError,
+            message: emailSent 
+              ? 'User created successfully. Login credentials have been sent to their email.'
+              : 'User created successfully, but email notification failed. Please provide credentials manually.'
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
