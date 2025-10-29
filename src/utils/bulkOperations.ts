@@ -244,6 +244,19 @@ export async function bulkDeleteProducts(
   const errors: string[] = [];
 
   await processBatch(productIds, BATCH_SIZE, async (batch) => {
+    // First, delete related scans to avoid foreign key constraint violation
+    const { error: scansError } = await supabase
+      .from('scans')
+      .delete()
+      .in('product_id', batch);
+
+    if (scansError) {
+      failed += batch.length;
+      errors.push(`Failed to delete related scans: ${scansError.message}`);
+      return;
+    }
+
+    // Then delete the products
     const { data, error } = await supabase
       .from('products')
       .delete()
