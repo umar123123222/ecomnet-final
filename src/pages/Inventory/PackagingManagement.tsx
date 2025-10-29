@@ -5,8 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Package, AlertTriangle, Printer, Edit } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Search, Package, AlertTriangle, Printer, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useBulkOperations } from "@/hooks/useBulkOperations";
+import { bulkDeletePackagingItems } from "@/utils/bulkOperations";
+import { BulkOperationsPanel } from "@/components/BulkOperationsPanel";
 import {
   Table,
   TableBody,
@@ -66,9 +70,11 @@ export default function PackagingManagement() {
   const [editingItem, setEditingItem] = useState<any>(null);
   const [reorderSettingsOpen, setReorderSettingsOpen] = useState(false);
   const [reorderItem, setReorderItem] = useState<any>(null);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { permissions } = useUserRoles();
+  const { progress, executeBulkOperation, resetProgress } = useBulkOperations();
 
   const { data: packagingItems, isLoading } = useQuery({
     queryKey: ["packaging-items"],
@@ -199,6 +205,36 @@ export default function PackagingManagement() {
     return { label: "In Stock", variant: "default" as const };
   };
 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedItems(filteredItems?.map(item => item.id) || []);
+    } else {
+      setSelectedItems([]);
+    }
+  };
+
+  const handleSelectItem = (itemId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedItems(prev => [...prev, itemId]);
+    } else {
+      setSelectedItems(prev => prev.filter(id => id !== itemId));
+    }
+  };
+
+  const bulkOperations = [
+    {
+      id: 'delete',
+      label: 'Delete Selected',
+      icon: Trash2,
+      action: async (selectedIds: string[]) => {
+        return await bulkDeletePackagingItems(selectedIds);
+      },
+      confirmMessage: 'Are you sure you want to delete the selected packaging items? This action cannot be undone.',
+      variant: 'destructive' as const,
+      requiresConfirmation: true,
+    },
+  ];
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -250,6 +286,20 @@ export default function PackagingManagement() {
         </Card>
       </div>
 
+      {permissions.canManagePackaging && selectedItems.length > 0 && (
+        <BulkOperationsPanel
+          selectedCount={selectedItems.length}
+          operations={bulkOperations}
+          onExecute={(operation) => {
+            executeBulkOperation(operation, selectedItems, () => {
+              setSelectedItems([]);
+              queryClient.invalidateQueries({ queryKey: ["packaging-items"] });
+            });
+          }}
+          progress={progress}
+        />
+      )}
+
       <Card className="p-6">
         <div className="flex items-center gap-2 mb-4">
           <Search className="h-4 w-4 text-muted-foreground" />
@@ -264,6 +314,14 @@ export default function PackagingManagement() {
         <Table>
           <TableHeader>
             <TableRow>
+              {permissions.canManagePackaging && (
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selectedItems.length === filteredItems?.length && filteredItems?.length > 0}
+                    onCheckedChange={handleSelectAll}
+                  />
+                </TableHead>
+              )}
               <TableHead>Name</TableHead>
               <TableHead>SKU</TableHead>
               <TableHead>Type</TableHead>
@@ -278,13 +336,13 @@ export default function PackagingManagement() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center">
+                <TableCell colSpan={permissions.canManagePackaging ? 10 : 9} className="text-center">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : filteredItems?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center">
+                <TableCell colSpan={permissions.canManagePackaging ? 10 : 9} className="text-center">
                   No packaging items found
                 </TableCell>
               </TableRow>
@@ -293,6 +351,14 @@ export default function PackagingManagement() {
                 const status = getStockStatus(item);
                 return (
                   <TableRow key={item.id}>
+                    {permissions.canManagePackaging && (
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedItems.includes(item.id)}
+                          onCheckedChange={(checked) => handleSelectItem(item.id, checked as boolean)}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell>{item.sku}</TableCell>
                     <TableCell className="capitalize">{item.type}</TableCell>

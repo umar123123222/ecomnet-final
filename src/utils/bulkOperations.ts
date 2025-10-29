@@ -278,6 +278,36 @@ export async function bulkDeleteProducts(
 }
 
 /**
+ * Bulk delete packaging items
+ */
+export async function bulkDeletePackagingItems(
+  itemIds: string[]
+): Promise<BulkOperationResult> {
+  let success = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  await processBatch(itemIds, BATCH_SIZE, async (batch) => {
+    const { data, error } = await supabase
+      .from('packaging_items')
+      .delete()
+      .in('id', batch)
+      .select('id');
+
+    if (error) {
+      console.error('Packaging item deletion error:', error);
+      failed += batch.length;
+      errors.push(`Failed to delete packaging items: ${error.message}`);
+    } else {
+      success += data?.length || 0;
+      failed += batch.length - (data?.length || 0);
+    }
+  });
+
+  return { success, failed, errors: errors.length > 0 ? errors : undefined };
+}
+
+/**
  * Export data to CSV
  */
 export function exportToCSV(data: any[], filename: string): void {
