@@ -95,10 +95,9 @@ serve(async (req) => {
         scanned_by: user.id,
         product_id,
         outlet_id,
-        raw_data: barcode,
-        processing_status,
-        processing_notes,
-        processed_at: processing_status === 'processed' ? new Date().toISOString() : null,
+        status: processing_status,
+        error_message: processing_status === 'processed' ? null : processing_notes,
+        metadata: context || {},
       })
       .select()
       .single();
