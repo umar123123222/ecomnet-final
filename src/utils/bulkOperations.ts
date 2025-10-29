@@ -245,14 +245,15 @@ export async function bulkDeleteProducts(
 
   await processBatch(productIds, BATCH_SIZE, async (batch) => {
     // First, delete related scans to avoid foreign key constraint violation
-    const { error: scansError } = await supabase
+    const { error: scansError, count: scansDeleted } = await supabase
       .from('scans')
-      .delete()
+      .delete({ count: 'exact' })
       .in('product_id', batch);
 
     if (scansError) {
+      console.error('Scan deletion error:', scansError);
       failed += batch.length;
-      errors.push(`Failed to delete related scans: ${scansError.message}`);
+      errors.push(`Failed to delete related scans: ${scansError.message}. Check if you have permission to delete scans.`);
       return;
     }
 
@@ -264,8 +265,9 @@ export async function bulkDeleteProducts(
       .select('id');
 
     if (error) {
+      console.error('Product deletion error:', error);
       failed += batch.length;
-      errors.push(error.message);
+      errors.push(`Failed to delete products: ${error.message}`);
     } else {
       success += data?.length || 0;
       failed += batch.length - (data?.length || 0);
