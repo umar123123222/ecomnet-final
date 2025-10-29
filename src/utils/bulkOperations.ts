@@ -234,6 +234,35 @@ export async function bulkUpdateProductCategory(
 }
 
 /**
+ * Bulk delete products
+ */
+export async function bulkDeleteProducts(
+  productIds: string[]
+): Promise<BulkOperationResult> {
+  let success = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  await processBatch(productIds, BATCH_SIZE, async (batch) => {
+    const { data, error } = await supabase
+      .from('products')
+      .delete()
+      .in('id', batch)
+      .select('id');
+
+    if (error) {
+      failed += batch.length;
+      errors.push(error.message);
+    } else {
+      success += data?.length || 0;
+      failed += batch.length - (data?.length || 0);
+    }
+  });
+
+  return { success, failed, errors: errors.length > 0 ? errors : undefined };
+}
+
+/**
  * Export data to CSV
  */
 export function exportToCSV(data: any[], filename: string): void {

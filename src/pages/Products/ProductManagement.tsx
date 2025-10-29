@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, ScanBarcode, Printer, QrCode } from "lucide-react";
+import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, ScanBarcode, Printer, QrCode, Trash2 } from "lucide-react";
 import { BarcodeScanner } from '@/components/barcode/BarcodeScanner';
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
@@ -18,11 +18,12 @@ import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
 import { BulkOperationsPanel } from '@/components/BulkOperationsPanel';
-import { bulkToggleProducts, bulkUpdateProductCategory, exportToCSV } from '@/utils/bulkOperations';
+import { bulkToggleProducts, bulkUpdateProductCategory, exportToCSV, bulkDeleteProducts } from '@/utils/bulkOperations';
 import { useToast } from '@/hooks/use-toast';
 
 const ProductManagement = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
@@ -108,6 +109,15 @@ const ProductManagement = () => {
       confirmMessage: 'Are you sure you want to deactivate the selected products? They will no longer be available for orders.',
     },
     {
+      id: 'delete',
+      label: 'Delete Products',
+      icon: Trash2,
+      variant: 'destructive',
+      action: async (ids) => bulkDeleteProducts(ids),
+      requiresConfirmation: true,
+      confirmMessage: 'Are you sure you want to permanently delete the selected products? This action cannot be undone.',
+    },
+    {
       id: 'export',
       label: 'Export Selected',
       icon: Download,
@@ -122,6 +132,8 @@ const ProductManagement = () => {
   const handleBulkOperation = (operation: BulkOperation) => {
     executeBulkOperation(operation, selectedProducts, () => {
       setSelectedProducts([]);
+      // Refetch products after bulk operations
+      queryClient.invalidateQueries({ queryKey: ["products"] });
     });
   };
 
@@ -201,6 +213,16 @@ const ProductManagement = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Bulk Operations Panel */}
+      {selectedProducts.length > 0 && (
+        <BulkOperationsPanel
+          selectedCount={selectedProducts.length}
+          operations={bulkOperations}
+          onExecute={handleBulkOperation}
+          progress={progress}
+        />
+      )}
 
       {/* Products List */}
       <Card>
