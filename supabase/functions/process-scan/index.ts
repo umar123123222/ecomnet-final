@@ -99,8 +99,6 @@ serve(async (req) => {
         processed: processing_status === 'processed',
         processing_status,
         processing_notes,
-        device_info: context?.device_info || {},
-        location_data: context?.location_data || {},
         processed_at: processing_status === 'processed' ? new Date().toISOString() : null,
       })
       .select()
