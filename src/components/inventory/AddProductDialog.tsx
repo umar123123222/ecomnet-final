@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -102,6 +102,42 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
   const supplierId = watch("supplier_id");
   const productType = watch("product_type");
   const barcodeFormat = watch("barcode_format");
+
+  // Reset form when product changes or dialog opens/closes
+  useEffect(() => {
+    if (open) {
+      if (product) {
+        reset({
+          ...product,
+          size: product.size || "",
+          unit_type: product.unit_type || undefined,
+          requires_packaging: product.requires_packaging || false,
+          supplier_id: product.supplier_id || undefined,
+          product_type: product.product_type || 'finished',
+          barcode: product.barcode || "",
+          barcode_format: product.barcode_format || 'CODE128',
+        });
+      } else {
+        reset({
+          sku: "",
+          name: "",
+          description: "",
+          category: "",
+          price: 0,
+          cost: 0,
+          reorder_level: 10,
+          is_active: true,
+          size: "",
+          unit_type: undefined,
+          requires_packaging: false,
+          supplier_id: undefined,
+          product_type: 'finished',
+          barcode: "",
+          barcode_format: 'CODE128',
+        });
+      }
+    }
+  }, [open, product, reset]);
 
   const onSubmit = async (data: ProductFormData) => {
     setIsSubmitting(true);
