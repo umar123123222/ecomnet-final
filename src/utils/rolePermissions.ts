@@ -179,8 +179,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessVarianceManagement: true,
         canAccessPackaging: true,
         canManagePackaging: false, // Cannot add/edit/delete packaging
-        canAccessScanHistory: true,
-        // No POS access
+        // No POS or Scan History access
       };
     
     case 'dispatch_manager':
