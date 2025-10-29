@@ -167,26 +167,71 @@ const SupplierManagement = () => {
   // Delete supplier
   const deleteMutation = useMutation({
     mutationFn: async (supplierId: string) => {
+      // Check for existing purchase orders
+      const { data: purchaseOrders, error: poError } = await supabase
+        .from('purchase_orders')
+        .select('id')
+        .eq('supplier_id', supplierId)
+        .limit(1);
+
+      if (poError) throw poError;
+      
+      if (purchaseOrders && purchaseOrders.length > 0) {
+        throw new Error('Cannot delete supplier with existing purchase orders. Please reassign or archive the purchase orders first.');
+      }
+
+      // Check for existing GRNs
+      const { data: grns, error: grnError } = await supabase
+        .from('goods_received_notes')
+        .select('id')
+        .eq('supplier_id', supplierId)
+        .limit(1);
+
+      if (grnError) throw grnError;
+      
+      if (grns && grns.length > 0) {
+        throw new Error('Cannot delete supplier with existing goods received notes. These records must be preserved for audit purposes.');
+      }
+
+      // Delete related records first
+      await supabase
+        .from('supplier_products')
+        .delete()
+        .eq('supplier_id', supplierId);
+
+      await supabase
+        .from('supplier_profiles')
+        .delete()
+        .eq('supplier_id', supplierId);
+
+      await supabase
+        .from('low_stock_notifications')
+        .delete()
+        .eq('supplier_id', supplierId);
+
+      // Delete the supplier
       const { error } = await supabase
         .from('suppliers')
         .delete()
         .eq('id', supplierId);
+      
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
       toast({
         title: 'Supplier Deleted',
-        description: 'Supplier has been deleted successfully.'
+        description: 'Supplier and all related records have been deleted successfully.'
       });
       setDeleteDialog({ open: false, supplier: null });
     },
     onError: (error: any) => {
       toast({
-        title: 'Error',
+        title: 'Cannot Delete Supplier',
         description: error.message,
         variant: 'destructive'
       });
+      setDeleteDialog({ open: false, supplier: null });
     }
   });
 
