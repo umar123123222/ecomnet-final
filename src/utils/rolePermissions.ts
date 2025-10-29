@@ -160,7 +160,6 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessStockAudit: true,
         canAccessVarianceManagement: true,
         canAccessPackaging: true,
-        canAccessBarcode: true,
         canAccessScanHistory: true,
       };
     
@@ -234,12 +233,13 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
   }
 
   // 3. POINT OF SALE - Direct sales operations
-  if (permissions.canAccessPOS) {
+  if (permissions.canAccessPOS || permissions.canAccessScanHistory) {
     const posSubItems: NavigationItem[] = [];
     
-    posSubItems.push({ label: 'Point of Sale', href: '/pos', icon: '' });
-    
-    if (permissions.canAccessScanHistory && !permissions.canAccessBarcode) {
+    if (permissions.canAccessPOS) {
+      posSubItems.push({ label: 'Point of Sale', href: '/pos', icon: '' });
+    }
+    if (permissions.canAccessScanHistory) {
       posSubItems.push({ label: 'Scan History', href: '/scan-history', icon: '' });
     }
 
@@ -312,24 +312,6 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
         { label: 'Print Labels', href: '/production/labels', icon: '' },
         { label: 'Barcode Management', href: '/barcode-management', icon: '' }
       ]
-    });
-  }
-
-  // 6.6 BARCODE - Barcode management (for warehouse manager)
-  if (permissions.canAccessBarcode) {
-    const barcodeSubItems: NavigationItem[] = [];
-    
-    barcodeSubItems.push({ label: 'Barcode Management', href: '/barcode-management', icon: '' });
-    
-    if (permissions.canAccessScanHistory) {
-      barcodeSubItems.push({ label: 'Scan History', href: '/scan-history', icon: '' });
-    }
-
-    items.push({
-      label: 'Barcode',
-      href: '/barcode-management',
-      icon: 'QrCode',
-      subItems: barcodeSubItems
     });
   }
 
