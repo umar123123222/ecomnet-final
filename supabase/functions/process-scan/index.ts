@@ -96,7 +96,6 @@ serve(async (req) => {
         product_id,
         outlet_id,
         raw_data: barcode,
-        processed: processing_status === 'processed',
         processing_status,
         processing_notes,
         processed_at: processing_status === 'processed' ? new Date().toISOString() : null,
