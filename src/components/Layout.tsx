@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { ModernButton } from "@/components/ui/modern-button";
 import { Badge } from "@/components/ui/badge";
@@ -15,14 +15,16 @@ const Layout = () => {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const { user, profile, userRoles, signOut } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const toggleTheme = () => {
     setIsDark(!isDark);
     document.documentElement.classList.toggle('dark');
   };
 
-  const handleLogout = () => {
-    signOut();
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/auth');
   };
 
   const { primaryRole, userRoles: currentRoles } = useUserRoles();
