@@ -10,9 +10,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, Star, AlertCircle, Building2, Package } from 'lucide-react';
+import { Plus, Search, Star, AlertCircle, Building2, Package, Trash2, Mail, CheckCircle } from 'lucide-react';
 import { SupplierProductsDialog } from '@/components/suppliers/SupplierProductsDialog';
 import { useUserRoles } from '@/hooks/useUserRoles';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface Supplier {
   id: string;
@@ -25,6 +26,7 @@ interface Supplier {
   rating: number;
   status: 'active' | 'inactive' | 'blacklisted';
   created_at: string;
+  has_portal_access?: boolean;
 }
 
 const SupplierManagement = () => {
@@ -36,6 +38,7 @@ const SupplierManagement = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [assignProductsDialog, setAssignProductsDialog] = useState<{ open: boolean; supplierId: string; supplierName: string }>({ open: false, supplierId: '', supplierName: '' });
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; supplier: Supplier | null }>({ open: false, supplier: null });
 
   const [formData, setFormData] = useState({
     name: '',
@@ -54,13 +57,18 @@ const SupplierManagement = () => {
     minimum_order_value: 0,
   });
 
-  // Fetch suppliers
+  // Fetch suppliers with portal access info
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ['suppliers', statusFilter],
     queryFn: async () => {
       let query = supabase
         .from('suppliers')
-        .select('*')
+        .select(`
+          *,
+          supplier_profiles (
+            user_id
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (statusFilter !== 'all') {
@@ -69,7 +77,11 @@ const SupplierManagement = () => {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data as Supplier[];
+      
+      return (data as any[]).map(s => ({
+        ...s,
+        has_portal_access: s.supplier_profiles && s.supplier_profiles.length > 0
+      })) as Supplier[];
     }
   });
 
@@ -82,19 +94,64 @@ const SupplierManagement = () => {
           .update(data)
           .eq('id', editingSupplier.id);
         if (error) throw error;
+        return { isNew: false, supplierId: editingSupplier.id };
       } else {
-        const { error } = await supabase
+        const { data: newSupplier, error } = await supabase
           .from('suppliers')
-          .insert([data]);
+          .insert([data])
+          .select()
+          .single();
         if (error) throw error;
+        return { isNew: true, supplierId: newSupplier.id };
       }
     },
-    onSuccess: () => {
+    onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
-      toast({
-        title: editingSupplier ? 'Supplier Updated' : 'Supplier Created',
-        description: `Supplier ${formData.name} has been ${editingSupplier ? 'updated' : 'created'} successfully.`
-      });
+      
+      // If new supplier, create portal account
+      if (result.isNew && formData.email) {
+        try {
+          const { data: accountResult, error: accountError } = await supabase.functions.invoke('create-supplier-account', {
+            body: {
+              supplier_id: result.supplierId,
+              email: formData.email,
+              contact_person: formData.contact_person,
+              supplier_name: formData.name,
+            }
+          });
+
+          if (accountError) throw accountError;
+
+          if (accountResult.success) {
+            toast({
+              title: 'Supplier Created',
+              description: accountResult.email_sent 
+                ? `Supplier ${formData.name} created and portal access sent to ${formData.email}`
+                : `Supplier ${formData.name} created but failed to send credentials email. Use "Resend Portal Access" to try again.`,
+            });
+          } else if (accountResult.code === 'ACCOUNT_EXISTS') {
+            toast({
+              title: 'Supplier Created',
+              description: `Supplier ${formData.name} created successfully.`,
+            });
+          } else {
+            throw new Error(accountResult.error || 'Failed to create portal account');
+          }
+        } catch (error: any) {
+          console.error('Portal account creation error:', error);
+          toast({
+            title: 'Supplier Created',
+            description: `Supplier ${formData.name} created but portal account creation failed: ${error.message}`,
+            variant: 'destructive',
+          });
+        }
+      } else {
+        toast({
+          title: 'Supplier Updated',
+          description: `Supplier ${formData.name} has been updated successfully.`
+        });
+      }
+      
       setIsDialogOpen(false);
       resetForm();
     },
@@ -102,6 +159,65 @@ const SupplierManagement = () => {
       toast({
         title: 'Error',
         description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // Delete supplier
+  const deleteMutation = useMutation({
+    mutationFn: async (supplierId: string) => {
+      const { error } = await supabase
+        .from('suppliers')
+        .delete()
+        .eq('id', supplierId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      toast({
+        title: 'Supplier Deleted',
+        description: 'Supplier has been deleted successfully.'
+      });
+      setDeleteDialog({ open: false, supplier: null });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // Grant/Resend portal access
+  const grantAccessMutation = useMutation({
+    mutationFn: async (supplier: Supplier) => {
+      const { data, error } = await supabase.functions.invoke('create-supplier-account', {
+        body: {
+          supplier_id: supplier.id,
+          email: supplier.email,
+          contact_person: supplier.contact_person,
+          supplier_name: supplier.name,
+        }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data, supplier) => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      toast({
+        title: data.email_sent ? 'Portal Access Sent' : 'Portal Access Created',
+        description: data.email_sent
+          ? `Portal access credentials sent to ${supplier.email}`
+          : `Portal access created but failed to send email to ${supplier.email}`,
+        variant: data.email_sent ? 'default' : 'destructive',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to grant portal access',
         variant: 'destructive'
       });
     }
@@ -449,24 +565,71 @@ const SupplierManagement = () => {
                   </div>
                 )}
 
-                <div className="flex gap-2 mt-4">
-                  {permissions.canManageSuppliers && (
-                    <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEdit(supplier)}>
-                      Edit
+                {/* Portal Access Badge */}
+                {supplier.has_portal_access && (
+                  <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                    <CheckCircle className="h-4 w-4" />
+                    <span>Portal Access Active</span>
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-2 mt-4">
+                  <div className="flex gap-2">
+                    {permissions.canManageSuppliers && (
+                      <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEdit(supplier)}>
+                        Edit
+                      </Button>
+                    )}
+                    <Button 
+                      size="sm" 
+                      variant="default" 
+                      className="flex-1" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAssignProductsDialog({ open: true, supplierId: supplier.id, supplierName: supplier.name });
+                      }}
+                    >
+                      <Package className="mr-1 h-3 w-3" />
+                      Assign
                     </Button>
-                  )}
-                  <Button 
-                    size="sm" 
-                    variant="default" 
-                    className="flex-1" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setAssignProductsDialog({ open: true, supplierId: supplier.id, supplierName: supplier.name });
-                    }}
-                  >
-                    <Package className="mr-1 h-3 w-3" />
-                    Assign
-                  </Button>
+                  </div>
+
+                  {/* Portal Access & Delete Actions */}
+                  <div className="flex gap-2">
+                    {permissions.canManageSuppliers && !supplier.has_portal_access && supplier.email && (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => grantAccessMutation.mutate(supplier)}
+                        disabled={grantAccessMutation.isPending}
+                      >
+                        <Mail className="mr-1 h-3 w-3" />
+                        Grant Portal Access
+                      </Button>
+                    )}
+                    {permissions.canManageSuppliers && supplier.has_portal_access && supplier.email && (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => grantAccessMutation.mutate(supplier)}
+                        disabled={grantAccessMutation.isPending}
+                      >
+                        <Mail className="mr-1 h-3 w-3" />
+                        Resend Portal Access
+                      </Button>
+                    )}
+                    {permissions.canManageSuppliers && (
+                      <Button 
+                        size="sm" 
+                        variant="destructive" 
+                        onClick={() => setDeleteDialog({ open: true, supplier })}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -480,6 +643,33 @@ const SupplierManagement = () => {
         supplierId={assignProductsDialog.supplierId}
         supplierName={assignProductsDialog.supplierName}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Supplier?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{deleteDialog.supplier?.name}</strong>? This will:
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Remove the supplier record</li>
+                <li>Remove all product/packaging assignments</li>
+                <li>Remove the supplier's portal access (if exists)</li>
+                <li>This action cannot be undone</li>
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteDialog.supplier && deleteMutation.mutate(deleteDialog.supplier.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete Supplier'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

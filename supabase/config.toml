@@ -1,5 +1,8 @@
 project_id = "lzitfcigdjbpymvebipp"
 
+[functions.create-supplier-account]
+verify_jwt = true
+
 [functions.send-user-credentials]
 verify_jwt = true
 
