@@ -43,6 +43,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { SmartReorderSettings } from "@/components/inventory/SmartReorderSettings";
+import { useUserRoles } from '@/hooks/useUserRoles';
 
 const packagingSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -67,6 +68,7 @@ export default function PackagingManagement() {
   const [reorderItem, setReorderItem] = useState<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { permissions } = useUserRoles();
 
   const { data: packagingItems, isLoading } = useQuery({
     queryKey: ["packaging-items"],
@@ -206,10 +208,12 @@ export default function PackagingManagement() {
             Manage packaging materials like bottles, boxes, and labels
           </p>
         </div>
-        <Button onClick={handleAddNew}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Packaging Item
-        </Button>
+        {permissions.canManagePackaging && (
+          <Button onClick={handleAddNew}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Packaging Item
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -301,14 +305,16 @@ export default function PackagingManagement() {
                     <TableCell>PKR {item.cost.toFixed(2)}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEdit(item)}
-                        >
-                          <Edit className="h-3 w-3 mr-1" />
-                          Edit
-                        </Button>
+                        {permissions.canManagePackaging && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(item)}
+                          >
+                            <Edit className="h-3 w-3 mr-1" />
+                            Edit
+                          </Button>
+                        )}
                         <Button
                           variant="secondary"
                           size="sm"

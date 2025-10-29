@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, Star, AlertCircle, Building2, Package } from 'lucide-react';
 import { SupplierProductsDialog } from '@/components/suppliers/SupplierProductsDialog';
+import { useUserRoles } from '@/hooks/useUserRoles';
 
 interface Supplier {
   id: string;
@@ -29,6 +30,7 @@ interface Supplier {
 const SupplierManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { permissions } = useUserRoles();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -187,181 +189,183 @@ const SupplierManagement = () => {
           <h1 className="text-3xl font-bold">Supplier Management</h1>
           <p className="text-muted-foreground">Manage your suppliers and track their performance</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={resetForm}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Supplier
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+        {permissions.canManageSuppliers && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={resetForm}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Supplier
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="name">Supplier Name *</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="code">Supplier Code *</Label>
+                    <Input
+                      id="code"
+                      value={formData.code}
+                      onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                      placeholder="SUP001"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="contact_person">Contact Person *</Label>
+                    <Input
+                      id="contact_person"
+                      value={formData.contact_person}
+                      onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="phone">Phone *</Label>
+                    <Input
+                      id="phone"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="email">Email *</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="city">City *</Label>
+                    <Input
+                      id="city"
+                      value={formData.city}
+                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <Label htmlFor="name">Supplier Name *</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  <Label htmlFor="address">Address *</Label>
+                  <Textarea
+                    id="address"
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                     required
                   />
                 </div>
-                <div>
-                  <Label htmlFor="code">Supplier Code *</Label>
-                  <Input
-                    id="code"
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    placeholder="SUP001"
-                    required
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="contact_person">Contact Person *</Label>
-                  <Input
-                    id="contact_person"
-                    value={formData.contact_person}
-                    onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
-                    required
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="payment_terms">Payment Terms</Label>
+                    <Input
+                      id="payment_terms"
+                      value={formData.payment_terms}
+                      onChange={(e) => setFormData({ ...formData, payment_terms: e.target.value })}
+                      placeholder="Net 30"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="whatsapp_number">WhatsApp Number *</Label>
+                    <Input
+                      id="whatsapp_number"
+                      value={formData.whatsapp_number}
+                      onChange={(e) => setFormData({ ...formData, whatsapp_number: e.target.value })}
+                      placeholder="+92XXXXXXXXXX"
+                      required
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="phone">Phone *</Label>
-                  <Input
-                    id="phone"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="email">Email *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    required
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="lead_time_days">Lead Time (Days)</Label>
+                    <Input
+                      id="lead_time_days"
+                      type="number"
+                      value={formData.lead_time_days}
+                      onChange={(e) => setFormData({ ...formData, lead_time_days: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="minimum_order_value">Minimum Order Value (PKR)</Label>
+                    <Input
+                      id="minimum_order_value"
+                      type="number"
+                      step="0.01"
+                      value={formData.minimum_order_value}
+                      onChange={(e) => setFormData({ ...formData, minimum_order_value: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="city">City *</Label>
-                  <Input
-                    id="city"
-                    value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
 
-              <div>
-                <Label htmlFor="address">Address *</Label>
-                <Textarea
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  required
-                />
-               </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="tax_id">Tax ID</Label>
+                    <Input
+                      id="tax_id"
+                      value={formData.tax_id}
+                      onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="status">Status</Label>
+                    <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                        <SelectItem value="blacklisted">Blacklisted</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="payment_terms">Payment Terms</Label>
-                  <Input
-                    id="payment_terms"
-                    value={formData.payment_terms}
-                    onChange={(e) => setFormData({ ...formData, payment_terms: e.target.value })}
-                    placeholder="Net 30"
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea
+                    id="notes"
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="whatsapp_number">WhatsApp Number *</Label>
-                  <Input
-                    id="whatsapp_number"
-                    value={formData.whatsapp_number}
-                    onChange={(e) => setFormData({ ...formData, whatsapp_number: e.target.value })}
-                    placeholder="+92XXXXXXXXXX"
-                    required
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="lead_time_days">Lead Time (Days)</Label>
-                  <Input
-                    id="lead_time_days"
-                    type="number"
-                    value={formData.lead_time_days}
-                    onChange={(e) => setFormData({ ...formData, lead_time_days: parseInt(e.target.value) || 0 })}
-                  />
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={saveMutation.isPending}>
+                    {saveMutation.isPending ? 'Saving...' : 'Save Supplier'}
+                  </Button>
                 </div>
-                <div>
-                  <Label htmlFor="minimum_order_value">Minimum Order Value (PKR)</Label>
-                  <Input
-                    id="minimum_order_value"
-                    type="number"
-                    step="0.01"
-                    value={formData.minimum_order_value}
-                    onChange={(e) => setFormData({ ...formData, minimum_order_value: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="tax_id">Tax ID</Label>
-                  <Input
-                    id="tax_id"
-                    value={formData.tax_id}
-                    onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                      <SelectItem value="blacklisted">Blacklisted</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                />
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={saveMutation.isPending}>
-                  {saveMutation.isPending ? 'Saving...' : 'Save Supplier'}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Filters */}
@@ -446,9 +450,11 @@ const SupplierManagement = () => {
                 )}
 
                 <div className="flex gap-2 mt-4">
-                  <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEdit(supplier)}>
-                    Edit
-                  </Button>
+                  {permissions.canManageSuppliers && (
+                    <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEdit(supplier)}>
+                      Edit
+                    </Button>
+                  )}
                   <Button 
                     size="sm" 
                     variant="default" 

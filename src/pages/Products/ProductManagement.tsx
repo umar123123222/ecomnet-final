@@ -20,10 +20,12 @@ import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
 import { BulkOperationsPanel } from '@/components/BulkOperationsPanel';
 import { bulkToggleProducts, bulkUpdateProductCategory, exportToCSV, bulkDeleteProducts } from '@/utils/bulkOperations';
 import { useToast } from '@/hooks/use-toast';
+import { useUserRoles } from '@/hooks/useUserRoles';
 
 const ProductManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { permissions } = useUserRoles();
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
@@ -93,30 +95,32 @@ const ProductManagement = () => {
 
   // Bulk operations
   const bulkOperations: BulkOperation[] = [
-    {
-      id: 'activate',
-      label: 'Activate',
-      icon: CheckCircle,
-      action: async (ids) => bulkToggleProducts(ids, true),
-    },
-    {
-      id: 'deactivate',
-      label: 'Deactivate',
-      icon: XCircle,
-      variant: 'destructive',
-      action: async (ids) => bulkToggleProducts(ids, false),
-      requiresConfirmation: true,
-      confirmMessage: 'Are you sure you want to deactivate the selected products? They will no longer be available for orders.',
-    },
-    {
-      id: 'delete',
-      label: 'Delete Products',
-      icon: Trash2,
-      variant: 'destructive',
-      action: async (ids) => bulkDeleteProducts(ids),
-      requiresConfirmation: true,
-      confirmMessage: 'Are you sure you want to permanently delete the selected products? This action cannot be undone.',
-    },
+    ...(permissions.canManageProducts ? [
+      {
+        id: 'activate',
+        label: 'Activate',
+        icon: CheckCircle,
+        action: async (ids: string[]) => bulkToggleProducts(ids, true),
+      },
+      {
+        id: 'deactivate',
+        label: 'Deactivate',
+        icon: XCircle,
+        variant: 'destructive' as const,
+        action: async (ids: string[]) => bulkToggleProducts(ids, false),
+        requiresConfirmation: true,
+        confirmMessage: 'Are you sure you want to deactivate the selected products? They will no longer be available for orders.',
+      },
+      {
+        id: 'delete',
+        label: 'Delete Products',
+        icon: Trash2,
+        variant: 'destructive' as const,
+        action: async (ids: string[]) => bulkDeleteProducts(ids),
+        requiresConfirmation: true,
+        confirmMessage: 'Are you sure you want to permanently delete the selected products? This action cannot be undone.',
+      },
+    ] : []),
     {
       id: 'export',
       label: 'Export Selected',
@@ -162,16 +166,18 @@ const ProductManagement = () => {
           </h1>
           <p className="text-muted-foreground">Manage your product catalog</p>
         </div>
-        <Button
-          onClick={() => {
-            setSelectedProduct(null);
-            setProductDialogOpen(true);
-          }}
-          className="gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Add Product
-        </Button>
+        {permissions.canManageProducts && (
+          <Button
+            onClick={() => {
+              setSelectedProduct(null);
+              setProductDialogOpen(true);
+            }}
+            className="gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Add Product
+          </Button>
+        )}
       </div>
 
       {/* Summary Cards */}
@@ -299,18 +305,20 @@ const ProductManagement = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="gap-2"
-                              onClick={() => {
-                                setSelectedProduct(product);
-                                setProductDialogOpen(true);
-                              }}
-                            >
-                              <Edit className="h-3 w-3" />
-                              Edit
-                            </Button>
+                            {permissions.canManageProducts && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="gap-2"
+                                onClick={() => {
+                                  setSelectedProduct(product);
+                                  setProductDialogOpen(true);
+                                }}
+                              >
+                                <Edit className="h-3 w-3" />
+                                Edit
+                              </Button>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"

@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { StockTransferRequest, Product, Outlet } from "@/types/inventory";
 import { StockTransferDialog } from "@/components/inventory/StockTransferDialog";
 import { useToast } from "@/hooks/use-toast";
+import { useUserRoles } from '@/hooks/useUserRoles';
 
 type TransferWithRelations = StockTransferRequest & {
   product?: { name: string; sku: string };
@@ -23,6 +24,7 @@ const StockTransferDashboard = () => {
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { permissions } = useUserRoles();
 
   // Fetch products and outlets for the dialog
   const { data: products } = useQuery<Product[]>({
@@ -177,10 +179,12 @@ const StockTransferDashboard = () => {
           </h1>
           <p className="text-muted-foreground">Manage inventory transfers between outlets</p>
         </div>
-        <Button onClick={() => setTransferDialogOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          New Transfer Request
-        </Button>
+        {permissions.canCreateStockTransfer && (
+          <Button onClick={() => setTransferDialogOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            New Transfer Request
+          </Button>
+        )}
       </div>
 
       {/* Summary Cards */}
