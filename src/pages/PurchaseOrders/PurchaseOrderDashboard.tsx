@@ -10,9 +10,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, FileText, Calendar, DollarSign } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, DollarSign, XCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface PurchaseOrder {
   id: string;
@@ -32,6 +33,7 @@ const PurchaseOrderDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [cancelDialog, setCancelDialog] = useState<{ open: boolean; po: PurchaseOrder | null }>({ open: false, po: null });
 
   const [formData, setFormData] = useState({
     supplier_id: '',
@@ -203,6 +205,37 @@ const PurchaseOrderDashboard = () => {
         description: error.message,
         variant: 'destructive'
       });
+    }
+  });
+
+  // Cancel PO
+  const cancelMutation = useMutation({
+    mutationFn: async (poId: string) => {
+      const { error } = await supabase
+        .from('purchase_orders')
+        .update({ 
+          status: 'cancelled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', poId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+      toast({
+        title: 'Purchase Order Cancelled',
+        description: 'The purchase order has been cancelled successfully.'
+      });
+      setCancelDialog({ open: false, po: null });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive'
+      });
+      setCancelDialog({ open: false, po: null });
     }
   });
 
@@ -540,6 +573,17 @@ const PurchaseOrderDashboard = () => {
                   
                   <div className="flex flex-col items-end gap-2">
                     {getStatusBadge(po.status)}
+                    {['draft', 'sent', 'confirmed'].includes(po.status) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCancelDialog({ open: true, po })}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <XCircle className="mr-1 h-3 w-3" />
+                        Cancel PO
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -547,6 +591,36 @@ const PurchaseOrderDashboard = () => {
           ))}
         </div>
       )}
+
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog open={cancelDialog.open} onOpenChange={(open) => setCancelDialog({ ...cancelDialog, open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Purchase Order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel <strong>{cancelDialog.po?.po_number}</strong>?
+              <br /><br />
+              This will:
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Mark the PO as cancelled</li>
+                <li>Prevent any further receiving or processing</li>
+                <li>Notify the supplier (if already sent)</li>
+              </ul>
+              <br />
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep PO</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => cancelDialog.po && cancelMutation.mutate(cancelDialog.po.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {cancelMutation.isPending ? 'Cancelling...' : 'Cancel PO'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
