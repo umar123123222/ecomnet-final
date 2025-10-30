@@ -153,30 +153,26 @@ const UserManagement = () => {
       return result;
     },
     onSuccess: async (result) => {
-      console.log('User creation result:', result);
-      console.log('Profile with roles:', result?.profile);
-      console.log('User roles array:', result?.profile?.user_roles);
+      console.log('✅ User creation result:', result);
+      console.log('📝 Created user ID:', result?.profile?.id);
+      console.log('📝 Created user email:', result?.profile?.email);
+      console.log('📝 Created user roles:', result?.profile?.user_roles?.map((r: any) => r.role));
       
-      // Optimistically update cache with new user
-      if (result?.profile) {
-        queryClient.setQueryData(['users'], (prev: UserWithRoles[] = []) => {
-          console.log('Previous users:', prev);
-          const exists = prev.some(u => u.id === result.profile.id);
-          const newUsers = exists ? prev : [result.profile, ...prev];
-          console.log('New users array:', newUsers);
-          return newUsers;
-        });
-      }
+      // Wait for backend to fully commit
+      await new Promise(resolve => setTimeout(resolve, 200));
       
-      // Wait for refetch to complete before closing dialog
+      // Invalidate and refetch - no optimistic updates to prevent stale data
       await queryClient.invalidateQueries({
-        queryKey: ['users']
+        queryKey: ['users'],
+        refetchType: 'active'
       });
       
       toast({
         title: 'Success',
         description: 'User created successfully'
       });
+      
+      // Close dialog after query completes
       setIsAddUserOpen(false);
       form.reset();
     },
@@ -212,32 +208,31 @@ const UserManagement = () => {
       });
     },
     onSuccess: async (result, variables) => {
-      console.log('User update result:', result);
-      console.log('Updated profile with roles:', result?.profile);
-      console.log('Updated user roles array:', result?.profile?.user_roles);
-      
-      // Optimistically update cache with updated user
-      if (result?.profile) {
-        queryClient.setQueryData(['users'], (prev: UserWithRoles[] = []) => {
-          console.log('Updating user in cache:', result.profile.id);
-          return prev.map(u => u.id === result.profile.id ? result.profile : u);
-        });
-      }
+      console.log('✅ User update result:', result);
+      console.log('📝 Updated user ID:', result?.profile?.id);
+      console.log('📝 Updated user email:', result?.profile?.email);
+      console.log('📝 Updated user roles:', result?.profile?.user_roles?.map((r: any) => r.role));
       
       // If updating current user's roles, refresh the auth context
       if (variables.userId === currentUser?.id) {
         await refreshProfile();
       }
       
-      // Wait for refetch to complete
+      // Wait for backend to fully commit
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Invalidate and refetch - no optimistic updates to prevent stale data
       await queryClient.invalidateQueries({
-        queryKey: ['users']
+        queryKey: ['users'],
+        refetchType: 'active'
       });
       
       toast({
         title: 'Success',
         description: 'User updated successfully'
       });
+      
+      // Reset form and close dialog
       form.reset({
         full_name: '',
         email: '',
@@ -309,10 +304,18 @@ const UserManagement = () => {
     setSelectedUsers(selectedUsers.length === filteredUsers.length ? [] : filteredUsers.map(u => u.id));
   };
   const handleAddUser = (data: UserFormData) => {
+    console.log('🔵 Adding NEW user:', { data: { ...data, password: data.password ? '***' : '(empty)' } });
+    
+    // Safety check: ensure selectedUser is null for add operation
+    if (selectedUser) {
+      console.error('⚠️ WARNING: selectedUser is set during add operation! Clearing it.', selectedUser);
+      setSelectedUser(null);
+    }
+    
     addUserMutation.mutate(data);
   };
   const handleEditUser = (data: UserFormData) => {
-    console.log('Editing user:', { userId: selectedUser?.id, data: { ...data, password: data.password ? '***' : '(empty)' } });
+    console.log('🔵 Editing user:', { userId: selectedUser?.id, data: { ...data, password: data.password ? '***' : '(empty)' } });
     if (selectedUser) {
       updateUserMutation.mutate({
         userId: selectedUser.id,

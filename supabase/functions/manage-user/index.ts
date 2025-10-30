@@ -266,6 +266,15 @@ serve(async (req) => {
           is_active: true,
         }))
 
+        console.log('🔵 CREATING ROLES FOR NEW USER:', {
+          target_user_id: authData.user.id,
+          target_email: email,
+          roles: roles,
+          roles_count: roles.length,
+          assigned_by_user_id: user.id,
+          assigned_by_email: user.email
+        });
+
         const { error: rolesError } = await supabaseAdmin
           .from('user_roles')
           .upsert(roleRecords, {
@@ -274,11 +283,29 @@ serve(async (req) => {
           })
 
         if (rolesError) {
-          console.error('Error upserting roles:', rolesError);
+          console.error('❌ Error upserting roles:', rolesError);
           throw rolesError;
         }
         
-        console.log('User created successfully');
+        // Verify roles were assigned correctly
+        const { data: verifyRoles, error: verifyError } = await supabaseAdmin
+          .from('user_roles')
+          .select('user_id, role, is_active')
+          .eq('user_id', authData.user.id)
+          .eq('is_active', true);
+
+        console.log('✅ ROLES CREATED - VERIFICATION:', {
+          target_user_id: authData.user.id,
+          target_email: email,
+          assigned_roles: verifyRoles?.map(r => r.role),
+          verification_passed: verifyRoles?.length === roles.length
+        });
+
+        if (verifyError) {
+          console.warn('⚠️ Verification query error:', verifyError);
+        }
+        
+        console.log('✅ User created successfully');
         
         // Wait for database transaction to commit (fixes race condition)
         await new Promise(resolve => setTimeout(resolve, 150));

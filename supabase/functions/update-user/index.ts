@@ -183,8 +183,24 @@ serve(async (req) => {
       .eq('id', targetUserId);
     if (profileError) throw profileError;
 
+    // Fetch target user email for logging
+    const { data: targetProfile } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', targetUserId)
+      .single();
+
+    console.log('🔵 UPDATING ROLES FOR USER:', {
+      target_user_id: targetUserId,
+      target_email: targetProfile?.email || 'unknown',
+      new_roles: roles,
+      roles_count: roles.length,
+      updated_by_user_id: user.id,
+      updated_by_email: user.email
+    });
+
     // Step 1: Deactivate ALL existing active roles first to avoid conflicts
-    console.log(`Deactivating all existing roles for user ${targetUserId}`);
+    console.log(`🔸 Deactivating all existing roles for user ${targetUserId}`);
     const { error: deactivateAllError } = await supabase
       .from('user_roles')
       .update({ is_active: false })
@@ -192,7 +208,7 @@ serve(async (req) => {
       .eq('is_active', true);
 
     if (deactivateAllError) {
-      console.warn('Error deactivating existing roles:', deactivateAllError);
+      console.warn('⚠️ Error deactivating existing roles:', deactivateAllError);
     }
 
     // Step 2: Upsert the new roles
@@ -203,7 +219,7 @@ serve(async (req) => {
       is_active: true,
     }));
     
-    console.log(`Inserting ${roles.length} new active roles for user ${targetUserId}:`, roles);
+    console.log(`🔸 Inserting ${roles.length} new active roles for user ${targetUserId}:`, roles);
     
     const { error: rolesError } = await supabase
       .from('user_roles')
@@ -211,7 +227,28 @@ serve(async (req) => {
         onConflict: 'user_id,role',
         ignoreDuplicates: false 
       });
-    if (rolesError) throw rolesError;
+    if (rolesError) {
+      console.error('❌ Error upserting roles:', rolesError);
+      throw rolesError;
+    }
+
+    // Verify roles were updated correctly
+    const { data: verifyRoles, error: verifyError } = await supabase
+      .from('user_roles')
+      .select('user_id, role, is_active')
+      .eq('user_id', targetUserId)
+      .eq('is_active', true);
+
+    console.log('✅ ROLES UPDATED - VERIFICATION:', {
+      target_user_id: targetUserId,
+      target_email: targetProfile?.email || 'unknown',
+      assigned_roles: verifyRoles?.map(r => r.role),
+      verification_passed: verifyRoles?.length === roles.length
+    });
+
+    if (verifyError) {
+      console.warn('⚠️ Verification query error:', verifyError);
+    }
 
     // Fetch updated profile with roles
     const { data: updatedUserProfile, error: fetchError } = await supabase
