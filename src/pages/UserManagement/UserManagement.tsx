@@ -238,8 +238,14 @@ const UserManagement = () => {
         title: 'Success',
         description: 'User updated successfully'
       });
+      form.reset({
+        full_name: '',
+        email: '',
+        password: '',
+        roles: [],
+        supplier_id: ''
+      });
       setIsEditUserOpen(false);
-      form.reset();
     },
     onError: (error: any) => {
       // Map friendly error messages
@@ -365,7 +371,21 @@ const UserManagement = () => {
           <p className="text-gray-600 mt-1">Manage system users, permissions, and monitor activities</p>
         </div>
         <div className="flex items-center gap-3">
-          {permissions.canAddUsers && <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+          {permissions.canAddUsers && <Dialog 
+            open={isAddUserOpen} 
+            onOpenChange={(open) => {
+              setIsAddUserOpen(open);
+              if (open) {
+                form.reset({
+                  full_name: '',
+                  email: '',
+                  password: '',
+                  roles: [],
+                  supplier_id: ''
+                });
+              }
+            }}
+          >
               <DialogTrigger asChild>
                 <Button>
                   <UserPlus className="h-4 w-4 mr-2" />
@@ -659,7 +679,21 @@ const UserManagement = () => {
       </Tabs>
 
       {/* Edit User Dialog */}
-      <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+          <Dialog 
+            open={isEditUserOpen} 
+            onOpenChange={(open) => {
+              setIsEditUserOpen(open);
+              if (!open) {
+                form.reset({
+                  full_name: '',
+                  email: '',
+                  password: '',
+                  roles: [],
+                  supplier_id: ''
+                });
+              }
+            }}
+          >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>

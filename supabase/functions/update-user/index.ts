@@ -183,7 +183,19 @@ serve(async (req) => {
       .eq('id', targetUserId);
     if (profileError) throw profileError;
 
-    // Upsert roles
+    // Step 1: Deactivate ALL existing active roles first to avoid conflicts
+    console.log(`Deactivating all existing roles for user ${targetUserId}`);
+    const { error: deactivateAllError } = await supabase
+      .from('user_roles')
+      .update({ is_active: false })
+      .eq('user_id', targetUserId)
+      .eq('is_active', true);
+
+    if (deactivateAllError) {
+      console.warn('Error deactivating existing roles:', deactivateAllError);
+    }
+
+    // Step 2: Upsert the new roles
     const roleRecords = roles.map(role => ({
       user_id: targetUserId as string,
       role,
@@ -191,36 +203,15 @@ serve(async (req) => {
       is_active: true,
     }));
     
-    console.log(`Upserting roles for user ${targetUserId}:`, roles);
+    console.log(`Inserting ${roles.length} new active roles for user ${targetUserId}:`, roles);
     
     const { error: rolesError } = await supabase
       .from('user_roles')
-      .upsert(roleRecords, { onConflict: 'unique_user_role', ignoreDuplicates: false });
+      .upsert(roleRecords, { 
+        onConflict: 'user_id,role',
+        ignoreDuplicates: false 
+      });
     if (rolesError) throw rolesError;
-
-    // Deactivate roles not in the new set
-    const { data: existingRoles } = await supabase
-      .from('user_roles')
-      .select('id, role')
-      .eq('user_id', targetUserId);
-
-    if (existingRoles && existingRoles.length > 0) {
-      const rolesToDeactivate = existingRoles
-        .filter(er => !roles.includes(er.role as AllowedRole))
-        .map(er => er.id);
-      
-      if (rolesToDeactivate.length > 0) {
-        console.log(`Deactivating ${rolesToDeactivate.length} roles for user ${targetUserId}`);
-        const { error: deactivateError } = await supabase
-          .from('user_roles')
-          .update({ is_active: false })
-          .in('id', rolesToDeactivate);
-        
-        if (deactivateError) {
-          console.warn('Error deactivating old roles:', deactivateError);
-        }
-      }
-    }
 
     // Fetch updated profile with roles
     const { data: updatedUserProfile, error: fetchError } = await supabase
