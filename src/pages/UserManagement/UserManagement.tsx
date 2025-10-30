@@ -291,7 +291,7 @@ const UserManagement = () => {
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
       const matchesSearch = user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || user.email.toLowerCase().includes(searchTerm.toLowerCase());
-      const userRoles = user.user_roles?.map(ur => ur.role) || [user.role];
+      const userRoles = user.user_roles?.filter(ur => ur.is_active).map(ur => ur.role) || [user.role];
       const matchesRole = roleFilter === 'all' || userRoles.includes(roleFilter as UserRole);
       return matchesSearch && matchesRole;
     });
@@ -325,7 +325,7 @@ const UserManagement = () => {
   };
   const openEditDialog = (user: UserWithRoles) => {
     setSelectedUser(user);
-    const userRoles = user.user_roles?.map(ur => ur.role) || [user.role];
+    const userRoles = user.user_roles?.filter(ur => ur.is_active).map(ur => ur.role) || [user.role];
     form.setValue('full_name', user.full_name);
     form.setValue('email', user.email);
     form.setValue('password', ''); // Explicitly clear password field
