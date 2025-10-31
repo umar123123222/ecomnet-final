@@ -6,6 +6,9 @@ verify_jwt = true
 [functions.send-user-credentials]
 verify_jwt = true
 
+[functions.send-po-notification]
+verify_jwt = true
+
 [functions.scheduled-smart-reorder]
 verify_jwt = false
 

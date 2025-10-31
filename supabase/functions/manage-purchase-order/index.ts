@@ -97,6 +97,52 @@ serve(async (req) => {
 
         if (itemsError) throw itemsError;
 
+        // Get supplier and item details for notification
+        const { data: supplier } = await supabaseClient
+          .from('suppliers')
+          .select('name, email')
+          .eq('id', data.supplier_id)
+          .single();
+
+        // Send email notification to supplier and admins
+        if (supplier?.email) {
+          try {
+            const itemDetails = await Promise.all(
+              items.map(async (item: any) => {
+                const { data: product } = await supabaseClient
+                  .from('products')
+                  .select('name')
+                  .eq('id', item.product_id)
+                  .single();
+                
+                return {
+                  name: product?.name || 'Unknown Product',
+                  quantity: item.quantity_ordered,
+                  unit_price: item.unit_price
+                };
+              })
+            );
+
+            await supabaseClient.functions.invoke('send-po-notification', {
+              body: {
+                po_id: po.id,
+                supplier_email: supplier.email,
+                supplier_name: supplier.name,
+                po_number: poNumber,
+                total_amount: totalAmount,
+                expected_delivery_date: data.expected_delivery_date,
+                items: itemDetails,
+                notify_admins: true
+              }
+            });
+
+            console.log('PO notification sent successfully');
+          } catch (emailError) {
+            console.error('Failed to send PO notification:', emailError);
+            // Don't fail the PO creation if email fails
+          }
+        }
+
         return new Response(
           JSON.stringify({ success: true, po, message: 'Purchase order created successfully' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
