@@ -60,7 +60,14 @@ serve(async (req) => {
     if (userExists) {
       console.log('User already exists:', email);
       
-      // Check if supplier profile exists
+      // Get the existing user
+      const existingAuthUser = existingUser.users?.find(u => u.email === email);
+      
+      if (!existingAuthUser) {
+        throw new Error('Failed to retrieve existing user details');
+      }
+      
+      // Check if supplier profile already exists for THIS supplier
       const { data: existingProfile } = await supabase
         .from('supplier_profiles')
         .select('user_id')
@@ -77,8 +84,53 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
         );
       }
+      
+      // User exists but no supplier profile for this supplier - ADD the supplier profile
+      console.log('Adding supplier profile to existing user:', existingAuthUser.id);
+      
+      const { error: profileError } = await supabase
+        .from('supplier_profiles')
+        .insert({
+          user_id: existingAuthUser.id,
+          supplier_id,
+          can_view_inventory: true,
+          can_accept_orders: true,
+          can_view_analytics: false,
+        });
 
-      throw new Error('Email already in use by another account');
+      if (profileError) {
+        throw new Error(`Failed to create supplier profile: ${profileError.message}`);
+      }
+      
+      // Add supplier role to user_roles
+      const { error: userRoleError } = await supabase
+        .from('user_roles')
+        .upsert({
+          user_id: existingAuthUser.id,
+          role: 'supplier',
+          assigned_by: existingAuthUser.id,
+          is_active: true,
+        }, {
+          onConflict: 'user_id,role',
+          ignoreDuplicates: false
+        });
+
+      if (userRoleError) {
+        console.error('Failed to add supplier role:', userRoleError);
+      }
+      
+      console.log('Supplier profile added to existing user');
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          user_id: existingAuthUser.id,
+          email_sent: false,
+          message: 'Supplier profile added to existing user account',
+          code: 'PROFILE_ADDED'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Generate secure password
@@ -122,6 +174,23 @@ serve(async (req) => {
 
     console.log('Supplier profile created');
 
+    // Create user_roles entry for supplier role
+    const { error: userRoleError } = await supabase
+      .from('user_roles')
+      .insert({
+        user_id: authData.user.id,
+        role: 'supplier',
+        assigned_by: authData.user.id,
+        is_active: true,
+      });
+
+    if (userRoleError) {
+      console.error('User role creation error:', userRoleError);
+      console.warn('Continuing without user_roles entry - supplier may have limited access');
+    } else {
+      console.log('Supplier role added to user_roles');
+    }
+
     // Send credentials email
     let emailSent = false;
     try {
@@ -130,7 +199,8 @@ serve(async (req) => {
           email,
           password,
           full_name: contact_person,
-          role: 'supplier',
+          roles: ['supplier'],
+          portal_url: `${Deno.env.get('SUPABASE_URL')}/auth/v1/verify`,
           supplier_name,
         }
       });
@@ -146,6 +216,26 @@ serve(async (req) => {
       console.error('Failed to send email:', emailError);
       emailSent = false;
     }
+
+    // Verify the supplier account was created correctly
+    const { data: verificationData } = await supabase
+      .from('supplier_profiles')
+      .select(`
+        user_id,
+        supplier_id,
+        can_view_inventory,
+        user_roles!inner(role, is_active)
+      `)
+      .eq('user_id', authData.user.id)
+      .eq('supplier_id', supplier_id)
+      .single();
+
+    console.log('VERIFICATION - Supplier account created:', {
+      user_id: authData.user.id,
+      email: email,
+      has_supplier_profile: !!verificationData,
+      roles: verificationData?.user_roles
+    });
 
     return new Response(
       JSON.stringify({
