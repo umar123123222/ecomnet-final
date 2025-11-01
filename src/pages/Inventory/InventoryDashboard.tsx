@@ -28,6 +28,8 @@ import { QuickTransferDialog } from "@/components/inventory/QuickTransferDialog"
 import { InventoryValueWidget } from "@/components/inventory/InventoryValueWidget";
 import { StockAgingAnalysis } from "@/components/inventory/StockAgingAnalysis";
 import { InventoryInsightsWidget } from "@/components/inventory/InventoryInsightsWidget";
+import { DemandForecastWidget } from "@/components/inventory/DemandForecastWidget";
+import { SalesVelocityTracker } from "@/components/inventory/SalesVelocityTracker";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -488,6 +490,12 @@ const InventoryDashboard = () => {
         <InventoryValueWidget />
         <StockAgingAnalysis />
         <InventoryInsightsWidget />
+      </div>
+
+      {/* Demand Planning & Forecasting */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <DemandForecastWidget />
+        <SalesVelocityTracker />
       </div>
 
       {/* Dialogs */}
