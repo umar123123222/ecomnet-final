@@ -20,6 +20,8 @@ import { LowStockAlerts } from "@/components/inventory/LowStockAlerts";
 import { RecentStockMovements } from "@/components/inventory/RecentStockMovements";
 import { RecentStockAdjustments } from "@/components/inventory/RecentStockAdjustments";
 import { SmartReorderRecommendations } from "@/components/inventory/SmartReorderRecommendations";
+import { PackagingInventoryWidget } from "@/components/inventory/PackagingInventoryWidget";
+import { PackagingLowStockAlerts } from "@/components/inventory/PackagingLowStockAlerts";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -440,8 +442,11 @@ const InventoryDashboard = () => {
         </CardContent>
       </Card>
 
-      {/* Smart Reorder Recommendations */}
-      <SmartReorderRecommendations />
+      {/* Smart Reorder and Adjustments */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <SmartReorderRecommendations />
+        <RecentStockAdjustments />
+      </div>
 
       {/* Alerts and Movements */}
       <div className="grid gap-6 md:grid-cols-2">
@@ -449,8 +454,11 @@ const InventoryDashboard = () => {
         <RecentStockMovements />
       </div>
 
-      {/* Recent Stock Adjustments */}
-      <RecentStockAdjustments />
+      {/* Packaging Inventory Section */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <PackagingInventoryWidget />
+        <PackagingLowStockAlerts />
+      </div>
 
       {/* Dialogs */}
       <StockAdjustmentDialog
