@@ -1696,6 +1696,53 @@ export type Database = {
           },
         ]
       }
+      packaging_stock_movements: {
+        Row: {
+          created_at: string
+          id: string
+          movement_type: string
+          new_stock: number
+          notes: string | null
+          packaging_item_id: string
+          performed_by: string | null
+          previous_stock: number
+          quantity: number
+          reference_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          movement_type: string
+          new_stock: number
+          notes?: string | null
+          packaging_item_id: string
+          performed_by?: string | null
+          previous_stock: number
+          quantity: number
+          reference_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          movement_type?: string
+          new_stock?: number
+          notes?: string | null
+          packaging_item_id?: string
+          performed_by?: string | null
+          previous_stock?: number
+          quantity?: number
+          reference_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packaging_stock_movements_packaging_item_id_fkey"
+            columns: ["packaging_item_id"]
+            isOneToOne: false
+            referencedRelation: "packaging_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pos_receipts: {
         Row: {
           created_at: string | null

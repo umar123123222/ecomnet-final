@@ -366,7 +366,25 @@ serve(async (req) => {
           throw updateError
         }
 
-        // Log the adjustment in activity_logs
+        // Create packaging stock movement record for audit trail
+        const { error: movementError } = await supabaseClient
+          .from('packaging_stock_movements')
+          .insert({
+            packaging_item_id: packagingItemId,
+            movement_type: 'adjustment',
+            quantity: quantity,
+            previous_stock: currentPackaging.current_stock,
+            new_stock: newQuantity,
+            notes: reason,
+            performed_by: user.id
+          })
+
+        if (movementError) {
+          console.error('[adjustPackagingStock] Error creating movement record:', movementError)
+          // Don't throw - stock update succeeded, movement record is for audit
+        }
+
+        // Also log in activity_logs for centralized audit trail
         const { error: logError } = await supabaseClient
           .from('activity_logs')
           .insert({
@@ -385,8 +403,7 @@ serve(async (req) => {
           })
 
         if (logError) {
-          console.error('[adjustPackagingStock] Error logging adjustment:', logError)
-          // Don't throw - this is not critical
+          console.error('[adjustPackagingStock] Error logging to activity_logs:', logError)
         }
 
         console.log(`[adjustPackagingStock] Success - Stock adjusted from ${currentPackaging.current_stock} to ${newQuantity}`)
