@@ -20,6 +20,7 @@ import { LowStockAlerts } from "@/components/inventory/LowStockAlerts";
 import { RecentStockMovements } from "@/components/inventory/RecentStockMovements";
 import { RecentStockAdjustments } from "@/components/inventory/RecentStockAdjustments";
 import { SmartReorderRecommendations } from "@/components/inventory/SmartReorderRecommendations";
+import { SmartReorderSettings } from "@/components/inventory/SmartReorderSettings";
 import { PackagingInventoryWidget } from "@/components/inventory/PackagingInventoryWidget";
 import { PackagingLowStockAlerts } from "@/components/inventory/PackagingLowStockAlerts";
 import { PendingTransfersWidget } from "@/components/inventory/PendingTransfersWidget";
