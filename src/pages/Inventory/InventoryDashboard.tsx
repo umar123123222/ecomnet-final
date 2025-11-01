@@ -25,6 +25,9 @@ import { PackagingInventoryWidget } from "@/components/inventory/PackagingInvent
 import { PackagingLowStockAlerts } from "@/components/inventory/PackagingLowStockAlerts";
 import { PendingTransfersWidget } from "@/components/inventory/PendingTransfersWidget";
 import { QuickTransferDialog } from "@/components/inventory/QuickTransferDialog";
+import { InventoryValueWidget } from "@/components/inventory/InventoryValueWidget";
+import { StockAgingAnalysis } from "@/components/inventory/StockAgingAnalysis";
+import { InventoryInsightsWidget } from "@/components/inventory/InventoryInsightsWidget";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -479,6 +482,13 @@ const InventoryDashboard = () => {
 
       {/* Stock Transfer Section */}
       <PendingTransfersWidget />
+
+      {/* Advanced Analytics */}
+      <div className="grid gap-6 md:grid-cols-3">
+        <InventoryValueWidget />
+        <StockAgingAnalysis />
+        <InventoryInsightsWidget />
+      </div>
 
       {/* Dialogs */}
       <StockAdjustmentDialog
