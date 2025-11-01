@@ -20,9 +20,11 @@ import { RecentStockMovements } from "@/components/inventory/RecentStockMovement
 import { SmartReorderRecommendations } from "@/components/inventory/SmartReorderRecommendations";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
+import { useUserRoles } from "@/hooks/useUserRoles";
 
 const InventoryDashboard = () => {
   const { user } = useAuth();
+  const { permissions } = useUserRoles();
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
   const [presetName, setPresetName] = useState('');
   const [triggering, setTriggering] = useState(false);
@@ -157,13 +159,15 @@ const InventoryDashboard = () => {
               Automation History
             </Button>
           </Link>
-          <Button
-            onClick={() => setAdjustmentDialogOpen(true)}
-            className="gap-2"
-          >
-            <Settings className="h-4 w-4" />
-            Stock Adjustment
-          </Button>
+          {permissions.canAccessInventory && (
+            <Button
+              onClick={() => setAdjustmentDialogOpen(true)}
+              className="gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              Stock Adjustment
+            </Button>
+          )}
         </div>
       </div>
 

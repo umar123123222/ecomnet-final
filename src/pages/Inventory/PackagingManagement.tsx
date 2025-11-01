@@ -247,7 +247,7 @@ export default function PackagingManagement() {
           </p>
         </div>
         <div className="flex gap-2">
-          {permissions.canAccessInventory && (
+          {permissions.canAdjustPackagingStock && (
             <Button onClick={() => setAdjustmentDialogOpen(true)} variant="secondary">
               <PackagePlus className="mr-2 h-4 w-4" />
               Stock Adjustment

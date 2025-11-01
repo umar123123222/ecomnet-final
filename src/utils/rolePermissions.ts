@@ -42,6 +42,9 @@ export const getRolePermissions = (role: UserRole) => {
     canAccessSupplierPortal: false,
     canAccessPackaging: false,
     canManagePackaging: false,
+    canAdjustPackagingStock: false,
+    canViewStockMovements: false,
+    canBulkAdjustStock: false,
     canAccessPOS: false,
     canAccessScanHistory: false,
     canAccessBarcode: false,
@@ -88,6 +91,9 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessFraudReporting: true,
         canAccessPackaging: true,
         canManagePackaging: true,
+        canAdjustPackagingStock: true,
+        canViewStockMovements: true,
+        canBulkAdjustStock: true,
         canAccessPOS: true,
         canAccessScanHistory: true,
       };
@@ -124,6 +130,9 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessFraudReporting: true,
         canAccessPackaging: true,
         canManagePackaging: true,
+        canAdjustPackagingStock: true,
+        canViewStockMovements: true,
+        canBulkAdjustStock: true,
         canAccessPOS: true,
         canAccessScanHistory: true,
         // No admin panel access
@@ -167,7 +176,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessProducts: true,
         canManageProducts: false, // Cannot add/edit/delete products
         canAccessStockTransfer: true,
-        canCreateStockTransfer: false, // Cannot create stock transfer requests
+        canCreateStockTransfer: true, // Can create stock transfer requests
         canAccessLocations: true,
         canAccessSettings: true,
         canAccessSuppliers: true,
@@ -179,6 +188,10 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessVarianceManagement: true,
         canAccessPackaging: true,
         canManagePackaging: false, // Cannot add/edit/delete packaging
+        canAdjustPackagingStock: true, // Can adjust packaging stock quantities
+        canViewStockMovements: true, // Can view stock movement history
+        canBulkAdjustStock: true, // Can perform bulk stock adjustments
+        canAccessActivityLogs: true, // Can view activity logs for audit trail
         // No POS or Scan History access
       };
     
