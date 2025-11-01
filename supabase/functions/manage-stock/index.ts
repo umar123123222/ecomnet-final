@@ -195,33 +195,81 @@ serve(async (req) => {
       case 'adjustStock': {
         const { productId, outletId, quantity, reason } = data
         
+        console.log(`[adjustStock] Starting adjustment - Product: ${productId}, Outlet: ${outletId}, Adjustment: ${quantity}`)
+        
+        // Fetch current inventory quantity
+        const { data: currentInventory, error: fetchError } = await supabaseClient
+          .from('inventory')
+          .select('quantity, reserved_quantity')
+          .eq('product_id', productId)
+          .eq('outlet_id', outletId)
+          .single()
+
+        if (fetchError) {
+          console.error('[adjustStock] Error fetching inventory:', fetchError)
+          throw fetchError
+        }
+
+        if (!currentInventory) {
+          throw new Error('Inventory record not found for this product and outlet')
+        }
+
+        // Calculate new quantity (current + adjustment)
+        const newQuantity = currentInventory.quantity + quantity
+        
+        console.log(`[adjustStock] Current: ${currentInventory.quantity}, Adjustment: ${quantity}, New: ${newQuantity}`)
+
+        // Validate: prevent negative stock
+        if (newQuantity < 0) {
+          const error = `Cannot adjust stock: would result in negative quantity (${newQuantity}). Current stock: ${currentInventory.quantity}, Adjustment: ${quantity}`
+          console.error(`[adjustStock] ${error}`)
+          return new Response(
+            JSON.stringify({ error }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        // Update inventory with new quantity
         const { error: updateError } = await supabaseClient
           .from('inventory')
           .update({ 
-            quantity: quantity,
+            quantity: newQuantity,
             last_restocked_at: new Date().toISOString()
           })
           .eq('product_id', productId)
           .eq('outlet_id', outletId)
 
-        if (updateError) throw updateError
+        if (updateError) {
+          console.error('[adjustStock] Error updating inventory:', updateError)
+          throw updateError
+        }
 
-        // Create stock movement record
+        // Create stock movement record with correct field (outlet_id, not to_outlet_id)
         const { error: movementError } = await supabaseClient
           .from('stock_movements')
           .insert({
             product_id: productId,
-            to_outlet_id: outletId,
-            quantity: quantity,
+            outlet_id: outletId,
+            quantity: Math.abs(quantity), // Store absolute value
             movement_type: 'adjustment',
             notes: reason,
             performed_by: user.id,
           })
 
-        if (movementError) throw movementError
+        if (movementError) {
+          console.error('[adjustStock] Error creating stock movement:', movementError)
+          throw movementError
+        }
+
+        console.log(`[adjustStock] Success - Stock adjusted from ${currentInventory.quantity} to ${newQuantity}`)
 
         return new Response(
-          JSON.stringify({ success: true }),
+          JSON.stringify({ 
+            success: true, 
+            previousQuantity: currentInventory.quantity,
+            newQuantity: newQuantity,
+            adjustment: quantity
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
