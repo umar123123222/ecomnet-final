@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2, Settings, X, Save, Filter, PlayCircle, History } from "lucide-react";
+import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2, Settings, X, Save, Filter, PlayCircle, History, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { Inventory, Outlet, Product } from "@/types/inventory";
 import { StockAdjustmentDialog } from "@/components/inventory/StockAdjustmentDialog";
+import { BulkStockAdjustmentDialog } from "@/components/inventory/BulkStockAdjustmentDialog";
 import { LowStockAlerts } from "@/components/inventory/LowStockAlerts";
 import { RecentStockMovements } from "@/components/inventory/RecentStockMovements";
 import { RecentStockAdjustments } from "@/components/inventory/RecentStockAdjustments";
@@ -27,6 +28,7 @@ const InventoryDashboard = () => {
   const { user } = useAuth();
   const { permissions } = useUserRoles();
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
+  const [bulkAdjustmentDialogOpen, setBulkAdjustmentDialogOpen] = useState(false);
   const [presetName, setPresetName] = useState('');
   const [triggering, setTriggering] = useState(false);
 
@@ -160,6 +162,16 @@ const InventoryDashboard = () => {
               Automation History
             </Button>
           </Link>
+          {permissions.canBulkAdjustStock && (
+            <Button
+              onClick={() => setBulkAdjustmentDialogOpen(true)}
+              variant="secondary"
+              className="gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Bulk Adjustment
+            </Button>
+          )}
           {permissions.canAccessInventory && (
             <Button
               onClick={() => setAdjustmentDialogOpen(true)}
@@ -446,6 +458,11 @@ const InventoryDashboard = () => {
         onOpenChange={setAdjustmentDialogOpen}
         products={products || []}
         outlets={outlets || []}
+      />
+
+      <BulkStockAdjustmentDialog
+        open={bulkAdjustmentDialogOpen}
+        onOpenChange={setBulkAdjustmentDialogOpen}
       />
     </div>
   );
