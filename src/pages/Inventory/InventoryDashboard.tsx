@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2, Settings, X, Save, Filter, PlayCircle, History, FileSpreadsheet } from "lucide-react";
+import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2, Settings, X, Save, Filter, PlayCircle, History, FileSpreadsheet, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -22,6 +22,8 @@ import { RecentStockAdjustments } from "@/components/inventory/RecentStockAdjust
 import { SmartReorderRecommendations } from "@/components/inventory/SmartReorderRecommendations";
 import { PackagingInventoryWidget } from "@/components/inventory/PackagingInventoryWidget";
 import { PackagingLowStockAlerts } from "@/components/inventory/PackagingLowStockAlerts";
+import { PendingTransfersWidget } from "@/components/inventory/PendingTransfersWidget";
+import { QuickTransferDialog } from "@/components/inventory/QuickTransferDialog";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -31,6 +33,7 @@ const InventoryDashboard = () => {
   const { permissions } = useUserRoles();
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
   const [bulkAdjustmentDialogOpen, setBulkAdjustmentDialogOpen] = useState(false);
+  const [quickTransferDialogOpen, setQuickTransferDialogOpen] = useState(false);
   const [presetName, setPresetName] = useState('');
   const [triggering, setTriggering] = useState(false);
 
@@ -164,6 +167,16 @@ const InventoryDashboard = () => {
               Automation History
             </Button>
           </Link>
+          {permissions.canCreateStockTransfer && (
+            <Button
+              onClick={() => setQuickTransferDialogOpen(true)}
+              variant="secondary"
+              className="gap-2"
+            >
+              <ArrowRight className="h-4 w-4" />
+              Quick Transfer
+            </Button>
+          )}
           {permissions.canBulkAdjustStock && (
             <Button
               onClick={() => setBulkAdjustmentDialogOpen(true)}
@@ -460,6 +473,9 @@ const InventoryDashboard = () => {
         <PackagingLowStockAlerts />
       </div>
 
+      {/* Stock Transfer Section */}
+      <PendingTransfersWidget />
+
       {/* Dialogs */}
       <StockAdjustmentDialog
         open={adjustmentDialogOpen}
@@ -471,6 +487,13 @@ const InventoryDashboard = () => {
       <BulkStockAdjustmentDialog
         open={bulkAdjustmentDialogOpen}
         onOpenChange={setBulkAdjustmentDialogOpen}
+      />
+
+      <QuickTransferDialog
+        open={quickTransferDialogOpen}
+        onOpenChange={setQuickTransferDialogOpen}
+        products={products || []}
+        outlets={outlets || []}
       />
     </div>
   );
