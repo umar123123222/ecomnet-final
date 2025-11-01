@@ -20,7 +20,7 @@ import { LowStockAlerts } from "@/components/inventory/LowStockAlerts";
 import { RecentStockMovements } from "@/components/inventory/RecentStockMovements";
 import { RecentStockAdjustments } from "@/components/inventory/RecentStockAdjustments";
 import { SmartReorderRecommendations } from "@/components/inventory/SmartReorderRecommendations";
-import { SmartReorderSettings } from "@/components/inventory/SmartReorderSettings";
+import { SmartReorderSettings as SmartReorderGlobalSettings } from "@/components/inventory/SmartReorderGlobalSettings";
 import { PackagingInventoryWidget } from "@/components/inventory/PackagingInventoryWidget";
 import { PackagingLowStockAlerts } from "@/components/inventory/PackagingLowStockAlerts";
 import { PendingTransfersWidget } from "@/components/inventory/PendingTransfersWidget";
@@ -459,14 +459,17 @@ const InventoryDashboard = () => {
       {/* Smart Reorder and Adjustments */}
       <div className="grid gap-6 md:grid-cols-2">
         <SmartReorderRecommendations />
-        <RecentStockAdjustments />
+        <SmartReorderGlobalSettings />
       </div>
 
-      {/* Alerts and Movements */}
+      {/* Recent Adjustments and Alerts */}
       <div className="grid gap-6 md:grid-cols-2">
+        <RecentStockAdjustments />
         <LowStockAlerts />
-        <RecentStockMovements />
       </div>
+
+      {/* Recent Movements */}
+      <RecentStockMovements />
 
       {/* Packaging Inventory Section */}
       <div className="grid gap-6 md:grid-cols-2">
