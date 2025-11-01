@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 export interface BusinessSetting {
@@ -86,12 +86,12 @@ export const useBusinessSettings = () => {
   });
 
   // Helper function to get a specific setting
-  const getSetting = (key: string): string | undefined => {
+  const getSetting = useCallback((key: string): string | undefined => {
     return settings.find(s => s.setting_key === key)?.setting_value;
-  };
+  }, [settings]);
 
   // Helper function to update a setting
-  const updateSetting = async (key: string, value: string, description?: string) => {
+  const updateSetting = useCallback(async (key: string, value: string, description?: string) => {
     try {
       await updateSettingMutation.mutateAsync({ key, value, description });
       return true;
@@ -99,7 +99,7 @@ export const useBusinessSettings = () => {
       console.error('Failed to update setting:', error);
       return false;
     }
-  };
+  }, [updateSettingMutation]);
 
   return {
     settings,
