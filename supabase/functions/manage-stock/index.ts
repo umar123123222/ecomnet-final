@@ -316,6 +316,92 @@ serve(async (req) => {
         )
       }
 
+      case 'adjustPackagingStock': {
+        const { packagingItemId, quantity, reason } = data
+        
+        console.log(`[adjustPackagingStock] Starting adjustment - Packaging: ${packagingItemId}, Adjustment: ${quantity}`)
+        
+        // Fetch current packaging stock
+        const { data: currentPackaging, error: fetchError } = await supabaseClient
+          .from('packaging_items')
+          .select('current_stock, name, sku')
+          .eq('id', packagingItemId)
+          .single()
+
+        if (fetchError) {
+          console.error('[adjustPackagingStock] Error fetching packaging item:', fetchError)
+          throw fetchError
+        }
+
+        if (!currentPackaging) {
+          throw new Error('Packaging item not found')
+        }
+
+        // Calculate new quantity (current + adjustment)
+        const newQuantity = currentPackaging.current_stock + quantity
+        
+        console.log(`[adjustPackagingStock] Current: ${currentPackaging.current_stock}, Adjustment: ${quantity}, New: ${newQuantity}`)
+
+        // Validate: prevent negative stock
+        if (newQuantity < 0) {
+          const error = `Cannot adjust packaging stock: would result in negative quantity (${newQuantity}). Current stock: ${currentPackaging.current_stock}, Adjustment: ${quantity}`
+          console.error(`[adjustPackagingStock] ${error}`)
+          return new Response(
+            JSON.stringify({ error }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        // Update packaging item stock
+        const { error: updateError } = await supabaseClient
+          .from('packaging_items')
+          .update({ 
+            current_stock: newQuantity,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', packagingItemId)
+
+        if (updateError) {
+          console.error('[adjustPackagingStock] Error updating packaging stock:', updateError)
+          throw updateError
+        }
+
+        // Log the adjustment in activity_logs
+        const { error: logError } = await supabaseClient
+          .from('activity_logs')
+          .insert({
+            user_id: user.id,
+            entity_type: 'packaging_items',
+            entity_id: packagingItemId,
+            action: 'stock_adjustment',
+            details: {
+              previous_stock: currentPackaging.current_stock,
+              new_stock: newQuantity,
+              adjustment: quantity,
+              reason: reason,
+              packaging_name: currentPackaging.name,
+              packaging_sku: currentPackaging.sku
+            }
+          })
+
+        if (logError) {
+          console.error('[adjustPackagingStock] Error logging adjustment:', logError)
+          // Don't throw - this is not critical
+        }
+
+        console.log(`[adjustPackagingStock] Success - Stock adjusted from ${currentPackaging.current_stock} to ${newQuantity}`)
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            previousQuantity: currentPackaging.current_stock,
+            newQuantity: newQuantity,
+            adjustment: quantity
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid operation' }),

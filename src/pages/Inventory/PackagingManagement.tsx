@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Package, AlertTriangle, Printer, Edit, Trash2 } from "lucide-react";
+import { Plus, Search, Package, AlertTriangle, Printer, Edit, Trash2, PackagePlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useBulkOperations } from "@/hooks/useBulkOperations";
 import { bulkDeletePackagingItems } from "@/utils/bulkOperations";
@@ -47,6 +47,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { SmartReorderSettings } from "@/components/inventory/SmartReorderSettings";
+import { PackagingAdjustmentDialog } from "@/components/inventory/PackagingAdjustmentDialog";
 import { useUserRoles } from '@/hooks/useUserRoles';
 
 const packagingSchema = z.object({
@@ -70,6 +71,7 @@ export default function PackagingManagement() {
   const [editingItem, setEditingItem] = useState<any>(null);
   const [reorderSettingsOpen, setReorderSettingsOpen] = useState(false);
   const [reorderItem, setReorderItem] = useState<any>(null);
+  const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -244,12 +246,20 @@ export default function PackagingManagement() {
             Manage packaging materials like bottles, boxes, and labels
           </p>
         </div>
-        {permissions.canManagePackaging && (
-          <Button onClick={handleAddNew}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Packaging Item
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {permissions.canAccessInventory && (
+            <Button onClick={() => setAdjustmentDialogOpen(true)} variant="secondary">
+              <PackagePlus className="mr-2 h-4 w-4" />
+              Stock Adjustment
+            </Button>
+          )}
+          {permissions.canManagePackaging && (
+            <Button onClick={handleAddNew}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Packaging Item
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -656,6 +666,12 @@ export default function PackagingManagement() {
           )}
         </DialogContent>
       </Dialog>
+
+      <PackagingAdjustmentDialog
+        open={adjustmentDialogOpen}
+        onOpenChange={setAdjustmentDialogOpen}
+        packagingItems={packagingItems || []}
+      />
     </div>
   );
 }
