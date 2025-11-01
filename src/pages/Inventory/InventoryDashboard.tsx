@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Inventory, Outlet, Product } from "@/types/inventory";
 import { StockAdjustmentDialog } from "@/components/inventory/StockAdjustmentDialog";
 import { BulkStockAdjustmentDialog } from "@/components/inventory/BulkStockAdjustmentDialog";
+import { AddProductDialog } from "@/components/inventory/AddProductDialog";
 import { LowStockAlerts } from "@/components/inventory/LowStockAlerts";
 import { RecentStockMovements } from "@/components/inventory/RecentStockMovements";
 import { RecentStockAdjustments } from "@/components/inventory/RecentStockAdjustments";
@@ -35,6 +36,8 @@ import { InventoryTurnoverWidget } from "@/components/inventory/InventoryTurnove
 import { OutletInventoryComparison } from "@/components/inventory/OutletInventoryComparison";
 import { StockAvailabilityMatrix } from "@/components/inventory/StockAvailabilityMatrix";
 import { InventoryReportGenerator } from "@/components/inventory/InventoryReportGenerator";
+import { InventoryHealthScore } from "@/components/inventory/InventoryHealthScore";
+import { QuickActionsPanel } from "@/components/inventory/QuickActionsPanel";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -45,6 +48,7 @@ const InventoryDashboard = () => {
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
   const [bulkAdjustmentDialogOpen, setBulkAdjustmentDialogOpen] = useState(false);
   const [quickTransferDialogOpen, setQuickTransferDialogOpen] = useState(false);
+  const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [presetName, setPresetName] = useState('');
   const [triggering, setTriggering] = useState(false);
 
@@ -472,6 +476,25 @@ const InventoryDashboard = () => {
         <SmartReorderGlobalSettings />
       </div>
 
+      {/* Health & Quick Actions */}
+      <div className="grid gap-6 md:grid-cols-3">
+        <div className="md:col-span-2">
+          <InventoryHealthScore />
+        </div>
+        <QuickActionsPanel
+          onAddProduct={() => setProductDialogOpen(true)}
+          onStockAdjustment={() => setAdjustmentDialogOpen(true)}
+          onBulkAdjustment={() => setBulkAdjustmentDialogOpen(true)}
+          onQuickTransfer={() => setQuickTransferDialogOpen(true)}
+          permissions={{
+            canAddProducts: permissions.canAccessInventory,
+            canAdjustStock: permissions.canBulkAdjustStock,
+            canBulkAdjustStock: permissions.canBulkAdjustStock,
+            canCreateStockTransfer: permissions.canCreateStockTransfer,
+          }}
+        />
+      </div>
+
       {/* Recent Adjustments and Alerts */}
       <div className="grid gap-6 md:grid-cols-2">
         <RecentStockAdjustments />
@@ -524,6 +547,11 @@ const InventoryDashboard = () => {
         onOpenChange={setAdjustmentDialogOpen}
         products={products || []}
         outlets={outlets || []}
+      />
+
+      <AddProductDialog
+        open={productDialogOpen}
+        onOpenChange={setProductDialogOpen}
       />
 
       <BulkStockAdjustmentDialog
