@@ -32,6 +32,8 @@ import { DemandForecastWidget } from "@/components/inventory/DemandForecastWidge
 import { SalesVelocityTracker } from "@/components/inventory/SalesVelocityTracker";
 import { ABCAnalysisWidget } from "@/components/inventory/ABCAnalysisWidget";
 import { InventoryTurnoverWidget } from "@/components/inventory/InventoryTurnoverWidget";
+import { OutletInventoryComparison } from "@/components/inventory/OutletInventoryComparison";
+import { StockAvailabilityMatrix } from "@/components/inventory/StockAvailabilityMatrix";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -504,6 +506,12 @@ const InventoryDashboard = () => {
       <div className="grid gap-6 md:grid-cols-2">
         <ABCAnalysisWidget />
         <InventoryTurnoverWidget />
+      </div>
+
+      {/* Multi-Outlet Analytics */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <OutletInventoryComparison />
+        <StockAvailabilityMatrix />
       </div>
 
       {/* Dialogs */}
