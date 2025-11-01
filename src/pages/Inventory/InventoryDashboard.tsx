@@ -30,6 +30,8 @@ import { StockAgingAnalysis } from "@/components/inventory/StockAgingAnalysis";
 import { InventoryInsightsWidget } from "@/components/inventory/InventoryInsightsWidget";
 import { DemandForecastWidget } from "@/components/inventory/DemandForecastWidget";
 import { SalesVelocityTracker } from "@/components/inventory/SalesVelocityTracker";
+import { ABCAnalysisWidget } from "@/components/inventory/ABCAnalysisWidget";
+import { InventoryTurnoverWidget } from "@/components/inventory/InventoryTurnoverWidget";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -496,6 +498,12 @@ const InventoryDashboard = () => {
       <div className="grid gap-6 md:grid-cols-2">
         <DemandForecastWidget />
         <SalesVelocityTracker />
+      </div>
+
+      {/* Performance Analysis */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <ABCAnalysisWidget />
+        <InventoryTurnoverWidget />
       </div>
 
       {/* Dialogs */}
