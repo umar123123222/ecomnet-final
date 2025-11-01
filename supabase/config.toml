@@ -4,7 +4,7 @@ project_id = "lzitfcigdjbpymvebipp"
 verify_jwt = true
 
 [functions.send-user-credentials]
-verify_jwt = true
+verify_jwt = false
 
 [functions.send-po-notification]
 verify_jwt = true

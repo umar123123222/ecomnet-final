@@ -75,13 +75,43 @@ serve(async (req) => {
         .single();
 
       if (existingProfile) {
+        // Resend portal access: reset password and email credentials
+        const newPassword = generateSecurePassword();
+        const { error: updateError } = await supabase.auth.admin.updateUserById(existingAuthUser.id, { password: newPassword });
+        if (updateError) {
+          throw new Error(`Failed to reset password for existing user: ${updateError.message}`);
+        }
+
+        let emailSent = false;
+        try {
+          const { error: emailError } = await supabase.functions.invoke('send-user-credentials', {
+            body: {
+              email,
+              password: newPassword,
+              full_name: contact_person,
+              roles: ['supplier'],
+              portal_url: `${Deno.env.get('SUPABASE_URL')}/auth/v1/verify`,
+              supplier_name,
+            }
+          });
+          if (emailError) {
+            console.error('Email sending error (resend):', emailError);
+          } else {
+            emailSent = true;
+            console.log('Credentials email re-sent successfully');
+          }
+        } catch (e) {
+          console.error('Failed to resend email:', e);
+        }
+
         return new Response(
           JSON.stringify({
-            success: false,
-            message: 'Supplier already has portal access',
-            code: 'ACCOUNT_EXISTS'
+            success: true,
+            user_id: existingAuthUser.id,
+            email_sent: emailSent,
+            message: emailSent ? 'Portal access re-sent successfully' : 'Password reset; failed to send credentials email'
           }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
@@ -119,14 +149,43 @@ serve(async (req) => {
         console.error('Failed to add supplier role:', userRoleError);
       }
       
+      // Set a new password and send credentials to the existing user
+      const newPassword = generateSecurePassword();
+      const { error: updateError2 } = await supabase.auth.admin.updateUserById(existingAuthUser.id, { password: newPassword });
+      if (updateError2) {
+        throw new Error(`Failed to set password for existing user: ${updateError2.message}`);
+      }
+
+      let emailSent2 = false;
+      try {
+        const { error: emailError2 } = await supabase.functions.invoke('send-user-credentials', {
+          body: {
+            email,
+            password: newPassword,
+            full_name: contact_person,
+            roles: ['supplier'],
+            portal_url: `${Deno.env.get('SUPABASE_URL')}/auth/v1/verify`,
+            supplier_name,
+          }
+        });
+        if (emailError2) {
+          console.error('Email sending error (existing user):', emailError2);
+        } else {
+          emailSent2 = true;
+          console.log('Credentials email sent to existing user');
+        }
+      } catch (e) {
+        console.error('Failed to send email to existing user:', e);
+      }
+      
       console.log('Supplier profile added to existing user');
       
       return new Response(
         JSON.stringify({
           success: true,
           user_id: existingAuthUser.id,
-          email_sent: false,
-          message: 'Supplier profile added to existing user account',
+          email_sent: emailSent2,
+          message: emailSent2 ? 'Supplier profile added and credentials sent' : 'Supplier profile added; failed to send credentials email',
           code: 'PROFILE_ADDED'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
