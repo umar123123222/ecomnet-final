@@ -38,6 +38,7 @@ import { StockAvailabilityMatrix } from "@/components/inventory/StockAvailabilit
 import { InventoryReportGenerator } from "@/components/inventory/InventoryReportGenerator";
 import { InventoryHealthScore } from "@/components/inventory/InventoryHealthScore";
 import { QuickActionsPanel } from "@/components/inventory/QuickActionsPanel";
+import { InventorySummaryWidget } from "@/components/inventory/InventorySummaryWidget";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -213,6 +214,9 @@ const InventoryDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Inventory Summary */}
+      <InventorySummaryWidget />
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
