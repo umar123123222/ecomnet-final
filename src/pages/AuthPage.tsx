@@ -5,13 +5,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 
 const AuthPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
   const { signIn, isLoading, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -48,6 +50,29 @@ const AuthPage = () => {
         title: 'Success',
         description: 'Logged in successfully!',
       });
+    }
+  };
+
+  const handleResetDemoPassword = async () => {
+    setResettingPassword(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('reset-demo-user');
+      
+      if (error) throw error;
+      
+      toast({
+        title: 'Success',
+        description: 'Demo password reset to admin123. You can now log in.',
+      });
+    } catch (error: any) {
+      console.error('Error resetting demo password:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to reset demo password',
+        variant: 'destructive',
+      });
+    } finally {
+      setResettingPassword(false);
     }
   };
 
@@ -112,7 +137,29 @@ const AuthPage = () => {
           </form>
           
           <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md mt-4">
-            <p className="font-medium mb-1">Demo Credentials:</p>
+            <div className="flex items-start justify-between mb-2">
+              <p className="font-medium">Demo Credentials:</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleResetDemoPassword}
+                disabled={resettingPassword}
+                className="h-7 text-xs"
+              >
+                {resettingPassword ? (
+                  <>
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    Resetting...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-1 h-3 w-3" />
+                    Reset Password
+                  </>
+                )}
+              </Button>
+            </div>
             <p>Email: umaridmpakistan@gmail.com</p>
             <p>Password: admin123</p>
           </div>

@@ -107,3 +107,6 @@ verify_jwt = true
 
 [functions.smart-reorder]
 verify_jwt = true
+
+[functions.reset-demo-user]
+verify_jwt = false
