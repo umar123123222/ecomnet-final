@@ -17,6 +17,7 @@ import { Inventory, Outlet, Product } from "@/types/inventory";
 import { StockAdjustmentDialog } from "@/components/inventory/StockAdjustmentDialog";
 import { LowStockAlerts } from "@/components/inventory/LowStockAlerts";
 import { RecentStockMovements } from "@/components/inventory/RecentStockMovements";
+import { RecentStockAdjustments } from "@/components/inventory/RecentStockAdjustments";
 import { SmartReorderRecommendations } from "@/components/inventory/SmartReorderRecommendations";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
@@ -435,6 +436,9 @@ const InventoryDashboard = () => {
         <LowStockAlerts />
         <RecentStockMovements />
       </div>
+
+      {/* Recent Stock Adjustments */}
+      <RecentStockAdjustments />
 
       {/* Dialogs */}
       <StockAdjustmentDialog

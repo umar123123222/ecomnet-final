@@ -114,8 +114,11 @@ const LabelPrinter = lazy(() =>
 const BarcodeManagement = lazy(() =>
   import("@/pages/Barcode/BarcodeManagement").then(module => ({ default: module.default }))
 );
-const AutomationHistory = lazy(() =>
+const AutomationHistory = lazy(() => 
   import("@/pages/Inventory/AutomationHistory").then(module => ({ default: module.default }))
+);
+const StockMovementHistory = lazy(() => 
+  import("@/pages/Inventory/StockMovementHistory").then(module => ({ default: module.default }))
 );
 
 // Optimized QueryClient configuration for performance
@@ -334,6 +337,11 @@ const App = () => {
                 <Route path="automation-history" element={
                   <Suspense fallback={<PageLoader />}>
                     <AutomationHistory />
+                  </Suspense>
+                } />
+                <Route path="stock-movement-history" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <StockMovementHistory />
                   </Suspense>
                 } />
                 <Route path="*" element={
