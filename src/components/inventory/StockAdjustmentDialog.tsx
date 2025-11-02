@@ -17,10 +17,10 @@ import { Loader2, AlertTriangle, TrendingUp, TrendingDown, Info } from "lucide-r
 const adjustmentSchema = z.object({
   product_id: z.string().min(1, "Product is required"),
   outlet_id: z.string().min(1, "Outlet is required"),
-  adjustment_type: z.enum(["increase", "decrease"], {
+  adjustment_type: z.enum(["increase", "decrease", "set_exact"], {
     required_error: "Please select adjustment type",
   }),
-  quantity: z.number().int().min(1, "Quantity must be at least 1"),
+  quantity: z.number().int().min(0, "Quantity must be at least 0"),
   reason: z.string().trim().min(1, "Reason is required").max(500, "Reason must be less than 500 characters"),
 });
 
@@ -56,8 +56,8 @@ export function StockAdjustmentDialog({
     defaultValues: {
       product_id: "",
       outlet_id: "",
-      adjustment_type: "increase",
-      quantity: 1,
+      adjustment_type: "set_exact",
+      quantity: 0,
       reason: "",
     },
   });
@@ -90,7 +90,9 @@ export function StockAdjustmentDialog({
   });
 
   const currentStock = currentInventory?.quantity || 0;
-  const calculatedNewStock = adjustmentType === "increase" 
+  const calculatedNewStock = adjustmentType === "set_exact"
+    ? quantity
+    : adjustmentType === "increase" 
     ? currentStock + quantity 
     : currentStock - quantity;
 
@@ -106,13 +108,22 @@ export function StockAdjustmentDialog({
 
     setIsSubmitting(true);
     try {
+      let adjustmentQuantity: number;
+      
+      if (data.adjustment_type === "set_exact") {
+        // Calculate the difference needed to reach exact quantity
+        adjustmentQuantity = data.quantity - currentStock;
+      } else {
+        adjustmentQuantity = data.adjustment_type === "increase" ? data.quantity : -data.quantity;
+      }
+
       const { data: result, error } = await supabase.functions.invoke("manage-stock", {
         body: {
           operation: "adjustStock",
           data: {
             productId: data.product_id,
             outletId: data.outlet_id,
-            quantity: data.adjustment_type === "increase" ? data.quantity : -data.quantity,
+            quantity: adjustmentQuantity,
             reason: data.reason,
           },
         },
@@ -122,9 +133,15 @@ export function StockAdjustmentDialog({
 
       const resultData = result as any;
 
+      const actionText = data.adjustment_type === "set_exact" 
+        ? "set to"
+        : data.adjustment_type === "increase" 
+        ? "increased to" 
+        : "decreased to";
+
       toast({
         title: "Stock Adjusted Successfully",
-        description: `Stock ${data.adjustment_type === "increase" ? "increased" : "decreased"} from ${resultData.previousQuantity || currentStock} to ${resultData.newQuantity || calculatedNewStock} units`,
+        description: `Stock ${actionText} ${resultData.newQuantity || calculatedNewStock} units (was ${resultData.previousQuantity || currentStock})`,
       });
 
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
@@ -240,22 +257,28 @@ export function StockAdjustmentDialog({
                 <Label htmlFor="adjustment_type">Adjustment Type *</Label>
                 <Select
                   value={adjustmentType}
-                  onValueChange={(value) => setValue("adjustment_type", value as "increase" | "decrease")}
+                  onValueChange={(value) => setValue("adjustment_type", value as "increase" | "decrease" | "set_exact")}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="set_exact">
+                      <div className="flex items-center gap-2">
+                        <Info className="h-4 w-4 text-primary" />
+                        Set Exact Quantity (Manual Count)
+                      </div>
+                    </SelectItem>
                     <SelectItem value="increase">
                       <div className="flex items-center gap-2">
                         <TrendingUp className="h-4 w-4 text-success" />
-                        Increase Stock
+                        Receive/Add Stock
                       </div>
                     </SelectItem>
                     <SelectItem value="decrease">
                       <div className="flex items-center gap-2">
                         <TrendingDown className="h-4 w-4 text-destructive" />
-                        Decrease Stock
+                        Remove Stock
                       </div>
                     </SelectItem>
                   </SelectContent>
@@ -266,13 +289,19 @@ export function StockAdjustmentDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="quantity">Quantity *</Label>
+                <Label htmlFor="quantity">
+                  {adjustmentType === "set_exact" 
+                    ? "Current Physical Count *" 
+                    : adjustmentType === "increase"
+                    ? "Quantity Received *"
+                    : "Quantity to Remove *"}
+                </Label>
                 <Input
                   id="quantity"
                   type="number"
-                  min="1"
+                  min={adjustmentType === "set_exact" ? "0" : "1"}
                   {...register("quantity", { valueAsNumber: true })}
-                  placeholder="1"
+                  placeholder={adjustmentType === "set_exact" ? "Enter actual quantity counted" : "1"}
                 />
                 {errors.quantity && (
                   <p className="text-sm text-destructive">{errors.quantity.message}</p>
@@ -280,17 +309,40 @@ export function StockAdjustmentDialog({
               </div>
 
               {/* Calculated Result Preview */}
-              {selectedProductId && selectedOutletId && quantity > 0 && !isLoadingInventory && (
+              {selectedProductId && selectedOutletId && !isLoadingInventory && (
                 <Alert className={calculatedNewStock < 0 ? "border-destructive" : "border-primary"}>
-                  <AlertDescription className="flex items-center justify-between">
-                    <span className="font-medium">
-                      New Stock: {calculatedNewStock} units
-                    </span>
-                    {calculatedNewStock < 0 && (
-                      <span className="text-xs text-destructive flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3" />
-                        Will result in negative stock!
-                      </span>
+                  <AlertDescription>
+                    {adjustmentType === "set_exact" ? (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">System shows:</span>
+                          <span className="font-medium">{currentStock} units</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Physical count:</span>
+                          <span className="font-bold text-lg">{quantity} units</span>
+                        </div>
+                        {quantity !== currentStock && (
+                          <div className="flex items-center justify-between pt-1 border-t">
+                            <span className="text-sm font-medium">Adjustment:</span>
+                            <span className={`font-medium ${quantity > currentStock ? "text-success" : "text-destructive"}`}>
+                              {quantity > currentStock ? "+" : ""}{quantity - currentStock} units
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">
+                          New Stock: {calculatedNewStock} units
+                        </span>
+                        {calculatedNewStock < 0 && (
+                          <span className="text-xs text-destructive flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            Will result in negative stock!
+                          </span>
+                        )}
+                      </div>
                     )}
                   </AlertDescription>
                 </Alert>
@@ -301,7 +353,13 @@ export function StockAdjustmentDialog({
                 <Textarea
                   id="reason"
                   {...register("reason")}
-                  placeholder="Damaged goods, inventory count correction, etc."
+                  placeholder={
+                    adjustmentType === "set_exact" 
+                      ? "Physical count, cycle count, stock verification, etc."
+                      : adjustmentType === "increase"
+                      ? "Goods received from supplier, production output, etc."
+                      : "Damaged goods, expiry, shrinkage, etc."
+                  }
                   rows={3}
                 />
                 {errors.reason && (
@@ -337,8 +395,15 @@ export function StockAdjustmentDialog({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Adjustment:</span>
-                  <span className={`font-medium ${adjustmentType === "increase" ? "text-success" : "text-destructive"}`}>
-                    {adjustmentType === "increase" ? "+" : "-"}{quantity} units
+                  <span className={`font-medium ${
+                    adjustmentType === "set_exact" 
+                      ? (quantity > currentStock ? "text-success" : "text-destructive")
+                      : adjustmentType === "increase" ? "text-success" : "text-destructive"
+                  }`}>
+                    {adjustmentType === "set_exact"
+                      ? `${quantity > currentStock ? "+" : ""}${quantity - currentStock}`
+                      : adjustmentType === "increase" ? "+" : "-"
+                    }{adjustmentType !== "set_exact" && quantity} units
                   </span>
                 </div>
                 <div className="flex justify-between pt-2 border-t">
