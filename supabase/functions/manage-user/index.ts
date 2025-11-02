@@ -280,7 +280,7 @@ serve(async (req) => {
         const { error: rolesError } = await supabaseAdmin
           .from('user_roles')
           .upsert(roleRecord, {
-            onConflict: 'user_id',
+            onConflict: 'user_id,role',
             ignoreDuplicates: false
           })
 
