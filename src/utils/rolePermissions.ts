@@ -174,7 +174,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessInventory: true,
         canAccessOutlets: true,
         canAccessProducts: true,
-        canManageProducts: false, // Cannot add/edit/delete products
+        canManageProducts: true, // Allow add/edit/delete products for warehouse managers
         canAccessStockTransfer: true,
         canCreateStockTransfer: true, // Can create stock transfer requests
         canAccessLocations: true,
@@ -187,7 +187,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessStockAudit: true,
         canAccessVarianceManagement: true,
         canAccessPackaging: true,
-        canManagePackaging: false, // Cannot add/edit/delete packaging
+        canManagePackaging: true, // Allow add/edit/delete packaging for warehouse managers
         canAdjustPackagingStock: true, // Can adjust packaging stock quantities
         canViewStockMovements: true, // Can view stock movement history
         canBulkAdjustStock: true, // Can perform bulk stock adjustments
