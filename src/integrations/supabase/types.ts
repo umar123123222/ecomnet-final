@@ -2558,7 +2558,7 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           created_at: string | null
-          created_by: string
+          created_by: string | null
           discount_amount: number | null
           expected_delivery_date: string | null
           id: string
@@ -2579,7 +2579,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string | null
-          created_by: string
+          created_by?: string | null
           discount_amount?: number | null
           expected_delivery_date?: string | null
           id?: string
@@ -2600,7 +2600,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string | null
-          created_by?: string
+          created_by?: string | null
           discount_amount?: number | null
           expected_delivery_date?: string | null
           id?: string
