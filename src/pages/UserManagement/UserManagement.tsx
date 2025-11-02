@@ -23,6 +23,8 @@ import { manageUser, updateUser } from '@/integrations/supabase/functions';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { UserRole } from '@/types/auth';
+import { BulkOperationsPanel } from '@/components/BulkOperationsPanel';
+import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
 const userSchema = z.object({
   full_name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email'),
@@ -52,6 +54,8 @@ const UserManagement = () => {
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [isViewUserOpen, setIsViewUserOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithRoles | null>(null);
+  const [isBulkRoleDialogOpen, setIsBulkRoleDialogOpen] = useState(false);
+  const [bulkRoleValue, setBulkRoleValue] = useState<UserRole>('staff');
   const {
     user: currentUser,
     refreshProfile
@@ -63,6 +67,7 @@ const UserManagement = () => {
     toast
   } = useToast();
   const queryClient = useQueryClient();
+  const { progress, executeBulkOperation, resetProgress } = useBulkOperations();
   const form = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
     defaultValues: {
@@ -340,6 +345,83 @@ const UserManagement = () => {
     form.setValue('role', userRole);
     setIsEditUserOpen(true);
   };
+
+  const bulkOperations: BulkOperation[] = [
+    {
+      id: 'bulk-delete',
+      label: 'Delete Selected',
+      icon: Trash2,
+      variant: 'destructive',
+      requiresConfirmation: true,
+      confirmMessage: `Are you sure you want to delete ${selectedUsers.length} user(s)?`,
+      action: async (selectedIds: string[]) => {
+        let success = 0;
+        let failed = 0;
+        const errors: string[] = [];
+
+        for (const userId of selectedIds) {
+          try {
+            await manageUser({
+              action: 'delete',
+              userData: {
+                userId,
+                email: '',
+                roles: []
+              }
+            });
+            success++;
+          } catch (error: any) {
+            failed++;
+            errors.push(`Failed to delete user: ${error.message}`);
+          }
+        }
+
+        queryClient.invalidateQueries({ queryKey: ['users'] });
+        setSelectedUsers([]);
+        return { success, failed, errors };
+      },
+    },
+    {
+      id: 'bulk-update-role',
+      label: 'Update Role',
+      icon: Edit,
+      requiresConfirmation: false,
+      action: async (selectedIds: string[]) => {
+        // Open dialog to select role
+        setIsBulkRoleDialogOpen(true);
+        return { success: 0, failed: 0 };
+      },
+    },
+  ];
+
+  const executeBulkRoleUpdate = async () => {
+    let success = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    for (const userId of selectedUsers) {
+      try {
+        await updateUser({
+          userId,
+          roles: [bulkRoleValue],
+        });
+        success++;
+      } catch (error: any) {
+        failed++;
+        errors.push(`Failed to update user: ${error.message}`);
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ['users'] });
+    setSelectedUsers([]);
+    setIsBulkRoleDialogOpen(false);
+    
+    toast({
+      title: success > 0 ? 'Success' : 'Error',
+      description: `Updated ${success} user(s). ${failed > 0 ? `Failed: ${failed}` : ''}`,
+      variant: failed > 0 ? 'destructive' : 'default',
+    });
+  };
   if (!permissions?.canAccessUserManagement) {
     return <div className="p-6">
         <Card>
@@ -372,6 +454,21 @@ const UserManagement = () => {
           <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
           <p className="text-gray-600 mt-1">Manage system users, permissions, and monitor activities</p>
         </div>
+      
+      {selectedUsers.length > 0 && (
+        <BulkOperationsPanel
+          selectedCount={selectedUsers.length}
+          operations={bulkOperations}
+          onExecute={(operation) => {
+            if (operation.id === 'bulk-update-role') {
+              setIsBulkRoleDialogOpen(true);
+            } else {
+              executeBulkOperation(operation, selectedUsers, resetProgress);
+            }
+          }}
+          progress={progress}
+        />
+      )}
         <div className="flex items-center gap-3">
           {permissions.canAddUsers && <Dialog 
             open={isAddUserOpen} 
@@ -781,6 +878,40 @@ const UserManagement = () => {
                 <p className="text-sm">{new Date(selectedUser.updated_at).toLocaleString()}</p>
               </div>
             </div>}
+          </DialogContent>
+      </Dialog>
+
+      {/* Bulk Role Update Dialog */}
+      <Dialog open={isBulkRoleDialogOpen} onOpenChange={setIsBulkRoleDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Role for {selectedUsers.length} Users</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Select New Role</label>
+              <Select value={bulkRoleValue} onValueChange={(value) => setBulkRoleValue(value as UserRole)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableRoles.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      <span className="capitalize">{role.replace(/_/g, ' ')}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsBulkRoleDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={executeBulkRoleUpdate}>
+                Update {selectedUsers.length} Users
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>;
