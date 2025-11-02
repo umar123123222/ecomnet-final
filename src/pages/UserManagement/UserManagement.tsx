@@ -79,7 +79,7 @@ const UserManagement = () => {
     },
     mode: 'onChange'
   });
-  const availableRoles: UserRole[] = ['super_admin', 'super_manager', 'warehouse_manager', 'store_manager', 'dispatch_manager', 'returns_manager', 'staff', 'supplier'];
+  const availableRoles: UserRole[] = ['super_admin', 'super_manager', 'warehouse_manager', 'store_manager', 'dispatch_manager', 'returns_manager', 'staff'];
 
   // Fetch suppliers for supplier role assignment
   const { data: suppliers = [] } = useQuery({
@@ -302,8 +302,11 @@ const UserManagement = () => {
   });
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
-      const matchesSearch = user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || user.email.toLowerCase().includes(searchTerm.toLowerCase());
       const userRole = user.user_roles?.[0]?.role || user.role;
+      // Exclude supplier users - they have their own management page
+      if (userRole === 'supplier') return false;
+      
+      const matchesSearch = user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || user.email.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesRole = roleFilter === 'all' || userRole === roleFilter;
       return matchesSearch && matchesRole;
     });
@@ -516,7 +519,7 @@ const UserManagement = () => {
                           </FormControl>
                           <FormMessage />
                         </FormItem>} />
-                    <FormField control={form.control} name="role" render={({
+                     <FormField control={form.control} name="role" render={({
                   field
                 }) => (
                   <FormItem>
@@ -538,36 +541,6 @@ const UserManagement = () => {
                     <FormMessage />
                   </FormItem>
                 )} />
-                    {form.watch('role') === 'supplier' && (
-                      <FormField control={form.control} name="supplier_id" render={({
-                        field
-                      }) => (
-                        <FormItem>
-                          <FormLabel>Link to Supplier (Optional)</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value || undefined}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder={suppliers.length > 0 ? "Select a supplier (optional)" : "No suppliers available"} />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="none">None (create supplier user only)</SelectItem>
-                              {suppliers.map((supplier) => (
-                                <SelectItem key={supplier.id} value={supplier.id}>
-                                  {supplier.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                          {suppliers.length === 0 && (
-                            <p className="text-sm text-muted-foreground">
-                              No supplier entities found. Create a supplier first in Supplier Management if you want to link this user.
-                            </p>
-                          )}
-                        </FormItem>
-                      )} />
-                    )}
                     <div className="flex justify-end gap-2">
                       <Button type="button" variant="outline" onClick={() => setIsAddUserOpen(false)}>
                         Cancel
