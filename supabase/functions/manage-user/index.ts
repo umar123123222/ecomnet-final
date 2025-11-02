@@ -139,9 +139,12 @@ serve(async (req) => {
         // Normalize and validate input
         const email = userData.email?.trim()
         const full_name = userData.full_name?.trim()
-        const inputRoles = Array.from(new Set(userData.roles || ['staff'])) // Deduplicate
+        const inputRoles = Array.isArray(userData.roles) ? userData.roles : [userData.roles || 'staff']
         
-        console.log('Creating user:', email, 'with roles:', inputRoles);
+        // ENFORCE SINGLE ROLE: Only take the first role
+        const singleRole = inputRoles[0]
+        
+        console.log('Creating user:', email, 'with role:', singleRole);
 
         // Validate required fields
         if (!email || !full_name) {
@@ -153,13 +156,13 @@ serve(async (req) => {
         }
 
         // Validate and normalize roles
-        const { valid: roles, invalid: invalidRoles } = validateRoles(inputRoles)
+        const { valid: roles, invalid: invalidRoles } = validateRoles([singleRole])
         
         if (invalidRoles.length > 0) {
-          console.error('Invalid roles:', invalidRoles);
+          console.error('Invalid role:', invalidRoles);
           return new Response(
             JSON.stringify({ 
-              error: `Invalid roles: ${invalidRoles.join(', ')}`,
+              error: `Invalid role: ${invalidRoles.join(', ')}`,
               validRoles: ALLOWED_ROLES 
             }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -167,14 +170,15 @@ serve(async (req) => {
         }
         
         if (roles.length === 0) {
-          console.error('No valid roles provided');
+          console.error('No valid role provided');
           return new Response(
-            JSON.stringify({ error: 'At least one valid role is required' }),
+            JSON.stringify({ error: 'A valid role is required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
         
-        console.log('Validated roles:', roles);
+        const role = roles[0] // Single role
+        console.log('Validated role:', role);
 
         // Check if user already exists in profiles first (fastest check)
         const { data: existingProfile } = await supabaseAdmin
@@ -232,14 +236,13 @@ serve(async (req) => {
         console.log('User created in auth:', authData.user.id);
 
         // Upsert profile to prevent race conditions with the auth trigger
-        const primaryRole = roles[0]
         const { error: profileError } = await supabaseAdmin
           .from('profiles')
           .upsert({
             id: authData.user.id,
             email,
             full_name,
-            role: primaryRole,
+            role: role,
             is_active: true
           }, { 
             onConflict: 'id',
@@ -258,27 +261,26 @@ serve(async (req) => {
         
         console.log('Profile upserted successfully');
 
-        // Add roles using upsert to handle potential race conditions
-        const roleRecords = roles.map((role: string) => ({
+        // Add role using upsert to handle potential race conditions
+        const roleRecord = {
           user_id: authData.user.id,
           role: role,
           assigned_by: user.id,
           is_active: true,
-        }))
+        }
 
-        console.log('🔵 CREATING ROLES FOR NEW USER:', {
+        console.log('🔵 CREATING ROLE FOR NEW USER:', {
           target_user_id: authData.user.id,
           target_email: email,
-          roles: roles,
-          roles_count: roles.length,
+          role: role,
           assigned_by_user_id: user.id,
           assigned_by_email: user.email
         });
 
         const { error: rolesError } = await supabaseAdmin
           .from('user_roles')
-          .upsert(roleRecords, {
-            onConflict: 'user_id,role',
+          .upsert(roleRecord, {
+            onConflict: 'user_id',
             ignoreDuplicates: false
           })
 
@@ -287,18 +289,19 @@ serve(async (req) => {
           throw rolesError;
         }
         
-        // Verify roles were assigned correctly
-        const { data: verifyRoles, error: verifyError } = await supabaseAdmin
+        // Verify role was assigned correctly
+        const { data: verifyRole, error: verifyError } = await supabaseAdmin
           .from('user_roles')
           .select('user_id, role, is_active')
           .eq('user_id', authData.user.id)
-          .eq('is_active', true);
+          .eq('is_active', true)
+          .maybeSingle();
 
-        console.log('✅ ROLES CREATED - VERIFICATION:', {
+        console.log('✅ ROLE CREATED - VERIFICATION:', {
           target_user_id: authData.user.id,
           target_email: email,
-          assigned_roles: verifyRoles?.map(r => r.role),
-          verification_passed: verifyRoles?.length === roles.length
+          assigned_role: verifyRole?.role,
+          verification_passed: verifyRole?.role === role
         });
 
         if (verifyError) {
@@ -357,7 +360,7 @@ serve(async (req) => {
               email: email,
               full_name: full_name,
               password: userPassword,
-              roles: roles,
+              role: role,
               portal_url: portalUrl,
             }
           });
@@ -395,9 +398,12 @@ serve(async (req) => {
         // Normalize and validate input
         const email = userData.email?.trim()
         const full_name = userData.full_name?.trim()
-        const inputRoles = Array.from(new Set(userData.roles || ['staff'])) // Deduplicate
+        const inputRoles = Array.isArray(userData.roles) ? userData.roles : [userData.roles || 'staff']
         
-        console.log('Updating user:', userId, 'with roles:', inputRoles);
+        // ENFORCE SINGLE ROLE: Only take the first role
+        const singleRole = inputRoles[0]
+        
+        console.log('Updating user:', userId, 'with role:', singleRole);
 
         // Validate UUID format
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -419,13 +425,13 @@ serve(async (req) => {
         }
 
         // Validate and normalize roles
-        const { valid: roles, invalid: invalidRoles } = validateRoles(inputRoles)
+        const { valid: roles, invalid: invalidRoles } = validateRoles([singleRole])
         
         if (invalidRoles.length > 0) {
-          console.error('Invalid roles:', invalidRoles);
+          console.error('Invalid role:', invalidRoles);
           return new Response(
             JSON.stringify({ 
-              error: `Invalid roles: ${invalidRoles.join(', ')}`,
+              error: `Invalid role: ${invalidRoles.join(', ')}`,
               validRoles: ALLOWED_ROLES 
             }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -433,14 +439,15 @@ serve(async (req) => {
         }
         
         if (roles.length === 0) {
-          console.error('No valid roles provided');
+          console.error('No valid role provided');
           return new Response(
-            JSON.stringify({ error: 'At least one valid role is required' }),
+            JSON.stringify({ error: 'A valid role is required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
         
-        console.log('Validated roles:', roles);
+        const role = roles[0] // Single role
+        console.log('Validated role:', role);
 
         // Fetch the old email to check if it's changing
         const { data: oldProfile, error: profileCheckError } = await supabaseAdmin
@@ -502,14 +509,13 @@ serve(async (req) => {
           }
         }
 
-        // Update profile
-        const primaryRole = roles[0]
+        // Update profile with single role
         const { error: profileError } = await supabaseAdmin
           .from('profiles')
           .update({
             full_name,
             email,
-            role: primaryRole,
+            role: role,
           })
           .eq('id', userId)
 
@@ -530,39 +536,27 @@ serve(async (req) => {
         
         console.log('Profile updated');
 
-        // Update roles using upsert to activate new roles
-        const roleRecords = roles.map((role: string) => ({
+        // Update role using upsert (single role per user)
+        const roleRecord = {
           user_id: userId,
           role: role,
           assigned_by: user.id,
           is_active: true,
-        }))
+        }
 
         const { error: rolesError } = await supabaseAdmin
           .from('user_roles')
-          .upsert(roleRecords, {
-            onConflict: 'user_id,role',
+          .upsert(roleRecord, {
+            onConflict: 'user_id',
             ignoreDuplicates: false
           })
 
         if (rolesError) {
-          console.error('Error upserting roles:', rolesError);
+          console.error('Error upserting role:', rolesError);
           throw rolesError;
         }
         
-        // Deactivate roles that are no longer assigned
-        const { error: deactivateError } = await supabaseAdmin
-          .from('user_roles')
-          .update({ is_active: false })
-          .eq('user_id', userId)
-          .not('role', 'in', `(${roles.map(r => `"${r}"`).join(',')})`)
-        
-        if (deactivateError) {
-          console.error('Error deactivating old roles:', deactivateError);
-          // Non-critical, continue
-        }
-        
-        console.log('Roles updated successfully');
+        console.log('Role updated successfully');
 
         console.log('User updated successfully');
         

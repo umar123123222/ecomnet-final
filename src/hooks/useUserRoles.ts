@@ -4,19 +4,13 @@ import { UserRole } from '@/types/auth';
 
 /**
  * Custom hook to access user roles and permissions
- * Provides easy access to user's roles and permission checks
+ * Now handles single role per user
  */
 export const useUserRoles = () => {
-  const { profile, userRoles } = useAuth();
+  const { profile, userRole } = useAuth();
 
-  // Get user's primary role - prefer super_admin > super_manager > store_manager > others
-  const primaryRole: UserRole = userRoles.includes('super_admin')
-    ? 'super_admin'
-    : userRoles.includes('super_manager')
-    ? 'super_manager'
-    : userRoles.includes('store_manager')
-    ? 'store_manager'
-    : (userRoles[0] || profile?.role || 'staff');
+  // primaryRole is now just the userRole
+  const primaryRole: UserRole = userRole || profile?.role || 'staff';
 
   const permissions = getRolePermissions(primaryRole);
 
@@ -24,21 +18,21 @@ export const useUserRoles = () => {
    * Check if user has a specific role
    */
   const hasRole = (role: UserRole): boolean => {
-    return userRoles.includes(role) || profile?.role === role;
+    return primaryRole === role;
   };
 
   /**
    * Check if user has any of the specified roles
    */
   const hasAnyRole = (roles: UserRole[]): boolean => {
-    return roles.some(role => hasRole(role));
+    return roles.includes(primaryRole);
   };
 
   /**
-   * Check if user has all of the specified roles
+   * Check if user has all of the specified roles (simplified for single role)
    */
   const hasAllRoles = (roles: UserRole[]): boolean => {
-    return roles.every(role => hasRole(role));
+    return roles.length === 1 && roles[0] === primaryRole;
   };
 
   /**
@@ -64,7 +58,7 @@ export const useUserRoles = () => {
 
   return {
     primaryRole,
-    userRoles,
+    userRole: primaryRole, // For backward compatibility
     permissions,
     hasRole,
     hasAnyRole,

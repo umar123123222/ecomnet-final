@@ -27,7 +27,7 @@ const userSchema = z.object({
   full_name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email'),
   password: z.string().min(8, 'Password must be at least 8 characters').or(z.literal('')).optional(),
-  roles: z.array(z.string()).min(1, 'At least one role is required'),
+  role: z.string().min(1, 'Role is required'),
   supplier_id: z.string().optional()
 });
 type UserFormData = z.infer<typeof userSchema>;
@@ -39,10 +39,10 @@ interface UserWithRoles {
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  user_roles: Array<{
+  user_roles: {
     role: UserRole;
     is_active: boolean;
-  }>;
+  };
 }
 const UserManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -69,7 +69,7 @@ const UserManagement = () => {
       full_name: '',
       email: '',
       password: '',
-      roles: [],
+      role: '',
       supplier_id: ''
     },
     mode: 'onChange'
@@ -131,12 +131,12 @@ const UserManagement = () => {
           email: userData.email,
           full_name: userData.full_name,
           password: userData.password,
-          roles: userData.roles
+          roles: [userData.role]
         }
       });
 
       // If user has supplier role and supplier_id is provided, create supplier_profile
-      if (userData.roles.includes('supplier') && userData.supplier_id) {
+      if (userData.role === 'supplier' && userData.supplier_id) {
         const { error: profileError } = await supabase
           .from('supplier_profiles')
           .insert({
@@ -204,7 +204,7 @@ const UserManagement = () => {
         userId,
         email: userData.email,
         full_name: userData.full_name,
-        roles: userData.roles,
+        roles: [userData.role],
       });
     },
     onSuccess: async (result, variables) => {
@@ -237,7 +237,7 @@ const UserManagement = () => {
         full_name: '',
         email: '',
         password: '',
-        roles: [],
+        role: '',
         supplier_id: ''
       });
       setIsEditUserOpen(false);
@@ -264,12 +264,11 @@ const UserManagement = () => {
     mutationFn: async (userId: string) => {
       return await manageUser({
         action: 'delete',
-        userData: {
-          userId,
-          email: '',
-          // Not used for delete
-          roles: []
-        }
+          userData: {
+            userId,
+            email: '',
+            roles: [] // Not used for delete
+          }
       });
     },
     onSuccess: () => {
@@ -292,8 +291,8 @@ const UserManagement = () => {
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
       const matchesSearch = user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || user.email.toLowerCase().includes(searchTerm.toLowerCase());
-      const userRoles = user.user_roles?.filter(ur => ur.is_active).map(ur => ur.role) || [user.role];
-      const matchesRole = roleFilter === 'all' || userRoles.includes(roleFilter as UserRole);
+      const userRole = user.user_roles?.[0]?.role || user.role;
+      const matchesRole = roleFilter === 'all' || userRole === roleFilter;
       return matchesSearch && matchesRole;
     });
   }, [users, searchTerm, roleFilter]);
@@ -334,11 +333,11 @@ const UserManagement = () => {
   };
   const openEditDialog = (user: UserWithRoles) => {
     setSelectedUser(user);
-    const userRoles = user.user_roles?.filter(ur => ur.is_active).map(ur => ur.role) || [user.role];
+    const userRole = user.user_roles?.[0]?.role || user.role;
     form.setValue('full_name', user.full_name);
     form.setValue('email', user.email);
     form.setValue('password', ''); // Explicitly clear password field
-    form.setValue('roles', userRoles);
+    form.setValue('role', userRole);
     setIsEditUserOpen(true);
   };
   if (!permissions?.canAccessUserManagement) {
@@ -383,7 +382,7 @@ const UserManagement = () => {
                   full_name: '',
                   email: '',
                   password: '',
-                  roles: [],
+                  role: '',
                   supplier_id: ''
                 });
               }
@@ -428,66 +427,29 @@ const UserManagement = () => {
                           </FormControl>
                           <FormMessage />
                         </FormItem>} />
-                    <FormField control={form.control} name="roles" render={({
+                    <FormField control={form.control} name="role" render={({
                   field
-                }) => {
-                  const selectedRoles = field.value || [];
-                  return <FormItem>
-                            <FormLabel>Roles</FormLabel>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <FormControl>
-                                  <Button variant="outline" role="combobox" className="w-full justify-between h-auto min-h-10">
-                      <div className="flex flex-wrap gap-1">
-                        {selectedRoles.length > 0 ? selectedRoles.map(role => <Badge key={role} variant="secondary" className="mr-1 mb-1 capitalize">
-                            {role.replace(/_/g, ' ')}
-                            <span className="ml-1 ring-offset-background rounded-full outline-none cursor-pointer inline-flex" role="button" tabIndex={0} onKeyDown={e => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            field.onChange((field.value || []).filter(r => r !== role));
-                          }
-                        }} onMouseDown={e => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }} onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          field.onChange(selectedRoles.filter(r => r !== role));
-                        }}>
-                              <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                            </span>
-                          </Badge>) : <span className="text-muted-foreground">Select roles...</span>}
-                      </div>
-                                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-                                  </Button>
-                                </FormControl>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-full p-0">
-                                <Command key={`add-roles-${isAddUserOpen}`}>
-                                  <CommandInput placeholder="Search roles..." />
-                                  <CommandList>
-                                    <CommandEmpty>No role found.</CommandEmpty>
-                                    <CommandGroup>
-                                      {availableRoles.map(role => <CommandItem key={role} value={role} onSelect={() => {
-                                const currentValue = selectedRoles;
-                                if (currentValue.includes(role)) {
-                                  field.onChange(currentValue.filter(r => r !== role));
-                                } else {
-                                  field.onChange([...currentValue, role]);
-                                }
-                              }}>
-                                          <Check className={`mr-2 h-4 w-4 ${selectedRoles.includes(role) ? "opacity-100" : "opacity-0"}`} />
-                                          <span className="capitalize">{role.replace('_', ' ')}</span>
-                                        </CommandItem>)}
-                                    </CommandGroup>
-                                  </CommandList>
-                                </Command>
-                              </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                          </FormItem>;
-                }} />
-                    {form.watch('roles')?.includes('supplier') && (
+                }) => (
+                  <FormItem>
+                    <FormLabel>Role</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a role" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {availableRoles.map((role) => (
+                          <SelectItem key={role} value={role}>
+                            <span className="capitalize">{role.replace(/_/g, ' ')}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                    {form.watch('role') === 'supplier' && (
                       <FormField control={form.control} name="supplier_id" render={({
                         field
                       }) => (
@@ -550,9 +512,9 @@ const UserManagement = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-2 text-sm">
-              <p><span className="font-medium">Super Admins:</span> {users.filter(u => u.user_roles?.some(r => r.role === 'super_admin')).length}</p>
-              <p><span className="font-medium">Managers:</span> {users.filter(u => u.user_roles?.some(r => ['super_manager', 'store_manager'].includes(r.role))).length}</p>
-              <p><span className="font-medium">Staff:</span> {users.filter(u => u.user_roles?.some(r => r.role === 'staff')).length}</p>
+              <p><span className="font-medium">Super Admins:</span> {users.filter(u => (u.user_roles?.role || u.role) === 'super_admin').length}</p>
+              <p><span className="font-medium">Managers:</span> {users.filter(u => ['super_manager', 'store_manager'].includes(u.user_roles?.role || u.role)).length}</p>
+              <p><span className="font-medium">Staff:</span> {users.filter(u => (u.user_roles?.role || u.role) === 'staff').length}</p>
             </div>
           </CardContent>
         </Card>
@@ -634,8 +596,8 @@ const UserManagement = () => {
             </TableHeader>
             <TableBody>
               {filteredUsers.map(user => {
-                  // Get roles from user_roles array, or fallback to profile.role
-                  const userRoles = user.user_roles?.filter(ur => ur.is_active).map(ur => ur.role) || (user.role ? [user.role] : []);
+                  // Get role from user_roles or fallback to profile.role
+                  const userRole = user.user_roles?.role || user.role;
                   return <TableRow key={user.id}>
                     <TableCell>
                       <Checkbox checked={selectedUsers.includes(user.id)} onCheckedChange={() => handleSelectUser(user.id)} />
@@ -644,9 +606,9 @@ const UserManagement = () => {
                     <TableCell>{user.email || 'N/A'}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {userRoles.length > 0 ? userRoles.map(role => <Badge key={role} className="bg-purple-100 text-purple-800 text-xs capitalize">
-                            {role.replace(/_/g, ' ')}
-                          </Badge>) : <span className="text-sm text-gray-400">No roles</span>}
+                        {userRole ? <Badge className="bg-purple-100 text-purple-800 text-xs capitalize">
+                            {userRole.replace(/_/g, ' ')}
+                          </Badge> : <span className="text-sm text-gray-400">No role</span>}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -687,13 +649,13 @@ const UserManagement = () => {
             onOpenChange={(open) => {
               setIsEditUserOpen(open);
               if (!open) {
-                form.reset({
-                  full_name: '',
-                  email: '',
-                  password: '',
-                  roles: [],
-                  supplier_id: ''
-                });
+              form.reset({
+                full_name: '',
+                email: '',
+                password: '',
+                role: '',
+                supplier_id: ''
+              });
               }
             }}
           >
@@ -721,66 +683,29 @@ const UserManagement = () => {
                     </FormControl>
                     <FormMessage />
                   </FormItem>} />
-              <FormField control={form.control} name="roles" render={({
+              <FormField control={form.control} name="role" render={({
               field
-            }) => {
-              const selectedRoles = field.value || [];
-              return <FormItem>
-                      <FormLabel>Roles</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button variant="outline" role="combobox" className="w-full justify-between h-auto min-h-10">
-                        <div className="flex flex-wrap gap-1">
-                          {selectedRoles.length > 0 ? selectedRoles.map(role => <Badge key={role} variant="secondary" className="mr-1 mb-1 capitalize">
-                              {role.replace(/_/g, ' ')}
-                              <span className="ml-1 ring-offset-background rounded-full outline-none cursor-pointer inline-flex" role="button" tabIndex={0} onKeyDown={e => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            field.onChange((field.value || []).filter(r => r !== role));
-                          }
-                        }} onMouseDown={e => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }} onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          field.onChange(selectedRoles.filter(r => r !== role));
-                        }}>
-                                <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                              </span>
-                            </Badge>) : <span className="text-muted-foreground">Select roles...</span>}
-                        </div>
-                              <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-full p-0">
-                          <Command key={`edit-roles-${isEditUserOpen}-${selectedUser?.id}`}>
-                            <CommandInput placeholder="Search roles..." />
-                            <CommandList>
-                              <CommandEmpty>No role found.</CommandEmpty>
-                              <CommandGroup>
-                                {availableRoles.map(role => <CommandItem key={role} value={role} onSelect={() => {
-                            const currentValue = selectedRoles;
-                            if (currentValue.includes(role)) {
-                              field.onChange(currentValue.filter(r => r !== role));
-                            } else {
-                              field.onChange([...currentValue, role]);
-                            }
-                          }}>
-                                    <Check className={`mr-2 h-4 w-4 ${selectedRoles.includes(role) ? "opacity-100" : "opacity-0"}`} />
-                                    <span className="capitalize">{role.replace('_', ' ')}</span>
-                                  </CommandItem>)}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>;
-            }} />
-              {form.watch('roles')?.includes('supplier') && (
+            }) => (
+              <FormItem>
+                <FormLabel>Role</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a role" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {availableRoles.map((role) => (
+                      <SelectItem key={role} value={role}>
+                        <span className="capitalize">{role.replace(/_/g, ' ')}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )} />
+              {form.watch('role') === 'supplier' && (
                 <FormField control={form.control} name="supplier_id" render={({
                   field
                 }) => (
@@ -836,11 +761,11 @@ const UserManagement = () => {
                 <p className="text-sm">{selectedUser.email}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-600">Roles</label>
+                <label className="text-sm font-medium text-gray-600">Role</label>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {(selectedUser.user_roles?.map(ur => ur.role) || [selectedUser.role]).map((role: string) => <Badge key={role} className="bg-purple-100 text-purple-800 text-xs capitalize">
-                      {role.replace('_', ' ')}
-                    </Badge>)}
+                  <Badge className="bg-purple-100 text-purple-800 text-xs capitalize">
+                    {(selectedUser.user_roles?.role || selectedUser.role).replace('_', ' ')}
+                  </Badge>
                 </div>
               </div>
               <div>

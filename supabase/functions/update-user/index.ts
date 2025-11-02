@@ -74,14 +74,15 @@ serve(async (req) => {
     const body = await req.json();
     const { userId, email: inputEmail, full_name: inputFullName, roles: inputRoles } = body ?? {};
 
-    // Validate payload
+    // Validate payload - single role required
     if (!Array.isArray(inputRoles) || inputRoles.length === 0) {
       return new Response(
-        JSON.stringify({ error: 'At least one role is required' }),
+        JSON.stringify({ error: 'A role is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    const singleRole = inputRoles[0]; // Only take first role
     const email = inputEmail?.trim();
     const full_name = inputFullName?.trim();
 
@@ -134,19 +135,20 @@ serve(async (req) => {
     }
 
     // Normalize and validate roles
-    const roles = Array.from(new Set(inputRoles))
+    const roles = Array.from(new Set([singleRole]))
       .map(normalizeRole)
       .filter((r): r is AllowedRole => !!r);
     if (roles.length === 0) {
       return new Response(
-        JSON.stringify({ error: 'At least one valid role is required', validRoles: ALLOWED_ROLES }),
+        JSON.stringify({ error: 'A valid role is required', validRoles: ALLOWED_ROLES }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    const role = roles[0]; // Single role
+
     // Update profile primary role (do not change email/full_name here unless provided)
-    const primaryRole = roles[0];
-    const profileUpdate: Record<string, any> = { role: primaryRole };
+    const profileUpdate: Record<string, any> = { role: role };
     if (typeof full_name === 'string' && full_name.length > 0) profileUpdate.full_name = full_name;
     if (typeof email === 'string' && email.length > 0 && email !== oldProfile.email) {
       // Check duplicate email
@@ -190,60 +192,48 @@ serve(async (req) => {
       .eq('id', targetUserId)
       .single();
 
-    console.log('🔵 UPDATING ROLES FOR USER:', {
+    console.log('🔵 UPDATING ROLE FOR USER:', {
       target_user_id: targetUserId,
       target_email: targetProfile?.email || 'unknown',
-      new_roles: roles,
-      roles_count: roles.length,
+      new_role: role,
       updated_by_user_id: user.id,
       updated_by_email: user.email
     });
 
-    // Step 1: Deactivate ALL existing active roles first to avoid conflicts
-    console.log(`🔸 Deactivating all existing roles for user ${targetUserId}`);
-    const { error: deactivateAllError } = await supabase
-      .from('user_roles')
-      .update({ is_active: false })
-      .eq('user_id', targetUserId)
-      .eq('is_active', true);
-
-    if (deactivateAllError) {
-      console.warn('⚠️ Error deactivating existing roles:', deactivateAllError);
-    }
-
-    // Step 2: Upsert the new roles
-    const roleRecords = roles.map(role => ({
+    // Upsert the single role
+    const roleRecord = {
       user_id: targetUserId as string,
       role,
       assigned_by: user.id,
       is_active: true,
-    }));
+    };
     
-    console.log(`🔸 Inserting ${roles.length} new active roles for user ${targetUserId}:`, roles);
+    console.log(`🔸 Upserting role for user ${targetUserId}:`, role);
     
     const { error: rolesError } = await supabase
       .from('user_roles')
-      .upsert(roleRecords, { 
-        onConflict: 'user_id,role',
+      .upsert(roleRecord, { 
+        onConflict: 'user_id',
         ignoreDuplicates: false 
       });
     if (rolesError) {
-      console.error('❌ Error upserting roles:', rolesError);
+      console.error('❌ Error upserting role:', rolesError);
       throw rolesError;
     }
 
-    // Verify roles were updated correctly
-    const { data: verifyRoles, error: verifyError } = await supabase
+    // Verify role was updated correctly
+    const { data: verifyRole, error: verifyError } = await supabase
       .from('user_roles')
       .select('user_id, role, is_active')
       .eq('user_id', targetUserId)
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .maybeSingle();
 
-    console.log('✅ ROLES UPDATED - VERIFICATION:', {
+    console.log('✅ ROLE UPDATED - VERIFICATION:', {
       target_user_id: targetUserId,
       target_email: targetProfile?.email || 'unknown',
-      assigned_roles: verifyRoles?.map(r => r.role),
-      verification_passed: verifyRoles?.length === roles.length
+      assigned_role: verifyRole?.role,
+      verification_passed: verifyRole?.role === role
     });
 
     if (verifyError) {

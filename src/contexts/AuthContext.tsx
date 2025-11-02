@@ -18,7 +18,7 @@ interface SupabaseAuthContextType {
   user: SupabaseUser | null;
   session: Session | null;
   profile: UserProfile | null;
-  userRoles: UserRole[];
+  userRole: UserRole | null;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -31,7 +31,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [userRoles, setUserRoles] = useState<UserRole[]>([]);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchUserProfile = async (userId: string) => {
@@ -46,21 +46,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (profileError) throw profileError;
       setProfile(profileData);
 
-      // Fetch user roles from user_roles table
-      const { data: rolesData, error: rolesError } = await supabase
+      // Fetch user role from user_roles table (single role per user)
+      const { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .maybeSingle();
 
-      if (rolesError) throw rolesError;
+      if (roleError) throw roleError;
       
-      const roles = rolesData?.map(r => r.role) || [];
-      setUserRoles(roles.length > 0 ? roles : [profileData.role]); // Fallback to profile role if no roles in user_roles
+      const role = roleData?.role || profileData.role;
+      setUserRole(role);
     } catch (error) {
       console.error('Error fetching user profile:', error);
       setProfile(null);
-      setUserRoles([]);
+      setUserRole(null);
     }
   };
 
@@ -78,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }, 0);
         } else {
           setProfile(null);
-          setUserRoles([]);
+          setUserRole(null);
         }
         setIsLoading(false);
       }
@@ -121,7 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, userRoles, signIn, signOut, refreshProfile, isLoading }}>
+    <AuthContext.Provider value={{ user, session, profile, userRole, signIn, signOut, refreshProfile, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

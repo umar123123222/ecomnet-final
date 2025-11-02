@@ -60,14 +60,15 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
     queryFn: async () => {
       if (!user?.id) return [];
 
-      // Get user roles to check if super admin/manager
-      const { data: userRoles } = await supabase
+      // Get user role to check if super admin/manager
+      const { data: userRoleData } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', user.id)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .maybeSingle();
 
-      const isSuperUser = userRoles?.some(r => r.role === 'super_admin' || r.role === 'super_manager');
+      const isSuperUser = userRoleData?.role === 'super_admin' || userRoleData?.role === 'super_manager';
 
       if (isSuperUser) {
         // Super users can access all outlets

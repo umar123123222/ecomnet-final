@@ -13,7 +13,7 @@ import { NotificationsPanel } from '@/components/NotificationsPanel';
 const Layout = () => {
   const [isDark, setIsDark] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const { user, profile, userRoles, signOut } = useAuth();
+  const { user, profile, userRole, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -27,7 +27,7 @@ const Layout = () => {
     navigate('/auth');
   };
 
-  const { primaryRole, userRoles: currentRoles } = useUserRoles();
+  const { primaryRole } = useUserRoles();
   const displayName = (profile?.full_name && profile.full_name !== 'New User') ? profile.full_name : (profile?.email || user?.email);
   const formatRole = (primaryRole as string).replace(/_/g, ' ');
 
