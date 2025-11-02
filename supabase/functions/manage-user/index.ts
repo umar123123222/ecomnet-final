@@ -350,10 +350,16 @@ serve(async (req) => {
         let emailError = null;
         
         try {
-          // Construct portal URL
-          const portalUrl = `${Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '.lovable.app') || 'https://your-portal.com'}/auth`;
+          // Fetch portal URL from business settings
+          const { data: portalUrlSetting } = await supabaseAdmin
+            .from('api_settings')
+            .select('setting_value')
+            .eq('setting_key', 'company_portal_url')
+            .maybeSingle();
           
-          console.log('Sending credentials email to:', email);
+          const portalUrl = portalUrlSetting?.setting_value || `${Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '.lovable.app') || 'https://your-portal.com'}/auth`;
+          
+          console.log('Sending credentials email to:', email, 'with portal URL:', portalUrl);
           
           const emailResponse = await supabaseAdmin.functions.invoke('send-user-credentials', {
             body: {
