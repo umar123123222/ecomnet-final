@@ -454,21 +454,6 @@ const UserManagement = () => {
           <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
           <p className="text-gray-600 mt-1">Manage system users, permissions, and monitor activities</p>
         </div>
-      
-      {selectedUsers.length > 0 && (
-        <BulkOperationsPanel
-          selectedCount={selectedUsers.length}
-          operations={bulkOperations}
-          onExecute={(operation) => {
-            if (operation.id === 'bulk-update-role') {
-              setIsBulkRoleDialogOpen(true);
-            } else {
-              executeBulkOperation(operation, selectedUsers, resetProgress);
-            }
-          }}
-          progress={progress}
-        />
-      )}
         <div className="flex items-center gap-3">
           {permissions.canAddUsers && <Dialog 
             open={isAddUserOpen} 
@@ -654,6 +639,24 @@ const UserManagement = () => {
               <span className="text-sm text-gray-600">Select All</span>
             </div>
           </CardTitle>
+          
+          {/* Bulk Operations Panel */}
+          {selectedUsers.length > 0 && (
+            <div className="mt-4">
+              <BulkOperationsPanel
+                selectedCount={selectedUsers.length}
+                operations={bulkOperations}
+                onExecute={(operation) => {
+                  if (operation.id === 'bulk-update-role') {
+                    setIsBulkRoleDialogOpen(true);
+                  } else {
+                    executeBulkOperation(operation, selectedUsers, resetProgress);
+                  }
+                }}
+                progress={progress}
+              />
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {/* Search and Filters */}
