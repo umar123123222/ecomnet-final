@@ -615,6 +615,38 @@ serve(async (req) => {
           )
         }
         
+        // Step 1: Delete from user_roles first
+        console.log('Deleting user_roles for user:', userId);
+        const { error: rolesError } = await supabaseAdmin
+          .from('user_roles')
+          .delete()
+          .eq('user_id', userId);
+        
+        if (rolesError) {
+          console.error('Error deleting user_roles:', rolesError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to delete user roles: ' + rolesError.message }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        
+        // Step 2: Delete from profiles
+        console.log('Deleting profile for user:', userId);
+        const { error: profileError } = await supabaseAdmin
+          .from('profiles')
+          .delete()
+          .eq('id', userId);
+        
+        if (profileError) {
+          console.error('Error deleting profile:', profileError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to delete user profile: ' + profileError.message }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        
+        // Step 3: Delete the auth user
+        console.log('Deleting auth user:', userId);
         const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
         if (error) {
           console.error('Error deleting user:', error);
