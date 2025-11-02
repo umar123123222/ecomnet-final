@@ -99,7 +99,7 @@ export function InventoryValueWidget() {
               </p>
               <div className="flex items-center gap-2 mt-1">
                 <Badge variant="secondary">
-                  {inventoryValue?.profitMargin.toFixed(1)}% margin
+                  {(inventoryValue?.profitMargin ?? 0).toFixed(1)}% margin
                 </Badge>
               </div>
             </div>
