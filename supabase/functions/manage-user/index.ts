@@ -324,7 +324,7 @@ serve(async (req) => {
             is_active,
             created_at,
             updated_at,
-            user_roles (
+            user_roles!user_roles_user_id_fkey (
               role,
               is_active
             )
@@ -547,7 +547,7 @@ serve(async (req) => {
         const { error: rolesError } = await supabaseAdmin
           .from('user_roles')
           .upsert(roleRecord, {
-            onConflict: 'user_id',
+            onConflict: 'user_id,role',
             ignoreDuplicates: false
           })
 
@@ -571,7 +571,7 @@ serve(async (req) => {
             is_active,
             created_at,
             updated_at,
-            user_roles (
+            user_roles!user_roles_user_id_fkey (
               role,
               is_active
             )
