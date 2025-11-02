@@ -313,24 +313,18 @@ serve(async (req) => {
         // Wait for database transaction to commit (fixes race condition)
         await new Promise(resolve => setTimeout(resolve, 150));
         
-        // Fetch complete user data with roles (LEFT join to include users even without roles)
+        // Fetch complete user data
         const { data: newUserProfile, error: fetchError } = await supabaseAdmin
           .from('profiles')
-          .select(`
-            id,
-            email,
-            full_name,
-            role,
-            is_active,
-            created_at,
-            updated_at,
-            user_roles!user_roles_user_id_fkey (
-              role,
-              is_active
-            )
-          `)
+          .select('*')
           .eq('id', authData.user.id)
           .maybeSingle();
+        
+        // Fetch user roles separately
+        const { data: userRolesData } = await supabaseAdmin
+          .from('user_roles')
+          .select('role, is_active')
+          .eq('user_id', authData.user.id);
 
         if (fetchError || !newUserProfile) {
           console.error('Error fetching user profile:', fetchError);
@@ -343,7 +337,13 @@ serve(async (req) => {
           );
         }
         
-        console.log('Fetched user profile with roles:', JSON.stringify(newUserProfile, null, 2));
+        // Attach user_roles to the profile object
+        const userWithRoles = {
+          ...newUserProfile,
+          user_roles: userRolesData || []
+        };
+        
+        console.log('Fetched user profile with roles:', JSON.stringify(userWithRoles, null, 2));
 
         // Send credentials email
         let emailSent = false;
@@ -381,7 +381,7 @@ serve(async (req) => {
           JSON.stringify({ 
             success: true, 
             user: authData.user,
-            profile: newUserProfile,
+            profile: userWithRoles,
             emailSent,
             emailError,
             message: emailSent 
@@ -560,24 +560,18 @@ serve(async (req) => {
 
         console.log('User updated successfully');
         
-        // Fetch updated user data with roles (LEFT join to include users even without roles)
+        // Fetch updated user data
         const { data: updatedUserProfile, error: fetchError } = await supabaseAdmin
           .from('profiles')
-          .select(`
-            id,
-            email,
-            full_name,
-            role,
-            is_active,
-            created_at,
-            updated_at,
-            user_roles!user_roles_user_id_fkey (
-              role,
-              is_active
-            )
-          `)
+          .select('*')
           .eq('id', userId)
           .maybeSingle();
+        
+        // Fetch user roles separately
+        const { data: userRolesData } = await supabaseAdmin
+          .from('user_roles')
+          .select('role, is_active')
+          .eq('user_id', userId);
 
         // Check if user was found
         if (fetchError || !updatedUserProfile) {
@@ -591,12 +585,18 @@ serve(async (req) => {
           );
         }
         
-        console.log('Fetched updated profile with roles:', JSON.stringify(updatedUserProfile, null, 2));
+        // Attach user_roles to the profile object
+        const userWithRoles = {
+          ...updatedUserProfile,
+          user_roles: userRolesData || []
+        };
+        
+        console.log('Fetched updated profile with roles:', JSON.stringify(userWithRoles, null, 2));
 
         return new Response(
           JSON.stringify({ 
             success: true,
-            profile: updatedUserProfile
+            profile: userWithRoles
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
