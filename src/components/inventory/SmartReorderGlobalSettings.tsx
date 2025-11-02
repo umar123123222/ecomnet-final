@@ -30,29 +30,22 @@ export function SmartReorderSettings() {
   const { isLoading } = useQuery({
     queryKey: ['smart-reorder-settings'],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('smart-reorder', {
-        body: { action: 'getSettings' }
-      });
-
-      if (error) throw error;
-      if (data?.settings) {
-        setSettings(data.settings);
+      // Settings are stored locally - edge function doesn't support settings management
+      const stored = localStorage.getItem('smart-reorder-settings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setSettings(parsed);
+        return parsed as SmartReorderSettings;
       }
-      return data?.settings as SmartReorderSettings;
+      return settings;
     },
   });
 
   const saveSettingsMutation = useMutation({
     mutationFn: async (newSettings: SmartReorderSettings) => {
-      const { data, error } = await supabase.functions.invoke('smart-reorder', {
-        body: { 
-          action: 'updateSettings',
-          settings: newSettings
-        }
-      });
-
-      if (error) throw error;
-      return data;
+      // Store settings locally - edge function doesn't support settings management
+      localStorage.setItem('smart-reorder-settings', JSON.stringify(newSettings));
+      return newSettings;
     },
     onSuccess: () => {
       toast.success("Smart reorder settings saved successfully");

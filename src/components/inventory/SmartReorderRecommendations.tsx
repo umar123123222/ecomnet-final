@@ -9,16 +9,19 @@ import { formatCurrency } from "@/utils/currency";
 import { useCurrency } from "@/hooks/useCurrency";
 
 interface ReorderRecommendation {
-  product_id: string;
-  product_name: string;
-  product_sku: string;
-  outlet_id: string;
-  outlet_name: string;
+  type: 'product' | 'packaging';
+  item_id: string;
+  item_name: string;
+  item_sku: string;
+  outlet_id?: string;
   current_stock: number;
-  reorder_level: number;
+  reorder_point: number;
   recommended_quantity: number;
-  estimated_cost: number;
-  priority: 'critical' | 'high' | 'medium';
+  avg_daily_consumption: number;
+  lead_time_days: number;
+  safety_stock: number;
+  supplier_id?: string;
+  supplier_name?: string;
 }
 
 export function SmartReorderRecommendations() {
@@ -29,7 +32,7 @@ export function SmartReorderRecommendations() {
     queryKey: ['smart-reorder-recommendations'],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('smart-reorder', {
-        body: { action: 'getRecommendations' }
+        body: { action: 'get_recommendations' }
       });
 
       if (error) throw error;
@@ -42,10 +45,9 @@ export function SmartReorderRecommendations() {
     mutationFn: async (recommendation: ReorderRecommendation) => {
       const { data, error } = await supabase.functions.invoke('smart-reorder', {
         body: { 
-          action: 'createPurchaseOrder',
-          productId: recommendation.product_id,
-          outletId: recommendation.outlet_id,
-          quantity: recommendation.recommended_quantity
+          action: 'generate_po',
+          product_id: recommendation.type === 'product' ? recommendation.item_id : undefined,
+          packaging_item_id: recommendation.type === 'packaging' ? recommendation.item_id : undefined
         }
       });
 
@@ -108,7 +110,14 @@ export function SmartReorderRecommendations() {
     );
   }
 
-  const totalEstimatedCost = recommendations.reduce((sum, rec) => sum + rec.estimated_cost, 0);
+  const totalEstimatedCost = recommendations.reduce((sum, rec) => sum + (rec.recommended_quantity * 10), 0); // Placeholder cost calculation
+
+  const getPriority = (rec: ReorderRecommendation): 'critical' | 'high' | 'medium' => {
+    const stockPercentage = (rec.current_stock / rec.reorder_point) * 100;
+    if (stockPercentage <= 25) return 'critical';
+    if (stockPercentage <= 50) return 'high';
+    return 'medium';
+  };
 
   return (
     <Card>
@@ -128,45 +137,49 @@ export function SmartReorderRecommendations() {
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {recommendations.map((rec) => (
-            <div
-              key={`${rec.product_id}-${rec.outlet_id}`}
-              className="flex items-start justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <Badge variant={getPriorityColor(rec.priority)}>
-                    {rec.priority}
-                  </Badge>
-                  <span className="font-medium text-sm truncate">
-                    {rec.product_name}
-                  </span>
-                </div>
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p>SKU: {rec.product_sku} • Outlet: {rec.outlet_name}</p>
-                  <p className="flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    Current: {rec.current_stock} • Reorder Level: {rec.reorder_level}
-                  </p>
-                  <p className="font-medium text-foreground">
-                    Recommended Quantity: {rec.recommended_quantity} • Est. Cost: {formatCurrency(rec.estimated_cost, currency)}
-                  </p>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => createPOMutation.mutate(rec)}
-                disabled={createPOMutation.isPending}
+          {recommendations.map((rec) => {
+            const priority = getPriority(rec);
+            return (
+              <div
+                key={`${rec.item_id}-${rec.outlet_id || 'global'}`}
+                className="flex items-start justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors"
               >
-                {createPOMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Create PO"
-                )}
-              </Button>
-            </div>
-          ))}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant={getPriorityColor(priority)}>
+                      {priority}
+                    </Badge>
+                    <Badge variant="outline">{rec.type}</Badge>
+                    <span className="font-medium text-sm truncate">
+                      {rec.item_name}
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>SKU: {rec.item_sku}{rec.supplier_name ? ` • Supplier: ${rec.supplier_name}` : ''}</p>
+                    <p className="flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Current: {rec.current_stock} • Reorder Point: {rec.reorder_point}
+                    </p>
+                    <p className="font-medium text-foreground">
+                      Recommended Quantity: {rec.recommended_quantity} • Avg Daily: {rec.avg_daily_consumption.toFixed(1)}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => createPOMutation.mutate(rec)}
+                  disabled={createPOMutation.isPending}
+                >
+                  {createPOMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Create PO"
+                  )}
+                </Button>
+              </div>
+            );
+          })}
         </div>
       </CardContent>
     </Card>
