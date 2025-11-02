@@ -360,7 +360,7 @@ serve(async (req) => {
               email: email,
               full_name: full_name,
               password: userPassword,
-              role: role,
+              roles: [role],
               portal_url: portalUrl,
             }
           });
