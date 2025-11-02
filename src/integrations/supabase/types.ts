@@ -3942,6 +3942,10 @@ export type Database = {
         Args: { variance_value: number }
         Returns: string
       }
+      ensure_supplier_role: {
+        Args: { target_user_id: string }
+        Returns: undefined
+      }
       generate_receipt_number: { Args: never; Returns: string }
       generate_sale_number: { Args: never; Returns: string }
       generate_session_number: { Args: never; Returns: string }
