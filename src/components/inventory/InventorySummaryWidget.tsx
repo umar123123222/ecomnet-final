@@ -15,7 +15,7 @@ export function InventorySummaryWidget() {
         .from("inventory" as any)
         .select(`
           *,
-          product:products_new(*),
+          product:products(*),
           outlet:outlets(*)
         `);
 

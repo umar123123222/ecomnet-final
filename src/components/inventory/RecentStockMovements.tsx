@@ -13,7 +13,7 @@ export function RecentStockMovements() {
         .from("stock_movements" as any)
         .select(`
           *,
-          product:products_new(name, sku),
+          product:products(name, sku),
           outlet:outlets(name)
         `)
         .order("created_at", { ascending: false })
