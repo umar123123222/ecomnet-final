@@ -30,7 +30,7 @@ const userSchema = z.object({
   email: z.string().email('Invalid email'),
   password: z.string().min(8, 'Password must be at least 8 characters').or(z.literal('')).optional(),
   role: z.string().min(1, 'Role is required'),
-  supplier_id: z.string().optional()
+  supplier_id: z.string().optional().nullable()
 });
 type UserFormData = z.infer<typeof userSchema>;
 interface UserWithRoles {
@@ -95,7 +95,7 @@ const UserManagement = () => {
     }
   });
 
-  // Fetch users from Supabase
+  // Fetch users from Supabase (including suppliers)
   const {
     data: users = [],
     isLoading,
@@ -121,7 +121,11 @@ const UserManagement = () => {
         `).order('created_at', {
         ascending: false
       });
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching users:', error);
+        throw error;
+      }
+      console.log('Fetched users:', data?.length, 'users including suppliers');
       return data as UserWithRoles[];
     }
   });
@@ -140,8 +144,8 @@ const UserManagement = () => {
         }
       });
 
-      // If user has supplier role and supplier_id is provided, create supplier_profile
-      if (userData.role === 'supplier' && userData.supplier_id) {
+      // If user has supplier role and supplier_id is provided (and not "none"), create supplier_profile
+      if (userData.role === 'supplier' && userData.supplier_id && userData.supplier_id !== 'none') {
         const { error: profileError } = await supabase
           .from('supplier_profiles')
           .insert({
@@ -153,6 +157,9 @@ const UserManagement = () => {
           console.error('Error creating supplier profile:', profileError);
           throw new Error('User created but failed to link to supplier');
         }
+        console.log('Supplier profile linked successfully');
+      } else if (userData.role === 'supplier') {
+        console.log('Supplier user created without linking to supplier entity');
       }
 
       return result;
@@ -536,14 +543,15 @@ const UserManagement = () => {
                         field
                       }) => (
                         <FormItem>
-                          <FormLabel>Link to Supplier</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <FormLabel>Link to Supplier (Optional)</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder="Select a supplier" />
+                                <SelectValue placeholder={suppliers.length > 0 ? "Select a supplier (optional)" : "No suppliers available"} />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
+                              <SelectItem value="none">None (create supplier user only)</SelectItem>
                               {suppliers.map((supplier) => (
                                 <SelectItem key={supplier.id} value={supplier.id}>
                                   {supplier.name}
@@ -552,6 +560,11 @@ const UserManagement = () => {
                             </SelectContent>
                           </Select>
                           <FormMessage />
+                          {suppliers.length === 0 && (
+                            <p className="text-sm text-muted-foreground">
+                              No supplier entities found. Create a supplier first in Supplier Management if you want to link this user.
+                            </p>
+                          )}
                         </FormItem>
                       )} />
                     )}
