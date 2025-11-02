@@ -30,25 +30,41 @@ export const manageUser = async (request: ManageUserRequest) => {
   });
 
   if (error) {
+    console.error('Edge function error:', error);
+    
     // Extract server error message if available
     let errorMessage = 'Failed to manage user';
     
-    if (error.context?.json) {
+    // Try to extract error from the data object (Supabase sometimes puts error there)
+    if (data?.error) {
+      errorMessage = data.error;
+      if (data.details) {
+        errorMessage += `: ${data.details}`;
+      }
+    } 
+    // Try the context.json method
+    else if (error.context?.json) {
       try {
-        const errorJson = await error.context.json();
-        errorMessage = errorJson.error || errorMessage;
+        const errorJson = typeof error.context.json === 'function' 
+          ? await error.context.json() 
+          : error.context.json;
         
-        if (errorJson.details) {
-          errorMessage += `: ${errorJson.details}`;
+        if (errorJson?.error) {
+          errorMessage = errorJson.error;
+          if (errorJson.details) {
+            errorMessage += `: ${errorJson.details}`;
+          }
         }
       } catch (e) {
-        // Failed to parse error JSON, use default message
         console.error('Failed to parse error JSON:', e);
       }
-    } else if (error.message) {
+    } 
+    // Fallback to error.message
+    else if (error.message) {
       errorMessage = error.message;
     }
     
+    console.error('Throwing error:', errorMessage);
     throw new Error(errorMessage);
   }
   
@@ -60,16 +76,40 @@ export const updateUser = async (request: UpdateUserRequest) => {
     body: request,
   });
   if (error) {
+    console.error('Edge function error:', error);
+    
     let errorMessage = 'Failed to update user';
-    if (error.context?.json) {
+    
+    // Try to extract error from the data object first
+    if (data?.error) {
+      errorMessage = data.error;
+      if (data.details) {
+        errorMessage += `: ${data.details}`;
+      }
+    }
+    // Try the context.json method
+    else if (error.context?.json) {
       try {
-        const errorJson = await error.context.json();
-        errorMessage = errorJson.error || errorMessage;
-        if (errorJson.details) errorMessage += `: ${errorJson.details}`;
-      } catch {}
-    } else if (error.message) {
+        const errorJson = typeof error.context.json === 'function' 
+          ? await error.context.json() 
+          : error.context.json;
+        
+        if (errorJson?.error) {
+          errorMessage = errorJson.error;
+          if (errorJson.details) {
+            errorMessage += `: ${errorJson.details}`;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse error JSON:', e);
+      }
+    }
+    // Fallback to error.message
+    else if (error.message) {
       errorMessage = error.message;
     }
+    
+    console.error('Throwing error:', errorMessage);
     throw new Error(errorMessage);
   }
   return data;
