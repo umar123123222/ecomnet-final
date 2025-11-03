@@ -292,6 +292,24 @@ const Settings = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Shopify Integration Card */}
+        <Card className="modern-card">
+          <CardHeader className="card-header">
+            <CardTitle className="card-title">Shopify Integration</CardTitle>
+            <CardDescription className="card-description">
+              Manage Shopify store synchronization and webhook configuration
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="card-content">
+            <p className="text-sm text-muted-foreground mb-4">
+              Configure and monitor your Shopify store integration, sync products, orders, and customers.
+            </p>
+            <ModernButton onClick={() => window.location.href = '/shopify-settings'}>
+              Configure Shopify
+            </ModernButton>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
