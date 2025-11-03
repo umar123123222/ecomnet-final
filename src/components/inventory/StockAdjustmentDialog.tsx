@@ -172,7 +172,7 @@ export function StockAdjustmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>Stock Adjustment</DialogTitle>
           <DialogDescription>
@@ -184,189 +184,195 @@ export function StockAdjustmentDialog({
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {!showConfirmation ? (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="product_id">Product *</Label>
-                <Select
-                  value={watch("product_id")}
-                  onValueChange={(value) => setValue("product_id", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select product" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {products?.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>
-                        {product.name} ({product.sku})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.product_id && (
-                  <p className="text-sm text-destructive">{errors.product_id.message}</p>
-                )}
-              </div>
+            <div className="grid grid-cols-2 gap-6">
+              {/* Left Column */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="product_id">Product *</Label>
+                  <Select
+                    value={watch("product_id")}
+                    onValueChange={(value) => setValue("product_id", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select product" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {products?.map((product) => (
+                        <SelectItem key={product.id} value={product.id}>
+                          {product.name} ({product.sku})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.product_id && (
+                    <p className="text-sm text-destructive">{errors.product_id.message}</p>
+                  )}
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="outlet_id">Outlet *</Label>
-                <Select
-                  value={watch("outlet_id")}
-                  onValueChange={(value) => setValue("outlet_id", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select outlet" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {outlets?.map((outlet) => (
-                      <SelectItem key={outlet.id} value={outlet.id}>
-                        {outlet.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.outlet_id && (
-                  <p className="text-sm text-destructive">{errors.outlet_id.message}</p>
-                )}
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="outlet_id">Outlet *</Label>
+                  <Select
+                    value={watch("outlet_id")}
+                    onValueChange={(value) => setValue("outlet_id", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select outlet" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {outlets?.map((outlet) => (
+                        <SelectItem key={outlet.id} value={outlet.id}>
+                          {outlet.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.outlet_id && (
+                    <p className="text-sm text-destructive">{errors.outlet_id.message}</p>
+                  )}
+                </div>
 
-              {/* Current Stock Display */}
-              {selectedProductId && selectedOutletId && (
-                <Alert className="bg-muted">
-                  <Info className="h-4 w-4" />
-                  <AlertDescription>
-                    {isLoadingInventory ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Loading current stock...
-                      </span>
-                    ) : (
-                      <div className="space-y-1">
-                        <p className="font-semibold">Current Stock: {currentStock} units</p>
-                        {currentInventory && (
-                          <p className="text-xs text-muted-foreground">
-                            Available: {currentInventory.available_quantity} | Reserved: {currentInventory.reserved_quantity}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="adjustment_type">Adjustment Type *</Label>
-                <Select
-                  value={adjustmentType}
-                  onValueChange={(value) => setValue("adjustment_type", value as "increase" | "decrease" | "set_exact")}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="set_exact">
-                      <div className="flex items-center gap-2">
-                        <Info className="h-4 w-4 text-primary" />
-                        Set Exact Quantity (Manual Count)
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="increase">
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4 text-success" />
-                        Receive/Add Stock
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="decrease">
-                      <div className="flex items-center gap-2">
-                        <TrendingDown className="h-4 w-4 text-destructive" />
-                        Remove Stock
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                {errors.adjustment_type && (
-                  <p className="text-sm text-destructive">{errors.adjustment_type.message}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="quantity">
-                  {adjustmentType === "set_exact" 
-                    ? "Current Physical Count *" 
-                    : adjustmentType === "increase"
-                    ? "Quantity Received *"
-                    : "Quantity to Remove *"}
-                </Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  min={adjustmentType === "set_exact" ? "0" : "1"}
-                  {...register("quantity", { valueAsNumber: true })}
-                  placeholder={adjustmentType === "set_exact" ? "Enter actual quantity counted" : "1"}
-                />
-                {errors.quantity && (
-                  <p className="text-sm text-destructive">{errors.quantity.message}</p>
-                )}
-              </div>
-
-              {/* Calculated Result Preview */}
-              {selectedProductId && selectedOutletId && !isLoadingInventory && (
-                <Alert className={calculatedNewStock < 0 ? "border-destructive" : "border-primary"}>
-                  <AlertDescription>
-                    {adjustmentType === "set_exact" ? (
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">System shows:</span>
-                          <span className="font-medium">{currentStock} units</span>
+                <div className="space-y-2">
+                  <Label htmlFor="adjustment_type">Adjustment Type *</Label>
+                  <Select
+                    value={adjustmentType}
+                    onValueChange={(value) => setValue("adjustment_type", value as "increase" | "decrease" | "set_exact")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="set_exact">
+                        <div className="flex items-center gap-2">
+                          <Info className="h-4 w-4 text-primary" />
+                          Set Exact Quantity (Manual Count)
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Physical count:</span>
-                          <span className="font-bold text-lg">{quantity} units</span>
+                      </SelectItem>
+                      <SelectItem value="increase">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4 text-success" />
+                          Receive/Add Stock
                         </div>
-                        {quantity !== currentStock && (
-                          <div className="flex items-center justify-between pt-1 border-t">
-                            <span className="text-sm font-medium">Adjustment:</span>
-                            <span className={`font-medium ${quantity > currentStock ? "text-success" : "text-destructive"}`}>
-                              {quantity > currentStock ? "+" : ""}{quantity - currentStock} units
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">
-                          New Stock: {calculatedNewStock} units
+                      </SelectItem>
+                      <SelectItem value="decrease">
+                        <div className="flex items-center gap-2">
+                          <TrendingDown className="h-4 w-4 text-destructive" />
+                          Remove Stock
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {errors.adjustment_type && (
+                    <p className="text-sm text-destructive">{errors.adjustment_type.message}</p>
+                  )}
+                </div>
+
+                {/* Current Stock Display */}
+                {selectedProductId && selectedOutletId && (
+                  <Alert className="bg-muted">
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      {isLoadingInventory ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Loading current stock...
                         </span>
-                        {calculatedNewStock < 0 && (
-                          <span className="text-xs text-destructive flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3" />
-                            Will result in negative stock!
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="reason">Reason *</Label>
-                <Textarea
-                  id="reason"
-                  {...register("reason")}
-                  placeholder={
-                    adjustmentType === "set_exact" 
-                      ? "Physical count, cycle count, stock verification, etc."
-                      : adjustmentType === "increase"
-                      ? "Goods received from supplier, production output, etc."
-                      : "Damaged goods, expiry, shrinkage, etc."
-                  }
-                  rows={3}
-                />
-                {errors.reason && (
-                  <p className="text-sm text-destructive">{errors.reason.message}</p>
+                      ) : (
+                        <div className="space-y-1">
+                          <p className="font-semibold">Current Stock: {currentStock} units</p>
+                          {currentInventory && (
+                            <p className="text-xs text-muted-foreground">
+                              Available: {currentInventory.available_quantity} | Reserved: {currentInventory.reserved_quantity}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </AlertDescription>
+                  </Alert>
                 )}
               </div>
-            </>
+
+              {/* Right Column */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="quantity">
+                    {adjustmentType === "set_exact" 
+                      ? "Current Physical Count *" 
+                      : adjustmentType === "increase"
+                      ? "Quantity Received *"
+                      : "Quantity to Remove *"}
+                  </Label>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    min={adjustmentType === "set_exact" ? "0" : "1"}
+                    {...register("quantity", { valueAsNumber: true })}
+                    placeholder={adjustmentType === "set_exact" ? "Enter actual quantity counted" : "1"}
+                  />
+                  {errors.quantity && (
+                    <p className="text-sm text-destructive">{errors.quantity.message}</p>
+                  )}
+                </div>
+
+                {/* Calculated Result Preview */}
+                {selectedProductId && selectedOutletId && !isLoadingInventory && (
+                  <Alert className={calculatedNewStock < 0 ? "border-destructive" : "border-primary"}>
+                    <AlertDescription>
+                      {adjustmentType === "set_exact" ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">System shows:</span>
+                            <span className="font-medium">{currentStock} units</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">Physical count:</span>
+                            <span className="font-bold text-lg">{quantity} units</span>
+                          </div>
+                          {quantity !== currentStock && (
+                            <div className="flex items-center justify-between pt-1 border-t">
+                              <span className="text-sm font-medium">Adjustment:</span>
+                              <span className={`font-medium ${quantity > currentStock ? "text-success" : "text-destructive"}`}>
+                                {quantity > currentStock ? "+" : ""}{quantity - currentStock} units
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">
+                            New Stock: {calculatedNewStock} units
+                          </span>
+                          {calculatedNewStock < 0 && (
+                            <span className="text-xs text-destructive flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              Will result in negative stock!
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="reason">Reason *</Label>
+                  <Textarea
+                    id="reason"
+                    {...register("reason")}
+                    placeholder={
+                      adjustmentType === "set_exact" 
+                        ? "Physical count, cycle count, stock verification, etc."
+                        : adjustmentType === "increase"
+                        ? "Goods received from supplier, production output, etc."
+                        : "Damaged goods, expiry, shrinkage, etc."
+                    }
+                    rows={6}
+                  />
+                  {errors.reason && (
+                    <p className="text-sm text-destructive">{errors.reason.message}</p>
+                  )}
+                </div>
+              </div>
+            </div>
           ) : (
             // Confirmation screen
             <div className="space-y-4">
