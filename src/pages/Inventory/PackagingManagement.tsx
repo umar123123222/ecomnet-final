@@ -336,10 +336,10 @@ export default function PackagingManagement() {
               <TableHead>SKU</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Size</TableHead>
-              <TableHead>Current Stock</TableHead>
-              <TableHead>Reorder Level</TableHead>
+              <TableHead className="text-right">Current Stock</TableHead>
+              <TableHead className="text-right">Reorder Level</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Cost</TableHead>
+              <TableHead className="text-right">Cost</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -373,12 +373,16 @@ export default function PackagingManagement() {
                     <TableCell>{item.sku}</TableCell>
                     <TableCell className="capitalize">{item.type}</TableCell>
                     <TableCell>{item.size || "-"}</TableCell>
-                    <TableCell>{item.current_stock}</TableCell>
-                    <TableCell>{item.reorder_level}</TableCell>
+                    <TableCell className="text-right">
+                      <span className="font-medium">{item.current_stock}</span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="text-muted-foreground">{item.reorder_level}</span>
+                    </TableCell>
                     <TableCell>
                       <Badge variant={status.variant}>{status.label}</Badge>
                     </TableCell>
-                    <TableCell>PKR {item.cost.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">PKR {item.cost.toFixed(2)}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         {permissions.canManagePackaging && (

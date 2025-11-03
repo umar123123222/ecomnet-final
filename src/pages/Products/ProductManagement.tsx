@@ -51,6 +51,32 @@ const ProductManagement = () => {
     },
   });
 
+  // Fetch inventory data aggregated by product
+  const { data: inventoryData } = useQuery({
+    queryKey: ["products-inventory-aggregated"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("inventory")
+        .select("product_id, quantity, reserved_quantity");
+      if (error) throw error;
+      
+      // Aggregate by product_id
+      const aggregated = data.reduce((acc: any, item: any) => {
+        if (!acc[item.product_id]) {
+          acc[item.product_id] = {
+            total_quantity: 0,
+            total_reserved: 0,
+          };
+        }
+        acc[item.product_id].total_quantity += item.quantity || 0;
+        acc[item.product_id].total_reserved += item.reserved_quantity || 0;
+        return acc;
+      }, {});
+      
+      return aggregated;
+    },
+  });
+
   // Fetch suppliers for smart reorder
   const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers-active'],
@@ -257,6 +283,8 @@ const ProductManagement = () => {
                     <TableHead>Name</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead className="text-right">Price</TableHead>
+                    <TableHead className="text-right">Current Stock</TableHead>
+                    <TableHead className="text-right">Reserved</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -292,6 +320,16 @@ const ProductManagement = () => {
                           <Badge variant="outline">{product.category || 'Uncategorized'}</Badge>
                         </TableCell>
                         <TableCell className="text-right">Rs. {product.price?.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">
+                          <span className="font-medium">
+                            {inventoryData?.[product.id]?.total_quantity || 0}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className="text-muted-foreground">
+                            {inventoryData?.[product.id]?.total_reserved || 0}
+                          </span>
+                        </TableCell>
                         <TableCell>
                           {product.is_active ? (
                             <Badge variant="outline" className="border-green-500 text-green-500">
@@ -359,7 +397,7 @@ const ProductManagement = () => {
                     ))
                    ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                         No products found
                       </TableCell>
                     </TableRow>
