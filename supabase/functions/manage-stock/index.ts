@@ -58,10 +58,12 @@ serve(async (req) => {
       case 'reserveStock': {
         const { productId, outletId, quantity, orderId } = data
         
-        // Check availability first
+        console.log(`[reserveStock] Reserving ${quantity} units for product ${productId} at outlet ${outletId}`)
+        
+        // Get current inventory with reserved_quantity
         const { data: inventory, error: checkError } = await supabaseClient
           .from('inventory')
-          .select('available_quantity')
+          .select('quantity, reserved_quantity, available_quantity')
           .eq('product_id', productId)
           .eq('outlet_id', outletId)
           .single()
@@ -69,20 +71,37 @@ serve(async (req) => {
         if (checkError) throw checkError
 
         if (inventory.available_quantity < quantity) {
+          console.error(`[reserveStock] Insufficient stock: need ${quantity}, available ${inventory.available_quantity}`)
           return new Response(
             JSON.stringify({ error: 'Insufficient stock available' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
 
-        // Reserve the stock
+        // Reserve the stock (available_quantity auto-calculated by DB trigger)
+        const newReservedQty = inventory.reserved_quantity + quantity
         const { error: updateError } = await supabaseClient
           .from('inventory')
-          .update({ reserved_quantity: inventory.reserved_quantity + quantity })
+          .update({ reserved_quantity: newReservedQty })
           .eq('product_id', productId)
           .eq('outlet_id', outletId)
 
         if (updateError) throw updateError
+
+        console.log(`[reserveStock] Success: reserved_quantity ${inventory.reserved_quantity} -> ${newReservedQty}`)
+
+        // Create stock movement record for audit trail
+        await supabaseClient
+          .from('stock_movements')
+          .insert({
+            product_id: productId,
+            outlet_id: outletId,
+            quantity: 0, // No physical movement, just reservation
+            movement_type: 'adjustment',
+            notes: `Stock reserved for order: ${orderId || 'N/A'} (+${quantity} reserved)`,
+            created_by: user.id,
+            reference_id: orderId
+          })
 
         return new Response(
           JSON.stringify({ success: true }),
@@ -91,7 +110,9 @@ serve(async (req) => {
       }
 
       case 'releaseStock': {
-        const { productId, outletId, quantity } = data
+        const { productId, outletId, quantity, orderId } = data
+        
+        console.log(`[releaseStock] Releasing ${quantity} reserved units for product ${productId} at outlet ${outletId}`)
         
         const { data: inventory, error: getError } = await supabaseClient
           .from('inventory')
@@ -102,13 +123,29 @@ serve(async (req) => {
 
         if (getError) throw getError
 
+        const newReservedQty = Math.max(0, inventory.reserved_quantity - quantity)
         const { error: updateError } = await supabaseClient
           .from('inventory')
-          .update({ reserved_quantity: Math.max(0, inventory.reserved_quantity - quantity) })
+          .update({ reserved_quantity: newReservedQty })
           .eq('product_id', productId)
           .eq('outlet_id', outletId)
 
         if (updateError) throw updateError
+
+        console.log(`[releaseStock] Success: reserved_quantity ${inventory.reserved_quantity} -> ${newReservedQty}`)
+
+        // Create stock movement record for audit trail
+        await supabaseClient
+          .from('stock_movements')
+          .insert({
+            product_id: productId,
+            outlet_id: outletId,
+            quantity: 0, // No physical movement, just reservation release
+            movement_type: 'adjustment',
+            notes: `Stock reservation released for order: ${orderId || 'N/A'} (-${quantity} reserved)`,
+            created_by: user.id,
+            reference_id: orderId
+          })
 
         return new Response(
           JSON.stringify({ success: true }),

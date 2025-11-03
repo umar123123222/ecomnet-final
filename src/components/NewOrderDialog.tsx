@@ -283,15 +283,15 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
                   .single();
 
                 if (inventory && inventory.available_quantity >= product.quantity) {
+                  // Update reserved quantity (available_quantity auto-calculated by DB trigger)
                   await supabase
                     .from('inventory')
                     .update({
-                      reserved_quantity: inventory.reserved_quantity + product.quantity,
-                      available_quantity: inventory.available_quantity - product.quantity
+                      reserved_quantity: inventory.reserved_quantity + product.quantity
                     })
                     .eq('id', inventory.id);
 
-                  console.log(`Reserved ${product.quantity} units of ${product.name}`);
+                  console.log(`Reserved ${product.quantity} units of ${product.name} (reserved: ${inventory.reserved_quantity} -> ${inventory.reserved_quantity + product.quantity})`);
                 }
               }
             }

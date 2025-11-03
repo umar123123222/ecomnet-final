@@ -87,15 +87,16 @@ serve(async (req) => {
             continue;
           }
 
-          // Deduct from inventory
+          // Deduct from inventory (available_quantity auto-calculated by DB trigger)
           await supabaseClient
             .from('inventory')
             .update({
               quantity: inventory.quantity - requiredQty,
-              reserved_quantity: Math.max(0, inventory.reserved_quantity - requiredQty),
-              available_quantity: inventory.quantity - requiredQty - Math.max(0, inventory.reserved_quantity - requiredQty)
+              reserved_quantity: Math.max(0, inventory.reserved_quantity - requiredQty)
             })
             .eq('id', inventory.id);
+
+          console.log(`Dispatched ${requiredQty} units of ${item.item_name} (reserved: ${inventory.reserved_quantity} -> ${Math.max(0, inventory.reserved_quantity - requiredQty)})`);
 
           // Create stock movement record
           await supabaseClient
@@ -167,15 +168,16 @@ serve(async (req) => {
 
           if (!inventory) continue;
 
-          // Release reservation
+          // Release reservation (available_quantity auto-calculated by DB trigger)
           const releaseQty = Math.min(item.quantity, inventory.reserved_quantity);
           await supabaseClient
             .from('inventory')
             .update({
-              reserved_quantity: inventory.reserved_quantity - releaseQty,
-              available_quantity: (inventory.quantity - inventory.reserved_quantity) + releaseQty
+              reserved_quantity: Math.max(0, inventory.reserved_quantity - releaseQty)
             })
             .eq('id', inventory.id);
+
+          console.log(`Released ${releaseQty} reserved units of ${item.item_name}`);
         }
 
         // Update order status
