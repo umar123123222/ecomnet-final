@@ -1,5 +1,8 @@
 project_id = "lzitfcigdjbpymvebipp"
 
+[functions.reconcile-reserved-stock]
+verify_jwt = true
+
 [functions.create-supplier-account]
 verify_jwt = true
 
