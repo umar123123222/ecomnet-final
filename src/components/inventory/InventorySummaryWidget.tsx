@@ -8,36 +8,35 @@ import { Link } from "react-router-dom";
 import { Inventory } from "@/types/inventory";
 import { useCurrency } from "@/hooks/useCurrency";
 import { formatCurrency } from "@/utils/currency";
-
 export function InventorySummaryWidget() {
-  const { currency } = useCurrency();
-  const { data: inventory, isLoading } = useQuery<Inventory[]>({
+  const {
+    currency
+  } = useCurrency();
+  const {
+    data: inventory,
+    isLoading
+  } = useQuery<Inventory[]>({
     queryKey: ["inventory-summary"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("inventory" as any)
-        .select(`
+      const {
+        data,
+        error
+      } = await supabase.from("inventory" as any).select(`
           *,
           product:products(*),
           outlet:outlets(*)
         `);
-
       if (error) throw error;
       return data as unknown as Inventory[];
     },
-    refetchInterval: 60000, // Refresh every minute
+    refetchInterval: 60000 // Refresh every minute
   });
-
   const totalItems = inventory?.reduce((sum, item) => sum + item.available_quantity, 0) || 0;
-  const totalValue = inventory?.reduce((sum, item) => 
-    sum + (item.available_quantity * (item.product?.price || 0)), 0) || 0;
-  const lowStockCount = inventory?.filter(item => 
-    item.available_quantity <= (item.product?.reorder_level || 0)).length || 0;
+  const totalValue = inventory?.reduce((sum, item) => sum + item.available_quantity * (item.product?.price || 0), 0) || 0;
+  const lowStockCount = inventory?.filter(item => item.available_quantity <= (item.product?.reorder_level || 0)).length || 0;
   const totalProducts = new Set(inventory?.map(item => item.product_id)).size;
-
   if (isLoading) {
-    return (
-      <Card>
+    return <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Package className="h-5 w-5 text-purple-500" />
@@ -47,12 +46,9 @@ export function InventorySummaryWidget() {
         <CardContent className="flex justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
         </CardContent>
-      </Card>
-    );
+      </Card>;
   }
-
-  return (
-    <Card className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 border-purple-200">
+  return <Card className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 border-purple-200">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
@@ -60,7 +56,7 @@ export function InventorySummaryWidget() {
               <Package className="h-5 w-5 text-purple-500" />
               Inventory Overview
             </CardTitle>
-            <CardDescription>Real-time inventory summary</CardDescription>
+            <CardDescription>Real-time inventory summary of the Warehouse</CardDescription>
           </div>
           <Link to="/inventory">
             <Button variant="ghost" size="sm" className="gap-1">
@@ -103,17 +99,14 @@ export function InventorySummaryWidget() {
             </div>
             <div className="flex items-center gap-2">
               <div className="text-2xl font-bold text-orange-500">{lowStockCount}</div>
-              {lowStockCount > 0 && (
-                <Badge variant="destructive" className="text-xs animate-pulse">
+              {lowStockCount > 0 && <Badge variant="destructive" className="text-xs animate-pulse">
                   Alert
-                </Badge>
-              )}
+                </Badge>}
             </div>
           </div>
         </div>
 
-        {lowStockCount > 0 && (
-          <div className="mt-4 p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 rounded-lg">
+        {lowStockCount > 0 && <div className="mt-4 p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 rounded-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-orange-500" />
@@ -127,9 +120,7 @@ export function InventorySummaryWidget() {
                 </Button>
               </Link>
             </div>
-          </div>
-        )}
+          </div>}
       </CardContent>
-    </Card>
-  );
+    </Card>;
 }
