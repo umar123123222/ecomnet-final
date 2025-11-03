@@ -30,7 +30,12 @@ export const formatCurrency = (amount: number | string, currencyCode: string = '
   if (isNaN(numAmount)) return `${CURRENCY_SYMBOLS[currencyCode] || currencyCode} 0.00`;
   
   const symbol = CURRENCY_SYMBOLS[currencyCode] || currencyCode;
-  const formattedAmount = numAmount.toFixed(2);
+  
+  // Format with thousands separators and 2 decimal places
+  const formattedAmount = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(numAmount);
   
   return `${symbol} ${formattedAmount}`;
 };

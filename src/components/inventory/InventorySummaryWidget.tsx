@@ -6,8 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Package, AlertTriangle, TrendingUp, ArrowRight, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Inventory } from "@/types/inventory";
+import { useCurrency } from "@/hooks/useCurrency";
+import { formatCurrency } from "@/utils/currency";
 
 export function InventorySummaryWidget() {
+  const { currency } = useCurrency();
   const { data: inventory, isLoading } = useQuery<Inventory[]>({
     queryKey: ["inventory-summary"],
     queryFn: async () => {
@@ -82,7 +85,7 @@ export function InventorySummaryWidget() {
               <TrendingUp className="h-3 w-3" />
               Total Value
             </div>
-            <div className="text-2xl font-bold">Rs. {Math.round(totalValue / 1000)}K</div>
+            <div className="text-2xl font-bold">{formatCurrency(totalValue, currency)}</div>
           </div>
 
           <div className="space-y-1">
