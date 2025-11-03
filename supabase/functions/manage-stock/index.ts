@@ -145,11 +145,11 @@ serve(async (req) => {
           .from('stock_movements')
           .insert({
             product_id: productId,
-            from_outlet_id: outletId,
+            outlet_id: outletId,
             quantity: quantity,
             movement_type: 'sale',
             reference_id: orderId,
-            performed_by: user.id,
+            created_by: user.id,
           })
 
         if (movementError) throw movementError
@@ -177,11 +177,11 @@ serve(async (req) => {
           .from('stock_movements')
           .insert({
             product_id: productId,
-            to_outlet_id: outletId,
+            outlet_id: outletId,
             quantity: quantity,
             movement_type: 'return',
             reference_id: returnId,
-            performed_by: user.id,
+            created_by: user.id,
           })
 
         if (movementError) throw movementError
@@ -253,7 +253,7 @@ serve(async (req) => {
             quantity: Math.abs(quantity), // Store absolute value
             movement_type: 'adjustment',
             notes: reason,
-            performed_by: user.id,
+            created_by: user.id,
           })
 
         if (movementError) {
@@ -300,12 +300,11 @@ serve(async (req) => {
           .from('stock_movements')
           .insert({
             product_id: productId,
-            from_outlet_id: fromOutletId,
-            to_outlet_id: toOutletId,
+            outlet_id: fromOutletId,
             quantity: quantity,
             movement_type: 'transfer',
             notes: notes,
-            performed_by: user.id,
+            created_by: user.id,
           })
 
         if (movementError) throw movementError
