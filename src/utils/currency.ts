@@ -31,9 +31,12 @@ export const formatCurrency = (amount: number | string, currencyCode: string = '
   
   const symbol = CURRENCY_SYMBOLS[currencyCode] || currencyCode;
   
-  // Format with thousands separators and 2 decimal places
+  // Check if the number is a whole number
+  const isWholeNumber = numAmount % 1 === 0;
+  
+  // Format with thousands separators
   const formattedAmount = new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
+    minimumFractionDigits: isWholeNumber ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(numAmount);
   
