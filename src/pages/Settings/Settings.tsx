@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ModernButton } from "@/components/ui/modern-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
 const Settings = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { profile } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
@@ -305,7 +307,7 @@ const Settings = () => {
             <p className="text-sm text-muted-foreground mb-4">
               Configure and monitor your Shopify store integration, sync products, orders, and customers.
             </p>
-            <ModernButton onClick={() => window.location.href = '/shopify-settings'}>
+            <ModernButton onClick={() => navigate('/shopify-settings')}>
               Configure Shopify
             </ModernButton>
           </CardContent>
