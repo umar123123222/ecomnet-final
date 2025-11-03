@@ -222,6 +222,11 @@ const App = () => {
                     <ShopifySettings />
                   </Suspense>
                 } />
+                <Route path="settings/shopify" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <ShopifySettings />
+                  </Suspense>
+                } />
                 <Route path="shipper-advice" element={
                   <Suspense fallback={<PageLoader />}>
                     <ShipperAdvice />
