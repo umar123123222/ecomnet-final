@@ -25,9 +25,9 @@ export function InventorySummaryWidget() {
     refetchInterval: 60000, // Refresh every minute
   });
 
-  const totalItems = inventory?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  const totalItems = inventory?.reduce((sum, item) => sum + item.available_quantity, 0) || 0;
   const totalValue = inventory?.reduce((sum, item) => 
-    sum + (item.quantity * (item.product?.price || 0)), 0) || 0;
+    sum + (item.available_quantity * (item.product?.price || 0)), 0) || 0;
   const lowStockCount = inventory?.filter(item => 
     item.available_quantity <= (item.product?.reorder_level || 0)).length || 0;
   const totalProducts = new Set(inventory?.map(item => item.product_id)).size;
