@@ -533,14 +533,18 @@ export default function PackagingManagement() {
                   name="supplier_id"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Supplier</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <FormLabel>Supplier (Optional)</FormLabel>
+                      <Select 
+                        onValueChange={(value) => field.onChange(value === "none" ? undefined : value)} 
+                        value={field.value || "none"}
+                      >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select supplier (optional)" />
+                            <SelectValue placeholder="Select supplier" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
+                          <SelectItem value="none">No Supplier</SelectItem>
                           {suppliers.map((supplier) => (
                             <SelectItem key={supplier.id} value={supplier.id}>
                               {supplier.name}
