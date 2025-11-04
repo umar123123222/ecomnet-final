@@ -19,9 +19,6 @@ interface SyncLog {
   started_at: string;
   completed_at: string;
   triggered_by: string;
-  triggered_by_user?: {
-    full_name: string;
-  } | null;
 }
 
 export const ShopifySyncLogs = () => {
@@ -30,15 +27,15 @@ export const ShopifySyncLogs = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('shopify_sync_log')
-        .select(`
-          *,
-          triggered_by_user:profiles!shopify_sync_log_triggered_by_fkey(full_name)
-        `)
+        .select('*')
         .order('started_at', { ascending: false })
         .limit(50);
 
-      if (error) throw error;
-      return data as any[];
+      if (error) {
+        console.error('Error fetching sync logs:', error);
+        throw error;
+      }
+      return data as SyncLog[];
     },
     refetchInterval: 30000, // Refetch every 30 seconds
   });
@@ -74,6 +71,7 @@ export const ShopifySyncLogs = () => {
       case 'error':
       case 'failed':
         return <XCircle className="h-4 w-4 text-destructive" />;
+      case 'in_progress':
       case 'processing':
         return <RefreshCw className="h-4 w-4 text-primary animate-spin" />;
       default:
@@ -85,14 +83,16 @@ export const ShopifySyncLogs = () => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       success: "default",
       completed: "default",
+      in_progress: "secondary",
       processing: "secondary",
+      partial: "outline",
       error: "destructive",
       failed: "destructive",
     };
 
     return (
       <Badge variant={variants[status] || "outline"}>
-        {status}
+        {status.replace('_', ' ')}
       </Badge>
     );
   };
@@ -109,6 +109,7 @@ export const ShopifySyncLogs = () => {
       'products': 'Products Sync',
       'orders': 'Orders Sync',
       'customers': 'Customers Sync',
+      'full': 'Full Sync',
       'all': 'Full Sync',
     };
 
@@ -216,7 +217,7 @@ export const ShopifySyncLogs = () => {
                       </TableCell>
                       <TableCell>
                         <span className="text-xs text-muted-foreground">
-                          {log.triggered_by_user?.full_name || 'System'}
+                          {log.triggered_by ? 'Admin User' : 'System'}
                         </span>
                       </TableCell>
                       <TableCell>
