@@ -60,6 +60,7 @@ const BusinessSettings = () => {
   const [shopifyStoreUrl, setShopifyStoreUrl] = useState('');
   const [shopifyApiVersion, setShopifyApiVersion] = useState('2024-01');
   const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   
   // Auto-sync toggles
@@ -240,15 +241,45 @@ const BusinessSettings = () => {
       return;
     }
 
+    setIsSaving(true);
     try {
+      // If access token is provided, update credentials via edge function
+      if (shopifyAccessToken) {
+        const { updateShopifyCredentials } = await import("@/integrations/supabase/functions");
+        const { data, error } = await updateShopifyCredentials({
+          store_url: `https://${cleanUrl}`,
+          api_token: shopifyAccessToken,
+          api_version: shopifyApiVersion,
+          location_id: shopifyLocationId,
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        // Show note about secrets if needed
+        if (data?.note) {
+          toast({
+            title: "Settings Updated",
+            description: data.note,
+            duration: 8000,
+          });
+        }
+      } else {
+        // Update non-secret settings only
+        await Promise.all([
+          updateSetting('SHOPIFY_STORE_URL', cleanUrl, 'Shopify store URL'),
+          updateSetting('SHOPIFY_API_VERSION', shopifyApiVersion, 'Shopify API version'),
+          updateSetting('SHOPIFY_DEFAULT_LOCATION_ID', shopifyLocationId, 'Default Shopify location ID'),
+        ]);
+      }
+
+      // Always update auto-sync settings
       await Promise.all([
-        updateSetting('SHOPIFY_STORE_URL', cleanUrl, 'Shopify store URL'),
-        updateSetting('SHOPIFY_API_VERSION', shopifyApiVersion, 'Shopify API version'),
         updateSetting('SHOPIFY_AUTO_SYNC_ORDERS', autoSyncOrders.toString(), 'Auto-sync orders to Shopify'),
         updateSetting('SHOPIFY_AUTO_SYNC_INVENTORY', autoSyncInventory.toString(), 'Auto-sync inventory to Shopify'),
         updateSetting('SHOPIFY_AUTO_SYNC_PRODUCTS', autoSyncProducts.toString(), 'Auto-sync products to Shopify'),
         updateSetting('SHOPIFY_AUTO_SYNC_CUSTOMERS', autoSyncCustomers.toString(), 'Auto-sync customers to Shopify'),
-        updateSetting('SHOPIFY_DEFAULT_LOCATION_ID', shopifyLocationId, 'Default Shopify location ID'),
       ]);
       
       setConnectionStatus('idle');
@@ -256,12 +287,15 @@ const BusinessSettings = () => {
         title: "Settings saved",
         description: "Shopify integration settings have been updated successfully.",
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error saving Shopify settings:', error);
       toast({
         title: "Error",
-        description: "Failed to save Shopify settings",
+        description: error.message || "Failed to save Shopify settings",
         variant: "destructive",
       });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -514,12 +548,12 @@ const BusinessSettings = () => {
                   onChange={e => setShopifyStoreUrl(e.target.value)} 
                 />
                 <p className="text-sm text-muted-foreground">
-                  Your Shopify store domain (without https://)
+                  Your Shopify store domain (e.g., your-store.myshopify.com)
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="shopifyAccessToken">Admin API Access Token *</Label>
+                <Label htmlFor="shopifyAccessToken">Admin API Access Token</Label>
                 <Input 
                   id="shopifyAccessToken" 
                   type="password" 
@@ -528,7 +562,15 @@ const BusinessSettings = () => {
                   onChange={e => setShopifyAccessToken(e.target.value)} 
                 />
                 <p className="text-sm text-muted-foreground">
-                  For testing only - actual token stored in Supabase Secrets: SHOPIFY_ADMIN_API_TOKEN
+                  Enter a new token to update credentials. Leave blank to keep existing token.{" "}
+                  <a 
+                    href="https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/generate-app-access-tokens-admin"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    How to get an access token
+                  </a>
                 </p>
               </div>
 
@@ -541,6 +583,9 @@ const BusinessSettings = () => {
                     value={shopifyApiVersion} 
                     onChange={e => setShopifyApiVersion(e.target.value)} 
                   />
+                  <p className="text-sm text-muted-foreground">
+                    Shopify API version (e.g., 2024-01, 2024-04, 2024-07)
+                  </p>
                 </div>
                 
                 <div className="space-y-2">
@@ -551,6 +596,9 @@ const BusinessSettings = () => {
                     value={shopifyLocationId} 
                     onChange={e => setShopifyLocationId(e.target.value)} 
                   />
+                  <p className="text-sm text-muted-foreground">
+                    Optional: Shopify location ID for inventory sync
+                  </p>
                 </div>
               </div>
 
@@ -561,7 +609,7 @@ const BusinessSettings = () => {
                 <Button
                   variant="outline"
                   onClick={handleTestConnection}
-                  disabled={isTestingConnection || !shopifyStoreUrl || !shopifyAccessToken}
+                  disabled={isTestingConnection || isSaving || !shopifyStoreUrl || !shopifyAccessToken}
                 >
                   {isTestingConnection ? (
                     <>
@@ -579,8 +627,8 @@ const BusinessSettings = () => {
 
               <Separator />
 
-              <Button onClick={handleSaveShopify} className="w-full" disabled={isUpdating}>
-                {isUpdating ? (
+              <Button onClick={handleSaveShopify} className="w-full" disabled={isSaving || isUpdating}>
+                {isSaving || isUpdating ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Saving...

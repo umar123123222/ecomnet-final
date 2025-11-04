@@ -412,3 +412,21 @@ export const generateProductBarcode = async (request: {
   return data;
 };
 
+// ============================================
+// SHOPIFY CREDENTIALS UPDATE
+// ============================================
+
+export interface UpdateShopifyCredentialsRequest {
+  store_url: string;
+  api_token: string;
+  api_version: string;
+  webhook_secret?: string;
+  location_id?: string;
+}
+
+export async function updateShopifyCredentials(request: UpdateShopifyCredentialsRequest) {
+  return await supabase.functions.invoke('update-shopify-credentials', {
+    body: request
+  });
+}
+
