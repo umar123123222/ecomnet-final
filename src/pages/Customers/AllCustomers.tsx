@@ -38,57 +38,96 @@ const AllCustomers = () => {
     activeCustomers: 0,
     newThisMonth: 0
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [pageSize] = useState(50);
   const { toast } = useToast();
 
   const fetchCustomers = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Get total count
+      const { count: totalCustomers } = await supabase
+        .from('customers')
+        .select('*', { count: 'exact', head: true });
+      
+      setTotalCount(totalCustomers || 0);
+
+      // Calculate pagination range
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      // Fetch paginated customers
+      const { data: customersData, error: customersError } = await supabase
         .from('customers')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
-      if (error) {
-        console.error('Error fetching customers:', error);
+      if (customersError) {
+        console.error('Error fetching customers:', customersError);
         toast({
           title: "Error",
           description: "Failed to fetch customers",
           variant: "destructive",
         });
-      } else {
-        const formattedCustomers = (data || []).map(customer => ({
+        setLoading(false);
+        return;
+      }
+
+      // Get order stats for these customers
+      const customerIds = customersData?.map(c => c.id) || [];
+      
+      const { data: orderStats } = await supabase
+        .from('orders')
+        .select('customer_id, total_amount, status')
+        .in('customer_id', customerIds);
+
+      // Calculate order totals per customer
+      const orderTotalsMap = new Map<string, { count: number; total: number }>();
+      orderStats?.forEach(order => {
+        const existing = orderTotalsMap.get(order.customer_id) || { count: 0, total: 0 };
+        orderTotalsMap.set(order.customer_id, {
+          count: existing.count + 1,
+          total: existing.total + (Number(order.total_amount) || 0)
+        });
+      });
+
+      const formattedCustomers = (customersData || []).map(customer => {
+        const orderData = orderTotalsMap.get(customer.id) || { count: 0, total: 0 };
+        return {
           id: customer.id,
           name: customer.name,
           phone: customer.phone || 'N/A',
           email: customer.email || 'N/A',
-          status: 'Active', // Default to active
-          totalOrders: customer.total_orders || 0,
-          totalSpent: `Rs. ${(customer.total_orders * 2500).toLocaleString()}`, // Estimated
+          status: 'Active',
+          totalOrders: orderData.count,
+          totalSpent: `Rs. ${orderData.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           joinDate: new Date(customer.created_at).toLocaleDateString(),
           createdAt: customer.created_at,
           ordersDelivered: customer.delivered_count || 0,
-          ordersCancelled: 0, // Not in schema
+          ordersCancelled: 0,
           ordersReturned: customer.return_count || 0,
           tags: [],
           notes: [],
-          orders: [] // Would need separate query for order history
-        }));
+          orders: []
+        };
+      });
 
-        setCustomers(formattedCustomers);
+      setCustomers(formattedCustomers);
 
-        // Calculate summary data
-        const currentMonth = new Date().getMonth();
-        const currentYear = new Date().getFullYear();
-        const newThisMonth = formattedCustomers.filter(c => {
-          const createdDate = new Date(c.createdAt);
-          return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear;
-        }).length;
+      // Calculate summary data
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+      const newThisMonth = formattedCustomers.filter(c => {
+        const createdDate = new Date(c.createdAt);
+        return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear;
+      }).length;
 
-        setSummaryData({
-          activeCustomers: formattedCustomers.length,
-          newThisMonth
-        });
-      }
+      setSummaryData({
+        activeCustomers: totalCustomers || 0,
+        newThisMonth
+      });
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -119,7 +158,24 @@ const AllCustomers = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [toast]);
+  }, [currentPage, toast]);
+
+  const totalPages = Math.ceil(totalCount / pageSize);
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   const handleSelectCustomer = (customerId: string) => {
     setSelectedCustomers(prev => 
@@ -638,6 +694,57 @@ const AllCustomers = () => {
             </TableBody>
           </Table>
         </CardContent>
+
+        {/* Pagination Controls */}
+        <div className="flex items-center justify-between px-6 py-4 border-t">
+          <div className="text-sm text-gray-600">
+            Showing {Math.min((currentPage - 1) * pageSize + 1, totalCount)} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount.toLocaleString()} customers
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePreviousPage}
+              disabled={currentPage === 1 || loading}
+            >
+              Previous
+            </Button>
+            <div className="flex items-center gap-1">
+              {[...Array(Math.min(5, totalPages))].map((_, idx) => {
+                let pageNumber: number;
+                if (totalPages <= 5) {
+                  pageNumber = idx + 1;
+                } else if (currentPage <= 3) {
+                  pageNumber = idx + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNumber = totalPages - 4 + idx;
+                } else {
+                  pageNumber = currentPage - 2 + idx;
+                }
+                
+                return (
+                  <Button
+                    key={pageNumber}
+                    variant={currentPage === pageNumber ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handlePageChange(pageNumber)}
+                    disabled={loading}
+                  >
+                    {pageNumber}
+                  </Button>
+                );
+              })}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNextPage}
+              disabled={currentPage === totalPages || loading}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </Card>
     </div>
   );

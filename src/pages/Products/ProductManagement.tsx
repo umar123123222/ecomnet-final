@@ -35,21 +35,39 @@ const ProductManagement = () => {
   const [barcodeProduct, setBarcodeProduct] = useState<Product | null>(null);
   const [reorderSettingsOpen, setReorderSettingsOpen] = useState(false);
   const [reorderProduct, setReorderProduct] = useState<Product | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(50);
   const { progress, executeBulkOperation } = useBulkOperations();
 
 
-  // Fetch products
-  const { data: products, isLoading } = useQuery<Product[]>({
-    queryKey: ["products"],
+  // Fetch products with pagination
+  const { data: productsData, isLoading } = useQuery({
+    queryKey: ["products", currentPage],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .order("name");
-      if (error) throw error;
-      return data;
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      const [countResult, dataResult] = await Promise.all([
+        supabase.from("products").select("*", { count: 'exact', head: true }),
+        supabase
+          .from("products")
+          .select("*")
+          .order("name")
+          .range(from, to)
+      ]);
+
+      if (dataResult.error) throw dataResult.error;
+      
+      return {
+        products: dataResult.data || [],
+        totalCount: countResult.count || 0
+      };
     },
   });
+
+  const products = productsData?.products || [];
+  const totalCount = productsData?.totalCount || 0;
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   // Fetch inventory data aggregated by product
   const { data: inventoryData } = useQuery({
@@ -407,6 +425,57 @@ const ProductManagement = () => {
             </div>
           )}
         </CardContent>
+
+        {/* Pagination Controls */}
+        <div className="flex items-center justify-between px-6 py-4 border-t">
+          <div className="text-sm text-muted-foreground">
+            Showing {Math.min((currentPage - 1) * pageSize + 1, totalCount)} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount.toLocaleString()} products
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1 || isLoading}
+            >
+              Previous
+            </Button>
+            <div className="flex items-center gap-1">
+              {[...Array(Math.min(5, totalPages))].map((_, idx) => {
+                let pageNumber: number;
+                if (totalPages <= 5) {
+                  pageNumber = idx + 1;
+                } else if (currentPage <= 3) {
+                  pageNumber = idx + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNumber = totalPages - 4 + idx;
+                } else {
+                  pageNumber = currentPage - 2 + idx;
+                }
+                
+                return (
+                  <Button
+                    key={pageNumber}
+                    variant={currentPage === pageNumber ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(pageNumber)}
+                    disabled={isLoading}
+                  >
+                    {pageNumber}
+                  </Button>
+                );
+              })}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages || isLoading}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </Card>
 
       {/* Dialogs */}
