@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CheckCircle2, XCircle, Clock, RefreshCw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useEffect } from "react";
 
 interface SyncLog {
   id: string;
@@ -35,6 +36,29 @@ export const ShopifySyncLogs = () => {
     },
     refetchInterval: 30000, // Refetch every 30 seconds
   });
+
+  // Real-time updates for sync logs
+  useEffect(() => {
+    const channel = supabase
+      .channel('sync-logs-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'shopify_sync_log'
+        },
+        () => {
+          console.log('New sync log entry, refreshing...');
+          refetch();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [refetch]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {

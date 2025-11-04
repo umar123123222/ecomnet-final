@@ -21,6 +21,9 @@ verify_jwt = true
 [functions.process-sync-queue]
 verify_jwt = false
 
+[functions.scheduled-sync-processor]
+verify_jwt = false
+
 [functions.reconcile-reserved-stock]
 verify_jwt = true
 

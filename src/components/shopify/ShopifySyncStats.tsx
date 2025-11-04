@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { useEffect } from "react";
 
 export const ShopifySyncStats = () => {
-  const { data: stats } = useQuery({
+  const { data: stats, refetch } = useQuery({
     queryKey: ['shopify-sync-stats'],
     queryFn: async () => {
       // Get stats from last 24 hours
@@ -28,7 +29,7 @@ export const ShopifySyncStats = () => {
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
-  const { data: queueStats } = useQuery({
+  const { data: queueStats, refetch: refetchQueue } = useQuery({
     queryKey: ['shopify-queue-stats'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -46,6 +47,41 @@ export const ShopifySyncStats = () => {
     },
     refetchInterval: 30000,
   });
+
+  // Real-time updates for sync logs
+  useEffect(() => {
+    const channel = supabase
+      .channel('sync-stats-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'shopify_sync_log'
+        },
+        () => {
+          console.log('Sync log changed, refreshing stats');
+          refetch();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'sync_queue'
+        },
+        () => {
+          console.log('Sync queue changed, refreshing stats');
+          refetchQueue();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [refetch, refetchQueue]);
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
