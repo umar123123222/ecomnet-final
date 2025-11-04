@@ -16,6 +16,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SUPPORTED_CURRENCIES } from "@/utils/currency";
 import { useBusinessSettings } from "@/hooks/useBusinessSettings";
 import { supabase } from "@/integrations/supabase/client";
+import { ShopifySyncStats } from "@/components/shopify/ShopifySyncStats";
+import { ShopifySyncLogs } from "@/components/shopify/ShopifySyncLogs";
+import { WebhookStatus } from "@/components/shopify/WebhookStatus";
 
 const BusinessSettings = () => {
   const { hasRole } = useUserRoles();
@@ -722,6 +725,15 @@ const BusinessSettings = () => {
               </Alert>
             </CardContent>
           </Card>
+
+          {/* Sync Statistics */}
+          <ShopifySyncStats />
+
+          {/* Webhook Status */}
+          <WebhookStatus />
+
+          {/* Sync Activity Logs */}
+          <ShopifySyncLogs />
         </TabsContent>
 
         {/* WhatsApp CRM */}
