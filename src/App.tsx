@@ -161,209 +161,221 @@ const App = () => {
   }, []);
 
   return (
-    <Routes>
-              <Route path="/" element={
-                <ProtectedRoute>
-                  <Layout />
-                </ProtectedRoute>
-              }>
-                <Route index element={
-                  <Suspense fallback={<PageLoader />}>
-                    <Dashboard />
-                  </Suspense>
-                } />
-                <Route path="orders" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <OrderDashboard />
-                  </Suspense>
-                } />
-                <Route path="dispatch" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <DispatchDashboard />
-                  </Suspense>
-                } />
-                <Route path="returns" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <ReturnsDashboard />
-                  </Suspense>
-                } />
-                <Route path="all-customers" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <AllCustomers />
-                  </Suspense>
-                } />
-                <Route path="suspicious-customers" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <SuspiciousCustomers />
-                  </Suspense>
-                } />
-                <Route path="address-verification" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <AddressVerification />
-                  </Suspense>
-                } />
-                <Route path="user-management" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <UserManagement />
-                  </Suspense>
-                } />
-                <Route path="settings" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <Settings />
-                  </Suspense>
-                } />
-                <Route path="business-settings" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <BusinessSettings />
-                  </Suspense>
-                } />
-                <Route path="shopify-settings" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <ShopifySettings />
-                  </Suspense>
-                } />
-                <Route path="settings/shopify" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <ShopifySettings />
-                  </Suspense>
-                } />
-                <Route path="shipper-advice" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <ShipperAdvice />
-                  </Suspense>
-                } />
-                <Route path="returns-not-received" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <ReturnsNotReceived />
-                  </Suspense>
-                } />
-                <Route path="inventory" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <InventoryDashboard />
-                  </Suspense>
-                } />
-                <Route path="outlets" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <OutletManagement />
-                  </Suspense>
-                } />
-                <Route path="products" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <ProductManagement />
-                  </Suspense>
-                } />
-                <Route path="packaging" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <PackagingManagement />
-                  </Suspense>
-                } />
-                <Route path="stock-transfer" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <StockTransferDashboard />
-                  </Suspense>
-                } />
-                <Route path="locations" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <LocationsDashboard />
-                  </Suspense>
-                } />
-                <Route path="suppliers" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <SupplierManagement />
-                  </Suspense>
-                } />
-                <Route path="supplier-portal" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <SupplierPortal />
-                  </Suspense>
-                } />
-                <Route path="supplier-analytics" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <SupplierAnalyticsDashboard />
-                  </Suspense>
-                } />
-                <Route path="purchase-orders" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <PurchaseOrderDashboard />
-                  </Suspense>
-                } />
-                <Route path="receiving" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <ReceivingDashboard />
-                  </Suspense>
-                } />
-                <Route path="stock-audit" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <StockAuditDashboard />
-                  </Suspense>
-                } />
-                <Route path="variance-management" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <VarianceManagement />
-                  </Suspense>
-                } />
-                <Route path="fraud-reporting" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <FraudReportDashboard />
-                  </Suspense>
-                } />
-                <Route path="activity-logs" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <ActivityLogs />
-                  </Suspense>
-                } />
-                <Route path="pos" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <POSMain />
-                  </Suspense>
-                } />
-                <Route path="scan-history" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <ScanHistory />
-                  </Suspense>
-                } />
-                <Route path="confirmations" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <ConfirmationDashboard />
-                  </Suspense>
-                } />
-                <Route path="production" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <ProductionDashboard />
-                  </Suspense>
-                } />
-                <Route path="production/bom" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <BOMManagement />
-                  </Suspense>
-                } />
-                <Route path="production/labels" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <LabelPrinter />
-                  </Suspense>
-                } />
-                <Route path="barcode-management" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <BarcodeManagement />
-                  </Suspense>
-                } />
-                <Route path="automation-history" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <AutomationHistory />
-                  </Suspense>
-                } />
-                <Route path="stock-movement-history" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <StockMovementHistory />
-                  </Suspense>
-                } />
-                <Route path="*" element={
-                  <Suspense fallback={<PageLoader />}>
-                    <NotFound />
-                  </Suspense>
-                } />
-              </Route>
-            </Routes>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider delayDuration={300}>
+          <BrowserRouter>
+            <AuthProvider>
+              <Routes>
+                <Route path="/" element={
+                  <ProtectedRoute>
+                    <Layout />
+                  </ProtectedRoute>
+                }>
+                  <Route index element={
+                    <Suspense fallback={<PageLoader />}>
+                      <Dashboard />
+                    </Suspense>
+                  } />
+                  <Route path="orders" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <OrderDashboard />
+                    </Suspense>
+                  } />
+                  <Route path="dispatch" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <DispatchDashboard />
+                    </Suspense>
+                  } />
+                  <Route path="returns" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ReturnsDashboard />
+                    </Suspense>
+                  } />
+                  <Route path="all-customers" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <AllCustomers />
+                    </Suspense>
+                  } />
+                  <Route path="suspicious-customers" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <SuspiciousCustomers />
+                    </Suspense>
+                  } />
+                  <Route path="address-verification" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <AddressVerification />
+                    </Suspense>
+                  } />
+                  <Route path="user-management" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <UserManagement />
+                    </Suspense>
+                  } />
+                  <Route path="settings" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <Settings />
+                    </Suspense>
+                  } />
+                  <Route path="business-settings" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <BusinessSettings />
+                    </Suspense>
+                  } />
+                  <Route path="shopify-settings" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ShopifySettings />
+                    </Suspense>
+                  } />
+                  <Route path="settings/shopify" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ShopifySettings />
+                    </Suspense>
+                  } />
+                  <Route path="shipper-advice" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ShipperAdvice />
+                    </Suspense>
+                  } />
+                  <Route path="returns-not-received" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ReturnsNotReceived />
+                    </Suspense>
+                  } />
+                  <Route path="inventory" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <InventoryDashboard />
+                    </Suspense>
+                  } />
+                  <Route path="outlets" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <OutletManagement />
+                    </Suspense>
+                  } />
+                  <Route path="products" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ProductManagement />
+                    </Suspense>
+                  } />
+                  <Route path="packaging" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <PackagingManagement />
+                    </Suspense>
+                  } />
+                  <Route path="stock-transfer" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <StockTransferDashboard />
+                    </Suspense>
+                  } />
+                  <Route path="locations" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <LocationsDashboard />
+                    </Suspense>
+                  } />
+                  <Route path="suppliers" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <SupplierManagement />
+                    </Suspense>
+                  } />
+                  <Route path="supplier-portal" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <SupplierPortal />
+                    </Suspense>
+                  } />
+                  <Route path="supplier-analytics" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <SupplierAnalyticsDashboard />
+                    </Suspense>
+                  } />
+                  <Route path="purchase-orders" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <PurchaseOrderDashboard />
+                    </Suspense>
+                  } />
+                  <Route path="receiving" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ReceivingDashboard />
+                    </Suspense>
+                  } />
+                  <Route path="stock-audit" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <StockAuditDashboard />
+                    </Suspense>
+                  } />
+                  <Route path="variance-management" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <VarianceManagement />
+                    </Suspense>
+                  } />
+                  <Route path="fraud-reporting" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <FraudReportDashboard />
+                    </Suspense>
+                  } />
+                  <Route path="activity-logs" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ActivityLogs />
+                    </Suspense>
+                  } />
+                  <Route path="pos" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <POSMain />
+                    </Suspense>
+                  } />
+                  <Route path="scan-history" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ScanHistory />
+                    </Suspense>
+                  } />
+                  <Route path="confirmations" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ConfirmationDashboard />
+                    </Suspense>
+                  } />
+                  <Route path="production" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ProductionDashboard />
+                    </Suspense>
+                  } />
+                  <Route path="production/bom" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <BOMManagement />
+                    </Suspense>
+                  } />
+                  <Route path="production/labels" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <LabelPrinter />
+                    </Suspense>
+                  } />
+                  <Route path="barcode-management" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <BarcodeManagement />
+                    </Suspense>
+                  } />
+                  <Route path="automation-history" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <AutomationHistory />
+                    </Suspense>
+                  } />
+                  <Route path="stock-movement-history" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <StockMovementHistory />
+                    </Suspense>
+                  } />
+                  <Route path="*" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <NotFound />
+                    </Suspense>
+                  } />
+                </Route>
+              </Routes>
+              <Toaster />
+              <Sonner />
+            </AuthProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 };
 
