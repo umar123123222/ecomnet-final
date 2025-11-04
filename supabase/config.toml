@@ -1,5 +1,14 @@
 project_id = "lzitfcigdjbpymvebipp"
 
+[functions.create-shopify-order]
+verify_jwt = true
+
+[functions.sync-inventory-to-shopify]
+verify_jwt = true
+
+[functions.process-sync-queue]
+verify_jwt = false
+
 [functions.reconcile-reserved-stock]
 verify_jwt = true
 

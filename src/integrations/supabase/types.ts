@@ -901,10 +901,12 @@ export type Database = {
           created_at: string
           id: string
           last_restocked_at: string | null
+          last_shopify_sync: string | null
           outlet_id: string
           product_id: string
           quantity: number
           reserved_quantity: number
+          shopify_location_id: number | null
           updated_at: string
         }
         Insert: {
@@ -912,10 +914,12 @@ export type Database = {
           created_at?: string
           id?: string
           last_restocked_at?: string | null
+          last_shopify_sync?: string | null
           outlet_id: string
           product_id: string
           quantity?: number
           reserved_quantity?: number
+          shopify_location_id?: number | null
           updated_at?: string
         }
         Update: {
@@ -923,10 +927,12 @@ export type Database = {
           created_at?: string
           id?: string
           last_restocked_at?: string | null
+          last_shopify_sync?: string | null
           outlet_id?: string
           product_id?: string
           quantity?: number
           reserved_quantity?: number
+          shopify_location_id?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -1362,8 +1368,10 @@ export type Database = {
           risk_level: string | null
           risk_score: number | null
           shopify_fulfillment_id: number | null
+          shopify_last_sync_at: string | null
           shopify_order_id: number | null
           shopify_order_number: string | null
+          shopify_sync_status: string | null
           status: Database["public"]["Enums"]["order_status"] | null
           synced_to_shopify: boolean | null
           tags: string[] | null
@@ -1419,8 +1427,10 @@ export type Database = {
           risk_level?: string | null
           risk_score?: number | null
           shopify_fulfillment_id?: number | null
+          shopify_last_sync_at?: string | null
           shopify_order_id?: number | null
           shopify_order_number?: string | null
+          shopify_sync_status?: string | null
           status?: Database["public"]["Enums"]["order_status"] | null
           synced_to_shopify?: boolean | null
           tags?: string[] | null
@@ -1476,8 +1486,10 @@ export type Database = {
           risk_level?: string | null
           risk_score?: number | null
           shopify_fulfillment_id?: number | null
+          shopify_last_sync_at?: string | null
           shopify_order_id?: number | null
           shopify_order_number?: string | null
+          shopify_sync_status?: string | null
           status?: Database["public"]["Enums"]["order_status"] | null
           synced_to_shopify?: boolean | null
           tags?: string[] | null
@@ -2370,11 +2382,13 @@ export type Database = {
           requires_packaging: boolean | null
           safety_stock_level: number | null
           sales_velocity_updated_at: string | null
+          shopify_inventory_item_id: number | null
           shopify_product_id: number | null
           shopify_variant_id: number | null
           size: string | null
           sku: string
           supplier_id: string | null
+          sync_to_shopify: boolean | null
           synced_from_shopify: boolean | null
           unit_type: string | null
           updated_at: string
@@ -2400,11 +2414,13 @@ export type Database = {
           requires_packaging?: boolean | null
           safety_stock_level?: number | null
           sales_velocity_updated_at?: string | null
+          shopify_inventory_item_id?: number | null
           shopify_product_id?: number | null
           shopify_variant_id?: number | null
           size?: string | null
           sku: string
           supplier_id?: string | null
+          sync_to_shopify?: boolean | null
           synced_from_shopify?: boolean | null
           unit_type?: string | null
           updated_at?: string
@@ -2430,11 +2446,13 @@ export type Database = {
           requires_packaging?: boolean | null
           safety_stock_level?: number | null
           sales_velocity_updated_at?: string | null
+          shopify_inventory_item_id?: number | null
           shopify_product_id?: number | null
           shopify_variant_id?: number | null
           size?: string | null
           sku?: string
           supplier_id?: string | null
+          sync_to_shopify?: boolean | null
           synced_from_shopify?: boolean | null
           unit_type?: string | null
           updated_at?: string
@@ -3688,6 +3706,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sync_queue: {
+        Row: {
+          action: string
+          created_at: string
+          direction: string
+          entity_id: string
+          entity_type: string
+          error_message: string | null
+          id: string
+          payload: Json | null
+          processed_at: string | null
+          retry_count: number
+          status: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          direction: string
+          entity_id: string
+          entity_type: string
+          error_message?: string | null
+          id?: string
+          payload?: Json | null
+          processed_at?: string | null
+          retry_count?: number
+          status?: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          direction?: string
+          entity_id?: string
+          entity_type?: string
+          error_message?: string | null
+          id?: string
+          payload?: Json | null
+          processed_at?: string | null
+          retry_count?: number
+          status?: string
+        }
+        Relationships: []
       }
       user_performance: {
         Row: {
