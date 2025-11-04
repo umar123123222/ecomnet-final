@@ -150,38 +150,77 @@ export const ShopifySyncLogs = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Type</TableHead>
+                  <TableHead>Direction</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Records</TableHead>
+                  <TableHead>Duration</TableHead>
+                  <TableHead>Triggered By</TableHead>
                   <TableHead>Time</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {logs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(log.status)}
-                        <span className="text-sm font-medium">
-                          {getSyncTypeLabel(log.sync_type)}
+                {logs.map((log) => {
+                  const duration = log.completed_at 
+                    ? Math.round((new Date(log.completed_at).getTime() - new Date(log.started_at).getTime()) / 1000)
+                    : null;
+                  
+                  return (
+                    <TableRow key={log.id}>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            {getStatusIcon(log.status)}
+                            <span className="text-sm font-medium">
+                              {getSyncTypeLabel(log.sync_type)}
+                            </span>
+                          </div>
+                          {log.error_details && (
+                            <span className="text-xs text-destructive">
+                              {typeof log.error_details === 'string' 
+                                ? log.error_details 
+                                : log.error_details.message || JSON.stringify(log.error_details)}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {log.sync_direction || 'N/A'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {getStatusBadge(log.status)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm text-muted-foreground">
+                            ✓ {log.records_processed || 0}
+                          </span>
+                          {log.records_failed > 0 && (
+                            <span className="text-xs text-destructive">
+                              ✗ {log.records_failed} failed
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm text-muted-foreground">
+                          {duration !== null ? `${duration}s` : 'In progress...'}
                         </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {getStatusBadge(log.status)}
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm text-muted-foreground">
-                        {log.records_processed || 0}
-                        {log.records_failed > 0 && ` (${log.records_failed} failed)`}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm text-muted-foreground">
-                        {formatDistanceToNow(new Date(log.started_at), { addSuffix: true })}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs text-muted-foreground capitalize">
+                          {log.triggered_by || 'System'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm text-muted-foreground">
+                          {formatDistanceToNow(new Date(log.started_at), { addSuffix: true })}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
