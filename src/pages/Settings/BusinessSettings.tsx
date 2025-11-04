@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { Navigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Building2, Link, Mail, Phone, Truck, ShoppingBag, MessageSquare, DollarSign } from "lucide-react";
+import { Plus, Trash2, Building2, Link, Mail, Phone, Truck, ShoppingBag, MessageSquare, DollarSign, Loader2, CheckCircle2, AlertCircle, Plug, Save } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SUPPORTED_CURRENCIES } from "@/utils/currency";
 import { useBusinessSettings } from "@/hooks/useBusinessSettings";
@@ -52,7 +53,18 @@ const BusinessSettings = () => {
   // Shopify State
   const [shopifyAccessToken, setShopifyAccessToken] = useState('');
   const [shopifyStoreUrl, setShopifyStoreUrl] = useState('');
-  const [shopifyApiVersion, setShopifyApiVersion] = useState('');
+  const [shopifyApiVersion, setShopifyApiVersion] = useState('2024-01');
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  // Load Shopify settings from database
+  useEffect(() => {
+    const storeUrl = getSetting('SHOPIFY_STORE_URL');
+    const apiVersion = getSetting('SHOPIFY_API_VERSION');
+    
+    if (storeUrl) setShopifyStoreUrl(storeUrl);
+    if (apiVersion) setShopifyApiVersion(apiVersion);
+  }, [getSetting]);
 
   // WhatsApp CRM State
   const [whatsappCrmUrl, setWhatsappCrmUrl] = useState('');
@@ -133,11 +145,95 @@ const BusinessSettings = () => {
       description: "Courier configurations have been updated."
     });
   };
-  const handleSaveShopify = () => {
-    toast({
-      title: "Shopify Settings Saved",
-      description: "Shopify integration has been configured."
-    });
+  const handleTestConnection = async () => {
+    if (!shopifyStoreUrl || !shopifyAccessToken) {
+      toast({
+        title: "Missing information",
+        description: "Please enter both Store URL and Access Token",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsTestingConnection(true);
+    setConnectionStatus('idle');
+
+    try {
+      // Clean store URL
+      const cleanUrl = shopifyStoreUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      
+      // Test connection by fetching shop info
+      const response = await fetch(`https://${cleanUrl}/admin/api/${shopifyApiVersion}/shop.json`, {
+        headers: {
+          'X-Shopify-Access-Token': shopifyAccessToken,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setConnectionStatus('success');
+        toast({
+          title: "Connection successful",
+          description: `Connected to ${data.shop.name}`,
+        });
+      } else {
+        setConnectionStatus('error');
+        toast({
+          title: "Connection failed",
+          description: "Please check your Store URL and Access Token",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      setConnectionStatus('error');
+      toast({
+        title: "Connection error",
+        description: "Failed to connect to Shopify. Please check your settings.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
+  const handleSaveShopify = async () => {
+    if (!shopifyStoreUrl || !shopifyApiVersion) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in Store URL and API Version",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate store URL format
+    const cleanUrl = shopifyStoreUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    if (!cleanUrl.includes('.myshopify.com')) {
+      toast({
+        title: "Invalid Store URL",
+        description: "Store URL should be in format: your-store.myshopify.com",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await updateSetting('SHOPIFY_STORE_URL', cleanUrl, 'Shopify store URL');
+      await updateSetting('SHOPIFY_API_VERSION', shopifyApiVersion, 'Shopify API version');
+      
+      setConnectionStatus('idle');
+      toast({
+        title: "Settings saved",
+        description: "Shopify integration settings have been updated successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save Shopify settings",
+        variant: "destructive",
+      });
+    }
   };
   const handleSaveWhatsAppCRM = () => {
     toast({
@@ -301,29 +397,104 @@ const BusinessSettings = () => {
                 Shopify Integration
               </CardTitle>
               <CardDescription>
-                Configure your Shopify store connection and API settings
+                Connect your Shopify store to sync products, orders, customers, and inventory
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {connectionStatus === 'success' && (
+                <Alert>
+                  <CheckCircle2 className="h-4 w-4" />
+                  <AlertDescription>
+                    Successfully connected to Shopify
+                  </AlertDescription>
+                </Alert>
+              )}
+              {connectionStatus === 'error' && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Failed to connect to Shopify. Please check your credentials.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
               <div className="space-y-2">
-                <Label htmlFor="shopifyStoreUrl">Store URL</Label>
-                <Input id="shopifyStoreUrl" placeholder="yourstore.myshopify.com" value={shopifyStoreUrl} onChange={e => setShopifyStoreUrl(e.target.value)} />
+                <Label htmlFor="shopifyStoreUrl">Store URL *</Label>
+                <Input 
+                  id="shopifyStoreUrl" 
+                  placeholder="your-store.myshopify.com" 
+                  value={shopifyStoreUrl} 
+                  onChange={e => setShopifyStoreUrl(e.target.value)} 
+                />
+                <p className="text-sm text-muted-foreground">
+                  Your Shopify store domain (without https://)
+                </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="shopifyAccessToken">Admin API Access Token</Label>
-                <Input id="shopifyAccessToken" type="password" placeholder="shpat_xxxxxxxxxxxx" value={shopifyAccessToken} onChange={e => setShopifyAccessToken(e.target.value)} />
+                <Label htmlFor="shopifyAccessToken">Admin API Access Token *</Label>
+                <Input 
+                  id="shopifyAccessToken" 
+                  type="password" 
+                  placeholder="shpat_xxxxxxxxxxxx" 
+                  value={shopifyAccessToken} 
+                  onChange={e => setShopifyAccessToken(e.target.value)} 
+                />
+                <p className="text-sm text-muted-foreground">
+                  Admin API access token from Shopify (for testing connection only - stored in Supabase Secrets: SHOPIFY_ADMIN_API_TOKEN)
+                </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="shopifyApiVersion">API Version</Label>
-                <Input id="shopifyApiVersion" placeholder="2024-01" value={shopifyApiVersion} onChange={e => setShopifyApiVersion(e.target.value)} />
+                <Label htmlFor="shopifyApiVersion">API Version *</Label>
+                <Input 
+                  id="shopifyApiVersion" 
+                  placeholder="2024-01" 
+                  value={shopifyApiVersion} 
+                  onChange={e => setShopifyApiVersion(e.target.value)} 
+                />
+                <p className="text-sm text-muted-foreground">
+                  Shopify API version (format: YYYY-MM)
+                </p>
               </div>
 
               <Separator />
 
-              <Button onClick={handleSaveShopify} className="w-full">
-                Save Shopify Settings
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Connection Status</h4>
+                <Button
+                  variant="outline"
+                  onClick={handleTestConnection}
+                  disabled={isTestingConnection || !shopifyStoreUrl || !shopifyAccessToken}
+                >
+                  {isTestingConnection ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Testing Connection...
+                    </>
+                  ) : (
+                    <>
+                      <Plug className="mr-2 h-4 w-4" />
+                      Test Connection
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <Separator />
+
+              <Button onClick={handleSaveShopify} className="w-full" disabled={isUpdating}>
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Shopify Settings
+                  </>
+                )}
               </Button>
             </CardContent>
           </Card>
