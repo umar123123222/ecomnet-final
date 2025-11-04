@@ -142,10 +142,14 @@ Deno.serve(async (req) => {
     try {
       while (hasMore) {
         const { products, nextCursor } = await fetchShopifyProducts(storeUrl, apiToken, apiVersion, cursor);
+        console.log(`Fetched ${products.length} products. Total synced so far: ${totalSynced}`);
         
         for (const product of products) {
           for (const variant of product.variants) {
-            if (!variant.sku) continue;
+            if (!variant.sku) {
+              console.log(`Skipping variant without SKU: ${product.title}`);
+              continue;
+            }
 
             // Check if product exists
             const { data: existing } = await supabase
@@ -184,6 +188,10 @@ Deno.serve(async (req) => {
 
         cursor = nextCursor;
         hasMore = !!nextCursor;
+        
+        if (hasMore) {
+          console.log('Fetching next page of products...');
+        }
       }
 
       // Update sync log
@@ -191,8 +199,9 @@ Deno.serve(async (req) => {
         await supabase
           .from('shopify_sync_log')
           .update({
-            status: 'completed',
+            status: 'success',
             records_processed: totalSynced,
+            records_failed: 0,
             completed_at: new Date().toISOString(),
           })
           .eq('id', syncLog.id);

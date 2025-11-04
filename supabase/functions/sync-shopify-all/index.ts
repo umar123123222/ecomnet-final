@@ -53,8 +53,8 @@ Deno.serve(async (req) => {
     const { data: syncLog } = await supabase
       .from('shopify_sync_log')
       .insert({
-        sync_type: 'full_sync',
-        sync_direction: 'bidirectional',
+        sync_type: 'full',
+        sync_direction: 'from_shopify',
         status: 'in_progress',
         triggered_by: authData.user.id,
       })
@@ -63,38 +63,44 @@ Deno.serve(async (req) => {
 
     try {
       // 1. Sync Products
-      console.log('Syncing products via edge function...');
+      console.log('=== Starting Product Sync ===');
       try {
         const { data: prodData, error: prodErr } = await supabase.functions.invoke('sync-shopify-products', {
           headers: { 'Authorization': authHeader },
           body: {},
         });
-        if (prodErr) throw prodErr;
+        if (prodErr) {
+          console.error('Product sync error response:', prodErr);
+          throw prodErr;
+        }
         stats.products = (prodData as any)?.synced || 0;
-        console.log(`Synced ${stats.products} products`);
+        console.log(`✓ Products sync completed: ${stats.products} products synced`);
       } catch (error) {
         console.error('Product sync error:', error);
         stats.errors.push(`Product sync error: ${error.message}`);
       }
 
       // 2. Sync Customers
-      console.log('Syncing customers via edge function...');
+      console.log('=== Starting Customer Sync ===');
       try {
         const { data: custData, error: custErr } = await supabase.functions.invoke('sync-shopify-customers', {
           headers: { 'Authorization': authHeader },
           body: {},
         });
-        if (custErr) throw custErr;
+        if (custErr) {
+          console.error('Customer sync error response:', custErr);
+          throw custErr;
+        }
         const customersSynced = (custData as any)?.synced || 0;
         stats.customers += customersSynced;
-        console.log(`Synced ${customersSynced} customers`);
+        console.log(`✓ Customers sync completed: ${customersSynced} customers synced`);
       } catch (error) {
         console.error('Customer sync error:', error);
         stats.errors.push(`Customer sync error: ${error.message}`);
       }
 
       // 3. Sync Orders from Shopify (paginated)
-      console.log('Syncing orders with pagination...');
+      console.log('=== Starting Order Sync ===');
       try {
         const storeUrl = await getAPISetting('SHOPIFY_STORE_URL', supabase);
         const apiToken = await getAPISetting('SHOPIFY_ADMIN_API_TOKEN', supabase);
@@ -118,8 +124,11 @@ Deno.serve(async (req) => {
         };
 
         let url = `${storeUrl}/admin/api/${apiVersion}/orders.json?status=any&limit=250`;
+        let pageCount = 0;
 
         while (url) {
+          pageCount++;
+          console.log(`Fetching orders page ${pageCount}...`);
           const res = await fetch(url, { headers: { 'X-Shopify-Access-Token': apiToken! } });
           if (!res.ok) {
             const text = await res.text();
@@ -127,6 +136,7 @@ Deno.serve(async (req) => {
           }
           const payload = await res.json();
           const orders = payload.orders || [];
+          console.log(`Processing ${orders.length} orders from page ${pageCount}`);
 
           for (const order of orders) {
             try {
@@ -204,7 +214,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        console.log(`Orders sync completed. Total new/updated processed so far: ${stats.orders}`);
+        console.log(`✓ Orders sync completed: ${stats.orders} orders synced across ${pageCount} pages`);
       } catch (error) {
         console.error('Order sync error:', error);
         stats.errors.push(`Order sync error: ${error.message}`);
@@ -215,8 +225,9 @@ Deno.serve(async (req) => {
         await supabase
           .from('shopify_sync_log')
           .update({
-            status: stats.errors.length === 0 ? 'completed' : 'completed_with_errors',
+            status: stats.errors.length === 0 ? 'success' : 'partial',
             records_processed: stats.products + stats.orders + stats.customers,
+            records_failed: stats.errors.length,
             error_details: stats.errors.length > 0 ? { errors: stats.errors } : null,
             completed_at: new Date().toISOString(),
           })

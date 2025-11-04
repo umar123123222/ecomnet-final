@@ -73,9 +73,24 @@ Deno.serve(async (req) => {
       errors: [],
     };
 
+    // Create sync log entry
+    const { data: syncLog } = await supabase
+      .from('shopify_sync_log')
+      .insert({
+        sync_type: 'customers',
+        sync_direction: 'from_shopify',
+        status: 'in_progress',
+        triggered_by: authData.user.id,
+      })
+      .select('id')
+      .single();
+
+    console.log('Sync log created:', syncLog?.id);
+
     let url = `${storeUrl}/admin/api/${apiVersion}/customers.json?limit=250&fields=id,first_name,last_name,email,phone,default_address,orders_count,total_spent`;
 
-    while (url) {
+    try {
+      while (url) {
       try {
         const res = await fetch(url, {
           headers: { 'X-Shopify-Access-Token': apiToken },
@@ -138,6 +153,7 @@ Deno.serve(async (req) => {
         const nextPageInfo = parseNextPageInfo(link);
         if (nextPageInfo) {
           url = `${storeUrl}/admin/api/${apiVersion}/customers.json?limit=250&page_info=${nextPageInfo}&fields=id,first_name,last_name,email,phone,default_address,orders_count,total_spent`;
+          console.log(`Fetching next page... Total processed so far: ${stats.processed}`);
           // be gentle with API rate limits
           await sleep(300);
         } else {
@@ -145,17 +161,51 @@ Deno.serve(async (req) => {
         }
       } catch (err) {
         const msg = (err as any)?.message || String(err);
+        console.error('Page fetch error:', msg);
         stats.errors.push(`Customers page fetch error: ${msg}`);
         break;
       }
+      }
+
+      console.log('Customers sync completed', stats);
+
+      // Update sync log with success
+      if (syncLog) {
+        await supabase
+          .from('shopify_sync_log')
+          .update({
+            status: stats.errors.length === 0 ? 'success' : 'partial',
+            records_processed: stats.created + stats.updated,
+            records_failed: stats.errors.length,
+            error_details: stats.errors.length > 0 ? { errors: stats.errors } : null,
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', syncLog.id);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, synced: stats.processed, created: stats.created, updated: stats.updated, errors: stats.errors }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (error) {
+      // Update sync log with failure
+      if (syncLog) {
+        await supabase
+          .from('shopify_sync_log')
+          .update({
+            status: 'failed',
+            records_processed: stats.created + stats.updated,
+            records_failed: stats.errors.length,
+            error_details: { 
+              message: (error as any)?.message || String(error),
+              errors: stats.errors 
+            },
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', syncLog.id);
+      }
+      throw error;
     }
-
-    console.log('Customers sync completed', stats);
-
-    return new Response(
-      JSON.stringify({ success: true, synced: stats.processed, created: stats.created, updated: stats.updated, errors: stats.errors }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
   } catch (error) {
     console.error('Error in Shopify customers sync:', error);
     return new Response(JSON.stringify({ error: (error as any)?.message || String(error) }), {
