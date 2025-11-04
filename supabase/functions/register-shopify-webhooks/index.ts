@@ -37,6 +37,9 @@ Deno.serve(async (req) => {
       throw new Error('Shopify credentials not configured');
     }
 
+    // Clean store URL - remove protocol if present
+    const cleanStoreUrl = storeUrl.replace(/^https?:\/\//, '');
+
     const baseWebhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1`;
 
     // Define webhooks to register
@@ -72,7 +75,7 @@ Deno.serve(async (req) => {
 
     // Get existing webhooks
     const existingResponse = await fetch(
-      `https://${storeUrl}/admin/api/${apiVersion}/webhooks.json`,
+      `https://${cleanStoreUrl}/admin/api/${apiVersion}/webhooks.json`,
       {
         method: 'GET',
         headers: {
@@ -118,7 +121,7 @@ Deno.serve(async (req) => {
 
         // Register new webhook
         const response = await fetch(
-          `https://${storeUrl}/admin/api/${apiVersion}/webhooks.json`,
+          `https://${cleanStoreUrl}/admin/api/${apiVersion}/webhooks.json`,
           {
             method: 'POST',
             headers: {
