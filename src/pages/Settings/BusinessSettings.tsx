@@ -6,14 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { Navigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Building2, Link, Mail, Phone, Truck, ShoppingBag, MessageSquare, DollarSign, Loader2, CheckCircle2, AlertCircle, Plug, Save } from "lucide-react";
+import { Plus, Trash2, Building2, Link, Mail, Phone, Truck, ShoppingBag, MessageSquare, DollarSign, Loader2, CheckCircle2, AlertCircle, Plug, Save, RefreshCw, Zap, Activity } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SUPPORTED_CURRENCIES } from "@/utils/currency";
 import { useBusinessSettings } from "@/hooks/useBusinessSettings";
+import { supabase } from "@/integrations/supabase/client";
 
 const BusinessSettings = () => {
   const { hasRole } = useUserRoles();
@@ -56,14 +58,31 @@ const BusinessSettings = () => {
   const [shopifyApiVersion, setShopifyApiVersion] = useState('2024-01');
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  
+  // Auto-sync toggles
+  const [autoSyncOrders, setAutoSyncOrders] = useState(true);
+  const [autoSyncInventory, setAutoSyncInventory] = useState(false);
+  const [autoSyncProducts, setAutoSyncProducts] = useState(false);
+  const [autoSyncCustomers, setAutoSyncCustomers] = useState(false);
+  const [shopifyLocationId, setShopifyLocationId] = useState('');
 
   // Load Shopify settings from database
   useEffect(() => {
     const storeUrl = getSetting('SHOPIFY_STORE_URL');
     const apiVersion = getSetting('SHOPIFY_API_VERSION');
+    const autoOrders = getSetting('SHOPIFY_AUTO_SYNC_ORDERS');
+    const autoInventory = getSetting('SHOPIFY_AUTO_SYNC_INVENTORY');
+    const autoProducts = getSetting('SHOPIFY_AUTO_SYNC_PRODUCTS');
+    const autoCustomers = getSetting('SHOPIFY_AUTO_SYNC_CUSTOMERS');
+    const locationId = getSetting('SHOPIFY_DEFAULT_LOCATION_ID');
     
     if (storeUrl) setShopifyStoreUrl(storeUrl);
     if (apiVersion) setShopifyApiVersion(apiVersion);
+    if (autoOrders) setAutoSyncOrders(autoOrders === 'true');
+    if (autoInventory) setAutoSyncInventory(autoInventory === 'true');
+    if (autoProducts) setAutoSyncProducts(autoProducts === 'true');
+    if (autoCustomers) setAutoSyncCustomers(autoCustomers === 'true');
+    if (locationId) setShopifyLocationId(locationId);
   }, [getSetting]);
 
   // WhatsApp CRM State
@@ -219,8 +238,15 @@ const BusinessSettings = () => {
     }
 
     try {
-      await updateSetting('SHOPIFY_STORE_URL', cleanUrl, 'Shopify store URL');
-      await updateSetting('SHOPIFY_API_VERSION', shopifyApiVersion, 'Shopify API version');
+      await Promise.all([
+        updateSetting('SHOPIFY_STORE_URL', cleanUrl, 'Shopify store URL'),
+        updateSetting('SHOPIFY_API_VERSION', shopifyApiVersion, 'Shopify API version'),
+        updateSetting('SHOPIFY_AUTO_SYNC_ORDERS', autoSyncOrders.toString(), 'Auto-sync orders to Shopify'),
+        updateSetting('SHOPIFY_AUTO_SYNC_INVENTORY', autoSyncInventory.toString(), 'Auto-sync inventory to Shopify'),
+        updateSetting('SHOPIFY_AUTO_SYNC_PRODUCTS', autoSyncProducts.toString(), 'Auto-sync products to Shopify'),
+        updateSetting('SHOPIFY_AUTO_SYNC_CUSTOMERS', autoSyncCustomers.toString(), 'Auto-sync customers to Shopify'),
+        updateSetting('SHOPIFY_DEFAULT_LOCATION_ID', shopifyLocationId, 'Default Shopify location ID'),
+      ]);
       
       setConnectionStatus('idle');
       toast({
@@ -231,6 +257,63 @@ const BusinessSettings = () => {
       toast({
         title: "Error",
         description: "Failed to save Shopify settings",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRegisterWebhooks = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('register-shopify-webhooks');
+      
+      if (error) throw error;
+
+      toast({
+        title: "Webhooks Registered",
+        description: `Successfully registered ${data.registered?.length || 0} webhooks`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to register webhooks",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleProcessQueue = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('process-sync-queue');
+      
+      if (error) throw error;
+
+      toast({
+        title: "Queue Processed",
+        description: `Processed ${data.processed || 0} items, ${data.failed || 0} failed`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to process queue",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleFullSync = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-shopify-all');
+      
+      if (error) throw error;
+
+      toast({
+        title: "Full Sync Started",
+        description: "Syncing all products, orders, and customers from Shopify",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to start full sync",
         variant: "destructive",
       });
     }
@@ -389,7 +472,8 @@ const BusinessSettings = () => {
         </TabsContent>
 
         {/* Shopify */}
-        <TabsContent value="shopify">
+        <TabsContent value="shopify" className="space-y-6">
+          {/* Connection Settings Card */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -441,21 +525,30 @@ const BusinessSettings = () => {
                   onChange={e => setShopifyAccessToken(e.target.value)} 
                 />
                 <p className="text-sm text-muted-foreground">
-                  Admin API access token from Shopify (for testing connection only - stored in Supabase Secrets: SHOPIFY_ADMIN_API_TOKEN)
+                  For testing only - actual token stored in Supabase Secrets: SHOPIFY_ADMIN_API_TOKEN
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="shopifyApiVersion">API Version *</Label>
-                <Input 
-                  id="shopifyApiVersion" 
-                  placeholder="2024-01" 
-                  value={shopifyApiVersion} 
-                  onChange={e => setShopifyApiVersion(e.target.value)} 
-                />
-                <p className="text-sm text-muted-foreground">
-                  Shopify API version (format: YYYY-MM)
-                </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="shopifyApiVersion">API Version *</Label>
+                  <Input 
+                    id="shopifyApiVersion" 
+                    placeholder="2024-01" 
+                    value={shopifyApiVersion} 
+                    onChange={e => setShopifyApiVersion(e.target.value)} 
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="shopifyLocationId">Default Location ID</Label>
+                  <Input 
+                    id="shopifyLocationId" 
+                    placeholder="123456789" 
+                    value={shopifyLocationId} 
+                    onChange={e => setShopifyLocationId(e.target.value)} 
+                  />
+                </div>
               </div>
 
               <Separator />
@@ -492,10 +585,141 @@ const BusinessSettings = () => {
                 ) : (
                   <>
                     <Save className="mr-2 h-4 w-4" />
-                    Save Shopify Settings
+                    Save Connection Settings
                   </>
                 )}
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* Auto-Sync Settings Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                Auto-Sync Configuration
+              </CardTitle>
+              <CardDescription>
+                Enable automatic bidirectional synchronization for different data types
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="autoSyncOrders">Auto-sync Orders</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically create and update orders in Shopify
+                  </p>
+                </div>
+                <Switch 
+                  id="autoSyncOrders"
+                  checked={autoSyncOrders}
+                  onCheckedChange={setAutoSyncOrders}
+                />
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="autoSyncInventory">Auto-sync Inventory</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically update stock levels in Shopify
+                  </p>
+                </div>
+                <Switch 
+                  id="autoSyncInventory"
+                  checked={autoSyncInventory}
+                  onCheckedChange={setAutoSyncInventory}
+                />
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="autoSyncProducts">Auto-sync Products</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically sync product changes to Shopify
+                  </p>
+                </div>
+                <Switch 
+                  id="autoSyncProducts"
+                  checked={autoSyncProducts}
+                  onCheckedChange={setAutoSyncProducts}
+                />
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="autoSyncCustomers">Auto-sync Customers</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically sync customer data with Shopify
+                  </p>
+                </div>
+                <Switch 
+                  id="autoSyncCustomers"
+                  checked={autoSyncCustomers}
+                  onCheckedChange={setAutoSyncCustomers}
+                />
+              </div>
+
+              <Separator />
+
+              <Button onClick={handleSaveShopify} className="w-full" disabled={isUpdating}>
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Auto-Sync Settings
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Manual Actions Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="h-5 w-5" />
+                Manual Actions
+              </CardTitle>
+              <CardDescription>
+                Trigger manual synchronization and management operations
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <Button variant="outline" onClick={handleRegisterWebhooks} className="w-full">
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Register Webhooks
+                </Button>
+                
+                <Button variant="outline" onClick={handleProcessQueue} className="w-full">
+                  <Zap className="mr-2 h-4 w-4" />
+                  Process Sync Queue
+                </Button>
+                
+                <Button variant="outline" onClick={handleFullSync} className="w-full">
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Full Sync from Shopify
+                </Button>
+              </div>
+
+              <Alert>
+                <AlertDescription className="text-sm">
+                  <strong>Register Webhooks:</strong> Set up real-time sync for order/inventory/product updates.<br/>
+                  <strong>Process Queue:</strong> Manually process pending sync operations.<br/>
+                  <strong>Full Sync:</strong> Import all products, orders, and customers from Shopify.
+                </AlertDescription>
+              </Alert>
             </CardContent>
           </Card>
         </TabsContent>
