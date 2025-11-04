@@ -19,6 +19,9 @@ interface SyncLog {
   started_at: string;
   completed_at: string;
   triggered_by: string;
+  triggered_by_user?: {
+    full_name: string;
+  } | null;
 }
 
 export const ShopifySyncLogs = () => {
@@ -27,12 +30,15 @@ export const ShopifySyncLogs = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('shopify_sync_log')
-        .select('*')
+        .select(`
+          *,
+          triggered_by_user:profiles!shopify_sync_log_triggered_by_fkey(full_name)
+        `)
         .order('started_at', { ascending: false })
         .limit(50);
 
       if (error) throw error;
-      return data as SyncLog[];
+      return data as any[];
     },
     refetchInterval: 30000, // Refetch every 30 seconds
   });
@@ -209,8 +215,8 @@ export const ShopifySyncLogs = () => {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="text-xs text-muted-foreground capitalize">
-                          {log.triggered_by || 'System'}
+                        <span className="text-xs text-muted-foreground">
+                          {log.triggered_by_user?.full_name || 'System'}
                         </span>
                       </TableCell>
                       <TableCell>
