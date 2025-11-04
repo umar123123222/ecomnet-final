@@ -63,69 +63,87 @@ Deno.serve(async (req) => {
 
     try {
       // 1. Sync Products
-      console.log('Syncing products...');
+      console.log('Syncing products via edge function...');
       try {
-        const productsResponse = await fetch(`${supabaseUrl}/functions/v1/sync-shopify-products`, {
-          method: 'POST',
-          headers: {
-            'Authorization': authHeader,
-            'Content-Type': 'application/json',
-          },
+        const { data: prodData, error: prodErr } = await supabase.functions.invoke('sync-shopify-products', {
+          headers: { 'Authorization': authHeader },
+          body: {},
         });
-
-        if (productsResponse.ok) {
-          const result = await productsResponse.json();
-          stats.products = result.synced || 0;
-          console.log(`Synced ${stats.products} products`);
-        } else {
-          stats.errors.push('Failed to sync products');
-        }
+        if (prodErr) throw prodErr;
+        stats.products = (prodData as any)?.synced || 0;
+        console.log(`Synced ${stats.products} products`);
       } catch (error) {
+        console.error('Product sync error:', error);
         stats.errors.push(`Product sync error: ${error.message}`);
       }
 
-      // 2. Sync Orders from Shopify
-      console.log('Syncing orders...');
+      // 2. Sync Customers
+      console.log('Syncing customers via edge function...');
+      try {
+        const { data: custData, error: custErr } = await supabase.functions.invoke('sync-shopify-customers', {
+          headers: { 'Authorization': authHeader },
+          body: {},
+        });
+        if (custErr) throw custErr;
+        const customersSynced = (custData as any)?.synced || 0;
+        stats.customers += customersSynced;
+        console.log(`Synced ${customersSynced} customers`);
+      } catch (error) {
+        console.error('Customer sync error:', error);
+        stats.errors.push(`Customer sync error: ${error.message}`);
+      }
+
+      // 3. Sync Orders from Shopify (paginated)
+      console.log('Syncing orders with pagination...');
       try {
         const storeUrl = await getAPISetting('SHOPIFY_STORE_URL', supabase);
         const apiToken = await getAPISetting('SHOPIFY_ADMIN_API_TOKEN', supabase);
-        const apiVersion = await getAPISetting('SHOPIFY_API_VERSION', supabase) || '2024-01';
+        const apiVersion = (await getAPISetting('SHOPIFY_API_VERSION', supabase)) || '2024-01';
 
         if (!storeUrl || !apiToken) {
           throw new Error('Shopify credentials not configured');
         }
 
-        const ordersResponse = await fetch(
-          `${storeUrl}/admin/api/${apiVersion}/orders.json?status=any&limit=250`,
-          {
-            headers: {
-              'X-Shopify-Access-Token': apiToken!,
-            },
+        const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+        const parseNext = (linkHeader: string | null): string | null => {
+          if (!linkHeader) return null;
+          const parts = linkHeader.split(',');
+          for (const part of parts) {
+            if (part.includes('rel="next"')) {
+              const m = part.match(/page_info=([^&>]+)/);
+              if (m && m[1]) return m[1];
+            }
           }
-        );
+          return null;
+        };
 
-        if (ordersResponse.ok) {
-          const ordersData = await ordersResponse.json();
-          
-          for (const order of ordersData.orders) {
+        let url = `${storeUrl}/admin/api/${apiVersion}/orders.json?status=any&limit=250`;
+
+        while (url) {
+          const res = await fetch(url, { headers: { 'X-Shopify-Access-Token': apiToken! } });
+          if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Orders fetch failed (${res.status}): ${text}`);
+          }
+          const payload = await res.json();
+          const orders = payload.orders || [];
+
+          for (const order of orders) {
             try {
-              // Check if order exists
               const { data: existing } = await supabase
                 .from('orders')
                 .select('id')
                 .eq('shopify_order_id', order.id)
-                .single();
+                .maybeSingle();
 
-              let customerId = null;
+              let customerId = null as string | null;
               if (order.customer) {
-                // Handle customer
                 const normalizedPhone = order.customer.phone?.replace(/\D/g, '');
-                
                 const { data: existingCustomer } = await supabase
                   .from('customers')
                   .select('id')
                   .eq('shopify_customer_id', order.customer.id)
-                  .single();
+                  .maybeSingle();
 
                 if (existingCustomer) {
                   customerId = existingCustomer.id;
@@ -133,28 +151,28 @@ Deno.serve(async (req) => {
                   const { data: newCustomer } = await supabase
                     .from('customers')
                     .insert({
-                      name: `${order.customer.first_name} ${order.customer.last_name}`,
+                      name: `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim() || 'Unknown',
                       email: order.customer.email,
                       phone: normalizedPhone,
                       phone_last_5_chr: normalizedPhone?.slice(-5),
                       shopify_customer_id: order.customer.id,
+                      created_at: new Date().toISOString(),
                     })
                     .select('id')
-                    .single();
-                  
-                  customerId = newCustomer?.id;
-                  if (newCustomer) stats.customers++;
+                    .maybeSingle();
+                  customerId = newCustomer?.id || null;
+                  if (newCustomer?.id) stats.customers++;
                 }
               }
 
-              const orderData = {
+              const orderData: Record<string, any> = {
                 order_number: `SHOP-${order.order_number}`,
-                shopify_order_number: order.order_number.toString(),
+                shopify_order_number: String(order.order_number),
                 shopify_order_id: order.id,
                 customer_id: customerId,
-                customer_name: order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : 'Unknown',
-                customer_email: order.customer?.email || order.email,
-                customer_phone: order.customer?.phone || order.phone,
+                customer_name: order.customer ? `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim() || 'Unknown' : 'Unknown',
+                customer_email: order.customer?.email || order.email || null,
+                customer_phone: order.customer?.phone || order.phone || null,
                 customer_address: order.shipping_address?.address1 || 'N/A',
                 city: order.shipping_address?.city || 'N/A',
                 total_amount: parseFloat(order.total_price),
@@ -170,16 +188,25 @@ Deno.serve(async (req) => {
               } else {
                 await supabase.from('orders').update(orderData).eq('id', existing.id);
               }
-            } catch (error) {
-              stats.errors.push(`Order ${order.order_number} sync failed: ${error.message}`);
+            } catch (err) {
+              const msg = (err as any)?.message || String(err);
+              stats.errors.push(`Order ${order?.order_number} sync failed: ${msg}`);
             }
           }
 
-          console.log(`Synced ${stats.orders} orders`);
-        } else {
-          stats.errors.push('Failed to fetch orders from Shopify');
+          const link = res.headers.get('Link');
+          const nextPageInfo = parseNext(link);
+          if (nextPageInfo) {
+            url = `${storeUrl}/admin/api/${apiVersion}/orders.json?status=any&limit=250&page_info=${nextPageInfo}`;
+            await sleep(300);
+          } else {
+            url = null as unknown as string;
+          }
         }
+
+        console.log(`Orders sync completed. Total new/updated processed so far: ${stats.orders}`);
       } catch (error) {
+        console.error('Order sync error:', error);
         stats.errors.push(`Order sync error: ${error.message}`);
       }
 
