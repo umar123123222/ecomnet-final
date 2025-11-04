@@ -105,15 +105,24 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Update api_settings table with non-secret values
+    // Update api_settings table with ALL credentials (client-editable)
     const settingsToUpdate = [
       { setting_key: 'SHOPIFY_STORE_URL', setting_value: store_url, description: 'Shopify store URL' },
       { setting_key: 'SHOPIFY_API_VERSION', setting_value: api_version, description: 'Shopify API version' },
+      { setting_key: 'SHOPIFY_ADMIN_API_TOKEN', setting_value: api_token, description: 'Shopify Admin API access token' },
     ];
+
+    if (webhook_secret) {
+      settingsToUpdate.push({
+        setting_key: 'SHOPIFY_WEBHOOK_SECRET',
+        setting_value: webhook_secret,
+        description: 'Shopify webhook secret for verification'
+      });
+    }
 
     if (location_id) {
       settingsToUpdate.push({ 
-        setting_key: 'SHOPIFY_LOCATION_ID', 
+        setting_key: 'SHOPIFY_LOCATION_ID',
         setting_value: location_id, 
         description: 'Shopify location ID for inventory sync' 
       });
@@ -160,20 +169,24 @@ Deno.serve(async (req) => {
         },
       });
 
+    const updatedSettings = [
+      'Store URL',
+      'API Version',
+      'Admin API Token',
+      webhook_secret ? 'Webhook Secret' : '',
+      location_id ? 'Location ID' : ''
+    ].filter(Boolean);
+
     return new Response(JSON.stringify({ 
       success: true,
-      message: 'Shopify settings updated successfully',
-      settings_updated: ['Store URL', 'API Version', location_id ? 'Location ID' : ''].filter(Boolean),
-      note: 'IMPORTANT: The Admin API Token and Webhook Secret are stored as Supabase Secrets for security.',
-      instructions: {
-        token_update: 'To update the Admin API Token, please update the SHOPIFY_ADMIN_API_TOKEN secret in your Supabase project settings.',
-        webhook_update: 'To update the Webhook Secret, please update the SHOPIFY_WEBHOOK_SECRET secret in your Supabase project settings.',
-        secrets_url: `https://supabase.com/dashboard/project/lzitfcigdjbpymvebipp/settings/functions`,
-      },
+      message: 'All Shopify credentials updated successfully',
+      settings_updated: updatedSettings,
+      note: 'All credentials are now stored in the database and will be used by all edge functions immediately.',
       next_steps: [
-        '✓ Your Store URL, API Version, and Location ID are now saved and will be used by all edge functions',
+        '✓ All your Shopify credentials are now saved in the database',
+        '✓ Changes take effect immediately for all edge functions',
         '✓ Use "Test Connection" to verify your credentials are working',
-        '⚠ If you need to update the API Token or Webhook Secret, please do so via Supabase Secrets (see instructions above)',
+        '✓ You can update any credential at any time from this interface'
       ]
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

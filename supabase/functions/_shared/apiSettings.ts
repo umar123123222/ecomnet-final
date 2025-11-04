@@ -1,28 +1,13 @@
-// Secret credentials that must come from Supabase Secrets (environment variables)
-const SECRET_KEYS = ['SHOPIFY_ADMIN_API_TOKEN', 'SHOPIFY_WEBHOOK_SECRET'];
-
 /**
- * Get an API setting from database or Supabase secrets
- * - Sensitive credentials (API tokens, secrets) are read from Supabase Secrets
- * - Non-sensitive settings (URLs, versions) are read from api_settings table
+ * Get an API setting from database
+ * All credentials are stored in api_settings table for easy client management
  */
 export async function getAPISetting(
   settingKey: string,
   supabaseClient?: any
 ): Promise<string | null> {
   try {
-    // Secret credentials - must come from Supabase Secrets
-    if (SECRET_KEYS.includes(settingKey)) {
-      const envValue = Deno.env.get(settingKey);
-      if (envValue) {
-        console.log(`Using secret for ${settingKey}`);
-        return envValue;
-      }
-      console.warn(`No secret found for ${settingKey}`);
-      return null;
-    }
-
-    // Non-secret settings - read from api_settings table with fallback to env
+    // Read from api_settings table
     if (supabaseClient) {
       const { data, error } = await supabaseClient
         .from('api_settings')
@@ -36,7 +21,7 @@ export async function getAPISetting(
       }
     }
 
-    // Fallback to environment variable
+    // Fallback to environment variable (for backward compatibility)
     const envValue = Deno.env.get(settingKey);
     if (envValue) {
       console.log(`Using environment fallback for ${settingKey}`);

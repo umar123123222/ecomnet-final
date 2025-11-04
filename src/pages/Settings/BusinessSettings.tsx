@@ -221,10 +221,10 @@ const BusinessSettings = () => {
   };
 
   const handleSaveShopify = async () => {
-    if (!shopifyStoreUrl || !shopifyApiVersion) {
+    if (!shopifyStoreUrl || !shopifyApiVersion || !shopifyAccessToken) {
       toast({
         title: "Missing information",
-        description: "Please fill in Store URL and API Version",
+        description: "Please fill in Store URL, API Version, and Admin API Token",
         variant: "destructive",
       });
       return;
@@ -243,45 +243,31 @@ const BusinessSettings = () => {
 
     setIsSaving(true);
     try {
-      // If access token is provided, update credentials via edge function
-      if (shopifyAccessToken) {
-        const { updateShopifyCredentials } = await import("@/integrations/supabase/functions");
-        const { data, error } = await updateShopifyCredentials({
-          store_url: `https://${cleanUrl}`,
-          api_token: shopifyAccessToken,
-          api_version: shopifyApiVersion,
-          location_id: shopifyLocationId,
+      // Update all credentials via edge function
+      const { updateShopifyCredentials } = await import("@/integrations/supabase/functions");
+      const { data, error } = await updateShopifyCredentials({
+        store_url: `https://${cleanUrl}`,
+        api_token: shopifyAccessToken,
+        api_version: shopifyApiVersion,
+        location_id: shopifyLocationId,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // Show success message
+      if (data) {
+        let description = data.message || "Settings updated successfully";
+        if (data.next_steps && Array.isArray(data.next_steps)) {
+          description = data.next_steps.join('\n');
+        }
+        
+        toast({
+          title: "Settings Updated",
+          description,
+          duration: 8000,
         });
-
-        if (error) {
-          throw error;
-        }
-
-        // Show detailed success message with instructions
-        if (data) {
-          let description = data.message || "Settings updated successfully";
-          if (data.next_steps && Array.isArray(data.next_steps)) {
-            description = data.next_steps.join('\n');
-          }
-          
-          toast({
-            title: "Settings Updated",
-            description,
-            duration: 10000,
-          });
-
-          // Show additional note about secrets in a separate alert
-          if (data.instructions) {
-            console.log('Shopify Update Instructions:', data.instructions);
-          }
-        }
-      } else {
-        // Update non-secret settings only
-        await Promise.all([
-          updateSetting('SHOPIFY_STORE_URL', cleanUrl, 'Shopify store URL'),
-          updateSetting('SHOPIFY_API_VERSION', shopifyApiVersion, 'Shopify API version'),
-          updateSetting('SHOPIFY_LOCATION_ID', shopifyLocationId, 'Default Shopify location ID'),
-        ]);
       }
 
       // Always update auto-sync settings
@@ -550,20 +536,10 @@ const BusinessSettings = () => {
               )}
 
               <Alert>
-                <AlertCircle className="h-4 w-4" />
+                <CheckCircle2 className="h-4 w-4" />
                 <AlertDescription className="text-sm">
-                  <strong>Credentials Storage:</strong><br />
-                  • <strong>Store URL, API Version, Location ID</strong> are saved in the database (editable here)<br />
-                  • <strong>Admin API Token</strong> must be updated via{" "}
-                  <a 
-                    href="https://supabase.com/dashboard/project/lzitfcigdjbpymvebipp/settings/functions"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline font-semibold"
-                  >
-                    Supabase Secrets
-                  </a>{" "}
-                  (SHOPIFY_ADMIN_API_TOKEN) for security
+                  <strong>✓ All credentials are stored in the database</strong><br />
+                  All Shopify settings are saved in the database and immediately available to all edge functions. You can update any credential at any time from this interface without developer assistance.
                 </AlertDescription>
               </Alert>
               
@@ -576,12 +552,12 @@ const BusinessSettings = () => {
                   onChange={e => setShopifyStoreUrl(e.target.value)} 
                 />
                 <p className="text-sm text-muted-foreground">
-                  Your Shopify store domain - saved in database and used by all functions
+                  Your Shopify store domain (e.g., your-store.myshopify.com)
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="shopifyAccessToken">Admin API Access Token</Label>
+                <Label htmlFor="shopifyAccessToken">Admin API Access Token *</Label>
                 <Input 
                   id="shopifyAccessToken" 
                   type="password" 
@@ -590,15 +566,7 @@ const BusinessSettings = () => {
                   onChange={e => setShopifyAccessToken(e.target.value)} 
                 />
                 <p className="text-sm text-muted-foreground">
-                  For testing connection only. To update the stored token, please update SHOPIFY_ADMIN_API_TOKEN in{" "}
-                  <a 
-                    href="https://supabase.com/dashboard/project/lzitfcigdjbpymvebipp/settings/functions"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    Supabase Secrets
-                  </a>.{" "}
+                  Shopify Admin API access token - stored securely in database.{" "}
                   <a 
                     href="https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/generate-app-access-tokens-admin"
                     target="_blank"
@@ -620,7 +588,7 @@ const BusinessSettings = () => {
                     onChange={e => setShopifyApiVersion(e.target.value)} 
                   />
                   <p className="text-sm text-muted-foreground">
-                    Saved in database - e.g., 2024-01, 2024-04
+                    Shopify API version (e.g., 2024-01, 2024-04)
                   </p>
                 </div>
                 
@@ -633,7 +601,7 @@ const BusinessSettings = () => {
                     onChange={e => setShopifyLocationId(e.target.value)} 
                   />
                   <p className="text-sm text-muted-foreground">
-                    Saved in database - for inventory sync
+                    Shopify location ID for inventory sync
                   </p>
                 </div>
               </div>
@@ -645,7 +613,7 @@ const BusinessSettings = () => {
                 <Button
                   variant="outline"
                   onClick={handleTestConnection}
-                  disabled={isTestingConnection || isSaving || !shopifyStoreUrl || !shopifyAccessToken}
+                  disabled={isTestingConnection || isSaving || !shopifyStoreUrl || !shopifyAccessToken || !shopifyApiVersion}
                 >
                   {isTestingConnection ? (
                     <>
