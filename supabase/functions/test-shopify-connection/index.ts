@@ -31,22 +31,37 @@ Deno.serve(async (req) => {
       }
     );
 
-    // Verify user authentication
+    const supabaseServiceClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Verify user authentication by decoding the verified JWT (Supabase already verified it due to verify_jwt=true)
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError || !user) {
-      console.error('Auth error:', userError);
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    let userId: string | null = null;
+    try {
+      const part = token.split('.')[1];
+      const base64 = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(part.length + (4 - (part.length % 4 || 4)), '=');
+      const payload = JSON.parse(atob(base64));
+      userId = payload.sub as string;
+    } catch (e) {
+      console.error('Invalid JWT payload decode:', e);
+      // Fallback to Supabase to validate token
+      const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
+      if (userError || !user) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      userId = user.id;
     }
 
     // Check if user has super_admin role
-    const { data: roleData, error: roleError } = await supabaseClient
+    const { data: roleData, error: roleError } = await supabaseServiceClient
       .from('user_roles')
       .select('role, is_active')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('role', 'super_admin')
       .eq('is_active', true)
       .maybeSingle();
