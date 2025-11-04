@@ -163,8 +163,18 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ 
       success: true,
       message: 'Shopify settings updated successfully',
-      note: 'API Token and Webhook Secret must be updated via Supabase Secrets for security. Please update SHOPIFY_ADMIN_API_TOKEN and SHOPIFY_WEBHOOK_SECRET in your Supabase project settings.',
-      secrets_url: `https://supabase.com/dashboard/project/${Deno.env.get('SUPABASE_URL')?.split('//')[1]?.split('.')[0]}/settings/functions`,
+      settings_updated: ['Store URL', 'API Version', location_id ? 'Location ID' : ''].filter(Boolean),
+      note: 'IMPORTANT: The Admin API Token and Webhook Secret are stored as Supabase Secrets for security.',
+      instructions: {
+        token_update: 'To update the Admin API Token, please update the SHOPIFY_ADMIN_API_TOKEN secret in your Supabase project settings.',
+        webhook_update: 'To update the Webhook Secret, please update the SHOPIFY_WEBHOOK_SECRET secret in your Supabase project settings.',
+        secrets_url: `https://supabase.com/dashboard/project/lzitfcigdjbpymvebipp/settings/functions`,
+      },
+      next_steps: [
+        '✓ Your Store URL, API Version, and Location ID are now saved and will be used by all edge functions',
+        '✓ Use "Test Connection" to verify your credentials are working',
+        '⚠ If you need to update the API Token or Webhook Secret, please do so via Supabase Secrets (see instructions above)',
+      ]
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

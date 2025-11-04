@@ -61,9 +61,9 @@ Deno.serve(async (req) => {
     }
 
     // Get Shopify credentials
-    const storeUrl = getAPISetting('SHOPIFY_STORE_URL');
-    const accessToken = getAPISetting('SHOPIFY_ADMIN_API_TOKEN');
-    const apiVersion = getAPISetting('SHOPIFY_API_VERSION') || '2024-01';
+    const storeUrl = await getAPISetting('SHOPIFY_STORE_URL', supabase);
+    const accessToken = await getAPISetting('SHOPIFY_ADMIN_API_TOKEN', supabase);
+    const apiVersion = await getAPISetting('SHOPIFY_API_VERSION', supabase) || '2024-01';
 
     if (!storeUrl || !accessToken) {
       throw new Error('Shopify credentials not configured');

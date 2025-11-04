@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
+import { getAPISetting } from '../_shared/apiSettings.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -86,9 +87,13 @@ Deno.serve(async (req) => {
       // 2. Sync Orders from Shopify
       console.log('Syncing orders...');
       try {
-        const storeUrl = Deno.env.get('SHOPIFY_STORE_URL');
-        const apiToken = Deno.env.get('SHOPIFY_ADMIN_API_TOKEN');
-        const apiVersion = Deno.env.get('SHOPIFY_API_VERSION') || '2024-01';
+        const storeUrl = await getAPISetting('SHOPIFY_STORE_URL', supabase);
+        const apiToken = await getAPISetting('SHOPIFY_ADMIN_API_TOKEN', supabase);
+        const apiVersion = await getAPISetting('SHOPIFY_API_VERSION', supabase) || '2024-01';
+
+        if (!storeUrl || !apiToken) {
+          throw new Error('Shopify credentials not configured');
+        }
 
         const ordersResponse = await fetch(
           `${storeUrl}/admin/api/${apiVersion}/orders.json?status=any&limit=250`,

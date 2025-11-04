@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
+import { getAPISetting } from '../_shared/apiSettings.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,10 +21,7 @@ interface ShopifyProduct {
   }>;
 }
 
-async function fetchShopifyProducts(cursor?: string): Promise<{ products: ShopifyProduct[]; nextCursor?: string }> {
-  const storeUrl = Deno.env.get('SHOPIFY_STORE_URL');
-  const apiToken = Deno.env.get('SHOPIFY_ADMIN_API_TOKEN');
-  const apiVersion = Deno.env.get('SHOPIFY_API_VERSION') || '2024-01';
+async function fetchShopifyProducts(storeUrl: string, apiToken: string, apiVersion: string, cursor?: string): Promise<{ products: ShopifyProduct[]; nextCursor?: string }> {
 
   const query = `
     query GetProducts($cursor: String) {
@@ -116,6 +114,15 @@ Deno.serve(async (req) => {
 
     console.log('Starting Shopify product sync...');
     
+    // Get Shopify credentials
+    const storeUrl = await getAPISetting('SHOPIFY_STORE_URL', supabase);
+    const apiToken = await getAPISetting('SHOPIFY_ADMIN_API_TOKEN', supabase);
+    const apiVersion = await getAPISetting('SHOPIFY_API_VERSION', supabase) || '2024-01';
+
+    if (!storeUrl || !apiToken) {
+      throw new Error('Shopify credentials not configured');
+    }
+
     let totalSynced = 0;
     let cursor: string | undefined;
     let hasMore = true;
@@ -134,7 +141,7 @@ Deno.serve(async (req) => {
 
     try {
       while (hasMore) {
-        const { products, nextCursor } = await fetchShopifyProducts(cursor);
+        const { products, nextCursor } = await fetchShopifyProducts(storeUrl, apiToken, apiVersion, cursor);
         
         for (const product of products) {
           for (const variant of product.variants) {

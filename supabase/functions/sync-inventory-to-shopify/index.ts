@@ -72,10 +72,10 @@ Deno.serve(async (req) => {
     }
 
     // Get Shopify credentials
-    const storeUrl = getAPISetting('SHOPIFY_STORE_URL');
-    const accessToken = getAPISetting('SHOPIFY_ADMIN_API_TOKEN');
-    const apiVersion = getAPISetting('SHOPIFY_API_VERSION') || '2024-01';
-    const locationId = getAPISetting('SHOPIFY_DEFAULT_LOCATION_ID') || inventory.shopify_location_id;
+    const storeUrl = await getAPISetting('SHOPIFY_STORE_URL', supabase);
+    const accessToken = await getAPISetting('SHOPIFY_ADMIN_API_TOKEN', supabase);
+    const apiVersion = await getAPISetting('SHOPIFY_API_VERSION', supabase) || '2024-01';
+    const locationId = await getAPISetting('SHOPIFY_LOCATION_ID', supabase) || inventory.shopify_location_id;
 
     if (!storeUrl || !accessToken || !locationId) {
       throw new Error('Shopify credentials or location not configured');

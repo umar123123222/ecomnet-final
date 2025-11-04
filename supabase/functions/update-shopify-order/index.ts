@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
+import { getAPISetting } from '../_shared/apiSettings.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,10 +20,14 @@ interface UpdateOrderRequest {
   };
 }
 
-async function updateShopifyOrder(shopifyOrderId: number, action: string, data: any) {
-  const storeUrl = Deno.env.get('SHOPIFY_STORE_URL');
-  const apiToken = Deno.env.get('SHOPIFY_ADMIN_API_TOKEN');
-  const apiVersion = Deno.env.get('SHOPIFY_API_VERSION') || '2024-01';
+async function updateShopifyOrder(shopifyOrderId: number, action: string, data: any, supabase: any) {
+  const storeUrl = await getAPISetting('SHOPIFY_STORE_URL', supabase);
+  const apiToken = await getAPISetting('SHOPIFY_ADMIN_API_TOKEN', supabase);
+  const apiVersion = await getAPISetting('SHOPIFY_API_VERSION', supabase) || '2024-01';
+
+  if (!storeUrl || !apiToken) {
+    throw new Error('Shopify credentials not configured');
+  }
 
   const baseUrl = `${storeUrl}/admin/api/${apiVersion}`;
   const headers = {
@@ -180,7 +185,7 @@ Deno.serve(async (req) => {
     console.log(`Updating Shopify order ${order.shopify_order_id} with action: ${request.action}`);
 
     // Update Shopify
-    const shopifyResponse = await updateShopifyOrder(order.shopify_order_id, request.action, request.data);
+    const shopifyResponse = await updateShopifyOrder(order.shopify_order_id, request.action, request.data, supabase);
 
     // Update local database
     const updateData: any = {
