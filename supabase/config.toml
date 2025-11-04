@@ -1,5 +1,17 @@
 project_id = "lzitfcigdjbpymvebipp"
 
+[functions.register-shopify-webhooks]
+verify_jwt = true
+
+[functions.handle-shopify-order-update]
+verify_jwt = false
+
+[functions.handle-shopify-inventory-update]
+verify_jwt = false
+
+[functions.handle-shopify-product-update]
+verify_jwt = false
+
 [functions.create-shopify-order]
 verify_jwt = true
 

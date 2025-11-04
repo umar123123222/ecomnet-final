@@ -3020,6 +3020,39 @@ export type Database = {
         }
         Relationships: []
       }
+      shopify_webhook_registry: {
+        Row: {
+          address: string
+          created_at: string
+          error_message: string | null
+          id: string
+          last_triggered: string | null
+          status: string
+          topic: string
+          webhook_id: number
+        }
+        Insert: {
+          address: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          last_triggered?: string | null
+          status?: string
+          topic: string
+          webhook_id: number
+        }
+        Update: {
+          address?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          last_triggered?: string | null
+          status?: string
+          topic?: string
+          webhook_id?: number
+        }
+        Relationships: []
+      }
       stock_count_items: {
         Row: {
           count_id: string
