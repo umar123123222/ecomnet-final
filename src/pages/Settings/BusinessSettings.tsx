@@ -178,6 +178,17 @@ const BusinessSettings = () => {
       return;
     }
 
+    // Validate API version format
+    const versionRegex = /^20\d{2}-(01|04|07|10)$/;
+    if (!versionRegex.test(shopifyApiVersion)) {
+      toast({
+        title: "Invalid API Version",
+        description: "API version must be in format YYYY-MM (e.g., 2024-10). Valid months: 01, 04, 07, 10",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsTestingConnection(true);
     setConnectionStatus('idle');
 
@@ -185,34 +196,44 @@ const BusinessSettings = () => {
       // Clean store URL
       const cleanUrl = shopifyStoreUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
       
-      // Test connection by fetching shop info
-      const response = await fetch(`https://${cleanUrl}/admin/api/${shopifyApiVersion}/shop.json`, {
-        headers: {
-          'X-Shopify-Access-Token': shopifyAccessToken,
-          'Content-Type': 'application/json',
+      // Test connection via edge function (server-side)
+      const { data, error } = await supabase.functions.invoke('test-shopify-connection', {
+        body: {
+          store_url: `https://${cleanUrl}`,
+          api_token: shopifyAccessToken,
+          api_version: shopifyApiVersion,
         },
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      if (error) {
+        setConnectionStatus('error');
+        toast({
+          title: "Connection error",
+          description: error.message || "Failed to test connection",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (data.ok) {
         setConnectionStatus('success');
         toast({
           title: "Connection successful",
-          description: `Connected to ${data.shop.name}`,
+          description: `Connected to ${data.shop_name} (${data.domain})`,
         });
       } else {
         setConnectionStatus('error');
         toast({
           title: "Connection failed",
-          description: "Please check your Store URL and Access Token",
+          description: data.error || data.hint || "Please check your credentials",
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       setConnectionStatus('error');
       toast({
         title: "Connection error",
-        description: "Failed to connect to Shopify. Please check your settings.",
+        description: error.message || "Failed to connect to Shopify",
         variant: "destructive",
       });
     } finally {

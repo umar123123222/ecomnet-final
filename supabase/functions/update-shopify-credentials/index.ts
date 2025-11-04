@@ -134,9 +134,9 @@ Deno.serve(async (req) => {
 
     if (location_id) {
       settingsToUpdate.push({ 
-        setting_key: 'SHOPIFY_LOCATION_ID',
+        setting_key: 'SHOPIFY_DEFAULT_LOCATION_ID',
         setting_value: location_id, 
-        description: 'Shopify location ID for inventory sync' 
+        description: 'Shopify default location ID for inventory sync' 
       });
     }
 
