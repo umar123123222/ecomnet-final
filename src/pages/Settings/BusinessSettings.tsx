@@ -19,6 +19,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { ShopifySyncStats } from "@/components/shopify/ShopifySyncStats";
 import { ShopifySyncLogs } from "@/components/shopify/ShopifySyncLogs";
 import { WebhookStatus } from "@/components/shopify/WebhookStatus";
+import { ProductSyncControl } from "@/components/shopify/ProductSyncControl";
+import { OrderSyncControl } from "@/components/shopify/OrderSyncControl";
+import { CustomerSyncControl } from "@/components/shopify/CustomerSyncControl";
+import { FullSyncControl } from "@/components/shopify/FullSyncControl";
 
 const BusinessSettings = () => {
   const { hasRole } = useUserRoles();
@@ -772,6 +776,13 @@ const BusinessSettings = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                <ProductSyncControl />
+                <OrderSyncControl />
+                <CustomerSyncControl />
+                <FullSyncControl />
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <Button variant="outline" onClick={handleRegisterWebhooks} className="w-full">
                   <RefreshCw className="mr-2 h-4 w-4" />
@@ -781,11 +792,6 @@ const BusinessSettings = () => {
                 <Button variant="outline" onClick={handleProcessQueue} className="w-full">
                   <Zap className="mr-2 h-4 w-4" />
                   Process Sync Queue
-                </Button>
-                
-                <Button variant="outline" onClick={handleFullSync} className="w-full">
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Full Sync from Shopify
                 </Button>
               </div>
 
