@@ -7,7 +7,7 @@ const corsHeaders = {
 
 interface CancelRequestBody {
   types?: string[] | string; // e.g. ['customers','orders'] or 'customers'
-  status?: 'in_progress' | 'failed' | 'success' | 'partial';
+  statuses?: string[] | string; // e.g. ['in_progress','processing']
 }
 
 Deno.serve(async (req) => {
@@ -32,7 +32,13 @@ Deno.serve(async (req) => {
     }
 
     const body: CancelRequestBody = await req.json().catch(() => ({}));
-    const statusToCancel = body.status || 'in_progress';
+
+    const statuses = Array.isArray(body.statuses)
+      ? body.statuses
+      : body.statuses
+      ? [body.statuses]
+      : ['in_progress', 'processing'];
+
     const types = Array.isArray(body.types)
       ? body.types
       : body.types
@@ -51,7 +57,7 @@ Deno.serve(async (req) => {
           cancelled_at: new Date().toISOString(),
         },
       })
-      .eq('status', statusToCancel);
+      .in('status', statuses);
 
     if (types && types.length > 0) {
       query = query.in('sync_type', types);
