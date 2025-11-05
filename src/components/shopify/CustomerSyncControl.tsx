@@ -9,13 +9,13 @@ import { Users, RefreshCw, X } from "lucide-react";
 export function CustomerSyncControl() {
   const { toast } = useToast();
   const [syncing, setSyncing] = useState(false);
-  const [progress, setProgress] = useState({ processed: 0, total: 0 });
+  const [progress, setProgress] = useState({ saved: 0, fetched: 0, total: 0, errors: 0 });
   const [runId, setRunId] = useState<string | null>(null);
   const [nextPageInfo, setNextPageInfo] = useState<string | null>(null);
 
   const startSync = async () => {
     setSyncing(true);
-    setProgress({ processed: 0, total: 0 });
+    setProgress({ saved: 0, fetched: 0, total: 0, errors: 0 });
     setRunId(null);
     setNextPageInfo(null);
     
@@ -59,8 +59,10 @@ export function CustomerSyncControl() {
       setRunId(data.runId);
       setNextPageInfo(data.nextPageInfo);
       setProgress({
-        processed: data.processed,
-        total: data.totalCount || data.processed,
+        saved: data.processed || 0,
+        fetched: data.fetched || 0,
+        total: data.totalCount || data.processed || 0,
+        errors: data.errors || 0,
       });
 
       if (data.hasMore) {
@@ -82,12 +84,31 @@ export function CustomerSyncControl() {
     }
   };
 
-  const cancelSync = () => {
-    setSyncing(false);
-    toast({
-      title: "Sync Cancelled",
-      description: "Customer sync has been stopped. Progress has been saved.",
-    });
+  const cancelSync = async () => {
+    if (!runId) {
+      setSyncing(false);
+      return;
+    }
+
+    try {
+      // Call the cancel edge function to mark as cancelled in DB
+      await supabase.functions.invoke('cancel-shopify-syncs', {
+        body: { types: ['customers'], statuses: ['in_progress'] },
+      });
+
+      setSyncing(false);
+      toast({
+        title: "Sync Cancelled",
+        description: "Customer sync has been stopped and marked as cancelled.",
+      });
+    } catch (error: any) {
+      console.error('Cancel error:', error);
+      setSyncing(false);
+      toast({
+        title: "Sync Stopped",
+        description: "Sync has been stopped locally.",
+      });
+    }
   };
 
   const resumeSync = async () => {
@@ -114,7 +135,7 @@ export function CustomerSyncControl() {
   };
 
   const progressPercent = progress.total > 0 
-    ? Math.round((progress.processed / progress.total) * 100) 
+    ? Math.round((progress.saved / progress.total) * 100) 
     : 0;
 
   return (
@@ -133,11 +154,16 @@ export function CustomerSyncControl() {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">
-                {progress.processed.toLocaleString()} 
-                {progress.total > 0 && ` / ${progress.total.toLocaleString()}`} customers
+                Saved {progress.saved.toLocaleString()} / Fetched {progress.fetched.toLocaleString()}
+                {progress.total > 0 && ` of ${progress.total.toLocaleString()}`}
               </span>
               <span className="font-medium">{progressPercent}%</span>
             </div>
+            {progress.errors > 0 && (
+              <div className="text-xs text-destructive">
+                ⚠️ {progress.errors} errors occurred during sync
+              </div>
+            )}
             <Progress value={progressPercent} />
           </div>
         )}

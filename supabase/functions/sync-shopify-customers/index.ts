@@ -107,13 +107,15 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get('Authorization')!;
-    const supabase = createClient<Database>(
+    
+    // User client for authentication
+    const userClient = createClient<Database>(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
@@ -121,12 +123,19 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Admin client for all DB operations (bypasses RLS)
+    const admin = createClient<Database>(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      { auth: { persistSession: false } }
+    );
+
     const body: SyncRequestBody = await req.json().catch(() => ({}));
     const { runId, pageInfo, maxPages = 5, mode = 'full' } = body;
 
     console.log(`[Sync Start] runId=${runId || 'NEW'}, pageInfo=${pageInfo || 'FIRST'}, maxPages=${maxPages}, mode=${mode}`);
 
-    const { data: settings } = await supabase
+    const { data: settings } = await admin
       .from('api_settings')
       .select('setting_key, setting_value')
       .in('setting_key', ['SHOPIFY_STORE_URL', 'SHOPIFY_ADMIN_API_TOKEN', 'SHOPIFY_API_VERSION']);
@@ -145,7 +154,7 @@ Deno.serve(async (req) => {
     const baseUrl = new URL(storeUrl).origin;
 
     // Clean up stale in_progress logs FIRST (older than 5 minutes)
-    await supabase
+    await admin
       .from('shopify_sync_log')
       .update({ 
         status: 'failed', 
@@ -158,13 +167,13 @@ Deno.serve(async (req) => {
 
     // Check for existing in-progress sync (after cleanup)
     if (!runId) {
-      const { data: existingSync } = await supabase
+      const { data: existingSync } = await admin
         .from('shopify_sync_log')
         .select('id, started_at')
         .eq('sync_type', 'customers')
         .eq('status', 'in_progress')
         .gte('started_at', new Date(Date.now() - 5 * 60 * 1000).toISOString())
-        .single();
+        .maybeSingle();
 
       if (existingSync) {
         return new Response(JSON.stringify({ 
@@ -191,7 +200,7 @@ Deno.serve(async (req) => {
         totalCount = countData.count || null;
       }
 
-      const { data: newLog, error: logError } = await supabase
+      const { data: newLog, error: logError } = await admin
         .from('shopify_sync_log')
         .insert({
           sync_type: 'customers',
@@ -211,15 +220,17 @@ Deno.serve(async (req) => {
       currentRunId = newLog.id;
       console.log(`[New Sync] Created runId=${currentRunId}, totalCount=${totalCount}`);
     } else {
-      const { data: existingLog } = await supabase
+      const { data: existingLog } = await admin
         .from('shopify_sync_log')
         .select('error_details')
         .eq('id', currentRunId)
-        .single();
+        .maybeSingle();
 
       totalCount = existingLog?.error_details?.total_count || null;
     }
 
+    let savedSoFar = 0;
+    let fetchedSoFar = 0;
     const stats: CustomerSyncStats = { processed: 0, created: 0, updated: 0, errors: [] };
     let currentPageInfo: string | null = pageInfo || null;
     let pagesProcessed = 0;
@@ -247,14 +258,15 @@ Deno.serve(async (req) => {
 
       const data = await res.json();
       const customers = data.customers || [];
-      console.log(`[Page ${pagesProcessed + 1}] Received ${customers.length} customers`);
+      fetchedSoFar += customers.length;
+      console.log(`[Page ${pagesProcessed + 1}] Fetched ${customers.length} customers (total: ${fetchedSoFar})`);
 
       if (customers.length === 0) {
         console.log('[No More Data] Ending sync');
         break;
       }
 
-      // Batch upsert using the unique index
+      // Batch upsert using the unique index and admin client
       const customerPayloads = customers.map((c: any) => ({
         shopify_customer_id: Number(c.id),
         name: `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email || 'Unknown',
@@ -267,8 +279,10 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       })).filter(p => p.shopify_customer_id);
 
+      console.log(`[Upsert] Attempting to save ${customerPayloads.length} customers...`);
+
       try {
-        const { data: upserted, error: upsertError } = await supabase
+        const { data: upserted, error: upsertError } = await admin
           .from('customers')
           .upsert(customerPayloads, { 
             onConflict: 'shopify_customer_id',
@@ -280,25 +294,26 @@ Deno.serve(async (req) => {
           console.error(`[Upsert Error] ${upsertError.message}`);
           stats.errors.push(`Batch upsert error: ${upsertError.message}`);
         } else {
-          const upsertedCount = upserted?.length || 0;
-          stats.processed += customers.length;
-          stats.created += upsertedCount;
-          stats.updated += customers.length - upsertedCount;
-          console.log(`[Batch Success] Processed ${customers.length}, upserted ${upsertedCount}`);
+          const savedCount = upserted?.length || 0;
+          savedSoFar += savedCount;
+          stats.processed = savedSoFar;
+          stats.created += savedCount;
+          console.log(`[Batch Success] Saved ${savedCount} customers (total saved: ${savedSoFar})`);
         }
       } catch (error: any) {
         console.error(`[Batch Exception] ${error.message}`);
         stats.errors.push(`Batch exception: ${error.message}`);
       }
 
-      // Update sync log with progress
-      await supabase
+      // Update sync log with progress using admin client
+      await admin
         .from('shopify_sync_log')
         .update({
-          records_processed: stats.processed,
+          records_processed: savedSoFar,
           records_failed: stats.errors.length,
           error_details: {
             total_count: totalCount,
+            fetched: fetchedSoFar,
             next_page_info: parseNextPageInfo(res.headers.get('Link')),
             errors: stats.errors.slice(-5) // Keep last 5 errors
           }
@@ -321,21 +336,22 @@ Deno.serve(async (req) => {
 
     // Finalize log if complete
     if (!hasMore) {
-      await supabase
+      await admin
         .from('shopify_sync_log')
         .update({
           status: finalStatus,
-          records_processed: stats.processed,
+          records_processed: savedSoFar,
           records_failed: stats.errors.length,
           completed_at: new Date().toISOString(),
           error_details: stats.errors.length > 0 ? { 
             total_count: totalCount,
+            fetched: fetchedSoFar,
             errors: stats.errors 
-          } : { total_count: totalCount }
+          } : { total_count: totalCount, fetched: fetchedSoFar }
         })
         .eq('id', currentRunId);
 
-      console.log(`[Sync Complete] Status=${finalStatus}, processed=${stats.processed}`);
+      console.log(`[Sync Complete] Status=${finalStatus}, saved=${savedSoFar}, fetched=${fetchedSoFar}`);
     } else {
       console.log(`[Sync Partial] Processed ${pagesProcessed} pages, hasMore=true`);
     }
@@ -344,7 +360,8 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         runId: currentRunId,
-        processed: stats.processed,
+        processed: savedSoFar,
+        fetched: fetchedSoFar,
         created: stats.created,
         updated: stats.updated,
         errors: stats.errors.length,
@@ -352,8 +369,8 @@ Deno.serve(async (req) => {
         hasMore,
         totalCount,
         message: hasMore 
-          ? `Processed ${pagesProcessed} pages (${stats.processed} customers). Resume to continue.`
-          : `Sync complete: ${stats.processed} customers (${stats.created} created, ${stats.updated} updated)`
+          ? `Saved ${savedSoFar} / Fetched ${fetchedSoFar} customers. Resume to continue.`
+          : `Sync complete: Saved ${savedSoFar} / Fetched ${fetchedSoFar} customers`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
