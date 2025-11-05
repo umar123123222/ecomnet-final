@@ -8,6 +8,7 @@ import { RefreshCw, Package, ShoppingCart, CheckCircle, XCircle, Clock, External
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
+import { CustomerSyncControl } from "@/components/shopify/CustomerSyncControl";
 
 interface SyncLog {
   id: string;
@@ -208,6 +209,8 @@ export default function ShopifySettings() {
                 </Button>
               </CardContent>
             </Card>
+
+            <CustomerSyncControl />
 
             <Card>
               <CardHeader>
