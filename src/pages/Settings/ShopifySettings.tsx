@@ -146,9 +146,33 @@ export default function ShopifySettings() {
 
       {/* Sync History */}
       <Card>
-        <CardHeader>
-          <CardTitle>Sync History</CardTitle>
-          <CardDescription>Recent synchronization operations</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Sync History</CardTitle>
+            <CardDescription>Recent synchronization operations</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={loadSyncLogs} title="Refresh">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={async () => {
+                const { data, error } = await supabase.functions.invoke('cancel-shopify-syncs', {
+                  body: { status: 'in_progress' },
+                });
+                if (error) {
+                  toast({ title: 'Cancel failed', description: String(error), variant: 'destructive' as any });
+                } else {
+                  toast({ title: 'Cancelled', description: `Cancelled ${data?.cancelled ?? 0} sync(s)` });
+                  loadSyncLogs();
+                }
+              }}
+            >
+              <XCircle className="h-4 w-4 mr-1" /> Cancel all in-progress
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
