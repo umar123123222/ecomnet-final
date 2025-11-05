@@ -17,19 +17,27 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get('Authorization')!;
-    const supabase = createClient(
+
+    // 1) User-scoped client to validate the caller's session
+    const userClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // 2) Admin client to bypass RLS for the update
+    const adminClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
     const body: CancelRequestBody = await req.json().catch(() => ({}));
 
@@ -45,7 +53,7 @@ Deno.serve(async (req) => {
       ? [body.types]
       : undefined;
 
-    let query = supabase
+    let query = adminClient
       .from('shopify_sync_log')
       .update({
         status: 'failed',
