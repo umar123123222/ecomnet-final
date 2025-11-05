@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
         .from('shopify_sync_log')
         .insert({
           sync_type: 'customers',
-          direction: 'from_shopify',
+          sync_direction: 'from_shopify',
           status: 'in_progress',
           triggered_by: user.id,
           error_details: totalCount ? { total_count: totalCount } : {}
