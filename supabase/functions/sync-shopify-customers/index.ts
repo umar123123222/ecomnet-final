@@ -144,14 +144,26 @@ Deno.serve(async (req) => {
 
     const baseUrl = new URL(storeUrl).origin;
 
-    // Check for existing in-progress sync
+    // Clean up stale in_progress logs FIRST (older than 5 minutes)
+    await supabase
+      .from('shopify_sync_log')
+      .update({ 
+        status: 'failed', 
+        completed_at: new Date().toISOString(),
+        error_details: { error: 'Sync interrupted - auto-cancelled due to timeout' }
+      })
+      .eq('sync_type', 'customers')
+      .eq('status', 'in_progress')
+      .lt('started_at', new Date(Date.now() - 5 * 60 * 1000).toISOString());
+
+    // Check for existing in-progress sync (after cleanup)
     if (!runId) {
       const { data: existingSync } = await supabase
         .from('shopify_sync_log')
         .select('id, started_at')
         .eq('sync_type', 'customers')
         .eq('status', 'in_progress')
-        .gte('started_at', new Date(Date.now() - 10 * 60 * 1000).toISOString())
+        .gte('started_at', new Date(Date.now() - 5 * 60 * 1000).toISOString())
         .single();
 
       if (existingSync) {
@@ -165,18 +177,6 @@ Deno.serve(async (req) => {
         });
       }
     }
-
-    // Clean up stale in_progress logs
-    await supabase
-      .from('shopify_sync_log')
-      .update({ 
-        status: 'failed', 
-        completed_at: new Date().toISOString(),
-        error_details: { error: 'Sync interrupted - marked as failed by new sync' }
-      })
-      .eq('sync_type', 'customers')
-      .eq('status', 'in_progress')
-      .lt('started_at', new Date(Date.now() - 30 * 60 * 1000).toISOString());
 
     let currentRunId = runId;
     let totalCount: number | null = null;
