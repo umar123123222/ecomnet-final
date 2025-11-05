@@ -2,11 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CheckCircle2, XCircle, Clock, RefreshCw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface SyncLog {
   id: string;
@@ -22,6 +24,7 @@ interface SyncLog {
 }
 
 export const ShopifySyncLogs = () => {
+  const { toast } = useToast();
   const { data: logs, isLoading, refetch } = useQuery({
     queryKey: ['shopify-sync-logs'],
     queryFn: async () => {
@@ -138,12 +141,33 @@ export const ShopifySyncLogs = () => {
               Recent synchronization operations with Shopify
             </CardDescription>
           </div>
-          <button
-            onClick={() => refetch()}
-            className="p-2 hover:bg-accent rounded-md transition-colors"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              title="Refresh"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={async () => {
+                const { data, error } = await supabase.functions.invoke('cancel-shopify-syncs', {
+                  body: { status: 'in_progress' },
+                });
+                if (error) {
+                  toast({ title: 'Cancel failed', description: String(error), variant: 'destructive' as any });
+                } else {
+                  toast({ title: 'Cancelled', description: `Cancelled ${data?.cancelled ?? 0} sync(s)` });
+                  refetch();
+                }
+              }}
+            >
+              <XCircle className="h-4 w-4 mr-1" /> Cancel all
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
