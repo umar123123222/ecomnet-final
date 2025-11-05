@@ -148,10 +148,10 @@ Deno.serve(async (req) => {
     if (!runId) {
       const { data: existingSync } = await supabase
         .from('shopify_sync_log')
-        .select('id, created_at')
+        .select('id, started_at')
         .eq('sync_type', 'customers')
         .eq('status', 'in_progress')
-        .gte('created_at', new Date(Date.now() - 10 * 60 * 1000).toISOString())
+        .gte('started_at', new Date(Date.now() - 10 * 60 * 1000).toISOString())
         .single();
 
       if (existingSync) {
@@ -171,12 +171,12 @@ Deno.serve(async (req) => {
       .from('shopify_sync_log')
       .update({ 
         status: 'failed', 
-        error_message: 'Sync interrupted - marked as failed by new sync',
-        completed_at: new Date().toISOString()
+        completed_at: new Date().toISOString(),
+        error_details: { error: 'Sync interrupted - marked as failed by new sync' }
       })
       .eq('sync_type', 'customers')
       .eq('status', 'in_progress')
-      .lt('created_at', new Date(Date.now() - 30 * 60 * 1000).toISOString());
+      .lt('started_at', new Date(Date.now() - 30 * 60 * 1000).toISOString());
 
     let currentRunId = runId;
     let totalCount: number | null = null;
@@ -198,6 +198,7 @@ Deno.serve(async (req) => {
           sync_direction: 'from_shopify',
           status: 'in_progress',
           triggered_by: user.id,
+          started_at: new Date().toISOString(),
           error_details: totalCount ? { total_count: totalCount } : {}
         })
         .select()
@@ -255,7 +256,7 @@ Deno.serve(async (req) => {
 
       // Batch upsert using the unique index
       const customerPayloads = customers.map((c: any) => ({
-        shopify_customer_id: c.id?.toString(),
+        shopify_customer_id: Number(c.id),
         name: `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email || 'Unknown',
         email: c.email || null,
         phone: c.phone || c.default_address?.phone || null,
@@ -325,11 +326,12 @@ Deno.serve(async (req) => {
         .update({
           status: finalStatus,
           records_processed: stats.processed,
-          records_created: stats.created,
-          records_updated: stats.updated,
           records_failed: stats.errors.length,
           completed_at: new Date().toISOString(),
-          error_message: stats.errors.length > 0 ? stats.errors.join('; ') : null
+          error_details: stats.errors.length > 0 ? { 
+            total_count: totalCount,
+            errors: stats.errors 
+          } : { total_count: totalCount }
         })
         .eq('id', currentRunId);
 
