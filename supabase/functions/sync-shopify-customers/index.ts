@@ -266,7 +266,7 @@ Deno.serve(async (req) => {
         break;
       }
 
-      // Batch upsert using the unique index and admin client
+      // Prepare customer payloads
       const customerPayloads = customers.map((c: any) => ({
         shopify_customer_id: Number(c.id),
         name: `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email || 'Unknown',
@@ -279,26 +279,85 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       })).filter(p => p.shopify_customer_id);
 
-      console.log(`[Upsert] Attempting to save ${customerPayloads.length} customers...`);
+      console.log(`[Manual Upsert] Processing ${customerPayloads.length} customers...`);
 
       try {
-        const { data: upserted, error: upsertError } = await admin
+        // Step 1: Query for existing customers
+        const shopifyIds = customerPayloads.map(c => c.shopify_customer_id);
+        const { data: existingCustomers, error: queryError } = await admin
           .from('customers')
-          .upsert(customerPayloads, { 
-            onConflict: 'shopify_customer_id',
-            count: 'exact'
-          })
-          .select('id');
+          .select('id, shopify_customer_id')
+          .in('shopify_customer_id', shopifyIds);
 
-        if (upsertError) {
-          console.error(`[Upsert Error] ${upsertError.message}`);
-          stats.errors.push(`Batch upsert error: ${upsertError.message}`);
+        if (queryError) {
+          console.error(`[Query Error] ${queryError.message}`);
+          stats.errors.push(`Query error: ${queryError.message}`);
         } else {
-          const savedCount = upserted?.length || 0;
-          savedSoFar += savedCount;
+          const existingMap = new Map(
+            (existingCustomers || []).map(c => [c.shopify_customer_id, c.id])
+          );
+          console.log(`[Found] ${existingMap.size} existing customers out of ${customerPayloads.length}`);
+
+          // Step 2: Separate into updates and inserts
+          const toUpdate: Array<{ id: string; data: any }> = [];
+          const toInsert: Array<any> = [];
+
+          for (const payload of customerPayloads) {
+            const existingId = existingMap.get(payload.shopify_customer_id);
+            if (existingId) {
+              toUpdate.push({ id: existingId, data: payload });
+            } else {
+              toInsert.push(payload);
+            }
+          }
+
+          console.log(`[Split] ${toUpdate.length} to update, ${toInsert.length} to insert`);
+
+          let updatedCount = 0;
+          let createdCount = 0;
+
+          // Step 3: Execute updates
+          if (toUpdate.length > 0) {
+            for (const { id, data } of toUpdate) {
+              const { error: updateError } = await admin
+                .from('customers')
+                .update(data)
+                .eq('id', id);
+
+              if (updateError) {
+                console.error(`[Update Error] Customer ${id}: ${updateError.message}`);
+                stats.errors.push(`Update error for ${data.shopify_customer_id}: ${updateError.message}`);
+              } else {
+                updatedCount++;
+              }
+            }
+            console.log(`[Updates] Successfully updated ${updatedCount}/${toUpdate.length}`);
+          }
+
+          // Step 4: Execute inserts
+          if (toInsert.length > 0) {
+            const { data: inserted, error: insertError } = await admin
+              .from('customers')
+              .insert(toInsert)
+              .select('id');
+
+            if (insertError) {
+              console.error(`[Insert Error] ${insertError.message}`);
+              stats.errors.push(`Insert error: ${insertError.message}`);
+            } else {
+              createdCount = inserted?.length || 0;
+              console.log(`[Inserts] Successfully inserted ${createdCount}/${toInsert.length}`);
+            }
+          }
+
+          // Step 5: Update stats
+          const totalSaved = updatedCount + createdCount;
+          savedSoFar += totalSaved;
           stats.processed = savedSoFar;
-          stats.created += savedCount;
-          console.log(`[Batch Success] Saved ${savedCount} customers (total saved: ${savedSoFar})`);
+          stats.created += createdCount;
+          stats.updated += updatedCount;
+
+          console.log(`[Batch Complete] Saved ${totalSaved} (${createdCount} new, ${updatedCount} updated) - Total: ${savedSoFar}`);
         }
       } catch (error: any) {
         console.error(`[Batch Exception] ${error.message}`);
