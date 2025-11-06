@@ -41,16 +41,43 @@ export function CustomerSyncControl() {
         },
       });
 
-      if (error) throw error;
+      // Handle 409 gracefully: auto-resume existing sync
+      if (error) {
+        const msg = String(error.message || '');
+        const is409 = msg.includes('409') || msg.includes('already in progress');
+        if (is409) {
+          // Try to extract runId from error message payload
+          let extractedRunId: string | null = null;
+          const idx = msg.indexOf('Error,');
+          if (idx !== -1) {
+            const jsonPart = msg.slice(idx + 6).trim();
+            try {
+              const parsed = JSON.parse(jsonPart);
+              if (parsed?.runId) extractedRunId = parsed.runId;
+            } catch {}
+          }
+          if (extractedRunId) {
+            setRunId(extractedRunId);
+            toast({
+              title: 'Resuming Existing Sync',
+              description: 'A customer sync was already running. Resuming now...',
+            });
+            // Immediately retry with runId set (pageInfo optional; backend dedupes)
+            await new Promise(r => setTimeout(r, 300));
+            return await syncPage();
+          }
+        }
+        throw error;
+      }
 
       if (data.error) {
-        if (data.error.includes('already in progress')) {
-          toast({
-            title: "Sync In Progress",
-            description: "A sync is already running. Please wait or resume it.",
-            variant: "default",
-          });
+        if (String(data.error).includes('already in progress')) {
+          // Should rarely hit here since we handle error branch above
           setSyncing(false);
+          toast({
+            title: 'Sync In Progress',
+            description: 'A sync is already running. Click Resume to continue.',
+          });
           return;
         }
         throw new Error(data.error);
@@ -72,7 +99,7 @@ export function CustomerSyncControl() {
       } else {
         // Sync complete
         toast({
-          title: "Sync Complete",
+          title: 'Sync Complete',
           description: data.message,
         });
         setSyncing(false);
@@ -112,7 +139,7 @@ export function CustomerSyncControl() {
   };
 
   const resumeSync = async () => {
-    if (!runId || !nextPageInfo) {
+    if (!runId) {
       toast({
         title: "Cannot Resume",
         description: "No sync session to resume",
@@ -176,7 +203,7 @@ export function CustomerSyncControl() {
             </Button>
           )}
 
-          {!syncing && runId && nextPageInfo && (
+          {!syncing && runId && (
             <Button onClick={resumeSync} className="flex-1">
               <RefreshCw className="mr-2 h-4 w-4" />
               Resume Sync

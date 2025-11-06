@@ -132,6 +132,7 @@ Deno.serve(async (req) => {
 
     const body: SyncRequestBody = await req.json().catch(() => ({}));
     const { runId, pageInfo, maxPages = 5, mode = 'full' } = body;
+    let desiredPageInfo: string | null = pageInfo || null;
 
     console.log(`[Sync Start] runId=${runId || 'NEW'}, pageInfo=${pageInfo || 'FIRST'}, maxPages=${maxPages}, mode=${mode}`);
 
@@ -222,17 +223,20 @@ Deno.serve(async (req) => {
     } else {
       const { data: existingLog } = await admin
         .from('shopify_sync_log')
-        .select('error_details')
+        .select('error_details, status')
         .eq('id', currentRunId)
         .maybeSingle();
 
       totalCount = existingLog?.error_details?.total_count || null;
+      if (!desiredPageInfo) {
+        desiredPageInfo = existingLog?.error_details?.next_page_info || null;
+      }
     }
 
     let savedSoFar = 0;
     let fetchedSoFar = 0;
     const stats: CustomerSyncStats = { processed: 0, created: 0, updated: 0, errors: [] };
-    let currentPageInfo: string | null = pageInfo || null;
+    let currentPageInfo: string | null = desiredPageInfo;
     let pagesProcessed = 0;
     const timeLimit = 25000; // 25 seconds soft limit
 
