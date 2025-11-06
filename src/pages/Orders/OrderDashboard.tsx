@@ -975,7 +975,7 @@ const OrderDashboard = () => {
                     
                     <TableCell className="font-mono text-sm font-medium">
                       <div className="flex flex-col gap-1">
-                        <span>{order.orderNumber || order.id.slice(0, 8)}</span>
+                        <span>{order.shopify_order_id || order.orderNumber || order.id.slice(0, 8)}</span>
                         {order.fraudIndicators?.isHighRisk && (
                           <Badge variant="destructive" className="gap-1 w-fit text-xs">
                             <Shield className="h-3 w-3" />
