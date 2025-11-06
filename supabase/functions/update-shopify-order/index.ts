@@ -8,7 +8,7 @@ const corsHeaders = {
 
 interface UpdateOrderRequest {
   order_id: string;
-  action: 'update_tracking' | 'update_tags' | 'update_fulfillment' | 'update_customer';
+  action: 'update_tracking' | 'update_tags' | 'update_fulfillment' | 'update_customer' | 'update_address' | 'update_line_items';
   data: {
     tracking_number?: string;
     tracking_company?: string;
@@ -17,6 +17,21 @@ interface UpdateOrderRequest {
     fulfillment_status?: 'fulfilled' | 'partial' | 'unfulfilled';
     customer_note?: string;
     notify_customer?: boolean;
+    address?: {
+      first_name?: string;
+      last_name?: string;
+      address1?: string;
+      address2?: string;
+      city?: string;
+      province?: string;
+      zip?: string;
+      country?: string;
+      phone?: string;
+    };
+    line_items?: Array<{
+      variant_id: number;
+      quantity: number;
+    }>;
   };
 }
 
@@ -131,6 +146,31 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
       }
 
       return await response.json();
+    }
+
+    case 'update_address': {
+      const response = await fetch(`${baseUrl}/orders/${shopifyOrderId}.json`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          order: {
+            shipping_address: data.address,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`Failed to update address: ${JSON.stringify(error)}`);
+      }
+
+      return await response.json();
+    }
+
+    case 'update_line_items': {
+      // Note: Shopify doesn't allow editing line items on existing orders
+      // This would require canceling and recreating the order
+      throw new Error('Line item updates are not supported on existing Shopify orders');
     }
 
     default:

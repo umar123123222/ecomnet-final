@@ -66,10 +66,43 @@ Deno.serve(async (req) => {
               body: { order_id: item.entity_id },
             });
           } else if (item.action === 'update') {
+            // Determine what kind of update to perform based on the data
+            const changes = item.data?.changes || {};
+            let updateAction = 'update_customer';
+            let updateData: any = {};
+
+            // Prioritize updates
+            if (changes.tracking_id) {
+              updateAction = 'update_tracking';
+              updateData = {
+                tracking_number: changes.tracking_id,
+                tracking_company: 'TCS', // Default, should be dynamic
+                notify_customer: true
+              };
+            } else if (changes.customer_address || changes.customer_new_address || changes.city) {
+              updateAction = 'update_address';
+              updateData = {
+                address: {
+                  address1: changes.customer_address || changes.customer_new_address,
+                  city: changes.city,
+                  first_name: changes.customer_name?.split(' ')[0],
+                  last_name: changes.customer_name?.split(' ').slice(1).join(' '),
+                  phone: changes.customer_phone,
+                }
+              };
+            } else if (changes.tags) {
+              updateAction = 'update_tags';
+              updateData = { tags: changes.tags };
+            } else if (changes.notes) {
+              updateAction = 'update_customer';
+              updateData = { customer_note: changes.notes };
+            }
+
             result = await supabase.functions.invoke('update-shopify-order', {
               body: { 
                 order_id: item.entity_id,
-                action: 'update_tracking' // or other update types
+                action: updateAction,
+                data: updateData
               },
             });
           }

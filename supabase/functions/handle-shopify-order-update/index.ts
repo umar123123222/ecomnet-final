@@ -90,6 +90,9 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Extract address changes
+    const shippingAddress = order.shipping_address;
+    
     // Update order in our database
     const updateData: any = {
       status: newStatus,
@@ -98,6 +101,29 @@ Deno.serve(async (req) => {
 
     if (trackingId) {
       updateData.tracking_id = trackingId;
+    }
+
+    // Update address if changed
+    if (shippingAddress) {
+      const newAddress = [
+        shippingAddress.address1,
+        shippingAddress.address2,
+        shippingAddress.city,
+        shippingAddress.province,
+        shippingAddress.zip
+      ].filter(Boolean).join(', ');
+      
+      if (newAddress) {
+        updateData.customer_address = newAddress;
+        updateData.city = shippingAddress.city || updateData.city;
+        updateData.customer_name = `${shippingAddress.first_name || ''} ${shippingAddress.last_name || ''}`.trim() || updateData.customer_name;
+        updateData.customer_phone = shippingAddress.phone || updateData.customer_phone;
+      }
+    }
+
+    // Update tags if present
+    if (order.tags) {
+      updateData.tags = order.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
     }
 
     if (order.cancelled_at) {

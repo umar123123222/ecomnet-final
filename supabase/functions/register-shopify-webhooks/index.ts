@@ -45,6 +45,10 @@ Deno.serve(async (req) => {
     // Define webhooks to register
     const webhooks = [
       {
+        topic: 'orders/create',
+        address: `${baseWebhookUrl}/shopify-webhook-orders`,
+      },
+      {
         topic: 'orders/updated',
         address: `${baseWebhookUrl}/handle-shopify-order-update`,
       },

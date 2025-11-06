@@ -215,6 +215,30 @@ const OrderDashboard = () => {
     fetchOrders();
   }, [page, pageSize]);
 
+  // Real-time subscription for order updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('order-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all changes (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'orders'
+        },
+        (payload) => {
+          console.log('Real-time order change detected:', payload);
+          // Refetch orders to get the latest data
+          fetchOrders();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [page, pageSize]);
+
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
     localStorage.setItem('orders_page_size', String(newSize));
