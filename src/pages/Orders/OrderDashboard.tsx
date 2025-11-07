@@ -32,6 +32,9 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { batchAnalyzeOrders } from '@/utils/orderFraudDetection';
 import { BulkUploadDialog } from '@/components/orders/BulkUploadDialog';
 import { OrderActivityLog } from '@/components/orders/OrderActivityLog';
+import { QuickActionButtons } from '@/components/orders/QuickActionButtons';
+import { OrderAlertIndicators } from '@/components/orders/OrderAlertIndicators';
+import { InlineCourierAssign } from '@/components/orders/InlineCourierAssign';
 
 const OrderDashboard = () => {
   const { isManager, isSeniorStaff, primaryRole } = useUserRoles();
@@ -739,19 +742,96 @@ const OrderDashboard = () => {
       );
 
       toast({
-        title: "Status updated",
-        description: `Order status has been updated to ${newStatus}`,
+        title: "Status Updated",
+        description: `Order status changed to ${newStatus}`,
       });
 
       fetchOrders();
-    } catch (error: any) {
-      console.error('Error updating order status:', error);
+    } catch (error) {
+      console.error('Error updating order:', error);
       toast({
         title: "Error",
-        description: error?.message || "Failed to update order status",
+        description: "Failed to update order status",
         variant: "destructive",
       });
     }
+  };
+
+  // Quick action handlers
+  const handleQuickMarkDispatched = async (orderId: string) => {
+    await handleUpdateOrderStatus(orderId, 'dispatched', { dispatched_at: new Date().toISOString() });
+  };
+
+  const handleQuickGenerateLabel = (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    const courierName = order.courier && order.courier !== 'N/A' ? order.courier.toUpperCase() : 'COURIER';
+    
+    const labelHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Shipping Label - ${courierName}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .label { border: 2px solid #000; padding: 20px; max-width: 600px; }
+          .header { text-align: center; margin-bottom: 20px; font-size: 24px; font-weight: bold; }
+          .section { margin-bottom: 15px; }
+          .section strong { display: block; margin-bottom: 5px; }
+          .divider { border-top: 1px dashed #000; margin: 15px 0; padding-top: 15px; }
+        </style>
+      </head>
+      <body>
+        <div class="label">
+          <div class="header">SHIPPING LABEL - ${courierName}</div>
+          <div class="section">
+            <strong>Order Number:</strong> ${order.orderNumber}
+            <strong>Tracking ID:</strong> ${order.trackingId}
+            <strong>Date:</strong> ${new Date().toLocaleDateString()}
+          </div>
+          <div class="section">
+            <strong>Customer:</strong><br/>
+            ${order.customer}<br/>
+            ${order.phone}<br/>
+            ${order.address}<br/>
+            ${order.city}
+          </div>
+          <div class="section">
+            <strong>Items:</strong><br/>
+            ${order.items.map((item: any) => `${item.item_name} (x${item.quantity})`).join('<br/>')}
+          </div>
+          <div class="divider">
+            <strong>Total Amount:</strong> PKR ${order.totalPrice.toFixed(2)}
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([labelHTML], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `label-${order.orderNumber}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Label Downloaded",
+      description: `Shipping label for order ${order.orderNumber} downloaded`,
+    });
+  };
+
+  const handleQuickViewActivity = (orderId: string) => {
+    setActivityLogOrderId(orderId);
+  };
+
+  const handleQuickViewDetails = (orderId: string) => {
+    toggleExpanded(orderId);
   };
 
   // Advanced filtering
@@ -1218,19 +1298,20 @@ const OrderDashboard = () => {
                 <TableHead className="min-w-[120px]">Total Price</TableHead>
                 <TableHead className="min-w-[200px]">Order Status</TableHead>
                 <TableHead className="min-w-[140px]">Courier</TableHead>
+                <TableHead className="w-[80px]">Actions</TableHead>
                 <TableHead className="w-[50px]">Expand</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12">
+                  <TableCell colSpan={9} className="text-center py-12">
                     <div className="flex flex-col items-center gap-2">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                       <span className="text-sm text-muted-foreground">Loading orders...</span>
                     </div>
                   </TableCell>
                 </TableRow> : finalFilteredOrders.length === 0 ? <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12">
+                  <TableCell colSpan={9} className="text-center py-12">
                     <div className="flex flex-col items-center gap-2">
                       <Package className="h-12 w-12 text-muted-foreground/50" />
                       <span className="text-sm text-muted-foreground">No orders found</span>
@@ -1247,25 +1328,19 @@ const OrderDashboard = () => {
                     </TableCell>
                     
                     <TableCell className="font-mono text-sm font-medium">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                          <span>{(order.orderNumber || order.shopify_order_id || order.id.slice(0, 8)).replace(/^SHOP-/, '')}</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setActivityLogOrderId(order.id)}
-                            title="View activity log"
-                            className="h-7 w-7 p-0"
-                          >
-                            <Clock className="h-3.5 w-3.5" />
-                          </Button>
+                      <div className="flex items-center gap-2">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <span>{(order.orderNumber || order.shopify_order_id || order.id.slice(0, 8)).replace(/^SHOP-/, '')}</span>
+                          </div>
+                          {order.fraudIndicators?.isHighRisk && (
+                            <Badge variant="destructive" className="gap-1 w-fit text-xs">
+                              <Shield className="h-3 w-3" />
+                              Risk: {order.fraudIndicators.riskScore}%
+                            </Badge>
+                          )}
                         </div>
-                        {order.fraudIndicators?.isHighRisk && (
-                          <Badge variant="destructive" className="gap-1 w-fit text-xs">
-                            <Shield className="h-3 w-3" />
-                            Risk: {order.fraudIndicators.riskScore}%
-                          </Badge>
-                        )}
+                        <OrderAlertIndicators order={order} />
                       </div>
                     </TableCell>
                     
@@ -1293,14 +1368,32 @@ const OrderDashboard = () => {
                     </TableCell>
                     
                     <TableCell>
-                      {order.courier && order.courier !== 'N/A' ? (
-                        <Badge variant="outline" className="gap-1.5">
-                          <Truck className="h-3.5 w-3.5" />
-                          {order.courier.toUpperCase()}
-                        </Badge>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">Not Assigned</span>
-                      )}
+                      <InlineCourierAssign 
+                        orderId={order.id}
+                        currentCourier={order.courier}
+                        couriers={couriers}
+                        orderDetails={{
+                          orderNumber: order.orderNumber,
+                          customer: order.customer,
+                          phone: order.phone,
+                          address: order.address,
+                          city: order.city,
+                          items: order.items,
+                          totalPrice: order.totalPrice
+                        }}
+                        onAssigned={fetchOrders}
+                      />
+                    </TableCell>
+                    
+                    <TableCell>
+                      <QuickActionButtons 
+                        orderId={order.id}
+                        orderStatus={order.status}
+                        onMarkDispatched={handleQuickMarkDispatched}
+                        onGenerateLabel={handleQuickGenerateLabel}
+                        onViewActivity={handleQuickViewActivity}
+                        onViewDetails={handleQuickViewDetails}
+                      />
                     </TableCell>
                     
                     <TableCell>
@@ -1320,7 +1413,7 @@ const OrderDashboard = () => {
                   </TableRow>
                   
                   {expandedRows.includes(order.id) && <TableRow>
-                       <TableCell colSpan={8} className="bg-muted/30 p-6">
+                       <TableCell colSpan={9} className="bg-muted/30 p-6">
                          <Tabs defaultValue="customer-details" className="w-full">
                            <TabsList className="grid w-full grid-cols-2">
                              <TabsTrigger value="customer-details">Customer Details</TabsTrigger>
