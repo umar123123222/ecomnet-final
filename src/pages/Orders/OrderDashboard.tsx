@@ -1730,21 +1730,21 @@ const OrderDashboard = () => {
       )}
 
       {/* Order Details Modal */}
-      <OrderDetailsModal
+      <OrderDetailsModal 
         order={selectedOrder ? {
           id: selectedOrder.id,
           order_number: selectedOrder.orderNumber,
-          customer_name: selectedOrder.customer,
-          customer_phone: selectedOrder.phone,
-          customer_address: selectedOrder.address,
-          customer_email: selectedOrder.email,
-          city: selectedOrder.city,
-          total_amount: selectedOrder.totalPrice,
-          status: selectedOrder.status,
-          courier: selectedOrder.courier,
-          items: selectedOrder.items,
-          created_at: selectedOrder.createdAtISO,
-          customer_id: selectedOrder.customerId
+          customer_name: selectedOrder.customer || '',
+          customer_phone: selectedOrder.phone || '',
+          customer_address: selectedOrder.address || '',
+          customer_email: selectedOrder.email !== 'N/A' ? selectedOrder.email : '',
+          city: selectedOrder.city || '',
+          total_amount: selectedOrder.totalPrice || 0,
+          status: selectedOrder.status || 'pending',
+          courier: selectedOrder.courier !== 'N/A' ? selectedOrder.courier : null,
+          items: selectedOrder.items || [],
+          created_at: selectedOrder.createdAtISO || selectedOrder.date,
+          customer_id: selectedOrder.customerId !== 'N/A' ? selectedOrder.customerId : null
         } : null}
         open={detailsModalOpen}
         onOpenChange={setDetailsModalOpen}
