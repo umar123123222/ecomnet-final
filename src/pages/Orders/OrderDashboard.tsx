@@ -941,23 +941,25 @@ const OrderDashboard = () => {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[50px]">Select</TableHead>
-                <TableHead className="min-w-[140px]">Order ID</TableHead>
-                <TableHead className="min-w-[140px]">Tracking ID</TableHead>
-                <TableHead className="min-w-[240px]">Order Status</TableHead>
-                <TableHead className="min-w-[140px]">Courier Assigned</TableHead>
+                <TableHead className="min-w-[140px]">Visible Order ID</TableHead>
+                <TableHead className="min-w-[180px]">Cust Name</TableHead>
+                <TableHead className="min-w-[200px]">Cust Email</TableHead>
+                <TableHead className="min-w-[140px]">Cust Phone</TableHead>
+                <TableHead className="min-w-[200px]">Order Status</TableHead>
+                <TableHead className="min-w-[140px]">Courier</TableHead>
                 <TableHead className="w-[50px]">Expand</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12">
+                  <TableCell colSpan={8} className="text-center py-12">
                     <div className="flex flex-col items-center gap-2">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                       <span className="text-sm text-muted-foreground">Loading orders...</span>
                     </div>
                   </TableCell>
                 </TableRow> : finalFilteredOrders.length === 0 ? <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12">
+                  <TableCell colSpan={8} className="text-center py-12">
                     <div className="flex flex-col items-center gap-2">
                       <Package className="h-12 w-12 text-muted-foreground/50" />
                       <span className="text-sm text-muted-foreground">No orders found</span>
@@ -986,11 +988,15 @@ const OrderDashboard = () => {
                     </TableCell>
                     
                     <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <span className={`font-mono text-sm ${order.trackingId === 'N/A' ? 'text-muted-foreground' : 'font-medium'}`}>
-                          {order.trackingId}
-                        </span>
-                      </div>
+                      <span className="text-sm">{order.customer}</span>
+                    </TableCell>
+                    
+                    <TableCell>
+                      <span className="text-sm">{order.email}</span>
+                    </TableCell>
+                    
+                    <TableCell>
+                      <span className="text-sm font-mono">{order.phone}</span>
                     </TableCell>
                     
                     <TableCell>
@@ -1032,7 +1038,7 @@ const OrderDashboard = () => {
                   </TableRow>
                   
                   {expandedRows.includes(order.id) && <TableRow>
-                       <TableCell colSpan={6} className="bg-muted/30 p-6">
+                       <TableCell colSpan={8} className="bg-muted/30 p-6">
                          <Tabs defaultValue="customer-details" className="w-full">
                            <TabsList className="grid w-full grid-cols-2">
                              <TabsTrigger value="customer-details">Customer Details</TabsTrigger>
