@@ -11,6 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save, Shield, AlertTriangle, AlertCircle, MapPin, Clock } from 'lucide-react';
@@ -299,7 +300,7 @@ const OrderDashboard = () => {
       setSelectedOrders([]);
     });
   };
-  const getStatusBadge = (status: string, courierStatus?: string) => {
+  const getStatusBadge = (status: string, orderId: string, courierStatus?: string) => {
     const statusMap: Record<string, { variant: any; label: string; icon?: any }> = {
       // New comprehensive statuses
       'received': { variant: 'secondary', label: 'Received', icon: Package },
@@ -323,11 +324,45 @@ const OrderDashboard = () => {
     const statusInfo = statusMap[status] || statusMap.pending;
     const StatusIcon = statusInfo.icon;
     
+    const allStatuses = [
+      { value: 'pending', label: 'Pending' },
+      { value: 'received', label: 'Received' },
+      { value: 'pending_confirmation', label: 'Order Confirmation Needed' },
+      { value: 'pending_address', label: 'Address Confirmation Needed' },
+      { value: 'booked', label: 'Booked' },
+      { value: 'pending_dispatch', label: 'Pending for Dispatch' },
+      { value: 'dispatched', label: 'Order Dispatched' },
+      { value: 'in_transit', label: 'In Transit' },
+      { value: 'out_for_delivery', label: 'Out for Delivery' },
+      { value: 'delivered', label: 'Delivered' },
+      { value: 'cancelled', label: 'Cancelled' },
+      { value: 'return_marked', label: 'Returned - Marked by Courier' },
+      { value: 'return_received', label: 'Return Received at Warehouse' },
+      { value: 'returned', label: 'Returned' }
+    ];
+    
     return (
-      <Badge variant={statusInfo.variant} className="gap-1.5">
-        {StatusIcon && <StatusIcon className="h-3.5 w-3.5" />}
-        {statusInfo.label}
-      </Badge>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="h-auto p-0 hover:bg-transparent">
+            <Badge variant={statusInfo.variant} className="gap-1.5 cursor-pointer hover:opacity-80">
+              {StatusIcon && <StatusIcon className="h-3.5 w-3.5" />}
+              {statusInfo.label}
+            </Badge>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="bg-background">
+          {allStatuses.map((statusOption) => (
+            <DropdownMenuItem
+              key={statusOption.value}
+              onClick={() => handleUpdateOrderStatus(orderId, statusOption.value)}
+              className={status === statusOption.value ? 'bg-muted' : ''}
+            >
+              {statusOption.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   };
   const summaryCards = [{
@@ -1129,7 +1164,7 @@ const OrderDashboard = () => {
                     
                     <TableCell>
                       <div className="flex flex-col gap-1.5">
-                        {getStatusBadge(order.status)}
+                        {getStatusBadge(order.status, order.id)}
                         {order.status === 'dispatched' && order.courier && order.courier !== 'N/A' && (
                           <span className="text-xs text-muted-foreground">
                             Via {order.courier.toUpperCase()}
@@ -1198,38 +1233,9 @@ const OrderDashboard = () => {
                                         <p><span className="font-medium">Dispatched At:</span> {order.dispatchedAt}</p>
                                         <p><span className="font-medium">Delivered At:</span> {order.deliveredAt}</p>
                                         <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
-                                      </div>
-                                     
-                                      {/* Manual Status Update */}
-                                      <div className="mt-4 space-y-2">
-                                        <Label htmlFor={`status-${order.id}`} className="text-sm font-medium">
-                                          Update Order Status
-                                        </Label>
-                                        <Select
-                                          value={order.status}
-                                          onValueChange={(newStatus) => handleUpdateOrderStatus(order.id, newStatus)}
-                                        >
-                                          <SelectTrigger id={`status-${order.id}`} className="bg-background">
-                                            <SelectValue placeholder="Select status" />
-                                          </SelectTrigger>
-                                          <SelectContent className="bg-background z-50">
-                                            <SelectItem value="pending">Pending</SelectItem>
-                                            <SelectItem value="pending_confirmation">Pending Confirmation</SelectItem>
-                                            <SelectItem value="pending_address">Pending Address</SelectItem>
-                                            <SelectItem value="booked">Booked</SelectItem>
-                                            <SelectItem value="pending_dispatch">Pending Dispatch</SelectItem>
-                                            <SelectItem value="dispatched">Dispatched</SelectItem>
-                                            <SelectItem value="in_transit">In Transit</SelectItem>
-                                            <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
-                                            <SelectItem value="delivered">Delivered</SelectItem>
-                                            <SelectItem value="cancelled">Cancelled</SelectItem>
-                                            <SelectItem value="returned">Returned</SelectItem>
-                                            <SelectItem value="return_processing">Return Processing</SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-                                     
-                                      {/* Manual Verification Buttons */}
+                                       </div>
+                                      
+                                       {/* Manual Verification Buttons */}
                                      {(order.status === 'pending_confirmation' || order.status === 'pending_address') && (
                                        <div className="mt-4 flex flex-col gap-2">
                                          {order.status === 'pending_confirmation' && (
