@@ -41,9 +41,6 @@ const Settings = lazy(() =>
 const BusinessSettings = lazy(() => 
   import("@/pages/Settings/BusinessSettings").then(module => ({ default: module.default }))
 );
-const ShopifySettings = lazy(() => 
-  import("@/pages/Settings/ShopifySettings").then(module => ({ default: module.default }))
-);
 const ShipperAdvice = lazy(() => 
   import("@/pages/Orders/ShipperAdvice").then(module => ({ default: module.default }))
 );
@@ -220,16 +217,6 @@ const App = () => {
                   <Route path="business-settings" element={
                     <Suspense fallback={<PageLoader />}>
                       <BusinessSettings />
-                    </Suspense>
-                  } />
-                  <Route path="shopify-settings" element={
-                    <Suspense fallback={<PageLoader />}>
-                      <ShopifySettings />
-                    </Suspense>
-                  } />
-                  <Route path="settings/shopify" element={
-                    <Suspense fallback={<PageLoader />}>
-                      <ShopifySettings />
                     </Suspense>
                   } />
                   <Route path="shipper-advice" element={

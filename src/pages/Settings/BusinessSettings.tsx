@@ -23,6 +23,7 @@ import { ProductSyncControl } from "@/components/shopify/ProductSyncControl";
 import { OrderSyncControl } from "@/components/shopify/OrderSyncControl";
 import { CustomerSyncControl } from "@/components/shopify/CustomerSyncControl";
 import { FullSyncControl } from "@/components/shopify/FullSyncControl";
+import { MissingOrdersSync } from "@/components/shopify/MissingOrdersSync";
 
 const BusinessSettings = () => {
   const { hasRole } = useUserRoles();
@@ -804,6 +805,9 @@ const BusinessSettings = () => {
               </Alert>
             </CardContent>
           </Card>
+
+          {/* Missing Orders Sync */}
+          <MissingOrdersSync />
 
           {/* Sync Statistics */}
           <ShopifySyncStats />
