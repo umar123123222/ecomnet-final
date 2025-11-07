@@ -62,6 +62,7 @@ const OrderDashboard = () => {
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
   const [combinedStatus, setCombinedStatus] = useState<string>('all');
   const [showBulkUpload, setShowBulkUpload] = useState(false);
+  const [sortOrder, setSortOrder] = useState<'latest' | 'oldest'>('latest');
 
   const { user } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
@@ -582,9 +583,16 @@ const OrderDashboard = () => {
   };
 
   // Apply action required filter manually
-  const finalFilteredOrders = quickFilter === 'actionRequired' 
+  let finalFilteredOrders = quickFilter === 'actionRequired' 
     ? filteredOrders.filter(order => order.status === 'pending' || order.verificationStatus === 'pending')
     : filteredOrders;
+
+  // Apply sorting based on sortOrder
+  finalFilteredOrders = [...finalFilteredOrders].sort((a, b) => {
+    const dateA = new Date(a.createdAtISO || a.created_at).getTime();
+    const dateB = new Date(b.createdAtISO || b.created_at).getTime();
+    return sortOrder === 'latest' ? dateB - dateA : dateA - dateB;
+  });
 
   const start = page * pageSize + 1;
   const end = Math.min((page + 1) * pageSize, totalCount);
@@ -872,6 +880,23 @@ const OrderDashboard = () => {
                         <SelectItem value="all">All Types</SelectItem>
                         <SelectItem value="COD">COD</SelectItem>
                         <SelectItem value="Prepaid">Prepaid</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Sort Order */}
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">Sort Order</Label>
+                    <Select
+                      value={sortOrder}
+                      onValueChange={(value: 'latest' | 'oldest') => setSortOrder(value)}
+                    >
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Sort order" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-50">
+                        <SelectItem value="latest">Latest to Oldest</SelectItem>
+                        <SelectItem value="oldest">Oldest to Latest</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
