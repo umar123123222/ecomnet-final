@@ -20,6 +20,7 @@ import NewOrderDialog from '@/components/NewOrderDialog';
 import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserRoles } from '@/hooks/useUserRoles';
 import { logActivity } from '@/utils/activityLogger';
 import { useAdvancedFilters } from '@/hooks/useAdvancedFilters';
 import { AdvancedFilterPanel } from '@/components/AdvancedFilterPanel';
@@ -33,6 +34,7 @@ import { BulkUploadDialog } from '@/components/orders/BulkUploadDialog';
 import { OrderActivityLog } from '@/components/orders/OrderActivityLog';
 
 const OrderDashboard = () => {
+  const { isManager, isSeniorStaff, primaryRole } = useUserRoles();
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [selectAllPages, setSelectAllPages] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
@@ -341,6 +343,19 @@ const OrderDashboard = () => {
       { value: 'returned', label: 'Returned' }
     ];
     
+    // Check if user has permission to update orders
+    const canUpdateStatus = isManager() || isSeniorStaff() || primaryRole === 'staff';
+    
+    // If user can't update, just show the badge without dropdown
+    if (!canUpdateStatus) {
+      return (
+        <Badge variant={statusInfo.variant} className="gap-1.5">
+          {StatusIcon && <StatusIcon className="h-3.5 w-3.5" />}
+          {statusInfo.label}
+        </Badge>
+      );
+    }
+    
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -623,11 +638,11 @@ const OrderDashboard = () => {
       });
 
       fetchOrders();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating order status:', error);
       toast({
         title: "Error",
-        description: "Failed to update order status",
+        description: error?.message || "Failed to update order status",
         variant: "destructive",
       });
     }
