@@ -429,23 +429,12 @@ const OrderDashboard = () => {
   };
   const getStatusBadge = (status: string, orderId: string, courierStatus?: string) => {
     const statusMap: Record<string, { variant: any; label: string; icon?: any }> = {
-      // New comprehensive statuses
-      'received': { variant: 'secondary', label: 'Received', icon: Package },
-      'pending_confirmation': { variant: 'warning', label: 'Order Confirmation Needed', icon: AlertCircle },
-      'pending_address': { variant: 'warning', label: 'Address Confirmation Needed', icon: MapPin },
-      'pending_dispatch': { variant: 'info', label: 'Pending for Dispatch', icon: AlertTriangle },
-      'dispatched': { variant: 'default', label: 'Order Dispatched', icon: Truck },
-      'in_transit': { variant: 'default', label: courierStatus || 'In Transit', icon: Truck },
-      'out_for_delivery': { variant: 'default', label: 'Out for Delivery', icon: Truck },
+      'pending': { variant: 'warning', label: 'Pending', icon: Clock },
+      'booked': { variant: 'info', label: 'Booked', icon: Package },
+      'dispatched': { variant: 'processing', label: 'Dispatched', icon: Truck },
       'delivered': { variant: 'success', label: 'Delivered', icon: CheckCircle },
-      'return_marked': { variant: 'destructive', label: 'Returned - Marked by Courier', icon: AlertTriangle },
-      'return_received': { variant: 'secondary', label: 'Return Received at Warehouse', icon: Package },
-      
-      // Legacy statuses for backward compatibility
-      'booked': { variant: 'warning', label: 'Booked', icon: Package },
+      'returned': { variant: 'destructive', label: 'Returned', icon: Package },
       'cancelled': { variant: 'destructive', label: 'Cancelled', icon: X },
-      'returned': { variant: 'secondary', label: 'Returned', icon: Package },
-      'pending': { variant: 'secondary', label: 'Pending', icon: AlertCircle }
     };
     
     const statusInfo = statusMap[status] || statusMap.pending;
@@ -453,19 +442,11 @@ const OrderDashboard = () => {
     
     const allStatuses = [
       { value: 'pending', label: 'Pending' },
-      { value: 'received', label: 'Received' },
-      { value: 'pending_confirmation', label: 'Order Confirmation Needed' },
-      { value: 'pending_address', label: 'Address Confirmation Needed' },
       { value: 'booked', label: 'Booked' },
-      { value: 'pending_dispatch', label: 'Pending for Dispatch' },
-      { value: 'dispatched', label: 'Order Dispatched' },
-      { value: 'in_transit', label: 'In Transit' },
-      { value: 'out_for_delivery', label: 'Out for Delivery' },
+      { value: 'dispatched', label: 'Dispatched' },
       { value: 'delivered', label: 'Delivered' },
+      { value: 'returned', label: 'Returned' },
       { value: 'cancelled', label: 'Cancelled' },
-      { value: 'return_marked', label: 'Returned - Marked by Courier' },
-      { value: 'return_received', label: 'Return Received at Warehouse' },
-      { value: 'returned', label: 'Returned' }
     ];
     
     // Check if user has permission to update orders
@@ -1048,16 +1029,12 @@ const OrderDashboard = () => {
                       </SelectTrigger>
                       <SelectContent className="bg-background z-50">
                         <SelectItem value="all">All Statuses</SelectItem>
-                        <SelectItem value="pending_order">Pending Order Confirmation</SelectItem>
-                        <SelectItem value="pending_address">Pending Address Confirmation</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
                         <SelectItem value="booked">Booked</SelectItem>
                         <SelectItem value="dispatched">Dispatched</SelectItem>
                         <SelectItem value="delivered">Delivered</SelectItem>
-                        <SelectItem value="cancelled">Cancelled</SelectItem>
                         <SelectItem value="returned">Returned</SelectItem>
-                        <SelectItem value="pending_verification">Pending Verification</SelectItem>
-                        <SelectItem value="approved_verification">Approved</SelectItem>
-                        <SelectItem value="disapproved_verification">Disapproved</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

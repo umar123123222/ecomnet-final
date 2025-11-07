@@ -47,7 +47,7 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
           total_amount,
           status
         `)
-        .in("status", ["pending", "address clear"])
+        .in("status", ["pending", "booked"])
         .is("dispatched_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;

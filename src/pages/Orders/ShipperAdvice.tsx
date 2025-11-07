@@ -31,7 +31,7 @@ const ShipperAdvice = () => {
               *
             )
           `)
-          .in('status', ['unclear address', 'dispatched', 'booked'])
+          .in('status', ['pending', 'dispatched', 'booked'])
           .order('created_at', { ascending: false });
 
         if (error) {
@@ -49,11 +49,11 @@ const ShipperAdvice = () => {
             customerName: order.customer_name,
             customerPhone: order.customer_phone,
             address: order.customer_address,
-            status: order.status === 'unclear address' ? 'attempted' : 'in-transit',
+            status: order.status === 'pending' ? 'attempted' : 'in-transit',
             courier: order.courier || 'TCS',
             attemptDate: new Date(order.created_at).toISOString().split('T')[0],
             attemptCount: Math.floor(Math.random() * 3) + 1, // Mock attempt count
-            lastAttemptReason: order.status === 'unclear address' ? 'Address not found' : 'Customer not available',
+            lastAttemptReason: order.status === 'pending' ? 'Address not found' : 'Customer not available',
             totalAmount: order.total_amount || 0,
             daysStuck: Math.floor((Date.now() - new Date(order.created_at).getTime()) / (1000 * 60 * 60 * 24))
           }));

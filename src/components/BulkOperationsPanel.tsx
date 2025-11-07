@@ -29,10 +29,12 @@ export const BulkOperationsPanel: React.FC<BulkOperationsPanelProps> = ({
 
   const handleStatusChange = (status: string) => {
     const statusLabels: Record<string, string> = {
+      'pending': 'Mark as Pending',
+      'booked': 'Mark as Booked',
       'dispatched': 'Mark as Dispatched',
       'delivered': 'Mark as Delivered',
+      'returned': 'Mark as Returned',
       'cancelled': 'Mark as Cancelled',
-      'pending': 'Mark as Pending',
     };
     setConfirmAction({ type: 'status', value: status, label: statusLabels[status] || status });
   };
@@ -110,10 +112,12 @@ export const BulkOperationsPanel: React.FC<BulkOperationsPanelProps> = ({
                   <SelectValue placeholder="Update Status" />
                 </SelectTrigger>
                 <SelectContent className="bg-background z-50">
+                  <SelectItem value="pending">Mark as Pending</SelectItem>
+                  <SelectItem value="booked">Mark as Booked</SelectItem>
                   <SelectItem value="dispatched">Mark as Dispatched</SelectItem>
                   <SelectItem value="delivered">Mark as Delivered</SelectItem>
+                  <SelectItem value="returned">Mark as Returned</SelectItem>
                   <SelectItem value="cancelled">Mark as Cancelled</SelectItem>
-                  <SelectItem value="pending">Mark as Pending</SelectItem>
                 </SelectContent>
               </Select>
 

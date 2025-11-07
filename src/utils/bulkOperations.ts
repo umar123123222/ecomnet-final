@@ -23,7 +23,7 @@ export async function processBatch<T>(
  */
 export async function bulkUpdateOrderStatus(
   orderIds: string[],
-  status: 'pending' | 'booked' | 'dispatched' | 'delivered' | 'cancelled' | 'returned' | 'address clear' | 'unclear address'
+  status: 'pending' | 'booked' | 'dispatched' | 'delivered' | 'cancelled' | 'returned'
 ): Promise<BulkOperationResult> {
   let success = 0;
   let failed = 0;

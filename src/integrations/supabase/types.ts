@@ -4101,18 +4101,8 @@ export type Database = {
         | "booked"
         | "dispatched"
         | "delivered"
-        | "cancelled"
         | "returned"
-        | "unclear address"
-        | "address clear"
-        | "received"
-        | "pending_confirmation"
-        | "pending_address"
-        | "pending_dispatch"
-        | "in_transit"
-        | "out_for_delivery"
-        | "return_marked"
-        | "return_received"
+        | "cancelled"
       return_status: "in_transit" | "received" | "processed" | "completed"
       user_role:
         | "super_admin"
@@ -4257,18 +4247,8 @@ export const Constants = {
         "booked",
         "dispatched",
         "delivered",
-        "cancelled",
         "returned",
-        "unclear address",
-        "address clear",
-        "received",
-        "pending_confirmation",
-        "pending_address",
-        "pending_dispatch",
-        "in_transit",
-        "out_for_delivery",
-        "return_marked",
-        "return_received",
+        "cancelled",
       ],
       return_status: ["in_transit", "received", "processed", "completed"],
       user_role: [
