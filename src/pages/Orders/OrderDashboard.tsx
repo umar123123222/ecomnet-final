@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save, Shield, AlertTriangle, AlertCircle, MapPin } from 'lucide-react';
+import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save, Shield, AlertTriangle, AlertCircle, MapPin, Clock } from 'lucide-react';
 import TagsNotes from '@/components/TagsNotes';
 import NewOrderDialog from '@/components/NewOrderDialog';
 import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
@@ -29,6 +29,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { batchAnalyzeOrders } from '@/utils/orderFraudDetection';
 import { BulkUploadDialog } from '@/components/orders/BulkUploadDialog';
+import { OrderActivityLog } from '@/components/orders/OrderActivityLog';
 
 const OrderDashboard = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
@@ -63,6 +64,7 @@ const OrderDashboard = () => {
   const [combinedStatus, setCombinedStatus] = useState<string>('all');
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [sortOrder, setSortOrder] = useState<'latest' | 'oldest'>('latest');
+  const [activityLogOrderId, setActivityLogOrderId] = useState<string | null>(null);
 
   const { user } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
@@ -489,6 +491,12 @@ const OrderDashboard = () => {
 
   const handleAssignStaff = async (orderId: string, staffId: string | null) => {
     try {
+      const { data: currentOrder } = await supabase
+        .from('orders')
+        .select('assigned_to')
+        .eq('id', orderId)
+        .single();
+
       const { error } = await supabase
         .from('orders')
         .update({ assigned_to: staffId === 'unassigned' ? null : staffId })
@@ -512,17 +520,81 @@ const OrderDashboard = () => {
       );
       
       // Log activity
-      if (user) {
-        await logActivity({
-          userId: user.id,
-          action: 'order_assigned',
-          entityType: 'order',
-          entityId: orderId,
-          details: { assignedTo: staffId },
-        });
-      }
+      await logActivity({
+        action: 'order_assigned',
+        entityType: 'order',
+        entityId: orderId,
+        details: { 
+          previous_assignee: currentOrder?.assigned_to,
+          new_assignee: staffId === 'unassigned' ? null : staffId
+        },
+      });
+
+      toast({
+        title: "Order assigned",
+        description: "Order has been assigned successfully",
+      });
     } catch (error) {
       console.error('Error assigning staff:', error);
+      toast({
+        title: "Error",
+        description: "Failed to assign order",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: string, additionalData?: Record<string, any>) => {
+    try {
+      const { data: currentOrder } = await supabase
+        .from('orders')
+        .select('status')
+        .eq('id', orderId)
+        .single();
+
+      const updateData: Record<string, any> = { status: newStatus, ...additionalData };
+      const { error } = await supabase
+        .from('orders')
+        .update(updateData)
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      // Log the activity
+      await logActivity({
+        action: 'order_updated',
+        entityType: 'order',
+        entityId: orderId,
+        details: {
+          field: 'status',
+          old_value: currentOrder?.status,
+          new_value: newStatus,
+          ...additionalData,
+        },
+      });
+
+      // Update local state
+      setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order.id === orderId
+            ? { ...order, status: newStatus, ...additionalData }
+            : order
+        )
+      );
+
+      toast({
+        title: "Status updated",
+        description: `Order status has been updated to ${newStatus}`,
+      });
+
+      fetchOrders();
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update order status",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1022,7 +1094,18 @@ const OrderDashboard = () => {
                     
                     <TableCell className="font-mono text-sm font-medium">
                       <div className="flex flex-col gap-1">
-                        <span>{(order.orderNumber || order.shopify_order_id || order.id.slice(0, 8)).replace(/^SHOP-/, '')}</span>
+                        <div className="flex items-center gap-2">
+                          <span>{(order.orderNumber || order.shopify_order_id || order.id.slice(0, 8)).replace(/^SHOP-/, '')}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setActivityLogOrderId(order.id)}
+                            title="View activity log"
+                            className="h-7 w-7 p-0"
+                          >
+                            <Clock className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                         {order.fraudIndicators?.isHighRisk && (
                           <Badge variant="destructive" className="gap-1 w-fit text-xs">
                             <Shield className="h-3 w-3" />
@@ -1117,20 +1200,17 @@ const OrderDashboard = () => {
                                        <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
                                      </div>
                                     
-                                    {/* Manual Verification Buttons */}
+                                     {/* Manual Verification Buttons */}
                                     {(order.status === 'pending_confirmation' || order.status === 'pending_address') && (
                                       <div className="mt-4 flex flex-col gap-2">
                                         {order.status === 'pending_confirmation' && (
                                           <Button
                                             size="sm"
                                             variant="default"
-                                            onClick={() => {
-                                              toast({
-                                                title: "Order Verified",
-                                                description: "Order has been manually verified.",
-                                              });
-                                              // TODO: Implement actual verification logic
-                                            }}
+                                            onClick={() => handleUpdateOrderStatus(order.id, 'booked', { 
+                                              verified_at: new Date().toISOString(),
+                                              verified_by: user?.id
+                                            })}
                                             className="w-full"
                                           >
                                             <CheckCircle className="h-4 w-4 mr-2" />
@@ -1142,13 +1222,11 @@ const OrderDashboard = () => {
                                           <Button
                                             size="sm"
                                             variant="default"
-                                            onClick={() => {
-                                              toast({
-                                                title: "Address Verified",
-                                                description: "Address has been manually verified.",
-                                              });
-                                              // TODO: Implement actual verification logic
-                                            }}
+                                            onClick={() => handleUpdateOrderStatus(order.id, 'booked', {
+                                              verification_status: 'verified',
+                                              verified_at: new Date().toISOString(),
+                                              verified_by: user?.id
+                                            })}
                                             className="w-full"
                                           >
                                             <MapPin className="h-4 w-4 mr-2" />
@@ -1252,6 +1330,19 @@ const OrderDashboard = () => {
         onOpenChange={setIsDispatchDialogOpen}
         preSelectedOrderId={dispatchOrderId}
       />
+
+      <BulkUploadDialog 
+        open={showBulkUpload} 
+        onOpenChange={setShowBulkUpload}
+      />
+
+      {activityLogOrderId && (
+        <OrderActivityLog
+          orderId={activityLogOrderId}
+          open={!!activityLogOrderId}
+          onOpenChange={(open) => !open && setActivityLogOrderId(null)}
+        />
+      )}
     </div>;
 };
 export default OrderDashboard;
