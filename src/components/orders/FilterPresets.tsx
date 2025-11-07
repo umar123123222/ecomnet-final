@@ -62,7 +62,7 @@ export const FilterPresets = ({ activePreset, onPresetSelect }: FilterPresetsPro
   ];
 
   return (
-    <div className="flex flex-wrap gap-2 items-center">
+    <div className="flex flex-wrap gap-2 items-center animate-fade-in">
       <span className="text-sm text-muted-foreground mr-2">Quick Filters:</span>
       {presets.map((preset) => (
         <Button

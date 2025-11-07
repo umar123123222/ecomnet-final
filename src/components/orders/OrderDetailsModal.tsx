@@ -39,7 +39,7 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto animate-scale-in">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Order Details - #{order.order_number}</span>

@@ -977,8 +977,8 @@ const OrderDashboard = () => {
       <div className="flex flex-col gap-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Order Management</h1>
-            <p className="text-gray-600 mt-1">
+            <h1 className="text-3xl font-semibold text-foreground">Order Management</h1>
+            <p className="text-muted-foreground mt-1">
               {totalCount > 0 ? `Showing ${start}–${end} of ${totalCount.toLocaleString()} orders` : 'Manage and track all your orders'}
             </p>
           </div>

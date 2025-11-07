@@ -35,6 +35,7 @@ function StatusBadge({ className, variant, pulse, ...props }: StatusBadgeProps) 
       className={cn(
         statusBadgeVariants({ variant }), 
         pulse && "animate-pulse",
+        "transition-transform duration-200 hover:scale-105",
         className
       )} 
       {...props} 

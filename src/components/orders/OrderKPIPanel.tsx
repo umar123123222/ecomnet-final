@@ -64,7 +64,7 @@ export const OrderKPIPanel = ({ orders, isVisible }: OrderKPIPanelProps) => {
   });
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 animate-fade-in">
       {/* Average Order Value */}
       <Card className="border-primary/20">
         <CardHeader className="pb-3">
