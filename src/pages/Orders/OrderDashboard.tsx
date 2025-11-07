@@ -944,8 +944,8 @@ const OrderDashboard = () => {
                 <TableHead className="w-[50px]">Select</TableHead>
                 <TableHead className="min-w-[140px]">Order Number</TableHead>
                 <TableHead className="min-w-[180px]">Customer Name</TableHead>
-                <TableHead className="min-w-[200px]">Customer Email</TableHead>
                 <TableHead className="min-w-[140px]">Customer Phone</TableHead>
+                <TableHead className="min-w-[120px]">Total Price</TableHead>
                 <TableHead className="min-w-[200px]">Order Status</TableHead>
                 <TableHead className="min-w-[140px]">Courier</TableHead>
                 <TableHead className="w-[50px]">Expand</TableHead>
@@ -993,11 +993,11 @@ const OrderDashboard = () => {
                     </TableCell>
                     
                     <TableCell>
-                      <span className="text-sm">{order.email}</span>
+                      <span className="text-sm font-mono">{order.phone}</span>
                     </TableCell>
                     
                     <TableCell>
-                      <span className="text-sm font-mono">{order.phone}</span>
+                      <span className="text-sm font-semibold">{order.amount}</span>
                     </TableCell>
                     
                     <TableCell>
