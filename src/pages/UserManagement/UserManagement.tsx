@@ -23,7 +23,7 @@ import { manageUser, updateUser } from '@/integrations/supabase/functions';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { UserRole } from '@/types/auth';
-import { BulkOperationsPanel } from '@/components/BulkOperationsPanel';
+import { BulkOperationsPanelLegacy as BulkOperationsPanel } from '@/components/BulkOperationsPanelLegacy';
 import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
 const userSchema = z.object({
   full_name: z.string().min(1, 'Name is required'),

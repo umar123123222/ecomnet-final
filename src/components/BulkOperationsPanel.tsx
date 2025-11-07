@@ -3,37 +3,58 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Package, AlertCircle } from 'lucide-react';
-import { BulkOperation, BulkOperationProgress } from '@/hooks/useBulkOperations';
+import { Package, AlertCircle, Download } from 'lucide-react';
+import { BulkOperationProgress } from '@/hooks/useBulkOperations';
 
 interface BulkOperationsPanelProps {
   selectedCount: number;
-  operations: BulkOperation[];
-  onExecute: (operation: BulkOperation) => void;
+  onStatusChange: (status: string) => void;
+  onCourierAssign: (courierId: string, courierName: string) => void;
+  onExport: () => void;
   progress?: BulkOperationProgress;
+  couriers: Array<{ id: string; name: string; code: string }>;
 }
 
 export const BulkOperationsPanel: React.FC<BulkOperationsPanelProps> = ({
   selectedCount,
-  operations,
-  onExecute,
+  onStatusChange,
+  onCourierAssign,
+  onExport,
   progress,
+  couriers,
 }) => {
-  const [confirmOperation, setConfirmOperation] = useState<BulkOperation | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ type: 'status' | 'courier'; value: string; label: string } | null>(null);
 
-  const handleOperationClick = (operation: BulkOperation) => {
-    if (operation.requiresConfirmation) {
-      setConfirmOperation(operation);
-    } else {
-      onExecute(operation);
+  const handleStatusChange = (status: string) => {
+    const statusLabels: Record<string, string> = {
+      'dispatched': 'Mark as Dispatched',
+      'delivered': 'Mark as Delivered',
+      'cancelled': 'Mark as Cancelled',
+      'pending': 'Mark as Pending',
+    };
+    setConfirmAction({ type: 'status', value: status, label: statusLabels[status] || status });
+  };
+
+  const handleCourierSelect = (courierId: string) => {
+    const courier = couriers.find(c => c.id === courierId);
+    if (courier) {
+      setConfirmAction({ type: 'courier', value: courierId, label: `Book with ${courier.name}` });
     }
   };
 
   const handleConfirm = () => {
-    if (confirmOperation) {
-      onExecute(confirmOperation);
-      setConfirmOperation(null);
+    if (confirmAction) {
+      if (confirmAction.type === 'status') {
+        onStatusChange(confirmAction.value);
+      } else if (confirmAction.type === 'courier') {
+        const courier = couriers.find(c => c.id === confirmAction.value);
+        if (courier) {
+          onCourierAssign(confirmAction.value, courier.name);
+        }
+      }
+      setConfirmAction(null);
     }
   };
 
@@ -80,28 +101,56 @@ export const BulkOperationsPanel: React.FC<BulkOperationsPanelProps> = ({
             )}
 
             <div className="flex flex-wrap gap-2">
-              {operations.map((operation) => {
-                const Icon = operation.icon;
-                return (
-                  <Button
-                    key={operation.id}
-                    size="sm"
-                    variant={operation.variant || 'outline'}
-                    onClick={() => handleOperationClick(operation)}
-                    disabled={progress?.inProgress || selectedCount === 0}
-                    className="gap-2"
-                  >
-                    {Icon && <Icon className="h-4 w-4" />}
-                    {operation.label}
-                  </Button>
-                );
-              })}
+              {/* Status Update Dropdown */}
+              <Select 
+                onValueChange={handleStatusChange}
+                disabled={progress?.inProgress || selectedCount === 0}
+              >
+                <SelectTrigger className="w-[180px] h-9">
+                  <SelectValue placeholder="Update Status" />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="dispatched">Mark as Dispatched</SelectItem>
+                  <SelectItem value="delivered">Mark as Delivered</SelectItem>
+                  <SelectItem value="cancelled">Mark as Cancelled</SelectItem>
+                  <SelectItem value="pending">Mark as Pending</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Courier Assignment Dropdown */}
+              <Select 
+                onValueChange={handleCourierSelect}
+                disabled={progress?.inProgress || selectedCount === 0}
+              >
+                <SelectTrigger className="w-[180px] h-9">
+                  <SelectValue placeholder="Book Courier" />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  {couriers.map((courier) => (
+                    <SelectItem key={courier.id} value={courier.id}>
+                      Book with {courier.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Export Button */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onExport}
+                disabled={progress?.inProgress || selectedCount === 0}
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Export Selected
+              </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <AlertDialog open={!!confirmOperation} onOpenChange={() => setConfirmOperation(null)}>
+      <AlertDialog open={!!confirmAction} onOpenChange={() => setConfirmAction(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
@@ -109,8 +158,10 @@ export const BulkOperationsPanel: React.FC<BulkOperationsPanelProps> = ({
               Confirm Bulk Operation
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmOperation?.confirmMessage || 
-                `Are you sure you want to perform "${confirmOperation?.label}" on ${selectedCount} selected item(s)? This action cannot be undone.`}
+              {confirmAction?.type === 'courier' 
+                ? `Are you sure you want to ${confirmAction.label} for ${selectedCount} selected order(s)? Orders will be marked as "Booked" and labels will be generated.`
+                : `Are you sure you want to "${confirmAction?.label}" on ${selectedCount} selected order(s)?`
+              }
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -68,6 +68,7 @@ const OrderDashboard = () => {
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [sortOrder, setSortOrder] = useState<'latest' | 'oldest'>('latest');
   const [activityLogOrderId, setActivityLogOrderId] = useState<string | null>(null);
+  const [couriers, setCouriers] = useState<any[]>([]);
 
   const { user } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
@@ -221,7 +222,23 @@ const OrderDashboard = () => {
   };
   useEffect(() => {
     fetchOrders();
+    fetchCouriers();
   }, [page, pageSize]);
+
+  const fetchCouriers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('couriers')
+        .select('id, name, code')
+        .eq('is_active', true)
+        .order('name');
+      
+      if (error) throw error;
+      setCouriers(data || []);
+    } catch (error) {
+      console.error('Error fetching couriers:', error);
+    }
+  };
 
   // Real-time subscription for order updates
   useEffect(() => {
@@ -258,48 +275,156 @@ const OrderDashboard = () => {
     await fetchOrders();
   };
 
-  // Bulk operations
-  const bulkOperations: BulkOperation[] = [
-    {
-      id: 'dispatch',
-      label: 'Mark as Dispatched',
-      icon: Send,
-      action: async (ids) => bulkUpdateOrderStatus(ids, 'dispatched'),
-    },
-    {
-      id: 'deliver',
-      label: 'Mark as Delivered',
-      icon: CheckCircle,
-      action: async (ids) => bulkUpdateOrderStatus(ids, 'delivered'),
-    },
-    {
-      id: 'leopard',
-      label: 'Assign to Leopard',
-      icon: Send,
-      action: async (ids) => bulkUpdateOrderCourier(ids, 'leopard'),
-    },
-    {
-      id: 'postex',
-      label: 'Assign to PostEx',
-      icon: Send,
-      action: async (ids) => bulkUpdateOrderCourier(ids, 'postex'),
-    },
-    {
-      id: 'export',
-      label: 'Export Selected',
-      icon: Download,
-      action: async (ids) => {
-        const selectedOrders = orders.filter(o => ids.includes(o.id));
-        exportToCSV(selectedOrders, `orders-${new Date().toISOString().split('T')[0]}`);
-        return { success: ids.length, failed: 0 };
-      },
-    },
-  ];
+  // Bulk status update handler
+  const handleBulkStatusChange = async (status: string) => {
+    try {
+      const result = await bulkUpdateOrderStatus(selectedOrders, status as any);
+      
+      if (result.success > 0) {
+        toast({
+          title: "Success",
+          description: `Updated ${result.success} order(s) to ${status}`,
+        });
+        fetchOrders();
+        setSelectedOrders([]);
+      }
+      
+      if (result.failed > 0) {
+        toast({
+          title: "Partial Success",
+          description: `${result.failed} order(s) failed to update`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update order status",
+        variant: "destructive",
+      });
+    }
+  };
 
-  const handleBulkOperation = (operation: BulkOperation) => {
-    executeBulkOperation(operation, selectedOrders, () => {
-      fetchOrders();
-      setSelectedOrders([]);
+  // Bulk courier assignment with booking and label generation
+  const handleBulkCourierAssign = async (courierId: string, courierName: string) => {
+    try {
+      const selectedOrderDetails = orders.filter(o => selectedOrders.includes(o.id));
+      
+      let successCount = 0;
+      let failedCount = 0;
+      const allLabels: string[] = [];
+
+      for (const order of selectedOrderDetails) {
+        try {
+          // Update courier in database
+          const courier = couriers.find(c => c.id === courierId);
+          const { error: updateError } = await supabase
+            .from('orders')
+            .update({ 
+              courier: courier?.code || courierName.toLowerCase(),
+              status: 'booked' // Auto-update status to booked
+            })
+            .eq('id', order.id);
+
+          if (updateError) throw updateError;
+
+          // Generate label for this order
+          const labelHTML = `
+            <div style="border: 2px solid #000; padding: 20px; margin: 10px; page-break-after: always; font-family: Arial;">
+              <h2 style="text-align: center; margin-bottom: 20px;">SHIPPING LABEL - ${courierName.toUpperCase()}</h2>
+              <div style="margin-bottom: 15px;">
+                <strong>Order ID:</strong> ${order.order_id}<br/>
+                <strong>Tracking ID:</strong> ${order.tracking_id || 'Pending'}<br/>
+                <strong>Date:</strong> ${new Date().toLocaleDateString()}
+              </div>
+              <div style="margin-bottom: 15px;">
+                <strong>Customer:</strong><br/>
+                ${order.customer_name}<br/>
+                ${order.customer_phone}<br/>
+                ${order.customer_address}<br/>
+                ${order.city}
+              </div>
+              <div style="margin-bottom: 15px;">
+                <strong>Items:</strong><br/>
+                ${order.items.map((item: any) => `${item.product_name} (x${item.quantity})`).join('<br/>')}
+              </div>
+              <div style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed #000;">
+                <strong>Total Amount:</strong> PKR ${order.total_amount.toFixed(2)}
+              </div>
+            </div>
+          `;
+          allLabels.push(labelHTML);
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to process order ${order.id}:`, error);
+          failedCount++;
+        }
+      }
+
+      // Download all labels as a single HTML file
+      if (allLabels.length > 0) {
+        const fullHTML = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <title>Shipping Labels - ${courierName}</title>
+            <style>
+              @media print {
+                @page { margin: 0.5cm; }
+                body { margin: 0; }
+              }
+            </style>
+          </head>
+          <body>
+            ${allLabels.join('')}
+          </body>
+          </html>
+        `;
+        
+        const blob = new Blob([fullHTML], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${courierName}-labels-${new Date().toISOString().split('T')[0]}.html`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+
+      if (successCount > 0) {
+        toast({
+          title: "Success",
+          description: `Booked ${successCount} order(s) with ${courierName}. Labels downloaded.`,
+        });
+        fetchOrders();
+        setSelectedOrders([]);
+      }
+
+      if (failedCount > 0) {
+        toast({
+          title: "Partial Success",
+          description: `${failedCount} order(s) failed to book`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to book orders with courier",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Export handler
+  const handleExport = () => {
+    const selectedOrdersData = orders.filter(o => selectedOrders.includes(o.id));
+    exportToCSV(selectedOrdersData, `orders-${new Date().toISOString().split('T')[0]}`);
+    toast({
+      title: "Export Complete",
+      description: `Exported ${selectedOrdersData.length} order(s)`,
     });
   };
   const getStatusBadge = (status: string, orderId: string, courierStatus?: string) => {
@@ -750,9 +875,11 @@ const OrderDashboard = () => {
         {/* Bulk Operations */}
         <BulkOperationsPanel
           selectedCount={selectedOrders.length}
-          operations={bulkOperations}
-          onExecute={handleBulkOperation}
+          onStatusChange={handleBulkStatusChange}
+          onCourierAssign={handleBulkCourierAssign}
+          onExport={handleExport}
           progress={progress}
+          couriers={couriers}
         />
       </div>
 

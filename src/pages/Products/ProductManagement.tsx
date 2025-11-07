@@ -17,7 +17,7 @@ import { SmartReorderSettings } from "@/components/inventory/SmartReorderSetting
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
-import { BulkOperationsPanel } from '@/components/BulkOperationsPanel';
+import { BulkOperationsPanelLegacy as BulkOperationsPanel } from '@/components/BulkOperationsPanelLegacy';
 import { bulkToggleProducts, bulkUpdateProductCategory, exportToCSV, bulkDeleteProducts } from '@/utils/bulkOperations';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRoles } from '@/hooks/useUserRoles';

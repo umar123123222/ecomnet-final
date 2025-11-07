@@ -10,7 +10,7 @@ import { Plus, Search, Package, AlertTriangle, Printer, Edit, Trash2, PackagePlu
 import { useToast } from "@/hooks/use-toast";
 import { useBulkOperations } from "@/hooks/useBulkOperations";
 import { bulkDeletePackagingItems } from "@/utils/bulkOperations";
-import { BulkOperationsPanel } from "@/components/BulkOperationsPanel";
+import { BulkOperationsPanelLegacy as BulkOperationsPanel } from "@/components/BulkOperationsPanelLegacy";
 import {
   Table,
   TableBody,
