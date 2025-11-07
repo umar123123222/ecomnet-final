@@ -177,7 +177,8 @@ const OrderDashboard = () => {
           deliveredAt: order.delivered_at ? new Date(order.delivered_at).toLocaleString() : 'N/A',
           orderNotes: orderNotes,
           userComments: userComments,
-          tags: []
+          tags: [],
+          shopify_order_id: order.shopify_order_id
         };
       });
 
