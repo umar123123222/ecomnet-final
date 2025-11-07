@@ -72,6 +72,7 @@ const OrderDashboard = () => {
   const [sortOrder, setSortOrder] = useState<'latest' | 'oldest'>('latest');
   const [activityLogOrderId, setActivityLogOrderId] = useState<string | null>(null);
   const [couriers, setCouriers] = useState<any[]>([]);
+  const [jumpToPage, setJumpToPage] = useState<string>('');
 
   const { user } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
@@ -266,6 +267,25 @@ const OrderDashboard = () => {
       supabase.removeChannel(channel);
     };
   }, [page, pageSize]);
+
+  // Keyboard shortcuts for pagination
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Only handle if not typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if (e.key === 'ArrowLeft' && page > 0) {
+        setPage(p => Math.max(0, p - 1));
+      } else if (e.key === 'ArrowRight' && (page + 1) * pageSize < totalCount) {
+        setPage(p => p + 1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [page, pageSize, totalCount]);
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
@@ -834,6 +854,21 @@ const OrderDashboard = () => {
     toggleExpanded(orderId);
   };
 
+  // Jump to page handler
+  const handleJumpToPage = () => {
+    const pageNum = parseInt(jumpToPage);
+    if (!isNaN(pageNum) && pageNum > 0 && pageNum <= totalPages) {
+      setPage(pageNum - 1);
+      setJumpToPage('');
+    } else {
+      toast({
+        title: "Invalid page number",
+        description: `Please enter a number between 1 and ${totalPages}`,
+        variant: "destructive",
+      });
+    }
+  };
+
   // Advanced filtering
   const {
     filters,
@@ -1288,20 +1323,21 @@ const OrderDashboard = () => {
         </CardHeader>
 
         <CardContent className="pt-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[50px]">Select</TableHead>
-                <TableHead className="min-w-[140px]">Order Number</TableHead>
-                <TableHead className="min-w-[180px]">Customer Name</TableHead>
-                <TableHead className="min-w-[140px]">Customer Phone</TableHead>
-                <TableHead className="min-w-[120px]">Total Price</TableHead>
-                <TableHead className="min-w-[200px]">Order Status</TableHead>
-                <TableHead className="min-w-[140px]">Courier</TableHead>
-                <TableHead className="w-[80px]">Actions</TableHead>
-                <TableHead className="w-[50px]">Expand</TableHead>
-              </TableRow>
-            </TableHeader>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-background shadow-sm">
+                <TableRow>
+                  <TableHead className="w-[50px] bg-background">Select</TableHead>
+                  <TableHead className="min-w-[140px] bg-background">Order Number</TableHead>
+                  <TableHead className="min-w-[180px] bg-background">Customer Name</TableHead>
+                  <TableHead className="min-w-[140px] bg-background">Customer Phone</TableHead>
+                  <TableHead className="min-w-[120px] bg-background">Total Price</TableHead>
+                  <TableHead className="min-w-[200px] bg-background">Order Status</TableHead>
+                  <TableHead className="min-w-[140px] bg-background">Courier</TableHead>
+                  <TableHead className="w-[80px] bg-background">Actions</TableHead>
+                  <TableHead className="w-[50px] bg-background">Expand</TableHead>
+                </TableRow>
+              </TableHeader>
             <TableBody>
               {loading ? <TableRow>
                   <TableCell colSpan={9} className="text-center py-12">
@@ -1531,42 +1567,84 @@ const OrderDashboard = () => {
                 ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
       
-      {/* Pagination */}
+      {/* Enhanced Pagination */}
       {totalCount > pageSize && (
         <Card className="mt-4">
           <CardContent className="pt-6">
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage(p => Math.max(0, p - 1))}
-                    disabled={page === 0}
-                  >
-                    Previous
-                  </Button>
-                </PaginationItem>
-                 <PaginationItem>
-                   <span className="text-sm px-4">
-                     Page {page + 1} of {totalPages} ({totalCount.toLocaleString()} total orders)
-                   </span>
-                 </PaginationItem>
-                <PaginationItem>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage(p => p + 1)}
-                    disabled={(page + 1) * pageSize >= totalCount}
-                  >
-                    Next
-                  </Button>
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="gap-2"
+                >
+                  <ChevronDown className="h-4 w-4 rotate-90" />
+                  Previous
+                </Button>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    Page <span className="font-semibold text-foreground">{page + 1}</span> of{' '}
+                    <span className="font-semibold text-foreground">{totalPages}</span>
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    ({totalCount.toLocaleString()} total)
+                  </span>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => p + 1)}
+                  disabled={(page + 1) * pageSize >= totalCount}
+                  className="gap-2"
+                >
+                  Next
+                  <ChevronDown className="h-4 w-4 -rotate-90" />
+                </Button>
+              </div>
+
+              {/* Jump to Page */}
+              <div className="flex items-center gap-2">
+                <Label htmlFor="jump-page" className="text-sm text-muted-foreground whitespace-nowrap">
+                  Jump to:
+                </Label>
+                <Input
+                  id="jump-page"
+                  type="number"
+                  min="1"
+                  max={totalPages}
+                  value={jumpToPage}
+                  onChange={(e) => setJumpToPage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleJumpToPage();
+                    }
+                  }}
+                  placeholder="Page"
+                  className="w-20 h-9"
+                />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleJumpToPage}
+                  disabled={!jumpToPage}
+                >
+                  Go
+                </Button>
+              </div>
+
+              {/* Keyboard shortcuts hint */}
+              <div className="text-xs text-muted-foreground hidden lg:block">
+                Use ← → arrow keys to navigate
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
