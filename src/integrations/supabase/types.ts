@@ -1178,6 +1178,39 @@ export type Database = {
           },
         ]
       }
+      missing_orders_log: {
+        Row: {
+          detected_at: string | null
+          detection_method: string | null
+          error_message: string | null
+          id: string
+          order_number: string
+          shopify_order_id: number | null
+          sync_status: string | null
+          synced_at: string | null
+        }
+        Insert: {
+          detected_at?: string | null
+          detection_method?: string | null
+          error_message?: string | null
+          id?: string
+          order_number: string
+          shopify_order_id?: number | null
+          sync_status?: string | null
+          synced_at?: string | null
+        }
+        Update: {
+          detected_at?: string | null
+          detection_method?: string | null
+          error_message?: string | null
+          id?: string
+          order_number?: string
+          shopify_order_id?: number | null
+          sync_status?: string | null
+          synced_at?: string | null
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           action_url: string | null

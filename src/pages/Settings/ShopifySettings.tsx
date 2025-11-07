@@ -12,6 +12,7 @@ import { CustomerSyncControl } from "@/components/shopify/CustomerSyncControl";
 import { ProductSyncControl } from "@/components/shopify/ProductSyncControl";
 import { OrderSyncControl } from "@/components/shopify/OrderSyncControl";
 import { FullSyncControl } from "@/components/shopify/FullSyncControl";
+import { MissingOrdersSync } from "@/components/shopify/MissingOrdersSync";
 
 interface SyncLog {
   id: string;
@@ -127,6 +128,9 @@ export default function ShopifySettings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Missing Orders Sync */}
+      <MissingOrdersSync />
 
       {/* Manual Sync Controls */}
       <Card>
