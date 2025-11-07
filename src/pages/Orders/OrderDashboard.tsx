@@ -35,6 +35,10 @@ import { OrderActivityLog } from '@/components/orders/OrderActivityLog';
 import { QuickActionButtons } from '@/components/orders/QuickActionButtons';
 import { OrderAlertIndicators } from '@/components/orders/OrderAlertIndicators';
 import { InlineCourierAssign } from '@/components/orders/InlineCourierAssign';
+import { OrderKPIPanel } from '@/components/orders/OrderKPIPanel';
+import { FilterPresets } from '@/components/orders/FilterPresets';
+import { OrderDetailsModal } from '@/components/orders/OrderDetailsModal';
+import { Eye, EyeOff } from 'lucide-react';
 
 const OrderDashboard = () => {
   const { isManager, isSeniorStaff, primaryRole } = useUserRoles();
@@ -73,6 +77,10 @@ const OrderDashboard = () => {
   const [activityLogOrderId, setActivityLogOrderId] = useState<string | null>(null);
   const [couriers, setCouriers] = useState<any[]>([]);
   const [jumpToPage, setJumpToPage] = useState<string>('');
+  const [showKPIPanel, setShowKPIPanel] = useState(true);
+  const [activePreset, setActivePreset] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
 
   const { user } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
@@ -846,12 +854,36 @@ const OrderDashboard = () => {
     });
   };
 
-  const handleQuickViewActivity = (orderId: string) => {
-    setActivityLogOrderId(orderId);
+  const handleQuickViewActivity = (order: any) => {
+    setSelectedOrder(order);
+    setDetailsModalOpen(true);
   };
 
-  const handleQuickViewDetails = (orderId: string) => {
-    toggleExpanded(orderId);
+  const handleQuickViewDetails = (order: any) => {
+    setSelectedOrder(order);
+    setDetailsModalOpen(true);
+  };
+
+  // Handle filter presets
+  const handlePresetSelect = (preset: any) => {
+    if (!preset) {
+      setActivePreset(null);
+      resetFilters();
+      return;
+    }
+
+    setActivePreset(preset.id);
+    
+    // Apply preset filters
+    if (preset.filters.status) {
+      updateFilter('status', preset.filters.status);
+    }
+    if (preset.filters.dateRange) {
+      updateFilter('dateRange', preset.filters.dateRange);
+    }
+    if (preset.filters.minAmount) {
+      updateFilter('amountMin', preset.filters.minAmount);
+    }
   };
 
   // Jump to page handler
@@ -951,6 +983,15 @@ const OrderDashboard = () => {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowKPIPanel(!showKPIPanel)}
+              className="gap-2"
+            >
+              {showKPIPanel ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showKPIPanel ? 'Hide' : 'Show'} KPIs
+            </Button>
             <Button variant="outline" onClick={fetchOrders} size="sm">
               <Download className="h-4 w-4 mr-2" />
               Refresh
@@ -967,6 +1008,25 @@ const OrderDashboard = () => {
             />
           </div>
         </div>
+
+        {/* KPI Panel */}
+        <OrderKPIPanel 
+          orders={finalFilteredOrders.map(o => ({
+            id: o.id,
+            total_amount: o.totalPrice,
+            city: o.city,
+            courier: o.courier === 'N/A' ? null : o.courier,
+            status: o.status,
+            created_at: o.createdAtISO || o.date
+          }))} 
+          isVisible={showKPIPanel} 
+        />
+
+        {/* Filter Presets */}
+        <FilterPresets
+          activePreset={activePreset}
+          onPresetSelect={handlePresetSelect}
+        />
 
         {/* Bulk Operations */}
         <BulkOperationsPanel
@@ -1668,6 +1728,27 @@ const OrderDashboard = () => {
           onOpenChange={(open) => !open && setActivityLogOrderId(null)}
         />
       )}
+
+      {/* Order Details Modal */}
+      <OrderDetailsModal
+        order={selectedOrder ? {
+          id: selectedOrder.id,
+          order_number: selectedOrder.orderNumber,
+          customer_name: selectedOrder.customer,
+          customer_phone: selectedOrder.phone,
+          customer_address: selectedOrder.address,
+          customer_email: selectedOrder.email,
+          city: selectedOrder.city,
+          total_amount: selectedOrder.totalPrice,
+          status: selectedOrder.status,
+          courier: selectedOrder.courier,
+          items: selectedOrder.items,
+          created_at: selectedOrder.createdAtISO,
+          customer_id: selectedOrder.customerId
+        } : null}
+        open={detailsModalOpen}
+        onOpenChange={setDetailsModalOpen}
+      />
     </div>;
 };
 export default OrderDashboard;
