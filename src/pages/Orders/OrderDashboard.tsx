@@ -1063,13 +1063,14 @@ const OrderDashboard = () => {
                                 <div className="space-y-4">
                                   <div>
                                     <h4 className="font-semibold mb-3">Order Information</h4>
-                                    <div className="space-y-2 text-sm">
-                                      <p><span className="font-medium">Customer Order Total Worth:</span> {order.amount}</p>
-                                      
-                                      <p><span className="font-medium">Dispatched At:</span> {order.dispatchedAt}</p>
-                                      <p><span className="font-medium">Delivered At:</span> {order.deliveredAt}</p>
-                                      <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
-                                    </div>
+                                     <div className="space-y-2 text-sm">
+                                       <p><span className="font-medium">Customer Order Total Worth:</span> {order.amount}</p>
+                                       <p><span className="font-medium">Shopify Order ID:</span> {order.shopify_order_id || 'N/A'}</p>
+                                       <p><span className="font-medium">Tracking ID:</span> {order.trackingId}</p>
+                                       <p><span className="font-medium">Dispatched At:</span> {order.dispatchedAt}</p>
+                                       <p><span className="font-medium">Delivered At:</span> {order.deliveredAt}</p>
+                                       <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
+                                     </div>
                                     
                                     {/* Manual Verification Buttons */}
                                     {(order.status === 'pending_confirmation' || order.status === 'pending_address') && (
