@@ -23,6 +23,7 @@ interface MissingOrder {
 export function MissingOrdersSync() {
   const { toast } = useToast();
   const [syncing, setSyncing] = useState(false);
+  const [detecting, setDetecting] = useState(false);
   const [orderNumbers, setOrderNumbers] = useState("");
   const [missingOrders, setMissingOrders] = useState<MissingOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,6 +92,102 @@ export function MissingOrdersSync() {
       });
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const detectMissingOrders = async () => {
+    setDetecting(true);
+    try {
+      // Fetch recent orders with Shopify IDs
+      const { data: recentOrders, error } = await supabase
+        .from('orders')
+        .select('order_number, shopify_order_id')
+        .not('shopify_order_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      if (!recentOrders || recentOrders.length === 0) {
+        toast({
+          title: "No Orders Found",
+          description: "No Shopify orders found to check for gaps",
+        });
+        setDetecting(false);
+        return;
+      }
+
+      // Extract order numbers from SHOP-XXXXXX format
+      const orderNumbers = recentOrders
+        .map(o => {
+          const match = o.order_number.match(/SHOP-(\d+)/);
+          return match ? parseInt(match[1]) : null;
+        })
+        .filter(n => n !== null)
+        .sort((a, b) => b! - a!); // Sort descending
+
+      if (orderNumbers.length <= 1) {
+        toast({
+          title: "Not Enough Orders",
+          description: "Need at least 2 orders to detect gaps",
+        });
+        setDetecting(false);
+        return;
+      }
+
+      const missingOrders: string[] = [];
+      const highest = orderNumbers[0]!;
+      const lowest = orderNumbers[orderNumbers.length - 1]!;
+
+      // Check for gaps in sequence
+      for (let num = highest; num > lowest; num--) {
+        if (!orderNumbers.includes(num)) {
+          missingOrders.push(`SHOP-${num}`);
+        }
+      }
+
+      if (missingOrders.length > 0) {
+        console.log(`Found ${missingOrders.length} missing orders:`, missingOrders);
+
+        // Log missing orders
+        for (const orderNumber of missingOrders) {
+          // Check if already logged
+          const { data: existingLog } = await supabase
+            .from('missing_orders_log')
+            .select('id')
+            .eq('order_number', orderNumber)
+            .maybeSingle();
+
+          if (!existingLog) {
+            await supabase.from('missing_orders_log').insert({
+              order_number: orderNumber,
+              detection_method: 'manual_detection',
+              sync_status: 'pending',
+            });
+          }
+        }
+
+        toast({
+          title: "Missing Orders Detected",
+          description: `Found ${missingOrders.length} missing orders in the sequence`,
+        });
+
+        await loadMissingOrders();
+      } else {
+        toast({
+          title: "No Gaps Found",
+          description: "All orders are in sequence",
+        });
+      }
+
+    } catch (error: any) {
+      toast({
+        title: "Detection Failed",
+        description: error.message || "Failed to detect missing orders",
+        variant: "destructive",
+      });
+    } finally {
+      setDetecting(false);
     }
   };
 
@@ -175,6 +272,40 @@ export function MissingOrdersSync() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Detection Button */}
+        <div className="flex justify-between items-center">
+          <div>
+            <p className="text-sm font-medium">Gap Detection</p>
+            <p className="text-xs text-muted-foreground">Check for missing orders in the sequence</p>
+          </div>
+          <Button 
+            onClick={detectMissingOrders}
+            disabled={detecting}
+            variant="outline"
+          >
+            {detecting ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Detecting...
+              </>
+            ) : (
+              <>
+                <Search className="mr-2 h-4 w-4" />
+                Detect Missing Orders
+              </>
+            )}
+          </Button>
+        </div>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-2 text-muted-foreground">or manually enter</span>
+          </div>
+        </div>
+
         {/* Manual Sync Input */}
         <div className="space-y-2">
           <label className="text-sm font-medium">Enter Order Numbers</label>
