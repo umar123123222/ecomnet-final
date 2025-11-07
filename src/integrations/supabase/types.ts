@@ -1347,7 +1347,7 @@ export type Database = {
           customer_ip: string | null
           customer_name: string
           customer_new_address: string | null
-          customer_phone: string
+          customer_phone: string | null
           customer_phone_last_5_chr: string | null
           delivered_at: string | null
           delivery_notes: string | null
@@ -1406,7 +1406,7 @@ export type Database = {
           customer_ip?: string | null
           customer_name: string
           customer_new_address?: string | null
-          customer_phone: string
+          customer_phone?: string | null
           customer_phone_last_5_chr?: string | null
           delivered_at?: string | null
           delivery_notes?: string | null
@@ -1465,7 +1465,7 @@ export type Database = {
           customer_ip?: string | null
           customer_name?: string
           customer_new_address?: string | null
-          customer_phone?: string
+          customer_phone?: string | null
           customer_phone_last_5_chr?: string | null
           delivered_at?: string | null
           delivery_notes?: string | null

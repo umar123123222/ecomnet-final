@@ -62,6 +62,56 @@ async function verifyShopifyWebhook(body: string, hmacHeader: string): Promise<b
   return computedHmac === hmacHeader;
 }
 
+async function fetchShopifyCustomerPhone(customerId: number, supabase: any): Promise<string> {
+  try {
+    // Get Shopify credentials from api_settings
+    const { data: settings } = await supabase
+      .from('api_settings')
+      .select('setting_key, setting_value')
+      .in('setting_key', ['SHOPIFY_STORE_URL', 'SHOPIFY_ADMIN_API_TOKEN', 'SHOPIFY_API_VERSION']);
+    
+    if (!settings || settings.length < 3) {
+      console.warn('Shopify credentials not found in api_settings');
+      return '';
+    }
+    
+    const storeUrl = settings.find((s: any) => s.setting_key === 'SHOPIFY_STORE_URL')?.setting_value;
+    const accessToken = settings.find((s: any) => s.setting_key === 'SHOPIFY_ADMIN_API_TOKEN')?.setting_value;
+    const apiVersion = settings.find((s: any) => s.setting_key === 'SHOPIFY_API_VERSION')?.setting_value || '2024-01';
+    
+    if (!storeUrl || !accessToken) {
+      console.warn('Incomplete Shopify credentials');
+      return '';
+    }
+    
+    // Fetch customer from Shopify
+    const response = await fetch(`${storeUrl}/admin/api/${apiVersion}/customers/${customerId}.json`, {
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      console.warn(`Failed to fetch Shopify customer ${customerId}: ${response.status}`);
+      return '';
+    }
+    
+    const data = await response.json();
+    const phone = data.customer?.phone || data.customer?.default_address?.phone;
+    
+    if (phone) {
+      console.log(`Fetched phone from Shopify customer API for customer ${customerId}`);
+      return phone;
+    }
+    
+    return '';
+  } catch (error) {
+    console.error('Error fetching Shopify customer phone:', error);
+    return '';
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -94,7 +144,18 @@ Deno.serve(async (req) => {
     // Check if customer exists, create or update
     let customerId: string | null = null;
     if (order.customer) {
-      const normalizedPhone = order.customer.phone?.replace(/\D/g, '') || order.phone?.replace(/\D/g, '');
+      let normalizedPhone = order.customer.phone?.replace(/\D/g, '') || order.phone?.replace(/\D/g, '');
+      
+      // If no phone, try to fetch from Shopify customer API
+      if (!normalizedPhone && order.customer.id) {
+        console.log(`No phone in order ${order.id}, fetching from Shopify customer API`);
+        const fetchedPhone = await fetchShopifyCustomerPhone(order.customer.id, supabase);
+        normalizedPhone = fetchedPhone?.replace(/\D/g, '') || '';
+        
+        if (!normalizedPhone) {
+          console.warn(`Unable to fetch phone for order ${order.id}, customer ${order.customer.id}`);
+        }
+      }
       
       const { data: existingCustomer } = await supabase
         .from('customers')
@@ -111,7 +172,7 @@ Deno.serve(async (req) => {
           .update({
             name: `${order.customer.first_name} ${order.customer.last_name}`,
             email: order.customer.email,
-            phone: normalizedPhone,
+            phone: normalizedPhone || '',
             updated_at: new Date().toISOString(),
           })
           .eq('id', customerId);
@@ -122,8 +183,8 @@ Deno.serve(async (req) => {
           .insert({
             name: `${order.customer.first_name} ${order.customer.last_name}`,
             email: order.customer.email,
-            phone: normalizedPhone,
-            phone_last_5_chr: normalizedPhone?.slice(-5),
+            phone: normalizedPhone || '',
+            phone_last_5_chr: normalizedPhone?.slice(-5) || '',
             shopify_customer_id: order.customer.id,
             total_orders: 0,
             return_count: 0,
@@ -142,6 +203,17 @@ Deno.serve(async (req) => {
       .eq('shopify_order_id', order.id)
       .single();
 
+    // Prepare phone number
+    let orderPhone = order.customer?.phone || order.phone || order.shipping_address?.phone || '';
+    
+    // If still no phone, try fetching from Shopify (if not already done above for customer)
+    if (!orderPhone && order.customer?.id) {
+      console.log(`No phone in order data for ${order.id}, attempting final fetch from Shopify`);
+      orderPhone = await fetchShopifyCustomerPhone(order.customer.id, supabase);
+    }
+    
+    const normalizedOrderPhone = orderPhone?.replace(/\D/g, '') || '';
+    
     const orderData = {
       order_number: `SHOP-${order.order_number}`,
       shopify_order_number: order.order_number.toString(),
@@ -149,8 +221,8 @@ Deno.serve(async (req) => {
       customer_id: customerId,
       customer_name: `${order.customer?.first_name || ''} ${order.customer?.last_name || ''}`.trim() || 'Unknown',
       customer_email: order.customer?.email || order.email,
-      customer_phone: order.customer?.phone || order.phone,
-      customer_phone_last_5_chr: (order.customer?.phone || order.phone)?.replace(/\D/g, '').slice(-5),
+      customer_phone: normalizedOrderPhone,
+      customer_phone_last_5_chr: normalizedOrderPhone?.slice(-5) || '',
       customer_address: order.shipping_address.address1,
       city: order.shipping_address.city,
       total_amount: parseFloat(order.total_price),
