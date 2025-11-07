@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save, Shield, AlertTriangle, AlertCircle, MapPin } from 'lucide-react';
@@ -640,52 +641,11 @@ const OrderDashboard = () => {
       </div>
 
 
-      {/* Orders Table with Integrated Filters */}
+      {/* Orders Table with Unified Filters */}
       <Card>
-        {/* Combined Quick Filter Buttons */}
-        <div className="flex gap-2 p-4 border-b bg-muted/20">
-          <Select 
-            value={quickFilter || 'none'} 
-            onValueChange={(value) => {
-              if (value === 'none') {
-                setQuickFilter(null);
-                setCombinedStatus('all');
-                resetFilters();
-              } else {
-                applyQuickFilter(value);
-              }
-            }}
-          >
-            <SelectTrigger className="w-[250px] h-9">
-              <SelectValue placeholder="Quick Filters" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No Quick Filter</SelectItem>
-              <SelectItem value="needsConfirmation">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4" />
-                  Needs Confirmation
-                </div>
-              </SelectItem>
-              <SelectItem value="needsVerification">
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  Needs Address Check
-                </div>
-              </SelectItem>
-              <SelectItem value="actionRequired">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  Action Required
-                </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Inline Filter Bar */}
+        {/* Unified Filter Bar */}
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between p-4 bg-muted/30 border-b">
-          {/* Left side - Quick filters */}
+          {/* Left side - Search and Page Size */}
           <div className="flex flex-1 gap-3 flex-wrap items-center w-full sm:w-auto">
             {/* Page Size Selector */}
             <div className="flex items-center gap-2">
@@ -694,7 +654,7 @@ const OrderDashboard = () => {
                 <SelectTrigger className="w-[90px] h-9">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background z-50">
                   <SelectItem value="50">50</SelectItem>
                   <SelectItem value="100">100</SelectItem>
                   <SelectItem value="200">200</SelectItem>
@@ -702,6 +662,7 @@ const OrderDashboard = () => {
                 </SelectContent>
               </Select>
             </div>
+            
             {/* Search */}
             <div className="flex-1 min-w-[200px]">
               <Input
@@ -712,125 +673,183 @@ const OrderDashboard = () => {
               />
             </div>
             
-            {/* Combined Status & Verification Filter */}
-            <Select 
-              value={combinedStatus} 
-              onValueChange={(value) => {
-                setCombinedStatus(value);
-                setQuickFilter(null);
-                
-                // Handle combined status/verification values
-                if (value === 'all') {
-                  updateFilter('status', 'all');
-                  updateCustomFilter('verificationStatus', 'all');
-                } else if (value === 'pending_order') {
-                  updateFilter('status', 'pending');
-                  updateCustomFilter('verificationStatus', 'all');
-                } else if (value === 'pending_address') {
-                  updateFilter('status', 'all');
-                  updateCustomFilter('verificationStatus', 'pending');
-                } else if (value === 'pending_verification') {
-                  updateFilter('status', 'all');
-                  updateCustomFilter('verificationStatus', 'pending');
-                } else if (value === 'approved_verification') {
-                  updateFilter('status', 'all');
-                  updateCustomFilter('verificationStatus', 'approved');
-                } else if (value === 'disapproved_verification') {
-                  updateFilter('status', 'all');
-                  updateCustomFilter('verificationStatus', 'disapproved');
-                } else {
-                  // For standard status values
-                  updateFilter('status', value);
-                  updateCustomFilter('verificationStatus', 'all');
-                }
-              }}
-            >
-              <SelectTrigger className="w-[250px] h-9">
-                <SelectValue placeholder="All Statuses & Verification" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="pending_order">Pending Order Confirmation</SelectItem>
-                <SelectItem value="pending_address">Pending Address Confirmation</SelectItem>
-                <SelectItem value="booked">Booked</SelectItem>
-                <SelectItem value="dispatched">Dispatched</SelectItem>
-                <SelectItem value="delivered">Delivered</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-                <SelectItem value="returned">Returned</SelectItem>
-                <SelectItem value="pending_verification">Pending Verification</SelectItem>
-                <SelectItem value="approved_verification">Approved</SelectItem>
-                <SelectItem value="disapproved_verification">Disapproved</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            {/* Date Range */}
-            <DatePickerWithRange
-              date={filters.dateRange}
-              setDate={(date) => updateFilter('dateRange', date)}
-            />
-            
             {/* Active filters badge */}
             {activeFiltersCount > 0 && (
               <Badge variant="secondary" className="h-9 px-3">
-                {activeFiltersCount} filters
+                {activeFiltersCount} filters active
               </Badge>
             )}
           </div>
           
-          {/* Right side - Advanced filters button */}
+          {/* Right side - Unified filters button */}
           <div className="flex gap-2">
             {activeFiltersCount > 0 && (
               <Button variant="ghost" size="sm" onClick={resetFilters}>
                 <X className="h-4 w-4 mr-1" />
-                Clear
+                Clear All
               </Button>
             )}
             
-            <Dialog>
-              <DialogTrigger asChild>
+            <Sheet>
+              <SheetTrigger asChild>
                 <Button variant="outline" size="sm">
                   <Filter className="h-4 w-4 mr-1" />
-                  More Filters
+                  Filters
+                  {activeFiltersCount > 0 && (
+                    <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                      {activeFiltersCount}
+                    </Badge>
+                  )}
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Advanced Filters</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
+              </SheetTrigger>
+              <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle>Filter Orders</SheetTitle>
+                  <SheetDescription>
+                    Apply filters to refine your order view
+                  </SheetDescription>
+                </SheetHeader>
+                
+                <div className="space-y-6 py-6">
+                  {/* Quick Filters Section */}
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">Quick Filters</Label>
+                    <Select 
+                      value={quickFilter || 'none'} 
+                      onValueChange={(value) => {
+                        if (value === 'none') {
+                          setQuickFilter(null);
+                          setCombinedStatus('all');
+                          resetFilters();
+                        } else {
+                          applyQuickFilter(value);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Select quick filter" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-50">
+                        <SelectItem value="none">No Quick Filter</SelectItem>
+                        <SelectItem value="needsConfirmation">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4" />
+                            Needs Confirmation
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="needsVerification">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4" />
+                            Needs Address Check
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="actionRequired">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4" />
+                            Action Required
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Status & Verification Filter */}
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">Order Status</Label>
+                    <Select 
+                      value={combinedStatus} 
+                      onValueChange={(value) => {
+                        setCombinedStatus(value);
+                        setQuickFilter(null);
+                        
+                        if (value === 'all') {
+                          updateFilter('status', 'all');
+                          updateCustomFilter('verificationStatus', 'all');
+                        } else if (value === 'pending_order') {
+                          updateFilter('status', 'pending');
+                          updateCustomFilter('verificationStatus', 'all');
+                        } else if (value === 'pending_address') {
+                          updateFilter('status', 'all');
+                          updateCustomFilter('verificationStatus', 'pending');
+                        } else if (value === 'pending_verification') {
+                          updateFilter('status', 'all');
+                          updateCustomFilter('verificationStatus', 'pending');
+                        } else if (value === 'approved_verification') {
+                          updateFilter('status', 'all');
+                          updateCustomFilter('verificationStatus', 'approved');
+                        } else if (value === 'disapproved_verification') {
+                          updateFilter('status', 'all');
+                          updateCustomFilter('verificationStatus', 'disapproved');
+                        } else {
+                          updateFilter('status', value);
+                          updateCustomFilter('verificationStatus', 'all');
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-50">
+                        <SelectItem value="all">All Statuses</SelectItem>
+                        <SelectItem value="pending_order">Pending Order Confirmation</SelectItem>
+                        <SelectItem value="pending_address">Pending Address Confirmation</SelectItem>
+                        <SelectItem value="booked">Booked</SelectItem>
+                        <SelectItem value="dispatched">Dispatched</SelectItem>
+                        <SelectItem value="delivered">Delivered</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                        <SelectItem value="returned">Returned</SelectItem>
+                        <SelectItem value="pending_verification">Pending Verification</SelectItem>
+                        <SelectItem value="approved_verification">Approved</SelectItem>
+                        <SelectItem value="disapproved_verification">Disapproved</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Date Range */}
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">Date Range</Label>
+                    <DatePickerWithRange
+                      date={filters.dateRange}
+                      setDate={(date) => updateFilter('dateRange', date)}
+                    />
+                  </div>
+                  
                   {/* Amount Range */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>Min Amount (PKR)</Label>
-                      <Input
-                        type="number"
-                        placeholder="0"
-                        value={filters.amountMin || ''}
-                        onChange={(e) => updateFilter('amountMin', e.target.value ? parseFloat(e.target.value) : undefined)}
-                      />
-                    </div>
-                    <div>
-                      <Label>Max Amount (PKR)</Label>
-                      <Input
-                        type="number"
-                        placeholder="999999"
-                        value={filters.amountMax || ''}
-                        onChange={(e) => updateFilter('amountMax', e.target.value ? parseFloat(e.target.value) : undefined)}
-                      />
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">Amount Range (PKR)</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-sm text-muted-foreground">Min Amount</Label>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          value={filters.amountMin || ''}
+                          onChange={(e) => updateFilter('amountMin', e.target.value ? parseFloat(e.target.value) : undefined)}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm text-muted-foreground">Max Amount</Label>
+                        <Input
+                          type="number"
+                          placeholder="999999"
+                          value={filters.amountMax || ''}
+                          onChange={(e) => updateFilter('amountMax', e.target.value ? parseFloat(e.target.value) : undefined)}
+                        />
+                      </div>
                     </div>
                   </div>
                   
                   {/* Courier */}
-                  <div>
-                    <Label>Courier</Label>
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">Courier</Label>
                     <Select
                       value={filters.customValues?.courier || 'all'}
                       onValueChange={(value) => updateCustomFilter('courier', value)}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-background">
                         <SelectValue placeholder="All Couriers" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-background z-50">
                         <SelectItem value="all">All Couriers</SelectItem>
                         <SelectItem value="leopard">Leopard</SelectItem>
                         <SelectItem value="postex">PostEx</SelectItem>
@@ -840,16 +859,16 @@ const OrderDashboard = () => {
                   </div>
                   
                   {/* Order Type */}
-                  <div>
-                    <Label>Order Type</Label>
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">Order Type</Label>
                     <Select
                       value={filters.customValues?.orderType || 'all'}
                       onValueChange={(value) => updateCustomFilter('orderType', value)}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-background">
                         <SelectValue placeholder="All Types" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-background z-50">
                         <SelectItem value="all">All Types</SelectItem>
                         <SelectItem value="COD">COD</SelectItem>
                         <SelectItem value="Prepaid">Prepaid</SelectItem>
@@ -859,9 +878,9 @@ const OrderDashboard = () => {
                   
                   {/* Saved Presets Section */}
                   {savedPresets.length > 0 && (
-                    <div>
-                      <Label>Saved Filter Presets</Label>
-                      <div className="flex flex-wrap gap-2 mt-2">
+                    <div className="space-y-3 pt-4 border-t">
+                      <Label className="text-base font-semibold">Saved Presets</Label>
+                      <div className="flex flex-wrap gap-2">
                         {savedPresets.map(preset => (
                           <div key={preset.id} className="flex items-center gap-1">
                             <Button
@@ -887,11 +906,11 @@ const OrderDashboard = () => {
                   
                   {/* Save Current Filters as Preset */}
                   {activeFiltersCount > 0 && (
-                    <div className="pt-4 border-t">
-                      <Label>Save Current Filters</Label>
-                      <div className="flex gap-2 mt-2">
+                    <div className="space-y-3 pt-4 border-t">
+                      <Label className="text-base font-semibold">Save Current Filters</Label>
+                      <div className="flex gap-2">
                         <Input
-                          placeholder="Preset name..."
+                          placeholder="Enter preset name..."
                           value={presetName}
                           onChange={(e) => setPresetName(e.target.value)}
                         />
@@ -908,8 +927,8 @@ const OrderDashboard = () => {
                     </div>
                   )}
                 </div>
-              </DialogContent>
-            </Dialog>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
 
