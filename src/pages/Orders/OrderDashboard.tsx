@@ -942,7 +942,7 @@ const OrderDashboard = () => {
               <TableRow>
                 <TableHead className="w-[50px]">Select</TableHead>
                 <TableHead className="min-w-[140px]">Order Number</TableHead>
-                <TableHead className="min-w-[180px]">Cust Name</TableHead>
+                <TableHead className="min-w-[180px]">Customer Name</TableHead>
                 <TableHead className="min-w-[200px]">Cust Email</TableHead>
                 <TableHead className="min-w-[140px]">Cust Phone</TableHead>
                 <TableHead className="min-w-[200px]">Order Status</TableHead>
