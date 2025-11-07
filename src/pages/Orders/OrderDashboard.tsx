@@ -1190,51 +1190,80 @@ const OrderDashboard = () => {
                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <div className="space-y-4">
                                   <div>
-                                    <h4 className="font-semibold mb-3">Order Information</h4>
-                                     <div className="space-y-2 text-sm">
-                                       <p><span className="font-medium">Customer Order Total Worth:</span> {order.amount}</p>
-                                       <p><span className="font-medium">Shopify Order ID:</span> {order.shopify_order_id || 'N/A'}</p>
-                                       <p><span className="font-medium">Tracking ID:</span> {order.trackingId}</p>
-                                       <p><span className="font-medium">Dispatched At:</span> {order.dispatchedAt}</p>
-                                       <p><span className="font-medium">Delivered At:</span> {order.deliveredAt}</p>
-                                       <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
-                                     </div>
-                                    
-                                     {/* Manual Verification Buttons */}
-                                    {(order.status === 'pending_confirmation' || order.status === 'pending_address') && (
-                                      <div className="mt-4 flex flex-col gap-2">
-                                        {order.status === 'pending_confirmation' && (
-                                          <Button
-                                            size="sm"
-                                            variant="default"
-                                            onClick={() => handleUpdateOrderStatus(order.id, 'booked', { 
-                                              verified_at: new Date().toISOString(),
-                                              verified_by: user?.id
-                                            })}
-                                            className="w-full"
-                                          >
-                                            <CheckCircle className="h-4 w-4 mr-2" />
-                                            Verify Order
-                                          </Button>
-                                        )}
-                                        
-                                        {order.status === 'pending_address' && (
-                                          <Button
-                                            size="sm"
-                                            variant="default"
-                                            onClick={() => handleUpdateOrderStatus(order.id, 'booked', {
-                                              verification_status: 'verified',
-                                              verified_at: new Date().toISOString(),
-                                              verified_by: user?.id
-                                            })}
-                                            className="w-full"
-                                          >
-                                            <MapPin className="h-4 w-4 mr-2" />
-                                            Verify Address
-                                          </Button>
-                                        )}
+                                     <h4 className="font-semibold mb-3">Order Information</h4>
+                                      <div className="space-y-2 text-sm">
+                                        <p><span className="font-medium">Customer Order Total Worth:</span> {order.amount}</p>
+                                        <p><span className="font-medium">Shopify Order ID:</span> {order.shopify_order_id || 'N/A'}</p>
+                                        <p><span className="font-medium">Tracking ID:</span> {order.trackingId}</p>
+                                        <p><span className="font-medium">Dispatched At:</span> {order.dispatchedAt}</p>
+                                        <p><span className="font-medium">Delivered At:</span> {order.deliveredAt}</p>
+                                        <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
                                       </div>
-                                    )}
+                                     
+                                      {/* Manual Status Update */}
+                                      <div className="mt-4 space-y-2">
+                                        <Label htmlFor={`status-${order.id}`} className="text-sm font-medium">
+                                          Update Order Status
+                                        </Label>
+                                        <Select
+                                          value={order.status}
+                                          onValueChange={(newStatus) => handleUpdateOrderStatus(order.id, newStatus)}
+                                        >
+                                          <SelectTrigger id={`status-${order.id}`} className="bg-background">
+                                            <SelectValue placeholder="Select status" />
+                                          </SelectTrigger>
+                                          <SelectContent className="bg-background z-50">
+                                            <SelectItem value="pending">Pending</SelectItem>
+                                            <SelectItem value="pending_confirmation">Pending Confirmation</SelectItem>
+                                            <SelectItem value="pending_address">Pending Address</SelectItem>
+                                            <SelectItem value="booked">Booked</SelectItem>
+                                            <SelectItem value="pending_dispatch">Pending Dispatch</SelectItem>
+                                            <SelectItem value="dispatched">Dispatched</SelectItem>
+                                            <SelectItem value="in_transit">In Transit</SelectItem>
+                                            <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
+                                            <SelectItem value="delivered">Delivered</SelectItem>
+                                            <SelectItem value="cancelled">Cancelled</SelectItem>
+                                            <SelectItem value="returned">Returned</SelectItem>
+                                            <SelectItem value="return_processing">Return Processing</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                     
+                                      {/* Manual Verification Buttons */}
+                                     {(order.status === 'pending_confirmation' || order.status === 'pending_address') && (
+                                       <div className="mt-4 flex flex-col gap-2">
+                                         {order.status === 'pending_confirmation' && (
+                                           <Button
+                                             size="sm"
+                                             variant="default"
+                                             onClick={() => handleUpdateOrderStatus(order.id, 'booked', { 
+                                               verified_at: new Date().toISOString(),
+                                               verified_by: user?.id
+                                             })}
+                                             className="w-full"
+                                           >
+                                             <CheckCircle className="h-4 w-4 mr-2" />
+                                             Verify Order
+                                           </Button>
+                                         )}
+                                         
+                                         {order.status === 'pending_address' && (
+                                           <Button
+                                             size="sm"
+                                             variant="default"
+                                             onClick={() => handleUpdateOrderStatus(order.id, 'booked', {
+                                               verification_status: 'verified',
+                                               verified_at: new Date().toISOString(),
+                                               verified_by: user?.id
+                                             })}
+                                             className="w-full"
+                                           >
+                                             <MapPin className="h-4 w-4 mr-2" />
+                                             Verify Address
+                                           </Button>
+                                         )}
+                                       </div>
+                                     )}
                                     
                                     {order.status === 'booked' && (
                                       <Button
