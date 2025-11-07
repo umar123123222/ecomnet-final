@@ -4105,6 +4105,14 @@ export type Database = {
         | "returned"
         | "unclear address"
         | "address clear"
+        | "received"
+        | "pending_confirmation"
+        | "pending_address"
+        | "pending_dispatch"
+        | "in_transit"
+        | "out_for_delivery"
+        | "return_marked"
+        | "return_received"
       return_status: "in_transit" | "received" | "processed" | "completed"
       user_role:
         | "super_admin"
@@ -4253,6 +4261,14 @@ export const Constants = {
         "returned",
         "unclear address",
         "address clear",
+        "received",
+        "pending_confirmation",
+        "pending_address",
+        "pending_dispatch",
+        "in_transit",
+        "out_for_delivery",
+        "return_marked",
+        "return_received",
       ],
       return_status: ["in_transit", "received", "processed", "completed"],
       user_role: [
