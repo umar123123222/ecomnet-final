@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, Lock } from 'lucide-react';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
@@ -32,6 +33,7 @@ const DispatchDashboard = () => {
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [isNewDispatchOpen, setIsNewDispatchOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
+  const [allowManualEntry, setAllowManualEntry] = useState(false);
   const {
     toast
   } = useToast();
@@ -267,23 +269,47 @@ const DispatchDashboard = () => {
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(handleManualEntry)} className="space-y-4">
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
+                    <div className="flex items-center gap-2">
+                      <Lock className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">Allow Manual Entry</p>
+                        <p className="text-xs text-muted-foreground">Enable keyboard typing (scanners work regardless)</p>
+                      </div>
+                    </div>
+                    <Switch 
+                      checked={allowManualEntry}
+                      onCheckedChange={setAllowManualEntry}
+                    />
+                  </div>
+                  
                   <FormField control={form.control} name="bulkEntries" render={({
                   field
                 }) => <FormItem>
                         <FormLabel>Tracking IDs</FormLabel>
+                        {!allowManualEntry && (
+                          <Badge variant="secondary" className="ml-2">
+                            <Lock className="h-3 w-3 mr-1" />
+                            Scanner Mode
+                          </Badge>
+                        )}
                         <FormControl>
                           <Textarea 
-                            placeholder="Enter tracking IDs (one per line)&#10;Example:&#10;TRK123456&#10;TRK789012&#10;TRK345678" 
+                            placeholder="Scan tracking IDs with barcode scanner (one per line)&#10;or enable manual entry above to type"
                             className="min-h-[150px] font-mono text-sm" 
                             value={field.value}
                             onChange={field.onChange}
                             onBlur={field.onBlur}
                             name={field.name}
                             ref={field.ref}
+                            readOnly={!allowManualEntry}
+                            style={!allowManualEntry ? { backgroundColor: 'hsl(var(--muted))' } : {}}
                           />
                         </FormControl>
                         <p className="text-xs text-muted-foreground">
-                          Enter one tracking ID per line
+                          {allowManualEntry 
+                            ? "Enter one tracking ID per line" 
+                            : "Keyboard typing disabled. Use barcode scanner or enable manual entry above"}
                         </p>
                         <FormMessage />
                       </FormItem>} />
