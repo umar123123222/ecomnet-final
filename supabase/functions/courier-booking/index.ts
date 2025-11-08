@@ -128,11 +128,13 @@ serve(async (req) => {
                    bookingResponse.labelUrl || 
                    bookingResponse.dist?.label_url ||
                    bookingResponse.dist?.labelUrl ||
+                   bookingResponse.dist?.pdfUrl ||
                    bookingResponse.data?.label_url ||
                    bookingResponse.data?.labelUrl;
                    
         labelData = bookingResponse.label_data || 
-                    bookingResponse.labelData || 
+                    bookingResponse.labelData ||
+                    bookingResponse.dist?.pdfData ||
                     bookingResponse.dist?.label_data ||
                     bookingResponse.dist?.labelData ||
                     bookingResponse.data?.label_data ||
@@ -142,7 +144,8 @@ serve(async (req) => {
         console.log('[BOOKING] Label extraction:', {
           hasLabelUrl: !!labelUrl,
           hasLabelData: !!labelData,
-          labelFormat
+          labelFormat,
+          checkedFields: ['label_url', 'labelUrl', 'dist.pdfUrl', 'dist.pdfData', 'dist.label_url', 'dist.labelData']
         });
       }
       
@@ -499,12 +502,23 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
     let orderDetail = '';
     if (request.items && request.items.length > 0) {
       const itemsList = request.items
-        .map(item => `${item.name} (Qty: ${item.quantity})`)
+        .map(item => `${item.name} (x${item.quantity})`)
         .join(', ');
-      orderDetail = `Products: ${itemsList} | Total: ${request.codAmount || 0}`;
+      orderDetail = itemsList; // Send just the product list
+      console.log('[POSTEX] Formatted order detail with items:', orderDetail);
     } else {
-      orderDetail = `Order Items x${request.pieces} | Amount: ${request.codAmount || 0}`;
+      orderDetail = `${request.pieces} items`;
+      console.log('[POSTEX] Using fallback order detail (no items provided)');
     }
+    
+    // Postex also supports an items array in newer API versions
+    const orderItems = request.items && request.items.length > 0
+      ? request.items.map(item => ({
+          itemName: item.name,
+          itemQuantity: item.quantity,
+          itemPrice: item.price
+        }))
+      : undefined;
     
     body = {
       customerName: request.deliveryAddress.name,
@@ -517,7 +531,8 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
       invoicePayment: request.codAmount || 0,
       orderType: 'Normal', // Valid values: Normal, Reversed, Replacement
       orderDetail: orderDetail,
-      pickupAddressCode: pickupAddressCode
+      pickupAddressCode: pickupAddressCode,
+      ...(orderItems && orderItems.length > 0 ? { items: orderItems } : {})
     };
     
     // Defensive logging for Postex payload
@@ -657,6 +672,29 @@ async function bookPostEx(request: BookingRequest, supabaseClient: any) {
   
   console.log('Postex API Key present:', !!apiKey);
   console.log('Postex Pickup Address Code present:', !!pickupAddressCode);
+  console.log('Postex items count:', request.items?.length || 0);
+  
+  // Format detailed product information
+  let orderDetail = '';
+  if (request.items && request.items.length > 0) {
+    const itemsList = request.items
+      .map(item => `${item.name} (x${item.quantity})`)
+      .join(', ');
+    orderDetail = itemsList;
+    console.log('Postex order detail with items:', orderDetail);
+  } else {
+    orderDetail = `${request.pieces} items`;
+    console.log('Postex using fallback order detail');
+  }
+  
+  // Postex supports items array
+  const orderItems = request.items && request.items.length > 0
+    ? request.items.map(item => ({
+        itemName: item.name,
+        itemQuantity: item.quantity,
+        itemPrice: item.price
+      }))
+    : undefined;
   
   const body = {
     customerName: request.deliveryAddress.name,
@@ -667,21 +705,16 @@ async function bookPostEx(request: BookingRequest, supabaseClient: any) {
     transactionNotes: request.specialInstructions || '',
     orderRefNumber: request.orderId,
     invoicePayment: request.codAmount || 0,
-    orderType: 'Normal', // Valid values: Normal, Reversed, Replacement
-    orderDetail: `Order Items x${request.pieces} | Amount: ${request.codAmount || 0}`,
-    pickupAddressCode: pickupAddressCode
+    orderType: 'Normal',
+    orderDetail: orderDetail,
+    pickupAddressCode: pickupAddressCode,
+    ...(orderItems && orderItems.length > 0 ? { items: orderItems } : {})
   };
   
-  // Defensive logging for Postex payload
-  console.log('POSTEX payload check:', {
-    hasOrderDetail: 'orderDetail' in body,
-    hasPickupAddressCode: !!pickupAddressCode,
-    orderDetailType: typeof body.orderDetail,
-    orderDetailValue: body.orderDetail
-  });
+  console.log('POSTEX booking payload:', JSON.stringify(body, null, 2));
 
-  // Use manual redirect to preserve token header
-  const response = await fetchWithManualRedirect('https://api.postex.pk/services/integration/api/order/v3/create-order', {
+  // Create order first
+  const createResponse = await fetchWithManualRedirect('https://api.postex.pk/services/integration/api/order/v3/create-order', {
     method: 'POST',
     headers: {
       'token': apiKey,
@@ -690,16 +723,50 @@ async function bookPostEx(request: BookingRequest, supabaseClient: any) {
     body: JSON.stringify(body)
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    const contentType = response.headers.get('content-type');
+  if (!createResponse.ok) {
+    const errorText = await createResponse.text();
     console.error('Postex booking error:', {
-      status: response.status,
-      contentType,
+      status: createResponse.status,
       body: errorText
     });
     throw new Error(`PostEx booking failed: ${errorText}`);
   }
 
-  return await response.json();
+  const bookingData = await createResponse.json();
+  console.log('Postex booking response:', JSON.stringify(bookingData));
+  
+  // Now fetch the label using tracking number
+  const trackingNumber = bookingData.dist?.trackingNumber;
+  if (trackingNumber) {
+    try {
+      console.log('Fetching label for tracking:', trackingNumber);
+      const labelResponse = await fetch('https://api.postex.pk/services/integration/api/order/v1/get-label', {
+        method: 'POST',
+        headers: {
+          'token': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ trackingNumber })
+      });
+      
+      if (labelResponse.ok) {
+        const labelData = await labelResponse.json();
+        console.log('Label fetch response:', JSON.stringify(labelData));
+        
+        // Add label data to booking response
+        if (labelData.dist?.pdfData || labelData.dist?.labelUrl) {
+          bookingData.label_data = labelData.dist.pdfData;
+          bookingData.label_url = labelData.dist.labelUrl;
+          bookingData.label_format = 'pdf';
+          console.log('Label data extracted successfully');
+        }
+      } else {
+        console.warn('Label fetch failed:', labelResponse.status, await labelResponse.text());
+      }
+    } catch (labelError) {
+      console.warn('Failed to fetch label (non-critical):', labelError);
+    }
+  }
+
+  return bookingData;
 }
