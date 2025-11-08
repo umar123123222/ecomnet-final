@@ -14,7 +14,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescri
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save, Shield, AlertTriangle, AlertCircle, MapPin, Clock } from 'lucide-react';
+import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save, Shield, AlertTriangle, AlertCircle, MapPin, Clock, User, Phone, Mail, Calendar, ShoppingBag, FileText } from 'lucide-react';
 import TagsNotes from '@/components/TagsNotes';
 import NewOrderDialog from '@/components/NewOrderDialog';
 import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
@@ -1516,68 +1516,197 @@ const OrderDashboard = () => {
                              <TabsTrigger value="order-details">Order Details</TabsTrigger>
                            </TabsList>
                            
-                           <TabsContent value="customer-details" className="mt-4">
-                             <div className="space-y-4">
-                               <h4 className="font-semibold mb-3">Customer Information</h4>
-                               <div className="space-y-3 text-sm">
-                                 <p><span className="font-medium">Customer Name:</span> {order.customer}</p>
-                                 <p><span className="font-medium">Customer Phone:</span> {order.phone}</p>
-                                 <p><span className="font-medium">Customer Email:</span> {order.email}</p>
-                                 <p><span className="font-medium">Customer Address:</span> {order.address}</p>
-                                 <p><span className="font-medium">City:</span> {order.city}</p>
-                               </div>
-                             </div>
-                           </TabsContent>
+                            <TabsContent value="customer-details" className="mt-4">
+                              <Card className="border-border/50">
+                                <CardContent className="p-5">
+                                  <div className="flex items-center gap-2 mb-4">
+                                    <User className="h-5 w-5 text-primary" />
+                                    <h4 className="text-lg font-semibold">Customer Information</h4>
+                                  </div>
+                                  
+                                  <div className="space-y-4">
+                                    {/* Customer Name */}
+                                    <div className="flex items-start gap-3">
+                                      <User className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                                      <div className="flex-1">
+                                        <div className="text-xs text-muted-foreground mb-0.5">Full Name</div>
+                                        <div className="font-medium">{order.customer || <span className="text-muted-foreground italic">Not Provided</span>}</div>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Customer Phone */}
+                                    {order.phone && order.phone !== 'N/A' && (
+                                      <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                        <Phone className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                                        <div className="flex-1">
+                                          <div className="text-xs text-muted-foreground mb-0.5">Phone Number</div>
+                                          <div className="font-medium">{order.phone}</div>
+                                        </div>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Customer Email */}
+                                    {order.email && order.email !== 'N/A' && (
+                                      <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                        <Mail className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                                        <div className="flex-1">
+                                          <div className="text-xs text-muted-foreground mb-0.5">Email Address</div>
+                                          <div className="font-medium">{order.email}</div>
+                                        </div>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Customer Address */}
+                                    {order.address && order.address !== 'N/A' && (
+                                      <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                        <MapPin className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                                        <div className="flex-1">
+                                          <div className="text-xs text-muted-foreground mb-0.5">Delivery Address</div>
+                                          <div className="font-medium">{order.address}</div>
+                                          {order.city && order.city !== 'N/A' && (
+                                            <div className="text-sm text-muted-foreground mt-1">{order.city}</div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </TabsContent>
                            
-                           <TabsContent value="order-details" className="mt-4">
-                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <div className="space-y-4">
-                                  <div>
-                                     <h4 className="font-semibold mb-3">Order Information</h4>
-                                      <div className="space-y-2 text-sm">
-                                        <p><span className="font-medium">Customer Order Total Worth:</span> {order.amount}</p>
-                                        <p><span className="font-medium">Shopify Order ID:</span> {order.shopify_order_id || 'N/A'}</p>
-                                        <p><span className="font-medium">Tracking ID:</span> {order.trackingId}</p>
-                                        <p><span className="font-medium">Dispatched At:</span> {order.dispatchedAt}</p>
-                                        <p><span className="font-medium">Delivered At:</span> {order.deliveredAt}</p>
-                                        <p><span className="font-medium">Order Type:</span> {order.orderType}</p>
-                                       </div>
+                            <TabsContent value="order-details" className="mt-4">
+                              <div className="space-y-4">
+                                {/* Order Summary Card */}
+                                <Card className="border-border/50">
+                                  <CardContent className="p-5">
+                                    <div className="flex items-center gap-2 mb-4">
+                                      <Package className="h-5 w-5 text-primary" />
+                                      <h4 className="text-lg font-semibold">Order Summary</h4>
+                                    </div>
+                                    
+                                    <div className="space-y-4">
+                                      {/* Order Number */}
+                                      <div className="flex items-start gap-3">
+                                        <Package className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                                        <div className="flex-1">
+                                          <div className="text-xs text-muted-foreground mb-0.5">Order Number</div>
+                                          <div className="font-medium">{order.order_number}</div>
+                                        </div>
+                                      </div>
                                       
-                                       {/* Manual Verification Buttons */}
-                                     {(order.status === 'pending_confirmation' || order.status === 'pending_address') && (
-                                       <div className="mt-4 flex flex-col gap-2">
-                                         {order.status === 'pending_confirmation' && (
-                                           <Button
-                                             size="sm"
-                                             variant="default"
-                                             onClick={() => handleUpdateOrderStatus(order.id, 'booked', { 
-                                               verified_at: new Date().toISOString(),
-                                               verified_by: user?.id
-                                             })}
-                                             className="w-full"
-                                           >
-                                             <CheckCircle className="h-4 w-4 mr-2" />
-                                             Verify Order
-                                           </Button>
-                                         )}
-                                         
-                                         {order.status === 'pending_address' && (
-                                           <Button
-                                             size="sm"
-                                             variant="default"
-                                             onClick={() => handleUpdateOrderStatus(order.id, 'booked', {
-                                               verification_status: 'verified',
-                                               verified_at: new Date().toISOString(),
-                                               verified_by: user?.id
-                                             })}
-                                             className="w-full"
-                                           >
-                                             <MapPin className="h-4 w-4 mr-2" />
-                                             Verify Address
-                                           </Button>
-                                         )}
-                                       </div>
-                                     )}
+                                      {/* Shopify Order ID */}
+                                      {order.shopify_order_id && order.shopify_order_id !== 'N/A' && (
+                                        <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                          <Package className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                                          <div className="flex-1">
+                                            <div className="text-xs text-muted-foreground mb-0.5">Shopify Order ID</div>
+                                            <div className="font-medium">{order.shopify_order_id}</div>
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Order Date */}
+                                      {order.created_at && (
+                                        <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                          <Calendar className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                                          <div className="flex-1">
+                                            <div className="text-xs text-muted-foreground mb-0.5">Order Date</div>
+                                            <div className="font-medium">{new Date(order.created_at).toLocaleDateString()}</div>
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Courier */}
+                                      <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                        <Truck className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                                        <div className="flex-1">
+                                          <div className="text-xs text-muted-foreground mb-0.5">Courier</div>
+                                          <div className="font-medium">
+                                            {order.courier || <span className="text-muted-foreground italic">Not Assigned</span>}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Order Type */}
+                                      {order.orderType && order.orderType !== 'N/A' && (
+                                        <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                          <ShoppingBag className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                                          <div className="flex-1">
+                                            <div className="text-xs text-muted-foreground mb-0.5">Order Type</div>
+                                            <div className="font-medium">{order.orderType}</div>
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Tracking ID */}
+                                      {order.trackingId && order.trackingId !== 'N/A' && (
+                                        <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                          <Truck className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                                          <div className="flex-1">
+                                            <div className="text-xs text-muted-foreground mb-0.5">Tracking ID</div>
+                                            <div className="font-medium">{order.trackingId}</div>
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Dispatched At */}
+                                      {order.dispatchedAt && order.dispatchedAt !== 'N/A' && (
+                                        <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                          <Clock className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                                          <div className="flex-1">
+                                            <div className="text-xs text-muted-foreground mb-0.5">Dispatched At</div>
+                                            <div className="font-medium">{order.dispatchedAt}</div>
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Delivered At */}
+                                      {order.deliveredAt && order.deliveredAt !== 'N/A' && (
+                                        <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                          <Clock className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                                          <div className="flex-1">
+                                            <div className="text-xs text-muted-foreground mb-0.5">Delivered At</div>
+                                            <div className="font-medium">{order.deliveredAt}</div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                    
+                                    {/* Manual Verification Buttons */}
+                                    {(order.status === 'pending_confirmation' || order.status === 'pending_address') && (
+                                      <div className="mt-4 flex flex-col gap-2">
+                                        {order.status === 'pending_confirmation' && (
+                                          <Button
+                                            size="sm"
+                                            variant="default"
+                                            onClick={() => handleUpdateOrderStatus(order.id, 'booked', { 
+                                              verified_at: new Date().toISOString(),
+                                              verified_by: user?.id
+                                            })}
+                                            className="w-full"
+                                          >
+                                            <CheckCircle className="h-4 w-4 mr-2" />
+                                            Verify Order
+                                          </Button>
+                                        )}
+                                        
+                                        {order.status === 'pending_address' && (
+                                          <Button
+                                            size="sm"
+                                            variant="default"
+                                            onClick={() => handleUpdateOrderStatus(order.id, 'booked', {
+                                              verification_status: 'verified',
+                                              verified_at: new Date().toISOString(),
+                                              verified_by: user?.id
+                                            })}
+                                            className="w-full"
+                                          >
+                                            <MapPin className="h-4 w-4 mr-2" />
+                                            Verify Address
+                                          </Button>
+                                        )}
+                                      </div>
+                                    )}
                                     
                                     {order.status === 'booked' && (
                                       <Button
@@ -1586,40 +1715,99 @@ const OrderDashboard = () => {
                                           setDispatchOrderId(order.id);
                                           setIsDispatchDialogOpen(true);
                                         }}
-                                        className="mt-3"
+                                        className="mt-3 w-full"
                                       >
                                         <Truck className="h-4 w-4 mr-2" />
                                         Quick Dispatch
                                       </Button>
                                     )}
-                                  </div>
-                                 
-                  <div>
-                    <h4 className="font-semibold mb-3">Internal Notes</h4>
-                    <TagsNotes
-                      itemId={order.id}
-                      orderNotes={order.orderNotes}
-                      notes={order.userComments}
-                      onAddNote={(note) => handleAddNote(order.id, note)}
-                      onDeleteNote={(noteId) => handleDeleteNote(order.id, noteId)}
-                    />
-                  </div>
-                               </div>
-                               
-                               <div className="space-y-4">
-                                 <div>
-                                   <h4 className="font-semibold mb-3">Order Items</h4>
-                                   <div className="space-y-2">
-                                     {order.items.length > 0 ? order.items.map((item, index) => <div key={index} className="text-sm border-b pb-2">
-                                         <p><span className="font-medium">Item:</span> {item.item_name}</p>
-                                         <p><span className="font-medium">Quantity:</span> {item.quantity}</p>
-                                         <p><span className="font-medium">Price:</span> PKR {item.price}</p>
-                                       </div>) : <p className="text-sm text-gray-500">No items available</p>}
-                                   </div>
-                                 </div>
-                               </div>
-                             </div>
-                           </TabsContent>
+                                  </CardContent>
+                                </Card>
+                                
+                                {/* Items Ordered Card */}
+                                <Card className="border-border/50">
+                                  <CardContent className="p-5">
+                                    <div className="flex items-center gap-2 mb-4">
+                                      <Package className="h-5 w-5 text-primary" />
+                                      <h4 className="text-lg font-semibold">Items Ordered</h4>
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                      {(() => {
+                                        // Merge duplicate items
+                                        const itemMap = new Map();
+                                        order.items.forEach((item: any) => {
+                                          const key = item.item_name;
+                                          if (itemMap.has(key)) {
+                                            const existing = itemMap.get(key);
+                                            existing.quantity += item.quantity;
+                                            existing.total += item.price * item.quantity;
+                                          } else {
+                                            itemMap.set(key, {
+                                              item_name: item.item_name,
+                                              quantity: item.quantity,
+                                              price: item.price,
+                                              total: item.price * item.quantity
+                                            });
+                                          }
+                                        });
+                                        
+                                        const mergedItems = Array.from(itemMap.values());
+                                        
+                                        return mergedItems.length > 0 ? (
+                                          mergedItems.map((item, index) => (
+                                            <div 
+                                              key={index} 
+                                              className="bg-muted/30 rounded-xl p-3.5 hover:bg-muted/40 transition-colors"
+                                            >
+                                              <div className="flex items-start justify-between gap-3">
+                                                <div className="flex-1">
+                                                  <div className="font-semibold text-foreground">{item.item_name}</div>
+                                                  <div className="text-sm text-muted-foreground mt-1">
+                                                    {item.quantity} × PKR {item.price.toLocaleString()}
+                                                  </div>
+                                                </div>
+                                                <div className="font-semibold text-foreground">
+                                                  PKR {item.total.toLocaleString()}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          ))
+                                        ) : (
+                                          <p className="text-sm text-muted-foreground italic">No items available</p>
+                                        );
+                                      })()}
+                                    </div>
+                                    
+                                    <div className="mt-4 pt-4 border-t border-border">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-lg font-semibold">Total Amount</span>
+                                        <span className="text-2xl font-bold text-primary">
+                                          {order.amount}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                                
+                                {/* Internal Notes Card */}
+                                <Card className="border-border/50">
+                                  <CardContent className="p-5">
+                                    <div className="flex items-center gap-2 mb-4">
+                                      <FileText className="h-5 w-5 text-primary" />
+                                      <h4 className="text-lg font-semibold">Internal Notes</h4>
+                                    </div>
+                                    <TagsNotes
+                                      itemId={order.id}
+                                      orderNotes={order.orderNotes}
+                                      notes={order.userComments}
+                                      onAddNote={(note) => handleAddNote(order.id, note)}
+                                      onDeleteNote={(noteId) => handleDeleteNote(order.id, noteId)}
+                                    />
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            </TabsContent>
                          </Tabs>
                       </TableCell>
                     </TableRow>}
