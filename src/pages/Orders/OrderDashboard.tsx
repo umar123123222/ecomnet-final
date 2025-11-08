@@ -1585,18 +1585,9 @@ const OrderDashboard = () => {
                                     </div>
                                     
                                     <div className="space-y-4">
-                                      {/* Order Number */}
-                                      <div className="flex items-start gap-3">
-                                        <Package className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
-                                        <div className="flex-1">
-                                          <div className="text-xs text-muted-foreground mb-0.5">Order Number</div>
-                                          <div className="font-medium">{order.order_number}</div>
-                                        </div>
-                                      </div>
-                                      
                                       {/* Shopify Order ID */}
                                       {order.shopify_order_id && order.shopify_order_id !== 'N/A' && (
-                                        <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                        <div className="flex items-start gap-3">
                                           <Package className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
                                           <div className="flex-1">
                                             <div className="text-xs text-muted-foreground mb-0.5">Shopify Order ID</div>
@@ -1606,26 +1597,15 @@ const OrderDashboard = () => {
                                       )}
                                       
                                       {/* Order Date */}
-                                      {order.created_at && (
-                                        <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                      {order.createdAtISO && (
+                                        <div className={`flex items-start gap-3 ${order.shopify_order_id && order.shopify_order_id !== 'N/A' ? 'pt-3 border-t border-border/50' : ''}`}>
                                           <Calendar className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
                                           <div className="flex-1">
                                             <div className="text-xs text-muted-foreground mb-0.5">Order Date</div>
-                                            <div className="font-medium">{new Date(order.created_at).toLocaleDateString()}</div>
+                                            <div className="font-medium">{new Date(order.createdAtISO).toLocaleDateString()}</div>
                                           </div>
                                         </div>
                                       )}
-                                      
-                                      {/* Courier */}
-                                      <div className="flex items-start gap-3 pt-3 border-t border-border/50">
-                                        <Truck className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
-                                        <div className="flex-1">
-                                          <div className="text-xs text-muted-foreground mb-0.5">Courier</div>
-                                          <div className="font-medium">
-                                            {order.courier || <span className="text-muted-foreground italic">Not Assigned</span>}
-                                          </div>
-                                        </div>
-                                      </div>
                                       
                                       {/* Order Type */}
                                       {order.orderType && order.orderType !== 'N/A' && (
@@ -1734,9 +1714,23 @@ const OrderDashboard = () => {
                                     
                                     <div className="space-y-2">
                                       {(() => {
+                                        // Ensure items array exists and is valid
+                                        const orderItems = order.items || [];
+                                        
+                                        console.log('Order ID:', order.id, 'Items:', orderItems, 'Items length:', orderItems.length);
+                                        
+                                        if (orderItems.length === 0) {
+                                          return (
+                                            <div className="space-y-2">
+                                              <p className="text-sm text-muted-foreground italic">No items available</p>
+                                              <p className="text-xs text-muted-foreground">Order ID: {order.id}</p>
+                                            </div>
+                                          );
+                                        }
+                                        
                                         // Merge duplicate items
                                         const itemMap = new Map();
-                                        order.items.forEach((item: any) => {
+                                        orderItems.forEach((item: any) => {
                                           const key = item.item_name;
                                           if (itemMap.has(key)) {
                                             const existing = itemMap.get(key);
@@ -1754,28 +1748,24 @@ const OrderDashboard = () => {
                                         
                                         const mergedItems = Array.from(itemMap.values());
                                         
-                                        return mergedItems.length > 0 ? (
-                                          mergedItems.map((item, index) => (
-                                            <div 
-                                              key={index} 
-                                              className="bg-muted/30 rounded-xl p-3.5 hover:bg-muted/40 transition-colors"
-                                            >
-                                              <div className="flex items-start justify-between gap-3">
-                                                <div className="flex-1">
-                                                  <div className="font-semibold text-foreground">{item.item_name}</div>
-                                                  <div className="text-sm text-muted-foreground mt-1">
-                                                    {item.quantity} × PKR {item.price.toLocaleString()}
-                                                  </div>
-                                                </div>
-                                                <div className="font-semibold text-foreground">
-                                                  PKR {item.total.toLocaleString()}
+                                        return mergedItems.map((item, index) => (
+                                          <div 
+                                            key={index} 
+                                            className="bg-muted/30 rounded-xl p-3.5 hover:bg-muted/40 transition-colors"
+                                          >
+                                            <div className="flex items-start justify-between gap-3">
+                                              <div className="flex-1">
+                                                <div className="font-semibold text-foreground">{item.item_name}</div>
+                                                <div className="text-sm text-muted-foreground mt-1">
+                                                  {item.quantity} × PKR {item.price.toLocaleString()}
                                                 </div>
                                               </div>
+                                              <div className="font-semibold text-foreground">
+                                                PKR {item.total.toLocaleString()}
+                                              </div>
                                             </div>
-                                          ))
-                                        ) : (
-                                          <p className="text-sm text-muted-foreground italic">No items available</p>
-                                        );
+                                          </div>
+                                        ));
                                       })()}
                                     </div>
                                     
