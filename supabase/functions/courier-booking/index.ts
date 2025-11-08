@@ -231,6 +231,19 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
     Object.assign(headers, courier.auth_config.custom_headers);
   }
 
+  // Fallback for Postex: ensure 'token' header is present even if auth_type wasn't set
+  const courierCode = (courier.code || '').toString().toUpperCase();
+  if (courierCode === 'POSTEX' && !headers['token']) {
+    headers['token'] = apiKey || '';
+  }
+
+  // Log header presence without exposing secrets
+  console.log(`Custom booking headers for ${courierCode}:`, {
+    hasAuthorization: Boolean(headers['Authorization']),
+    hasToken: Boolean(headers['token']),
+    otherHeaderKeys: Object.keys(headers).filter(k => !['Authorization','token','Content-Type'].includes(k))
+  });
+
   // Build request body - support template variables
   let body = courier.auth_config?.request_body_template || {
     consignee_name: request.deliveryAddress.name,
