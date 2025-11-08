@@ -7,6 +7,21 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, X } from 'lucide-react';
 import { downloadCourierLabel } from '@/utils/courierLabelDownload';
 
+// Helper function to convert error codes to user-friendly messages
+const getErrorMessage = (errorCode: string, fallback: string): string => {
+  const errorMessages: Record<string, string> = {
+    'INVALID_ORDER_TYPE': 'The courier rejected the order type. Please check courier configuration.',
+    'AUTH_HEADER_DROPPED': 'Authentication issue with courier API. Please contact support.',
+    'NETWORK_DNS_ERROR': 'Cannot reach courier API. Please check your internet connection.',
+    'NETWORK_ERROR': 'Network connectivity issue. Please try again.',
+    'COURIER_NOT_FOUND': 'Courier configuration not found. Please check courier setup.',
+    'CONFIGURATION_REQUIRED': 'Pickup address not configured. Go to Settings > Business Settings.',
+    'BOOKING_API_ERROR': 'Courier API returned an error. Please try again or contact support.',
+  };
+  
+  return errorMessages[errorCode] || fallback || 'An unexpected error occurred. Please try again.';
+};
+
 interface InlineCourierAssignProps {
   orderId: string;
   currentCourier: string;
@@ -38,6 +53,8 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
 
   const handleCourierAssign = async (courierId: string) => {
     setIsUpdating(true);
+    let responseData: any = null;
+    
     try {
       const courier = couriers.find(c => c.id === courierId);
       if (!courier) throw new Error('Courier not found');
@@ -100,8 +117,13 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
 
       if (error) throw error;
 
+      responseData = data;
+
       if (!data.success) {
-        throw new Error(data.error || 'Booking failed');
+        // Parse structured error response
+        const errorCode = data.errorCode || 'UNKNOWN_ERROR';
+        const errorMsg = getErrorMessage(errorCode, data.error);
+        throw new Error(errorMsg);
       }
 
       // Auto-download label if available and enabled
@@ -135,9 +157,22 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
       onAssigned();
     } catch (error: any) {
       console.error('Error assigning courier:', error);
+      
+      const errorTitle = "Booking Failed";
+      const errorDesc = error.message || "Failed to assign courier";
+      
       toast({
-        title: "Error",
-        description: error.message || "Failed to assign courier",
+        title: errorTitle,
+        description: (
+          <div className="flex flex-col gap-2">
+            <p>{errorDesc}</p>
+            {responseData?.isRetryable !== false && (
+              <p className="text-xs text-muted-foreground">
+                This booking will be automatically retried in 5 minutes.
+              </p>
+            )}
+          </div>
+        ),
         variant: "destructive",
       });
     } finally {

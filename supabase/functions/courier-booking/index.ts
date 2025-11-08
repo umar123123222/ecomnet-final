@@ -40,7 +40,13 @@ serve(async (req) => {
     );
 
     const bookingRequest: BookingRequest = await req.json();
-    console.log('Booking request:', bookingRequest);
+    const requestStartTime = Date.now();
+    
+    console.log('[BOOKING] Starting request for order:', bookingRequest.orderId);
+    
+    // Get authenticated user
+    const authHeader = req.headers.get('authorization');
+    const userId = authHeader ? (await supabase.auth.getUser(authHeader.replace('Bearer ', ''))).data.user?.id : null;
 
     // Get courier details
     const { data: courier, error: courierError } = await supabase
@@ -50,10 +56,11 @@ serve(async (req) => {
       .single();
 
     if (courierError || !courier) {
+      console.error('[BOOKING] Courier not found:', courierError);
       throw new Error('Courier not found');
     }
 
-    console.log('Courier:', courier.name);
+    console.log('[BOOKING] Using courier:', courier.name, courier.code);
 
     // Check for mock mode
     const mockMode = courier.api_endpoint === 'mock' || Deno.env.get('COURIER_BOOKING_MODE') === 'mock';
@@ -152,8 +159,25 @@ serve(async (req) => {
       });
 
     if (dispatchError) {
-      console.error('Error creating dispatch:', dispatchError);
+      console.error('[BOOKING] Error creating dispatch:', dispatchError);
     }
+
+    // Log successful booking attempt
+    const processingTime = Date.now() - requestStartTime;
+    await supabase.from('courier_booking_attempts').insert({
+      order_id: bookingRequest.orderId,
+      courier_id: bookingRequest.courierId,
+      courier_code: courier.code,
+      booking_request: bookingRequest,
+      booking_response: bookingResponse,
+      status: 'success',
+      tracking_id: trackingId,
+      label_url: labelUrl,
+      user_id: userId,
+      attempt_number: 1
+    }).catch(err => console.error('[BOOKING] Failed to log attempt:', err));
+
+    console.log(`[BOOKING] Success in ${processingTime}ms - Tracking: ${trackingId}`);
 
     return new Response(
       JSON.stringify({
@@ -173,11 +197,12 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('Error in courier-booking:', error);
+    console.error('[BOOKING] Error:', error.message);
     
-    // Detect DNS/network errors and specific error codes
+    // Detect and categorize errors
     let errorCode = error.code || 'UNKNOWN_ERROR';
     let errorDetail = error.message;
+    let isRetryable = true;
     
     if (error.message?.includes('DNS') || error.message?.includes('getaddrinfo')) {
       errorCode = 'NETWORK_DNS_ERROR';
@@ -185,8 +210,88 @@ serve(async (req) => {
     } else if (error.message?.includes('fetch') || error.message?.includes('network')) {
       errorCode = 'NETWORK_ERROR';
       errorDetail = 'Network connectivity issue with courier API';
+    } else if (error.message?.includes('INVALID ORDER TYPE')) {
+      errorCode = 'INVALID_ORDER_TYPE';
+      errorDetail = 'Courier rejected order type. Check courier configuration.';
+      isRetryable = false;
+    } else if (error.message?.includes('Missing request header')) {
+      errorCode = 'AUTH_HEADER_DROPPED';
+      errorDetail = 'Authentication issue with courier API. Contact support.';
+      isRetryable = false;
     } else if (error.message?.includes('booking failed')) {
       errorCode = error.code || 'BOOKING_API_ERROR';
+    } else if (error.message?.includes('Courier not found')) {
+      errorCode = 'COURIER_NOT_FOUND';
+      isRetryable = false;
+    } else if (error.message?.includes('Configuration Required')) {
+      errorCode = 'CONFIGURATION_REQUIRED';
+      isRetryable = false;
+    }
+    
+    // Extract orderId and courierId from the request for logging
+    let orderId: string | null = null;
+    let courierId: string | null = null;
+    let userId: string | null = null;
+    
+    try {
+      const authHeader = req.headers.get('authorization');
+      if (authHeader) {
+        const supabase = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        );
+        userId = (await supabase.auth.getUser(authHeader.replace('Bearer ', ''))).data.user?.id || null;
+      }
+      
+      const body = await req.clone().json();
+      orderId = body.orderId;
+      courierId = body.courierId;
+      
+      if (orderId && courierId) {
+        // Log failed attempt
+        const supabase = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        );
+        
+        const { data: courier } = await supabase
+          .from('couriers')
+          .select('code')
+          .eq('id', courierId)
+          .single();
+        
+        await supabase.from('courier_booking_attempts').insert({
+          order_id: orderId,
+          courier_id: courierId,
+          courier_code: courier?.code || 'unknown',
+          booking_request: body,
+          booking_response: null,
+          status: 'failed',
+          error_code: errorCode,
+          error_message: errorDetail,
+          user_id: userId,
+          attempt_number: 1
+        }).catch(err => console.error('[BOOKING] Failed to log error:', err));
+        
+        // Add to retry queue if retryable
+        if (isRetryable) {
+          const nextRetry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+          await supabase.from('courier_booking_queue').insert({
+            order_id: orderId,
+            courier_id: courierId,
+            retry_count: 0,
+            max_retries: 5,
+            next_retry_at: nextRetry.toISOString(),
+            last_error_code: errorCode,
+            last_error_message: errorDetail,
+            status: 'pending'
+          }).catch(err => console.error('[BOOKING] Failed to queue retry:', err));
+          
+          console.log(`[BOOKING] Added to retry queue, next attempt at ${nextRetry.toISOString()}`);
+        }
+      }
+    } catch (logError) {
+      console.error('[BOOKING] Failed to log error details:', logError);
     }
     
     return new Response(
@@ -194,7 +299,8 @@ serve(async (req) => {
         success: false,
         error: errorDetail,
         errorCode: errorCode,
-        originalError: error.message
+        originalError: error.message,
+        isRetryable: isRetryable
       }),
       {
         status: 500,
