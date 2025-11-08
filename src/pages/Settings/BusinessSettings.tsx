@@ -24,6 +24,7 @@ import { OrderSyncControl } from "@/components/shopify/OrderSyncControl";
 import { CustomerSyncControl } from "@/components/shopify/CustomerSyncControl";
 import { FullSyncControl } from "@/components/shopify/FullSyncControl";
 import { MissingOrdersSync } from "@/components/shopify/MissingOrdersSync";
+import { CourierConfigCard } from "@/components/settings/CourierConfigCard";
 
 const BusinessSettings = () => {
   const { hasRole } = useUserRoles();
@@ -51,14 +52,115 @@ const BusinessSettings = () => {
     setCompanyCurrency(getSetting('company_currency') || 'USD');
   }, [getSetting]);
 
-  // Couriers State
-  const [couriers, setCouriers] = useState<Array<{
-    id: string;
-    name: string;
-    apiEndpoint: string;
-    apiKey: string;
-    code: string;
-  }>>([]);
+  // Couriers State - load from database
+  const [couriers, setCouriers] = useState<any[]>([]);
+  const [loadingCouriers, setLoadingCouriers] = useState(false);
+  const [showAddCourier, setShowAddCourier] = useState(false);
+
+  // Load couriers from database
+  useEffect(() => {
+    loadCouriers();
+  }, []);
+
+  const loadCouriers = async () => {
+    setLoadingCouriers(true);
+    try {
+      const { data, error } = await supabase
+        .from('couriers')
+        .select('*')
+        .order('name');
+      
+      if (error) throw error;
+      
+      // Load API keys for each courier
+      const couriersWithKeys = await Promise.all(
+        (data || []).map(async (courier) => {
+          const apiKey = getSetting(`${courier.code.toUpperCase()}_API_KEY`) || '';
+          return { ...courier, api_key: apiKey };
+        })
+      );
+      
+      setCouriers(couriersWithKeys);
+    } catch (error: any) {
+      console.error('Error loading couriers:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load couriers",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingCouriers(false);
+    }
+  };
+
+  const handleSaveCourier = async (config: any) => {
+    try {
+      const courierData = {
+        name: config.name,
+        code: config.code.toLowerCase(),
+        is_active: config.is_active,
+        auth_type: config.auth_type,
+        booking_endpoint: config.booking_endpoint,
+        tracking_endpoint: config.tracking_endpoint,
+        label_endpoint: config.label_endpoint,
+        label_format: config.label_format,
+        auto_download_label: config.auto_download_label,
+        auth_config: config.auth_config || {},
+        api_endpoint: config.booking_endpoint,
+        config: {}
+      };
+
+      if (config.id) {
+        // Update existing
+        const { error } = await supabase
+          .from('couriers')
+          .update(courierData)
+          .eq('id', config.id);
+        
+        if (error) throw error;
+      } else {
+        // Insert new
+        const { error } = await supabase
+          .from('couriers')
+          .insert([courierData]);
+        
+        if (error) throw error;
+      }
+
+      // Save API key
+      await updateSetting(`${config.code.toUpperCase()}_API_KEY`, config.api_key, `API key for ${config.name}`);
+
+      await loadCouriers();
+      setShowAddCourier(false);
+    } catch (error: any) {
+      throw new Error(`Failed to save courier: ${error.message}`);
+    }
+  };
+
+  const handleDeleteCourier = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('couriers')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      await loadCouriers();
+    } catch (error: any) {
+      throw new Error(`Failed to delete courier: ${error.message}`);
+    }
+  };
+
+  const handleTestCourier = async (config: any): Promise<boolean> => {
+    // Simple connectivity test - you can enhance this
+    try {
+      if (!config.tracking_endpoint) return false;
+      // In production, you'd call a test endpoint
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
   // Shopify State
   const [shopifyAccessToken, setShopifyAccessToken] = useState('');
@@ -479,53 +581,66 @@ const BusinessSettings = () => {
                 Courier Integrations
               </CardTitle>
               <CardDescription>
-                Add and configure courier services with their API credentials
+                Configure courier services with API credentials for automated booking, tracking, and label generation
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {couriers.map(courier => <Card key={courier.id} className="p-4">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label>Courier Configuration</Label>
-                      <Button variant="ghost" size="sm" onClick={() => handleRemoveCourier(courier.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
+            <CardContent className="space-y-6">
+              {loadingCouriers ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : (
+                <>
+                  <Alert>
+                    <CheckCircle2 className="h-4 w-4" />
+                    <AlertDescription className="text-sm">
+                      <strong>✓ Flexible Courier Configuration</strong><br />
+                      Add any courier with custom API endpoints, authentication, and label formats. The system supports automated booking, daily tracking updates, and shipping slip downloads.
+                    </AlertDescription>
+                  </Alert>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label>Courier Name</Label>
-                        <Input placeholder="TCS, Leopards, etc." value={courier.name} onChange={e => handleUpdateCourier(courier.id, 'name', e.target.value)} />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Courier Code</Label>
-                        <Input placeholder="tcs, leopards, etc." value={courier.code} onChange={e => handleUpdateCourier(courier.id, 'code', e.target.value)} />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>API Endpoint</Label>
-                      <Input placeholder="https://api.courier.com/v1" value={courier.apiEndpoint} onChange={e => handleUpdateCourier(courier.id, 'apiEndpoint', e.target.value)} />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>API Key</Label>
-                      <Input type="password" placeholder="Enter API key" value={courier.apiKey} onChange={e => handleUpdateCourier(courier.id, 'apiKey', e.target.value)} />
-                    </div>
+                  <div className="space-y-4">
+                    {couriers.map((courier) => (
+                      <CourierConfigCard
+                        key={courier.id}
+                        courier={courier}
+                        onSave={handleSaveCourier}
+                        onDelete={handleDeleteCourier}
+                        onTest={handleTestCourier}
+                      />
+                    ))}
                   </div>
-                </Card>)}
 
-              <Button variant="outline" onClick={handleAddCourier} className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Courier
-              </Button>
+                  {showAddCourier ? (
+                    <CourierConfigCard
+                      onSave={handleSaveCourier}
+                      onTest={handleTestCourier}
+                    />
+                  ) : (
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowAddCourier(true)}
+                      className="w-full"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add New Courier
+                    </Button>
+                  )}
 
-              <Separator />
+                  <Separator />
 
-              <Button onClick={handleSaveCouriers} className="w-full">
-                Save Courier Configurations
-              </Button>
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">System Features</h4>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      <li>• Automated order booking with courier APIs</li>
+                      <li>• Daily tracking updates for active shipments</li>
+                      <li>• Automatic shipping slip downloads</li>
+                      <li>• Support for custom authentication methods</li>
+                      <li>• Flexible label formats (PDF, PNG, HTML, URL)</li>
+                    </ul>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

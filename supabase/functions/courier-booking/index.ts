@@ -56,42 +56,68 @@ serve(async (req) => {
     console.log('Courier:', courier.name);
 
     // Check for mock mode
-    const mockMode = Deno.env.get('COURIER_BOOKING_MODE') === 'mock';
+    const mockMode = courier.api_endpoint === 'mock' || Deno.env.get('COURIER_BOOKING_MODE') === 'mock';
     
     let bookingResponse;
     let trackingId;
+    let labelUrl = null;
+    let labelData = null;
+    let labelFormat = courier.label_format || 'pdf';
 
     if (mockMode) {
       console.log('MOCK MODE: Generating fake tracking ID');
       trackingId = `${courier.code.toUpperCase()}-MOCK-${Date.now().toString().slice(-8)}`;
+      const mockLabel = btoa('Mock Label PDF Content');
+      labelData = mockLabel;
       bookingResponse = {
         mock: true,
         tracking_number: trackingId,
         track_number: trackingId,
         booking_id: `MOCK-${Date.now()}`,
         status: 'booked',
-        message: 'Mock booking successful'
+        message: 'Mock booking successful',
+        label_data: mockLabel
       };
     } else {
-      switch (courier.code.toUpperCase()) {
-        case 'TCS':
-          bookingResponse = await bookTCS(bookingRequest);
-          trackingId = bookingResponse.tracking_number;
-          break;
+      // Use custom booking endpoint if configured
+      if (courier.booking_endpoint) {
+        bookingResponse = await bookWithCustomEndpoint(bookingRequest, courier, supabase);
         
-        case 'LEOPARD':
-          bookingResponse = await bookLeopard(bookingRequest);
-          trackingId = bookingResponse.track_number;
-          break;
+        // Extract label from response
+        if (bookingResponse.label_url) {
+          labelUrl = bookingResponse.label_url;
+        } else if (bookingResponse.label_data || bookingResponse.labelData) {
+          labelData = bookingResponse.label_data || bookingResponse.labelData;
+        }
+      } else {
+        // Fallback to hardcoded implementations
+        switch (courier.code.toUpperCase()) {
+          case 'TCS':
+            bookingResponse = await bookTCS(bookingRequest, supabase);
+            break;
+          
+          case 'LEOPARD':
+            bookingResponse = await bookLeopard(bookingRequest, supabase);
+            break;
+          
+          case 'POSTEX':
+            bookingResponse = await bookPostEx(bookingRequest, supabase);
+            break;
+          
+          default:
+            throw new Error(`Unsupported courier: ${courier.code}`);
+        }
         
-        case 'POSTEX':
-          bookingResponse = await bookPostEx(bookingRequest);
-          trackingId = bookingResponse.tracking_number;
-          break;
-        
-        default:
-          throw new Error(`Unsupported courier: ${courier.code}`);
+        // Extract label from standard response
+        labelUrl = bookingResponse.label_url || bookingResponse.labelUrl;
+        labelData = bookingResponse.label_data || bookingResponse.labelData;
       }
+      
+      trackingId = bookingResponse.tracking_number || bookingResponse.track_number || bookingResponse.trackingNumber;
+    }
+
+    if (!trackingId) {
+      throw new Error('No tracking ID received from courier');
     }
 
     // Update order with tracking information
@@ -99,7 +125,8 @@ serve(async (req) => {
       .from('orders')
       .update({
         tracking_id: trackingId,
-        status: 'booked',
+        status: 'dispatched',
+        dispatched_at: new Date().toISOString(),
         courier: courier.code.toLowerCase()
       })
       .eq('id', bookingRequest.orderId);
@@ -108,7 +135,7 @@ serve(async (req) => {
       console.error('Error updating order:', orderError);
     }
 
-    // Create dispatch record
+    // Create dispatch record with label information
     const { error: dispatchError } = await supabase
       .from('dispatches')
       .insert({
@@ -118,7 +145,10 @@ serve(async (req) => {
         tracking_id: trackingId,
         status: 'booked',
         courier_booking_id: bookingResponse.booking_id || trackingId,
-        courier_response: bookingResponse
+        courier_response: bookingResponse,
+        label_url: labelUrl,
+        label_data: labelData,
+        label_format: labelFormat
       });
 
     if (dispatchError) {
@@ -130,7 +160,11 @@ serve(async (req) => {
         success: true,
         trackingId,
         courierId: bookingRequest.courierId,
-        bookingResponse
+        bookingResponse,
+        labelUrl,
+        labelData,
+        labelFormat,
+        autoDownload: courier.auto_download_label
       }),
       {
         status: 200,
@@ -170,8 +204,58 @@ serve(async (req) => {
   }
 });
 
-async function bookTCS(request: BookingRequest) {
-  const apiKey = getAPISetting('TCS_API_KEY');
+async function bookWithCustomEndpoint(request: BookingRequest, courier: any, supabaseClient: any) {
+  const apiKey = await getAPISetting(`${courier.code.toUpperCase()}_API_KEY`, supabaseClient);
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  // Apply authentication based on auth_type
+  if (courier.auth_type === 'bearer_token') {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  } else if (courier.auth_type === 'api_key_header') {
+    const headerName = courier.auth_config?.header_name || 'X-API-Key';
+    headers[headerName] = apiKey || '';
+  } else if (courier.auth_type === 'basic_auth') {
+    const username = courier.auth_config?.username || '';
+    const encoded = btoa(`${username}:${apiKey}`);
+    headers['Authorization'] = `Basic ${encoded}`;
+  }
+
+  // Add custom headers if configured
+  if (courier.auth_config?.custom_headers) {
+    Object.assign(headers, courier.auth_config.custom_headers);
+  }
+
+  // Build request body - support template variables
+  let body = courier.auth_config?.request_body_template || {
+    consignee_name: request.deliveryAddress.name,
+    consignee_phone: request.deliveryAddress.phone,
+    consignee_address: request.deliveryAddress.address,
+    destination_city: request.deliveryAddress.city,
+    origin_city: request.pickupAddress.city,
+    weight: request.weight,
+    pieces: request.pieces,
+    cod_amount: request.codAmount || 0
+  };
+
+  const response = await fetch(courier.booking_endpoint, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`${courier.name} booking failed: ${error}`);
+  }
+
+  return await response.json();
+}
+
+async function bookTCS(request: BookingRequest, supabaseClient: any) {
+  const apiKey = await getAPISetting('TCS_API_KEY', supabaseClient);
   
   const response = await fetch('https://api.tcs.com.pk/api/v1/bookings', {
     method: 'POST',
@@ -201,8 +285,8 @@ async function bookTCS(request: BookingRequest) {
   return await response.json();
 }
 
-async function bookLeopard(request: BookingRequest) {
-  const apiKey = getAPISetting('LEOPARD_API_KEY');
+async function bookLeopard(request: BookingRequest, supabaseClient: any) {
+  const apiKey = await getAPISetting('LEOPARD_API_KEY', supabaseClient);
   
   const response = await fetch('https://api.leopardscourier.com/api/bookings/store', {
     method: 'POST',
@@ -232,8 +316,8 @@ async function bookLeopard(request: BookingRequest) {
   return await response.json();
 }
 
-async function bookPostEx(request: BookingRequest) {
-  const apiKey = getAPISetting('POSTEX_API_KEY');
+async function bookPostEx(request: BookingRequest, supabaseClient: any) {
+  const apiKey = await getAPISetting('POSTEX_API_KEY', supabaseClient);
   
   const response = await fetch('https://api.postex.pk/services/integration/api/order/v1/create-order', {
     method: 'POST',

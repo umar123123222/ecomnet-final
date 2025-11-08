@@ -60,6 +60,9 @@ verify_jwt = true
 [functions.courier-tracking]
 verify_jwt = true
 
+[functions.scheduled-courier-tracking]
+verify_jwt = false
+
 [functions.manage-user]
 verify_jwt = true
 

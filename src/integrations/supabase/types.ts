@@ -532,41 +532,126 @@ export type Database = {
           },
         ]
       }
+      courier_tracking_history: {
+        Row: {
+          checked_at: string
+          courier_id: string
+          created_at: string | null
+          current_location: string | null
+          dispatch_id: string
+          id: string
+          order_id: string
+          raw_response: Json | null
+          status: string
+          tracking_id: string
+        }
+        Insert: {
+          checked_at?: string
+          courier_id: string
+          created_at?: string | null
+          current_location?: string | null
+          dispatch_id: string
+          id?: string
+          order_id: string
+          raw_response?: Json | null
+          status: string
+          tracking_id: string
+        }
+        Update: {
+          checked_at?: string
+          courier_id?: string
+          created_at?: string | null
+          current_location?: string | null
+          dispatch_id?: string
+          id?: string
+          order_id?: string
+          raw_response?: Json | null
+          status?: string
+          tracking_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courier_tracking_history_courier_id_fkey"
+            columns: ["courier_id"]
+            isOneToOne: false
+            referencedRelation: "couriers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_tracking_history_dispatch_id_fkey"
+            columns: ["dispatch_id"]
+            isOneToOne: false
+            referencedRelation: "dispatches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_tracking_history_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       couriers: {
         Row: {
           api_endpoint: string
+          auth_config: Json | null
+          auth_type: string | null
+          auto_download_label: boolean | null
+          booking_endpoint: string | null
           code: string
           config: Json | null
           created_at: string | null
           id: string
           is_active: boolean
+          label_config: Json | null
+          label_endpoint: string | null
+          label_format: string | null
           name: string
           pricing_config: Json | null
           supported_cities: Json | null
+          tracking_endpoint: string | null
           updated_at: string | null
         }
         Insert: {
           api_endpoint: string
+          auth_config?: Json | null
+          auth_type?: string | null
+          auto_download_label?: boolean | null
+          booking_endpoint?: string | null
           code: string
           config?: Json | null
           created_at?: string | null
           id?: string
           is_active?: boolean
+          label_config?: Json | null
+          label_endpoint?: string | null
+          label_format?: string | null
           name: string
           pricing_config?: Json | null
           supported_cities?: Json | null
+          tracking_endpoint?: string | null
           updated_at?: string | null
         }
         Update: {
           api_endpoint?: string
+          auth_config?: Json | null
+          auth_type?: string | null
+          auto_download_label?: boolean | null
+          booking_endpoint?: string | null
           code?: string
           config?: Json | null
           created_at?: string | null
           id?: string
           is_active?: boolean
+          label_config?: Json | null
+          label_endpoint?: string | null
+          label_format?: string | null
           name?: string
           pricing_config?: Json | null
           supported_cities?: Json | null
+          tracking_endpoint?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -645,6 +730,9 @@ export type Database = {
           dispatched_by: string | null
           estimated_delivery: string | null
           id: string
+          label_data: string | null
+          label_format: string | null
+          label_url: string | null
           last_tracking_update: string | null
           notes: string | null
           order_id: string
@@ -662,6 +750,9 @@ export type Database = {
           dispatched_by?: string | null
           estimated_delivery?: string | null
           id?: string
+          label_data?: string | null
+          label_format?: string | null
+          label_url?: string | null
           last_tracking_update?: string | null
           notes?: string | null
           order_id: string
@@ -679,6 +770,9 @@ export type Database = {
           dispatched_by?: string | null
           estimated_delivery?: string | null
           id?: string
+          label_data?: string | null
+          label_format?: string | null
+          label_url?: string | null
           last_tracking_update?: string | null
           notes?: string | null
           order_id?: string
