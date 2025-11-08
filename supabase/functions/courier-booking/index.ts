@@ -291,12 +291,15 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
       orderRefNumber: request.orderId,
       invoicePayment: request.codAmount || 0,
       orderType: request.codAmount ? 'COD' : 'Normal',
-      orderDetail: [{
-        name: 'Order Items',
-        quantity: request.pieces,
-        price: request.codAmount || 0
-      }]
+      orderDetail: `Order Items x${request.pieces} | Amount: ${request.codAmount || 0}`
     };
+    
+    // Defensive logging for Postex payload
+    console.log('POSTEX payload check:', {
+      hasOrderDetail: 'orderDetail' in body,
+      orderDetailType: typeof body.orderDetail,
+      orderDetailValue: body.orderDetail
+    });
   } else {
     // Generic structure for other couriers
     body = courier.auth_config?.request_body_template || {
@@ -324,7 +327,12 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`${courierCode} booking error response:`, errorText);
+    const contentType = response.headers.get('content-type');
+    console.error(`${courierCode} booking error response:`, {
+      status: response.status,
+      contentType,
+      body: errorText
+    });
     
     // Check if error is due to missing token header (despite us sending it)
     let errorCode = 'BOOKING_API_ERROR';
@@ -421,12 +429,15 @@ async function bookPostEx(request: BookingRequest, supabaseClient: any) {
     orderRefNumber: request.orderId,
     invoicePayment: request.codAmount || 0,
     orderType: request.codAmount ? 'COD' : 'Normal',
-    orderDetail: [{
-      name: 'Order Items',
-      quantity: request.pieces,
-      price: request.codAmount || 0
-    }]
+    orderDetail: `Order Items x${request.pieces} | Amount: ${request.codAmount || 0}`
   };
+  
+  // Defensive logging for Postex payload
+  console.log('POSTEX payload check:', {
+    hasOrderDetail: 'orderDetail' in body,
+    orderDetailType: typeof body.orderDetail,
+    orderDetailValue: body.orderDetail
+  });
 
   // Use manual redirect to preserve token header
   const response = await fetchWithManualRedirect('https://api.postex.pk/services/integration/api/order/v3/create-order', {
@@ -440,7 +451,12 @@ async function bookPostEx(request: BookingRequest, supabaseClient: any) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Postex booking error:', errorText);
+    const contentType = response.headers.get('content-type');
+    console.error('Postex booking error:', {
+      status: response.status,
+      contentType,
+      body: errorText
+    });
     throw new Error(`PostEx booking failed: ${errorText}`);
   }
 
