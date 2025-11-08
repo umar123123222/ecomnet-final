@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Download, ChevronDown, ChevronUp, Edit } from 'lucide-react';
+import { Search, Download, ChevronDown, ChevronUp, Edit, Lock } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
@@ -27,6 +28,9 @@ const ReturnsDashboard = () => {
   });
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
+  const [allowManualEntry, setAllowManualEntry] = useState(false);
+  const [lastKeyTime, setLastKeyTime] = useState<number>(0);
+  const [fastKeyCount, setFastKeyCount] = useState<number>(0);
   const {
     toast
   } = useToast();
@@ -110,6 +114,50 @@ const ReturnsDashboard = () => {
 
   const toggleRowExpansion = (returnId: string) => {
     setExpandedRows(prev => prev.includes(returnId) ? prev.filter(id => id !== returnId) : [...prev, returnId]);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Allow manual entry if toggle is enabled
+    if (allowManualEntry) {
+      setLastKeyTime(Date.now());
+      setFastKeyCount(0);
+      return;
+    }
+
+    const currentTime = Date.now();
+    const timeSinceLastKey = currentTime - lastKeyTime;
+    setLastKeyTime(currentTime);
+
+    // Special keys are always allowed
+    const isSpecialKey = ['Tab', 'Enter', 'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key);
+    const isSelectAll = (e.ctrlKey || e.metaKey) && e.key === 'a';
+    
+    if (isSpecialKey || isSelectAll) {
+      return;
+    }
+
+    // Detect scanner input: scanners type very fast (< 100ms between keystrokes)
+    const isFastTyping = timeSinceLastKey < 100 && timeSinceLastKey > 0;
+    
+    if (isFastTyping) {
+      setFastKeyCount(prev => prev + 1);
+      // If we've detected 3+ consecutive fast keys, it's definitely a scanner
+      if (fastKeyCount >= 2) {
+        return; // Allow scanner input silently
+      }
+    } else {
+      setFastKeyCount(0);
+      
+      // Only block and show toast for clearly manual typing
+      if (timeSinceLastKey > 200 || lastKeyTime === 0) {
+        e.preventDefault();
+        toast({
+          title: "Manual Entry Disabled",
+          description: "Enable manual entry toggle to type, or use barcode scanner",
+          variant: "destructive"
+        });
+      }
+    }
   };
 
   const handleManualEntry = async (formData: { bulkEntries: string }) => {
@@ -246,6 +294,25 @@ const ReturnsDashboard = () => {
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleManualEntry)} className="space-y-4">
+                {/* Manual Entry Toggle */}
+                <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/50">
+                  <div className="flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Allow Manual Entry</span>
+                  </div>
+                  <Switch
+                    checked={allowManualEntry}
+                    onCheckedChange={setAllowManualEntry}
+                  />
+                </div>
+
+                {!allowManualEntry && (
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-primary/10 border border-primary/20">
+                    <Badge variant="outline" className="bg-primary/5">Scanner Mode</Badge>
+                    <span className="text-xs text-muted-foreground">Use barcode scanner only</span>
+                  </div>
+                )}
+
                 <FormField
                   control={form.control}
                   name="bulkEntries"
@@ -254,13 +321,20 @@ const ReturnsDashboard = () => {
                       <FormLabel>Tracking IDs</FormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder="Enter tracking IDs (one per line)&#10;Example:&#10;RTN123456&#10;RTN789012&#10;RTN345678"
-                          className="min-h-[150px] font-mono text-sm"
+                          placeholder={allowManualEntry 
+                            ? "Enter tracking IDs (one per line)\nExample:\nRTN123456\nRTN789012\nRTN345678"
+                            : "Scan tracking IDs with barcode scanner\nScanner will automatically input data"
+                          }
+                          className={`min-h-[150px] font-mono text-sm ${!allowManualEntry ? 'bg-muted/30' : ''}`}
+                          onKeyDown={handleKeyDown}
                           {...field}
                         />
                       </FormControl>
                       <p className="text-xs text-muted-foreground">
-                        Enter one tracking ID per line. Returns will be marked as received and orders updated to "Return Received" status.
+                        {allowManualEntry 
+                          ? "Enter one tracking ID per line. Returns will be marked as received and orders updated to 'Returned' status."
+                          : "Manual typing is disabled. Use your barcode scanner or enable manual entry above."
+                        }
                       </p>
                       <FormMessage />
                     </FormItem>
