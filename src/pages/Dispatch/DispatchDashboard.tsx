@@ -34,6 +34,7 @@ const DispatchDashboard = () => {
   const [isNewDispatchOpen, setIsNewDispatchOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [allowManualEntry, setAllowManualEntry] = useState(false);
+  const [lastKeyTime, setLastKeyTime] = useState<number>(0);
   const {
     toast
   } = useToast();
@@ -248,6 +249,33 @@ const DispatchDashboard = () => {
   const toggleRowExpansion = (dispatchId: string) => {
     setExpandedRows(prev => prev.includes(dispatchId) ? prev.filter(id => id !== dispatchId) : [...prev, dispatchId]);
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Allow manual entry if toggle is enabled
+    if (allowManualEntry) {
+      setLastKeyTime(Date.now());
+      return;
+    }
+
+    // Detect scanner input: scanners type very fast (< 50ms between keystrokes)
+    const currentTime = Date.now();
+    const timeSinceLastKey = currentTime - lastKeyTime;
+    setLastKeyTime(currentTime);
+
+    // Allow if it's a scanner (fast typing) or special keys
+    const isScanner = timeSinceLastKey < 50 && timeSinceLastKey > 0;
+    const isSpecialKey = ['Tab', 'Enter', 'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key);
+    const isSelectAll = (e.ctrlKey || e.metaKey) && e.key === 'a';
+    
+    if (!isScanner && !isSpecialKey && !isSelectAll) {
+      e.preventDefault();
+      toast({
+        title: "Manual Entry Disabled",
+        description: "Enable manual entry toggle to type, or use barcode scanner",
+        variant: "destructive"
+      });
+    }
+  };
   return <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -300,9 +328,9 @@ const DispatchDashboard = () => {
                             value={field.value}
                             onChange={field.onChange}
                             onBlur={field.onBlur}
+                            onKeyDown={handleKeyDown}
                             name={field.name}
                             ref={field.ref}
-                            readOnly={!allowManualEntry}
                             style={!allowManualEntry ? { backgroundColor: 'hsl(var(--muted))' } : {}}
                           />
                         </FormControl>
