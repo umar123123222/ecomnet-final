@@ -175,8 +175,8 @@ serve(async (req) => {
   } catch (error: any) {
     console.error('Error in courier-booking:', error);
     
-    // Detect DNS/network errors
-    let errorCode = 'UNKNOWN_ERROR';
+    // Detect DNS/network errors and specific error codes
+    let errorCode = error.code || 'UNKNOWN_ERROR';
     let errorDetail = error.message;
     
     if (error.message?.includes('DNS') || error.message?.includes('getaddrinfo')) {
@@ -186,7 +186,7 @@ serve(async (req) => {
       errorCode = 'NETWORK_ERROR';
       errorDetail = 'Network connectivity issue with courier API';
     } else if (error.message?.includes('booking failed')) {
-      errorCode = 'BOOKING_API_ERROR';
+      errorCode = error.code || 'BOOKING_API_ERROR';
     }
     
     return new Response(
@@ -203,6 +203,38 @@ serve(async (req) => {
     );
   }
 });
+
+// Helper function to handle redirects manually (preserves headers)
+async function fetchWithManualRedirect(url: string, options: RequestInit, maxRedirects = 5): Promise<Response> {
+  let redirectCount = 0;
+  let currentUrl = url;
+
+  while (redirectCount < maxRedirects) {
+    const response = await fetch(currentUrl, {
+      ...options,
+      redirect: 'manual'
+    });
+
+    // Check if it's a redirect
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get('Location');
+      if (!location) {
+        throw new Error('Redirect without Location header');
+      }
+      
+      // Resolve relative URLs
+      currentUrl = new URL(location, currentUrl).toString();
+      console.log(`Following redirect to: ${currentUrl}`);
+      redirectCount++;
+      continue;
+    }
+
+    // Not a redirect, return the response
+    return response;
+  }
+
+  throw new Error(`Too many redirects (${maxRedirects})`);
+}
 
 async function bookWithCustomEndpoint(request: BookingRequest, courier: any, supabaseClient: any) {
   const apiKey = await getAPISetting(`${courier.code.toUpperCase()}_API_KEY`, supabaseClient);
@@ -244,27 +276,65 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
     otherHeaderKeys: Object.keys(headers).filter(k => !['Authorization','token','Content-Type'].includes(k))
   });
 
-  // Build request body - support template variables
-  let body = courier.auth_config?.request_body_template || {
-    consignee_name: request.deliveryAddress.name,
-    consignee_phone: request.deliveryAddress.phone,
-    consignee_address: request.deliveryAddress.address,
-    destination_city: request.deliveryAddress.city,
-    origin_city: request.pickupAddress.city,
-    weight: request.weight,
-    pieces: request.pieces,
-    cod_amount: request.codAmount || 0
-  };
+  // Build request body - Postex-specific or generic
+  let body;
+  
+  if (courierCode === 'POSTEX') {
+    // Postex v3 API requires specific structure
+    body = {
+      customerName: request.deliveryAddress.name,
+      customerPhone: request.deliveryAddress.phone,
+      deliveryAddress: request.deliveryAddress.address,
+      cityName: request.deliveryAddress.city,
+      pickupCityName: request.pickupAddress.city,
+      transactionNotes: request.specialInstructions || '',
+      orderRefNumber: request.orderId,
+      invoicePayment: request.codAmount || 0,
+      orderType: request.codAmount ? 'COD' : 'Normal',
+      orderDetail: [{
+        name: 'Order Items',
+        quantity: request.pieces,
+        price: request.codAmount || 0
+      }]
+    };
+  } else {
+    // Generic structure for other couriers
+    body = courier.auth_config?.request_body_template || {
+      consignee_name: request.deliveryAddress.name,
+      consignee_phone: request.deliveryAddress.phone,
+      consignee_address: request.deliveryAddress.address,
+      destination_city: request.deliveryAddress.city,
+      origin_city: request.pickupAddress.city,
+      weight: request.weight,
+      pieces: request.pieces,
+      cod_amount: request.codAmount || 0
+    };
+  }
 
-  const response = await fetch(courier.booking_endpoint, {
+  console.log(`Sending ${courierCode} booking request to: ${courier.booking_endpoint}`);
+
+  // Use manual redirect handling to preserve headers
+  const response = await fetchWithManualRedirect(courier.booking_endpoint, {
     method: 'POST',
     headers,
     body: JSON.stringify(body)
   });
 
+  console.log(`${courierCode} response status: ${response.status}`);
+
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`${courier.name} booking failed: ${error}`);
+    const errorText = await response.text();
+    console.error(`${courierCode} booking error response:`, errorText);
+    
+    // Check if error is due to missing token header (despite us sending it)
+    let errorCode = 'BOOKING_API_ERROR';
+    if (errorText.includes('Missing request header \'token\'')) {
+      errorCode = 'AUTH_HEADER_DROPPED_ON_REDIRECT';
+    }
+    
+    const error: any = new Error(`${courier.name} booking failed: ${errorText}`);
+    error.code = errorCode;
+    throw error;
   }
 
   return await response.json();
@@ -341,32 +411,37 @@ async function bookPostEx(request: BookingRequest, supabaseClient: any) {
   
   console.log('Postex API Key present:', !!apiKey);
   
-  const response = await fetch('https://api.postex.pk/services/integration/api/order/v3/create-order', {
+  const body = {
+    customerName: request.deliveryAddress.name,
+    customerPhone: request.deliveryAddress.phone,
+    deliveryAddress: request.deliveryAddress.address,
+    cityName: request.deliveryAddress.city,
+    pickupCityName: request.pickupAddress.city,
+    transactionNotes: request.specialInstructions || '',
+    orderRefNumber: request.orderId,
+    invoicePayment: request.codAmount || 0,
+    orderType: request.codAmount ? 'COD' : 'Normal',
+    orderDetail: [{
+      name: 'Order Items',
+      quantity: request.pieces,
+      price: request.codAmount || 0
+    }]
+  };
+
+  // Use manual redirect to preserve token header
+  const response = await fetchWithManualRedirect('https://api.postex.pk/services/integration/api/order/v3/create-order', {
     method: 'POST',
     headers: {
       'token': apiKey,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      customerName: request.deliveryAddress.name,
-      customerPhone: request.deliveryAddress.phone,
-      deliveryAddress: request.deliveryAddress.address,
-      cityName: request.deliveryAddress.city,
-      pickupCityName: request.pickupAddress.city,
-      transactionNotes: request.specialInstructions,
-      orderRefNumber: request.orderId,
-      invoicePayment: request.codAmount || 0,
-      orderDetail: [{
-        name: 'Order Items',
-        quantity: request.pieces,
-        price: request.codAmount || 0
-      }]
-    }),
+    body: JSON.stringify(body)
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`PostEx booking failed: ${error}`);
+    const errorText = await response.text();
+    console.error('Postex booking error:', errorText);
+    throw new Error(`PostEx booking failed: ${errorText}`);
   }
 
   return await response.json();
