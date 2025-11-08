@@ -221,6 +221,9 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
     const username = courier.auth_config?.username || '';
     const encoded = btoa(`${username}:${apiKey}`);
     headers['Authorization'] = `Basic ${encoded}`;
+  } else if (courier.auth_type === 'token_header') {
+    // For couriers like Postex that use a 'token' header
+    headers['token'] = apiKey || '';
   }
 
   // Add custom headers if configured
