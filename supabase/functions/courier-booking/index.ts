@@ -26,6 +26,11 @@ interface BookingRequest {
   pieces: number;
   codAmount?: number;
   specialInstructions?: string;
+  items?: Array<{
+    name: string;
+    quantity: number;
+    price: number;
+  }>;
 }
 
 serve(async (req) => {
@@ -490,6 +495,17 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
       throw error;
     }
     
+    // Format detailed product information for order detail
+    let orderDetail = '';
+    if (request.items && request.items.length > 0) {
+      const itemsList = request.items
+        .map(item => `${item.name} (Qty: ${item.quantity})`)
+        .join(', ');
+      orderDetail = `Products: ${itemsList} | Total: ${request.codAmount || 0}`;
+    } else {
+      orderDetail = `Order Items x${request.pieces} | Amount: ${request.codAmount || 0}`;
+    }
+    
     body = {
       customerName: request.deliveryAddress.name,
       customerPhone: request.deliveryAddress.phone,
@@ -500,7 +516,7 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
       orderRefNumber: request.orderId,
       invoicePayment: request.codAmount || 0,
       orderType: 'Normal', // Valid values: Normal, Reversed, Replacement
-      orderDetail: `Order Items x${request.pieces} | Amount: ${request.codAmount || 0}`,
+      orderDetail: orderDetail,
       pickupAddressCode: pickupAddressCode
     };
     

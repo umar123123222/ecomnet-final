@@ -118,59 +118,91 @@ async function cancelWithCourier(
   supabaseClient: any,
   reason: string
 ) {
+  const courierCode = (courier.code || '').toString().toUpperCase();
+  console.log(`[CANCEL] Attempting to cancel with courier: ${courierCode}`);
+  
   // Get API key
-  const apiKey = await getAPISetting(`${courier.code.toUpperCase()}_API_KEY`, supabaseClient);
+  const apiKey = await getAPISetting(`${courierCode}_API_KEY`, supabaseClient);
   if (!apiKey) {
-    throw new Error('API key not configured for courier');
+    console.warn(`[CANCEL] No API key found for ${courierCode}, skipping API cancellation`);
+    return { success: true, message: 'Cancelled locally (no API key)' };
   }
 
-  // Build cancellation endpoint (usually tracking endpoint with cancel action)
-  const cancelEndpoint = courier.tracking_endpoint.replace('/track', '/cancel') || 
-                         `${courier.api_endpoint}/cancel`;
-
-  // Prepare headers based on auth type
+  let cancelEndpoint: string;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
+  let payload: any;
 
-  if (courier.auth_type === 'bearer') {
-    headers['Authorization'] = `Bearer ${apiKey}`;
-  } else if (courier.auth_type === 'api_key') {
-    headers['X-API-Key'] = apiKey;
-    if (courier.auth_config?.header_name) {
-      headers[courier.auth_config.header_name] = apiKey;
+  // Configure cancellation based on courier type
+  if (courierCode === 'POSTEX') {
+    // Postex-specific configuration
+    cancelEndpoint = courier.api_endpoint 
+      ? courier.api_endpoint.replace('/create-order', '/cancel-order')
+      : 'https://api.postex.pk/services/integration/api/cancel-order';
+    
+    headers['token'] = apiKey;
+    payload = {
+      trackingNumber: trackingId,
+      reason: reason
+    };
+    
+    console.log('[CANCEL] Using Postex cancellation:', { endpoint: cancelEndpoint, trackingNumber: trackingId });
+  } else if (courierCode === 'TCS' || courierCode === 'LEOPARD') {
+    // TCS/Leopard-specific configuration (if they support cancellation)
+    console.warn(`[CANCEL] ${courierCode} cancellation not implemented yet, proceeding with local cleanup`);
+    return { success: true, message: `Cancelled locally (${courierCode} API cancellation not implemented)` };
+  } else {
+    // Generic courier cancellation
+    cancelEndpoint = courier.tracking_endpoint?.replace('/track', '/cancel') 
+      || courier.api_endpoint?.replace('/book', '/cancel')
+      || `${courier.api_endpoint}/cancel`;
+    
+    // Apply generic auth
+    if (courier.auth_type === 'bearer') {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    } else if (courier.auth_type === 'api_key') {
+      headers['X-API-Key'] = apiKey;
+      if (courier.auth_config?.header_name) {
+        headers[courier.auth_config.header_name] = apiKey;
+      }
+    } else if (courier.auth_type === 'basic') {
+      const credentials = btoa(`${courier.auth_config?.username || ''}:${apiKey}`);
+      headers['Authorization'] = `Basic ${credentials}`;
     }
-  } else if (courier.auth_type === 'basic') {
-    const credentials = btoa(`${courier.auth_config?.username || ''}:${apiKey}`);
-    headers['Authorization'] = `Basic ${credentials}`;
+    
+    payload = {
+      tracking_id: trackingId,
+      tracking_number: trackingId,
+      cn_number: trackingId,
+      awb_number: trackingId,
+      reason: reason,
+      cancel_reason: reason,
+    };
+    
+    console.log('[CANCEL] Using generic cancellation:', { endpoint: cancelEndpoint });
   }
 
-  // Build cancellation payload
-  const payload = {
-    tracking_id: trackingId,
-    tracking_number: trackingId,
-    cn_number: trackingId,
-    awb_number: trackingId,
-    reason: reason,
-    cancel_reason: reason,
-  };
+  try {
+    const response = await fetch(cancelEndpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
 
-  console.log('Calling courier cancellation API:', cancelEndpoint);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[CANCEL] ${courierCode} API error (${response.status}):`, errorText);
+      console.warn('[CANCEL] Continuing with local cleanup despite API failure');
+      return { success: true, message: `Cancelled locally (API error: ${response.status})` };
+    }
 
-  const response = await fetch(cancelEndpoint, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Courier cancellation failed:', errorText);
-    throw new Error(`Courier API error: ${response.status} - ${errorText}`);
+    const result = await response.json();
+    console.log(`[CANCEL] Successfully cancelled on ${courierCode} portal:`, result);
+    return result;
+  } catch (error: any) {
+    console.error(`[CANCEL] ${courierCode} API exception:`, error.message);
+    console.warn('[CANCEL] Continuing with local cleanup despite API exception');
+    return { success: true, message: `Cancelled locally (API exception: ${error.message})` };
   }
-
-  const result = await response.json();
-  console.log('Courier cancellation response:', result);
-
-  return result;
 }

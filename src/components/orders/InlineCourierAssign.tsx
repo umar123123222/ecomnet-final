@@ -111,7 +111,12 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
           weight: estimatedWeight,
           pieces: totalPieces,
           codAmount: orderDetails.totalPrice,
-          specialInstructions: ''
+          specialInstructions: '',
+          items: orderDetails.items.map(item => ({
+            name: item.name || item.item_name || 'Product',
+            quantity: item.quantity || 1,
+            price: parseFloat(item.price || 0)
+          }))
         }
       });
 
