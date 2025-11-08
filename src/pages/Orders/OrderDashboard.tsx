@@ -914,7 +914,7 @@ const OrderDashboard = () => {
     deletePreset,
     activeFiltersCount,
   } = useAdvancedFilters(orders, {
-    searchFields: ['orderNumber', 'trackingId', 'customer', 'id', 'email', 'phone', 'city'],
+    searchFields: ['order_number', 'customer_name', 'customer_phone', 'shopify_order_id', 'shopify_order_number', 'tracking_id', 'customer_email', 'city'],
     statusField: 'status',
     dateField: 'createdAtISO',
     amountField: 'totalPrice',
