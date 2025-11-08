@@ -35,6 +35,7 @@ const DispatchDashboard = () => {
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [allowManualEntry, setAllowManualEntry] = useState(false);
   const [lastKeyTime, setLastKeyTime] = useState<number>(0);
+  const [fastKeyCount, setFastKeyCount] = useState<number>(0);
   const {
     toast
   } = useToast();
@@ -254,26 +255,45 @@ const DispatchDashboard = () => {
     // Allow manual entry if toggle is enabled
     if (allowManualEntry) {
       setLastKeyTime(Date.now());
+      setFastKeyCount(0);
       return;
     }
 
-    // Detect scanner input: scanners type very fast (< 50ms between keystrokes)
     const currentTime = Date.now();
     const timeSinceLastKey = currentTime - lastKeyTime;
     setLastKeyTime(currentTime);
 
-    // Allow if it's a scanner (fast typing) or special keys
-    const isScanner = timeSinceLastKey < 50 && timeSinceLastKey > 0;
+    // Special keys are always allowed
     const isSpecialKey = ['Tab', 'Enter', 'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key);
     const isSelectAll = (e.ctrlKey || e.metaKey) && e.key === 'a';
     
-    if (!isScanner && !isSpecialKey && !isSelectAll) {
-      e.preventDefault();
-      toast({
-        title: "Manual Entry Disabled",
-        description: "Enable manual entry toggle to type, or use barcode scanner",
-        variant: "destructive"
-      });
+    if (isSpecialKey || isSelectAll) {
+      return;
+    }
+
+    // Detect scanner input: scanners type very fast (< 100ms between keystrokes)
+    const isFastTyping = timeSinceLastKey < 100 && timeSinceLastKey > 0;
+    
+    if (isFastTyping) {
+      // Track consecutive fast keys - scanner produces multiple fast keys in sequence
+      setFastKeyCount(prev => prev + 1);
+      // If we've detected 3+ consecutive fast keys, it's definitely a scanner
+      if (fastKeyCount >= 2) {
+        return; // Allow scanner input silently
+      }
+    } else {
+      // Reset counter if typing slows down
+      setFastKeyCount(0);
+      
+      // Only block and show toast for clearly manual typing (slow, deliberate keystrokes)
+      if (timeSinceLastKey > 200 || lastKeyTime === 0) {
+        e.preventDefault();
+        toast({
+          title: "Manual Entry Disabled",
+          description: "Enable manual entry toggle to type, or use barcode scanner",
+          variant: "destructive"
+        });
+      }
     }
   };
   return <div className="p-6 space-y-6">
