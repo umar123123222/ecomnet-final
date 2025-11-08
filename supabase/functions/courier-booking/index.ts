@@ -62,6 +62,9 @@ serve(async (req) => {
 
     console.log('[BOOKING] Using courier:', courier.name, courier.code);
 
+    // Define courierCode for use throughout the function
+    const courierCode = (courier.code || '').toString().toUpperCase();
+
     // Check for mock mode
     const mockMode = courier.api_endpoint === 'mock' || Deno.env.get('COURIER_BOOKING_MODE') === 'mock';
     
@@ -120,25 +123,35 @@ serve(async (req) => {
         labelData = bookingResponse.label_data || bookingResponse.labelData;
       }
       
+      // Log response structure for debugging
+      console.log('[BOOKING] Response keys:', Object.keys(bookingResponse || {}));
+      if (bookingResponse?.dist) {
+        console.log('[BOOKING] Response.dist keys:', Object.keys(bookingResponse.dist));
+      }
+      if (bookingResponse?.data) {
+        console.log('[BOOKING] Response.data keys:', Object.keys(bookingResponse.data));
+      }
+      
       // Extract tracking ID based on courier response structure
       if (courierCode === 'POSTEX') {
-        // Postex returns tracking in 'dist' -> 'cn' field or 'trackingNumber'
-        trackingId = bookingResponse.dist?.cn || bookingResponse.trackingNumber || bookingResponse.cn;
+        // Postex returns tracking in 'dist' -> 'trackingNumber' or 'cn' field
+        trackingId = bookingResponse.dist?.trackingNumber || bookingResponse.dist?.cn || bookingResponse.trackingNumber || bookingResponse.cn;
       } else {
-      trackingId =
-        bookingResponse.tracking_number ||
-        bookingResponse.track_number ||
-        bookingResponse.trackingNumber ||
-        bookingResponse.cn ||
-        bookingResponse.consignment_number ||
-        bookingResponse.consignmentNumber ||
-        bookingResponse?.data?.tracking_number ||
-        bookingResponse?.data?.trackingNumber ||
-        bookingResponse?.data?.cn ||
-        bookingResponse?.result?.tracking_number ||
-        bookingResponse?.result?.track_number ||
-        bookingResponse?.shipment?.tracking_number ||
-        bookingResponse?.dist?.cn;
+        trackingId =
+          bookingResponse.tracking_number ||
+          bookingResponse.track_number ||
+          bookingResponse.trackingNumber ||
+          bookingResponse.cn ||
+          bookingResponse.consignment_number ||
+          bookingResponse.consignmentNumber ||
+          bookingResponse?.data?.tracking_number ||
+          bookingResponse?.data?.trackingNumber ||
+          bookingResponse?.data?.cn ||
+          bookingResponse?.result?.tracking_number ||
+          bookingResponse?.result?.track_number ||
+          bookingResponse?.shipment?.tracking_number ||
+          bookingResponse?.dist?.trackingNumber ||
+          bookingResponse?.dist?.cn;
       }
     }
 
@@ -146,7 +159,9 @@ serve(async (req) => {
     console.log('[BOOKING] Full booking response:', JSON.stringify(bookingResponse));
 
     if (!trackingId) {
-      throw new Error('No tracking ID received from courier');
+      const error: any = new Error('No tracking ID received from courier');
+      error.code = 'BOOKING_MISSING_TRACKING_ID';
+      throw error;
     }
 
     // Update order with tracking information
@@ -224,14 +239,29 @@ serve(async (req) => {
     // Detect and categorize errors
     let errorCode = error.code || 'UNKNOWN_ERROR';
     let errorDetail = error.message;
-    let isRetryable = true;
+    let isRetryable = false; // Default to non-retryable, only retry network errors
     
+    // Only retry transient network errors
     if (error.message?.includes('DNS') || error.message?.includes('getaddrinfo')) {
       errorCode = 'NETWORK_DNS_ERROR';
       errorDetail = 'Cannot reach courier API (DNS resolution failed)';
+      isRetryable = true;
     } else if (error.message?.includes('fetch') || error.message?.includes('network')) {
       errorCode = 'NETWORK_ERROR';
       errorDetail = 'Network connectivity issue with courier API';
+      isRetryable = true;
+    } else if (error.message?.includes('timeout') || error.message?.includes('timed out')) {
+      errorCode = 'NETWORK_TIMEOUT';
+      errorDetail = 'Request to courier API timed out';
+      isRetryable = true;
+    } else if (error.message?.includes('Too many redirects')) {
+      errorCode = 'TOO_MANY_REDIRECTS';
+      errorDetail = 'Too many redirects when contacting courier API';
+      isRetryable = true;
+    } else if (error.message?.includes('No tracking ID received')) {
+      errorCode = error.code || 'BOOKING_MISSING_TRACKING_ID';
+      errorDetail = 'Courier booking succeeded but no tracking ID was found in response';
+      isRetryable = false;
     } else if (error.message?.includes('INVALID ORDER TYPE')) {
       errorCode = 'INVALID_ORDER_TYPE';
       errorDetail = 'Courier rejected order type. Check courier configuration.';
@@ -242,8 +272,10 @@ serve(async (req) => {
       isRetryable = false;
     } else if (error.message?.includes('booking failed')) {
       errorCode = error.code || 'BOOKING_API_ERROR';
+      isRetryable = false;
     } else if (error.message?.includes('Courier not found')) {
       errorCode = 'COURIER_NOT_FOUND';
+      errorDetail = 'Courier not found in system';
       isRetryable = false;
     } else if (error.message?.includes('Configuration Required')) {
       errorCode = 'CONFIGURATION_REQUIRED';
