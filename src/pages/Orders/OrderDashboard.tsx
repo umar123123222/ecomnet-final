@@ -1653,9 +1653,11 @@ const OrderDashboard = () => {
                                                     variant="outline"
                                                     className="h-7 text-xs"
                                                     onClick={async () => {
+                                                      const toastId = toast({ description: "Downloading label..." });
+                                                      
                                                       try {
                                                         // Fetch dispatch record
-                                                        const { data: dispatch } = await supabase
+                                                        const { data: dispatch, error: dispatchError } = await supabase
                                                           .from('dispatches')
                                                           .select('label_url, label_data, label_format, courier, tracking_id, id')
                                                           .eq('order_id', order.id)
@@ -1663,13 +1665,16 @@ const OrderDashboard = () => {
                                                           .limit(1)
                                                           .single();
                                                         
-                                                        if (!dispatch) {
+                                                        if (dispatchError || !dispatch) {
+                                                          console.error('Dispatch fetch error:', dispatchError);
                                                           toast({
                                                             description: "No dispatch record found",
                                                             variant: "destructive"
                                                           });
                                                           return;
                                                         }
+                                                        
+                                                        console.log('Dispatch record:', dispatch);
                                                         
                                                         // If label exists, download it
                                                         if (dispatch.label_url || dispatch.label_data) {
@@ -1683,22 +1688,26 @@ const OrderDashboard = () => {
                                                         } else {
                                                           // Label missing - attempt to fetch it for Postex
                                                           if (dispatch.courier?.toUpperCase() === 'POSTEX' && dispatch.tracking_id) {
+                                                            console.log('Attempting to fetch Postex label for:', dispatch.tracking_id);
                                                             toast({ description: "Fetching label from Postex..." });
                                                             
                                                             // Get Postex API key from settings
-                                                            const { data: apiSettings } = await supabase
+                                                            const { data: apiSettings, error: keyError } = await supabase
                                                               .from('api_settings')
                                                               .select('setting_value')
                                                               .eq('setting_key', 'POSTEX_API_KEY')
                                                               .single();
                                                             
-                                                            if (!apiSettings?.setting_value) {
+                                                            if (keyError || !apiSettings?.setting_value) {
+                                                              console.error('API key fetch error:', keyError);
                                                               toast({
-                                                                description: "Postex API key not configured",
+                                                                description: "Postex API key not configured in settings",
                                                                 variant: "destructive"
                                                               });
                                                               return;
                                                             }
+                                                            
+                                                            console.log('Fetching label from Postex API...');
                                                             
                                                             // Fetch label from Postex
                                                             const labelResponse = await fetch('https://api.postex.pk/services/integration/api/order/v1/get-label', {
@@ -1710,40 +1719,59 @@ const OrderDashboard = () => {
                                                               body: JSON.stringify({ trackingNumber: dispatch.tracking_id })
                                                             });
                                                             
-                                                            if (labelResponse.ok) {
-                                                              const labelData = await labelResponse.json();
-                                                              
-                                                              if (labelData.dist?.pdfData || labelData.dist?.labelUrl) {
-                                                                // Update dispatch with label data
-                                                                await supabase
-                                                                  .from('dispatches')
-                                                                  .update({
-                                                                    label_data: labelData.dist.pdfData,
-                                                                    label_url: labelData.dist.labelUrl,
-                                                                    label_format: 'pdf'
-                                                                  })
-                                                                  .eq('id', dispatch.id);
-                                                                
-                                                                // Download the label
-                                                                await downloadCourierLabel(
-                                                                  labelData.dist.pdfData,
-                                                                  labelData.dist.labelUrl,
-                                                                  'pdf',
-                                                                  dispatch.tracking_id
-                                                                );
-                                                                toast({ description: "Label downloaded successfully" });
-                                                              } else {
-                                                                toast({
-                                                                  description: "Label not available yet. Please try again in a few moments.",
-                                                                  variant: "destructive"
-                                                                });
-                                                              }
-                                                            } else {
+                                                            console.log('Postex API response status:', labelResponse.status);
+                                                            
+                                                            if (!labelResponse.ok) {
                                                               const errorText = await labelResponse.text();
-                                                              console.error('Label fetch failed:', errorText);
+                                                              console.error('Postex API error response:', errorText);
+                                                              
+                                                              // Try to parse error message
+                                                              let errorMessage = 'Failed to fetch label from Postex';
+                                                              try {
+                                                                const errorJson = JSON.parse(errorText);
+                                                                errorMessage = errorJson.message || errorJson.statusMessage || errorMessage;
+                                                              } catch {}
+                                                              
                                                               toast({
-                                                                description: "Failed to fetch label from courier",
-                                                                variant: "destructive"
+                                                                description: `${errorMessage} (Status: ${labelResponse.status}). The label might not be ready yet - wait a few minutes and try again.`,
+                                                                variant: "destructive",
+                                                                duration: 6000
+                                                              });
+                                                              return;
+                                                            }
+                                                            
+                                                            const labelData = await labelResponse.json();
+                                                            console.log('Postex label response:', labelData);
+                                                            
+                                                            if (labelData.dist?.pdfData || labelData.dist?.labelUrl) {
+                                                              // Update dispatch with label data
+                                                              const { error: updateError } = await supabase
+                                                                .from('dispatches')
+                                                                .update({
+                                                                  label_data: labelData.dist.pdfData,
+                                                                  label_url: labelData.dist.labelUrl,
+                                                                  label_format: 'pdf'
+                                                                })
+                                                                .eq('id', dispatch.id);
+                                                              
+                                                              if (updateError) {
+                                                                console.error('Dispatch update error:', updateError);
+                                                              }
+                                                              
+                                                              // Download the label
+                                                              await downloadCourierLabel(
+                                                                labelData.dist.pdfData,
+                                                                labelData.dist.labelUrl,
+                                                                'pdf',
+                                                                dispatch.tracking_id
+                                                              );
+                                                              toast({ description: "Label downloaded successfully" });
+                                                            } else {
+                                                              console.warn('No label data in response:', labelData);
+                                                              toast({
+                                                                description: "Label not ready yet. Postex labels are available after the order is processed (usually within a few minutes). Please try again shortly.",
+                                                                variant: "destructive",
+                                                                duration: 6000
                                                               });
                                                             }
                                                           } else {
@@ -1756,8 +1784,9 @@ const OrderDashboard = () => {
                                                       } catch (error: any) {
                                                         console.error('Label download error:', error);
                                                         toast({
-                                                          description: error.message || "Failed to download label",
-                                                          variant: "destructive"
+                                                          description: error.message || "Failed to download label. Check console for details.",
+                                                          variant: "destructive",
+                                                          duration: 5000
                                                         });
                                                       }
                                                     }}
