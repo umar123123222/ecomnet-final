@@ -319,7 +319,13 @@ async function bookLeopard(request: BookingRequest, supabaseClient: any) {
 async function bookPostEx(request: BookingRequest, supabaseClient: any) {
   const apiKey = await getAPISetting('POSTEX_API_KEY', supabaseClient);
   
-  const response = await fetch('https://api.postex.pk/services/integration/api/order/v1/create-order', {
+  if (!apiKey) {
+    throw new Error('Postex API key not configured. Please add POSTEX_API_KEY in Settings > Business Settings > API Configuration.');
+  }
+  
+  console.log('Postex API Key present:', !!apiKey);
+  
+  const response = await fetch('https://api.postex.pk/services/integration/api/order/v3/create-order', {
     method: 'POST',
     headers: {
       'token': apiKey,
