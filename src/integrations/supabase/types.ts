@@ -482,6 +482,139 @@ export type Database = {
           },
         ]
       }
+      courier_booking_attempts: {
+        Row: {
+          attempt_number: number
+          booking_request: Json
+          booking_response: Json | null
+          courier_code: string
+          courier_id: string | null
+          created_at: string
+          error_code: string | null
+          error_message: string | null
+          id: string
+          label_url: string | null
+          order_id: string
+          outlet_id: string | null
+          status: string
+          tracking_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          attempt_number?: number
+          booking_request?: Json
+          booking_response?: Json | null
+          courier_code: string
+          courier_id?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          label_url?: string | null
+          order_id: string
+          outlet_id?: string | null
+          status: string
+          tracking_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          attempt_number?: number
+          booking_request?: Json
+          booking_response?: Json | null
+          courier_code?: string
+          courier_id?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          label_url?: string | null
+          order_id?: string
+          outlet_id?: string | null
+          status?: string
+          tracking_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courier_booking_attempts_courier_id_fkey"
+            columns: ["courier_id"]
+            isOneToOne: false
+            referencedRelation: "couriers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_booking_attempts_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_booking_attempts_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courier_booking_queue: {
+        Row: {
+          courier_id: string
+          created_at: string
+          id: string
+          last_error_code: string | null
+          last_error_message: string | null
+          max_retries: number
+          next_retry_at: string
+          order_id: string
+          retry_count: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          courier_id: string
+          created_at?: string
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          max_retries?: number
+          next_retry_at: string
+          order_id: string
+          retry_count?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          courier_id?: string
+          created_at?: string
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          max_retries?: number
+          next_retry_at?: string
+          order_id?: string
+          retry_count?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courier_booking_queue_courier_id_fkey"
+            columns: ["courier_id"]
+            isOneToOne: false
+            referencedRelation: "couriers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_booking_queue_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courier_rate_cards: {
         Row: {
           courier_id: string
