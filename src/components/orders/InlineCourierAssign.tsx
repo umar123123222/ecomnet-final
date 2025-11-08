@@ -3,6 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { downloadCourierLabel } from '@/utils/courierLabelDownload';
 
 interface InlineCourierAssignProps {
   orderId: string;
@@ -36,75 +37,95 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
       const courier = couriers.find(c => c.id === courierId);
       if (!courier) throw new Error('Courier not found');
 
-      // Update order with courier and status
-      const courierCode = courier.code.toLowerCase() as 'leopard' | 'postex' | 'tcs' | 'other';
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({ 
-          courier: courierCode,
-          status: 'booked',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', orderId);
+      // Fetch pickup address from settings
+      const { data: settings } = await supabase
+        .from('api_settings')
+        .select('setting_key, setting_value')
+        .in('setting_key', [
+          'PICKUP_ADDRESS_NAME',
+          'PICKUP_ADDRESS_PHONE',
+          'PICKUP_ADDRESS_ADDRESS',
+          'PICKUP_ADDRESS_CITY'
+        ]);
 
-      if (updateError) throw updateError;
+      const getSettingValue = (key: string) => 
+        settings?.find(s => s.setting_key === key)?.setting_value || '';
 
-      // Generate and download label
-      const labelHTML = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Shipping Label - ${courier.name}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .label { border: 2px solid #000; padding: 20px; max-width: 600px; }
-            .header { text-align: center; margin-bottom: 20px; font-size: 24px; font-weight: bold; }
-            .section { margin-bottom: 15px; }
-            .section strong { display: block; margin-bottom: 5px; }
-            .divider { border-top: 1px dashed #000; margin: 15px 0; padding-top: 15px; }
-          </style>
-        </head>
-        <body>
-          <div class="label">
-            <div class="header">SHIPPING LABEL - ${courier.name.toUpperCase()}</div>
-            <div class="section">
-              <strong>Order Number:</strong> ${orderDetails.orderNumber}
-              <strong>Date:</strong> ${new Date().toLocaleDateString()}
-            </div>
-            <div class="section">
-              <strong>Customer:</strong><br/>
-              ${orderDetails.customer}<br/>
-              ${orderDetails.phone}<br/>
-              ${orderDetails.address}<br/>
-              ${orderDetails.city}
-            </div>
-            <div class="section">
-              <strong>Items:</strong><br/>
-              ${orderDetails.items.map((item: any) => `${item.item_name} (x${item.quantity})`).join('<br/>')}
-            </div>
-            <div class="divider">
-              <strong>Total Amount:</strong> PKR ${orderDetails.totalPrice.toFixed(2)}
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
+      const pickupName = getSettingValue('PICKUP_ADDRESS_NAME');
+      const pickupPhone = getSettingValue('PICKUP_ADDRESS_PHONE');
+      const pickupAddress = getSettingValue('PICKUP_ADDRESS_ADDRESS');
+      const pickupCity = getSettingValue('PICKUP_ADDRESS_CITY');
 
-      const blob = new Blob([labelHTML], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `label-${orderDetails.orderNumber}-${courier.name}.html`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      if (!pickupAddress || !pickupCity) {
+        toast({
+          title: "Configuration Required",
+          description: "Please configure pickup address in Settings > Business Settings first.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      toast({
-        title: "Success",
-        description: `Order booked with ${courier.name}. Label downloaded.`,
+      // Calculate weight (assuming 1kg per item, can be enhanced)
+      const totalPieces = orderDetails.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+      const estimatedWeight = totalPieces * 1; // 1kg per item
+
+      // Call courier booking edge function
+      const { data, error } = await supabase.functions.invoke('courier-booking', {
+        body: {
+          orderId: orderId,
+          courierId: courierId,
+          pickupAddress: {
+            name: pickupName,
+            phone: pickupPhone,
+            address: pickupAddress,
+            city: pickupCity
+          },
+          deliveryAddress: {
+            name: orderDetails.customer,
+            phone: orderDetails.phone,
+            address: orderDetails.address,
+            city: orderDetails.city
+          },
+          weight: estimatedWeight,
+          pieces: totalPieces,
+          codAmount: orderDetails.totalPrice,
+          specialInstructions: ''
+        }
       });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error || 'Booking failed');
+      }
+
+      // Auto-download label if available and enabled
+      if (data.labelData || data.labelUrl) {
+        try {
+          await downloadCourierLabel(
+            data.labelData,
+            data.labelUrl,
+            data.labelFormat || 'pdf',
+            data.trackingId
+          );
+          
+          toast({
+            title: "Success",
+            description: `Order booked with ${courier.name}. Tracking ID: ${data.trackingId}. Label downloaded.`,
+          });
+        } catch (downloadError) {
+          console.error('Label download failed:', downloadError);
+          toast({
+            title: "Partial Success",
+            description: `Order booked with tracking ID: ${data.trackingId}, but label download failed.`,
+          });
+        }
+      } else {
+        toast({
+          title: "Success",
+          description: `Order booked with ${courier.name}. Tracking ID: ${data.trackingId}`,
+        });
+      }
 
       onAssigned();
     } catch (error: any) {

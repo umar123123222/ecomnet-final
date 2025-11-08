@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { Navigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Building2, Link, Mail, Phone, Truck, ShoppingBag, MessageSquare, DollarSign, Loader2, CheckCircle2, AlertCircle, Plug, Save, RefreshCw, Zap, Activity } from "lucide-react";
+import { Plus, Trash2, Building2, Link, Mail, Phone, Truck, ShoppingBag, MessageSquare, DollarSign, Loader2, CheckCircle2, AlertCircle, Plug, Save, RefreshCw, Zap, Activity, MapPin } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SUPPORTED_CURRENCIES } from "@/utils/currency";
 import { useBusinessSettings } from "@/hooks/useBusinessSettings";
@@ -42,6 +42,12 @@ const BusinessSettings = () => {
   const [companyEmail, setCompanyEmail] = useState('');
   const [companyPhone, setCompanyPhone] = useState('');
   const [companyCurrency, setCompanyCurrency] = useState('USD');
+  
+  // Pickup Address State
+  const [pickupAddressName, setPickupAddressName] = useState('');
+  const [pickupAddressPhone, setPickupAddressPhone] = useState('');
+  const [pickupAddress, setPickupAddress] = useState('');
+  const [pickupCity, setPickupCity] = useState('');
 
   // Load settings from database
   useEffect(() => {
@@ -50,6 +56,10 @@ const BusinessSettings = () => {
     setCompanyEmail(getSetting('company_email') || '');
     setCompanyPhone(getSetting('company_phone') || '');
     setCompanyCurrency(getSetting('company_currency') || 'USD');
+    setPickupAddressName(getSetting('PICKUP_ADDRESS_NAME') || '');
+    setPickupAddressPhone(getSetting('PICKUP_ADDRESS_PHONE') || '');
+    setPickupAddress(getSetting('PICKUP_ADDRESS_ADDRESS') || '');
+    setPickupCity(getSetting('PICKUP_ADDRESS_CITY') || '');
   }, [getSetting]);
 
   // Couriers State - load from database
@@ -247,6 +257,28 @@ const BusinessSettings = () => {
       toast({
         title: "Error",
         description: "Failed to save company information.",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  const handleSavePickupAddress = async () => {
+    try {
+      await Promise.all([
+        updateSetting('PICKUP_ADDRESS_NAME', pickupAddressName, 'Warehouse/Company name for pickup'),
+        updateSetting('PICKUP_ADDRESS_PHONE', pickupAddressPhone, 'Contact phone for pickup'),
+        updateSetting('PICKUP_ADDRESS_ADDRESS', pickupAddress, 'Warehouse pickup address'),
+        updateSetting('PICKUP_ADDRESS_CITY', pickupCity, 'Warehouse city'),
+      ]);
+
+      toast({
+        title: "Pickup Address Saved",
+        description: "Your pickup address has been updated successfully."
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save pickup address.",
         variant: "destructive"
       });
     }
@@ -567,6 +599,87 @@ const BusinessSettings = () => {
 
               <Button onClick={handleSaveCompanyInfo} className="w-full" disabled={isUpdating}>
                 {isUpdating ? "Saving..." : "Save Company Information"}
+              </Button>
+            </CardContent>
+          </Card>
+          
+          {/* Pickup Address Configuration */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Pickup Address Configuration
+              </CardTitle>
+              <CardDescription>
+                Configure the warehouse/outlet address used for courier bookings and shipments
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert>
+                <Building2 className="h-4 w-4" />
+                <AlertDescription className="text-sm">
+                  This address will be used as the pickup location when booking shipments with couriers.
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-2">
+                <Label htmlFor="pickupAddressName">Warehouse/Company Name *</Label>
+                <Input 
+                  id="pickupAddressName" 
+                  placeholder="Enter warehouse or company name" 
+                  value={pickupAddressName} 
+                  onChange={e => setPickupAddressName(e.target.value)} 
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pickupAddressPhone">Contact Phone Number *</Label>
+                <Input 
+                  id="pickupAddressPhone" 
+                  placeholder="+92 300 1234567" 
+                  value={pickupAddressPhone} 
+                  onChange={e => setPickupAddressPhone(e.target.value)} 
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pickupAddress">Pickup Address *</Label>
+                <Input 
+                  id="pickupAddress" 
+                  placeholder="Enter complete warehouse address" 
+                  value={pickupAddress} 
+                  onChange={e => setPickupAddress(e.target.value)} 
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pickupCity">City *</Label>
+                <Input 
+                  id="pickupCity" 
+                  placeholder="Enter city name" 
+                  value={pickupCity} 
+                  onChange={e => setPickupCity(e.target.value)} 
+                />
+              </div>
+
+              <Separator />
+
+              <Button 
+                onClick={handleSavePickupAddress} 
+                className="w-full" 
+                disabled={isUpdating || !pickupAddressName || !pickupAddressPhone || !pickupAddress || !pickupCity}
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Pickup Address
+                  </>
+                )}
               </Button>
             </CardContent>
           </Card>

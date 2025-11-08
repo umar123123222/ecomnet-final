@@ -14,7 +14,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescri
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save, Shield, AlertTriangle, AlertCircle, MapPin, Clock, User, Phone, Mail, Calendar, ShoppingBag, FileText, RefreshCw } from 'lucide-react';
+import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save, Shield, AlertTriangle, AlertCircle, MapPin, Clock, User, Phone, Mail, Calendar, ShoppingBag, FileText, RefreshCw, Copy } from 'lucide-react';
+import { downloadCourierLabel } from '@/utils/courierLabelDownload';
 import TagsNotes from '@/components/TagsNotes';
 import NewOrderDialog from '@/components/NewOrderDialog';
 import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
@@ -1619,13 +1620,75 @@ const OrderDashboard = () => {
                                         </div>
                                       )}
                                       
-                                      {/* Tracking ID */}
-                                      {order.trackingId && order.trackingId !== 'N/A' && (
+                                      {/* Courier & Tracking ID */}
+                                      {((order.courier && order.courier !== 'N/A') || (order.trackingId && order.trackingId !== 'N/A')) && (
                                         <div className="flex items-start gap-3 pt-3 border-t border-border/50">
                                           <Truck className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
                                           <div className="flex-1">
-                                            <div className="text-xs text-muted-foreground mb-0.5">Tracking ID</div>
-                                            <div className="font-medium">{order.trackingId}</div>
+                                            {order.courier && order.courier !== 'N/A' && (
+                                              <div className="mb-2">
+                                                <div className="text-xs text-muted-foreground mb-0.5">Courier</div>
+                                                <div className="font-medium">{order.courier.toUpperCase()}</div>
+                                              </div>
+                                            )}
+                                            {order.trackingId && order.trackingId !== 'N/A' && (
+                                              <div>
+                                                <div className="text-xs text-muted-foreground mb-0.5">Tracking ID</div>
+                                                <div className="flex items-center gap-2">
+                                                  <code className="font-mono text-sm font-medium bg-muted px-2 py-1 rounded">{order.trackingId}</code>
+                                                  <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-7 w-7 p-0"
+                                                    onClick={async () => {
+                                                      await navigator.clipboard.writeText(order.trackingId);
+                                                      toast({ description: "Tracking ID copied to clipboard" });
+                                                    }}
+                                                  >
+                                                    <Copy className="h-3 w-3" />
+                                                  </Button>
+                                                  <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-7 text-xs"
+                                                    onClick={async () => {
+                                                      try {
+                                                        const { data: dispatch } = await supabase
+                                                          .from('dispatches')
+                                                          .select('label_url, label_data, label_format')
+                                                          .eq('order_id', order.id)
+                                                          .order('created_at', { ascending: false })
+                                                          .limit(1)
+                                                          .single();
+                                                        
+                                                        if (dispatch && (dispatch.label_url || dispatch.label_data)) {
+                                                          await downloadCourierLabel(
+                                                            dispatch.label_data,
+                                                            dispatch.label_url,
+                                                            dispatch.label_format || 'pdf',
+                                                            order.trackingId
+                                                          );
+                                                          toast({ description: "Label downloaded successfully" });
+                                                        } else {
+                                                          toast({
+                                                            description: "No label available for this order",
+                                                            variant: "destructive"
+                                                          });
+                                                        }
+                                                      } catch (error) {
+                                                        toast({
+                                                          description: "Failed to download label",
+                                                          variant: "destructive"
+                                                        });
+                                                      }
+                                                    }}
+                                                  >
+                                                    <Download className="h-3 w-3 mr-1" />
+                                                    Label
+                                                  </Button>
+                                                </div>
+                                              </div>
+                                            )}
                                           </div>
                                         </div>
                                       )}
