@@ -190,7 +190,7 @@ const OrderDashboard = () => {
           totalPrice: order.total_amount || 0,
           orderType: order.order_type || 'COD',
           city: order.city,
-          items: itemsByOrderId.get(order.id) || [],
+          items: (itemsByOrderId.get(order.id) && (itemsByOrderId.get(order.id) as any[]).length > 0) ? itemsByOrderId.get(order.id) : (order.items || []),
           assignedTo: order.assigned_to,
           assignedToProfile: order.assigned_to ? profilesById.get(order.assigned_to) : null,
           dispatchedAt: order.dispatched_at ? new Date(order.dispatched_at).toLocaleString() : 'N/A',
@@ -1714,55 +1714,46 @@ const OrderDashboard = () => {
                                     
                                     <div className="space-y-2">
                                       {(() => {
-                                        // Ensure items array exists and is valid
-                                        const orderItems = order.items || [];
-                                        
-                                        console.log('Order ID:', order.id, 'Items:', orderItems, 'Items length:', orderItems.length);
-                                        
-                                        if (orderItems.length === 0) {
+                                        // Normalize items from either order_items table or inline JSON on orders
+                                        const rawItems = order.items || [];
+                                        if (!Array.isArray(rawItems) || rawItems.length === 0) {
                                           return (
-                                            <div className="space-y-2">
-                                              <p className="text-sm text-muted-foreground italic">No items available</p>
-                                              <p className="text-xs text-muted-foreground">Order ID: {order.id}</p>
-                                            </div>
+                                            <p className="text-sm text-muted-foreground italic">No items available</p>
                                           );
                                         }
-                                        
-                                        // Merge duplicate items
-                                        const itemMap = new Map();
-                                        orderItems.forEach((item: any) => {
-                                          const key = item.item_name;
-                                          if (itemMap.has(key)) {
-                                            const existing = itemMap.get(key);
-                                            existing.quantity += item.quantity;
-                                            existing.total += item.price * item.quantity;
+
+                                        type NormItem = { name: string; quantity: number; price: number };
+                                        const normalized: NormItem[] = rawItems.map((it: any) => ({
+                                          name: it.item_name || it.name || it.title || 'Item',
+                                          quantity: Number(it.quantity ?? 1) || 1,
+                                          price: Number(it.price ?? it.unit_price ?? 0) || 0,
+                                        }));
+
+                                        // Merge duplicates by name
+                                        const map = new Map<string, NormItem & { total: number }>();
+                                        normalized.forEach((i) => {
+                                          const key = i.name.trim();
+                                          if (map.has(key)) {
+                                            const cur = map.get(key)!;
+                                            cur.quantity += i.quantity;
+                                            cur.total += i.price * i.quantity;
                                           } else {
-                                            itemMap.set(key, {
-                                              item_name: item.item_name,
-                                              quantity: item.quantity,
-                                              price: item.price,
-                                              total: item.price * item.quantity
-                                            });
+                                            map.set(key, { ...i, total: i.price * i.quantity });
                                           }
                                         });
-                                        
-                                        const mergedItems = Array.from(itemMap.values());
-                                        
-                                        return mergedItems.map((item, index) => (
-                                          <div 
-                                            key={index} 
-                                            className="bg-muted/30 rounded-xl p-3.5 hover:bg-muted/40 transition-colors"
-                                          >
+
+                                        const merged = Array.from(map.values());
+
+                                        return merged.map((item, idx) => (
+                                          <div key={idx} className="bg-muted/30 rounded-xl p-3.5 hover:bg-muted/40 transition-colors">
                                             <div className="flex items-start justify-between gap-3">
                                               <div className="flex-1">
-                                                <div className="font-semibold text-foreground">{item.item_name}</div>
+                                                <div className="font-semibold text-foreground">{item.name}</div>
                                                 <div className="text-sm text-muted-foreground mt-1">
                                                   {item.quantity} × PKR {item.price.toLocaleString()}
                                                 </div>
                                               </div>
-                                              <div className="font-semibold text-foreground">
-                                                PKR {item.total.toLocaleString()}
-                                              </div>
+                                              <div className="font-semibold text-foreground">PKR {item.total.toLocaleString()}</div>
                                             </div>
                                           </div>
                                         ));
