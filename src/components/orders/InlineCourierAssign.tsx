@@ -166,7 +166,7 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
         description: (
           <div className="flex flex-col gap-2">
             <p>{errorDesc}</p>
-            {responseData?.isRetryable !== false && (
+            {responseData?.isRetryable === true && (
               <p className="text-xs text-muted-foreground">
                 This booking will be automatically retried in 5 minutes.
               </p>

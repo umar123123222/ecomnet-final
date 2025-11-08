@@ -63,7 +63,7 @@ const DispatchDashboard = () => {
               total_amount,
               status
             )
-          `).in('status', ['pending', 'in_transit']).order('created_at', {
+          `).in('status', ['pending', 'dispatched']).order('created_at', {
           ascending: false
         });
         if (error) {
@@ -181,7 +181,7 @@ const DispatchDashboard = () => {
             error: updateDispatchError
           } = await supabase.from('dispatches').update({
             tracking_id: trackingId,
-            status: 'in_transit',
+            status: 'dispatched',
             dispatch_date: new Date().toISOString()
           }).eq('id', existingDispatch.id);
           if (updateDispatchError) {
@@ -196,7 +196,7 @@ const DispatchDashboard = () => {
           } = await supabase.from('dispatches').insert({
             order_id: order.id,
             tracking_id: trackingId,
-            status: 'in_transit',
+            status: 'dispatched',
             courier: 'Manual Entry',
             dispatch_date: new Date().toISOString()
           });

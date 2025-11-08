@@ -169,8 +169,7 @@ serve(async (req) => {
       .from('orders')
       .update({
         tracking_id: trackingId,
-        status: 'dispatched',
-        dispatched_at: new Date().toISOString(),
+        status: 'booked',
         courier: courier.code.toLowerCase()
       })
       .eq('id', bookingRequest.orderId);
@@ -201,7 +200,7 @@ serve(async (req) => {
 
     // Log successful booking attempt
     const processingTime = Date.now() - requestStartTime;
-    await supabase.from('courier_booking_attempts').insert({
+    const { error: attemptErr } = await supabase.from('courier_booking_attempts').insert({
       order_id: bookingRequest.orderId,
       courier_id: bookingRequest.courierId,
       courier_code: courier.code,
@@ -212,7 +211,11 @@ serve(async (req) => {
       label_url: labelUrl,
       user_id: userId,
       attempt_number: 1
-    }).catch(err => console.error('[BOOKING] Failed to log attempt:', err));
+    });
+    
+    if (attemptErr) {
+      console.error('[BOOKING] Failed to log attempt:', attemptErr);
+    }
 
     console.log(`[BOOKING] Success in ${processingTime}ms - Tracking: ${trackingId}`);
 
@@ -280,6 +283,10 @@ serve(async (req) => {
     } else if (error.message?.includes('Configuration Required')) {
       errorCode = 'CONFIGURATION_REQUIRED';
       isRetryable = false;
+    } else if (error.message?.includes('violates check constraint') || error.code === '23514') {
+      errorCode = 'DATA_CONSTRAINT_VIOLATION';
+      errorDetail = 'Database constraint violation. Check dispatch status values.';
+      isRetryable = false;
     }
     
     // Extract orderId and courierId from the request for logging
@@ -321,7 +328,7 @@ serve(async (req) => {
           .eq('id', courierId)
           .single();
         
-        await supabase.from('courier_booking_attempts').insert({
+        const { error: logErr } = await supabase.from('courier_booking_attempts').insert({
           order_id: orderId,
           courier_id: courierId,
           courier_code: courier?.code || 'unknown',
@@ -332,12 +339,16 @@ serve(async (req) => {
           error_message: errorDetail,
           user_id: userId,
           attempt_number: 1
-        }).catch(err => console.error('[BOOKING] Failed to log error:', err));
+        });
+        
+        if (logErr) {
+          console.error('[BOOKING] Failed to log error:', logErr);
+        }
         
         // Add to retry queue if retryable
         if (isRetryable) {
           const nextRetry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
-          await supabase.from('courier_booking_queue').insert({
+          const { error: queueErr } = await supabase.from('courier_booking_queue').insert({
             order_id: orderId,
             courier_id: courierId,
             retry_count: 0,
@@ -346,7 +357,11 @@ serve(async (req) => {
             last_error_code: errorCode,
             last_error_message: errorDetail,
             status: 'pending'
-          }).catch(err => console.error('[BOOKING] Failed to queue retry:', err));
+          });
+          
+          if (queueErr) {
+            console.error('[BOOKING] Failed to queue retry:', queueErr);
+          }
           
           console.log(`[BOOKING] Added to retry queue, next attempt at ${nextRetry.toISOString()}`);
         }
