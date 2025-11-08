@@ -136,15 +136,13 @@ async function cancelWithCourier(
 
   // Configure cancellation based on courier type
   if (courierCode === 'POSTEX') {
-    // Postex-specific configuration
-    cancelEndpoint = courier.api_endpoint 
-      ? courier.api_endpoint.replace('/create-order', '/cancel-order')
-      : 'https://api.postex.pk/services/integration/api/cancel-order';
+    // Postex-specific configuration - use v1 API for cancellation
+    cancelEndpoint = 'https://api.postex.pk/services/integration/api/order/v1/cancel-order';
     
     headers['token'] = apiKey;
     payload = {
       trackingNumber: trackingId,
-      reason: reason
+      reason: reason || 'Cancelled by merchant'
     };
     
     console.log('[CANCEL] Using Postex cancellation:', { endpoint: cancelEndpoint, trackingNumber: trackingId });

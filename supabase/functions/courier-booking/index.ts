@@ -536,11 +536,13 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
     };
     
     // Defensive logging for Postex payload
-    console.log('POSTEX payload check:', {
+    console.log('[POSTEX] Booking payload:', {
       hasOrderDetail: 'orderDetail' in body,
+      hasItems: orderItems && orderItems.length > 0,
+      itemsCount: orderItems?.length || 0,
       hasPickupAddressCode: !!pickupAddressCode,
-      orderDetailType: typeof body.orderDetail,
-      orderDetailValue: body.orderDetail
+      orderDetailValue: body.orderDetail,
+      items: orderItems
     });
   } else {
     // Generic structure for other couriers
@@ -589,6 +591,46 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
 
   const responseData = await response.json();
   console.log(`${courierCode} booking response:`, JSON.stringify(responseData));
+  
+  // Fetch label for Postex after successful booking
+  if (courierCode === 'POSTEX') {
+    const trackingNumber = responseData.dist?.trackingNumber;
+    if (trackingNumber) {
+      try {
+        console.log('[POSTEX] Fetching label for tracking:', trackingNumber);
+        const labelResponse = await fetch('https://api.postex.pk/services/integration/api/order/v1/get-label', {
+          method: 'POST',
+          headers: {
+            'token': apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ trackingNumber })
+        });
+        
+        if (labelResponse.ok) {
+          const labelData = await labelResponse.json();
+          console.log('[POSTEX] Label fetch response:', JSON.stringify(labelData));
+          
+          // Attach label data to response
+          if (labelData.dist?.pdfData) {
+            responseData.label_data = labelData.dist.pdfData;
+            responseData.label_format = 'pdf';
+            console.log('[POSTEX] Label data extracted successfully');
+          }
+          if (labelData.dist?.labelUrl) {
+            responseData.label_url = labelData.dist.labelUrl;
+            console.log('[POSTEX] Label URL extracted successfully');
+          }
+        } else {
+          const errorText = await labelResponse.text();
+          console.warn('[POSTEX] Label fetch failed:', labelResponse.status, errorText);
+        }
+      } catch (labelError) {
+        console.warn('[POSTEX] Label fetch error (non-critical):', labelError);
+      }
+    }
+  }
+  
   return responseData;
 }
 
