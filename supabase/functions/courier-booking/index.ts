@@ -542,7 +542,9 @@ async function bookPostEx(request: BookingRequest, supabaseClient: any) {
   const storeAddressCode = await getAPISetting('POSTEX_STORE_ADDRESS_CODE', supabaseClient);
   
   if (!pickupAddressCode && !storeAddressCode) {
-    throw new Error('Postex requires either POSTEX_PICKUP_ADDRESS_CODE or POSTEX_STORE_ADDRESS_CODE. Please configure at least one in Settings > Business Settings > API Configuration.');
+    const error: any = new Error('Postex requires either POSTEX_PICKUP_ADDRESS_CODE or POSTEX_STORE_ADDRESS_CODE. Please configure at least one in Settings > Business Settings > API Configuration.');
+    error.code = 'CONFIGURATION_REQUIRED';
+    throw error;
   }
   
   console.log('Postex API Key present:', !!apiKey);

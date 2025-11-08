@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { Navigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Building2, Link, Mail, Phone, Truck, ShoppingBag, MessageSquare, DollarSign, Loader2, CheckCircle2, AlertCircle, Plug, Save, RefreshCw, Zap, Activity, MapPin } from "lucide-react";
+import { Plus, Trash2, Building2, Link, Mail, Phone, Truck, ShoppingBag, MessageSquare, DollarSign, Loader2, CheckCircle2, AlertCircle, Plug, Save, RefreshCw, Zap, Activity, MapPin, Package } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SUPPORTED_CURRENCIES } from "@/utils/currency";
 import { useBusinessSettings } from "@/hooks/useBusinessSettings";
@@ -66,11 +66,17 @@ const BusinessSettings = () => {
   const [couriers, setCouriers] = useState<any[]>([]);
   const [loadingCouriers, setLoadingCouriers] = useState(false);
   const [showAddCourier, setShowAddCourier] = useState(false);
+  
+  // Postex-specific settings
+  const [postexPickupCode, setPostexPickupCode] = useState('');
+  const [postexStoreCode, setPostexStoreCode] = useState('');
 
-  // Load couriers from database
+  // Load couriers and Postex settings from database
   useEffect(() => {
     loadCouriers();
-  }, []);
+    setPostexPickupCode(getSetting('POSTEX_PICKUP_ADDRESS_CODE') || '');
+    setPostexStoreCode(getSetting('POSTEX_STORE_ADDRESS_CODE') || '');
+  }, [getSetting]);
 
   const loadCouriers = async () => {
     setLoadingCouriers(true);
@@ -144,6 +150,28 @@ const BusinessSettings = () => {
       setShowAddCourier(false);
     } catch (error: any) {
       throw new Error(`Failed to save courier: ${error.message}`);
+    }
+  };
+  
+  const handleSavePostexSettings = async () => {
+    try {
+      if (postexPickupCode) {
+        await updateSetting('POSTEX_PICKUP_ADDRESS_CODE', postexPickupCode, 'Postex pickup address code');
+      }
+      if (postexStoreCode) {
+        await updateSetting('POSTEX_STORE_ADDRESS_CODE', postexStoreCode, 'Postex store address code');
+      }
+      
+      toast({
+        title: "Success",
+        description: "Postex settings saved successfully"
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
     }
   };
 
@@ -754,6 +782,71 @@ const BusinessSettings = () => {
                   </div>
                 </>
               )}
+            </CardContent>
+          </Card>
+          
+          {/* Postex-Specific Settings */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Postex Configuration
+              </CardTitle>
+              <CardDescription>
+                Configure Postex-specific address codes (at least one required)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">
+                  Postex requires either a Pickup Address Code or Store Address Code. Configure at least one to enable Postex bookings.
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-2">
+                <Label htmlFor="postexPickupCode">Pickup Address Code</Label>
+                <Input
+                  id="postexPickupCode"
+                  placeholder="e.g., PKC123456"
+                  value={postexPickupCode}
+                  onChange={(e) => setPostexPickupCode(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your Postex pickup address code (if available)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="postexStoreCode">Store Address Code</Label>
+                <Input
+                  id="postexStoreCode"
+                  placeholder="e.g., STC123456"
+                  value={postexStoreCode}
+                  onChange={(e) => setPostexStoreCode(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your Postex store address code (if available)
+                </p>
+              </div>
+
+              <Button 
+                onClick={handleSavePostexSettings} 
+                className="w-full" 
+                disabled={isUpdating || (!postexPickupCode && !postexStoreCode)}
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Postex Settings
+                  </>
+                )}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
