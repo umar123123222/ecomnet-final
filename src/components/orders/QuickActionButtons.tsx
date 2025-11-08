@@ -10,7 +10,6 @@ interface QuickActionButtonsProps {
   onMarkDispatched: (orderId: string) => void;
   onGenerateLabel: (orderId: string) => void;
   onViewActivity: (orderId: string) => void;
-  onViewDetails: (orderId: string) => void;
 }
 
 export const QuickActionButtons: React.FC<QuickActionButtonsProps> = ({
@@ -19,7 +18,6 @@ export const QuickActionButtons: React.FC<QuickActionButtonsProps> = ({
   onMarkDispatched,
   onGenerateLabel,
   onViewActivity,
-  onViewDetails,
 }) => {
   const { isManager, isSeniorStaff, primaryRole } = useUserRoles();
   
@@ -34,11 +32,6 @@ export const QuickActionButtons: React.FC<QuickActionButtonsProps> = ({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="bg-popover z-50 border shadow-lg">
-        <DropdownMenuItem onClick={() => onViewDetails(orderId)} className="gap-2 hover:bg-accent/10">
-          <FileText className="h-4 w-4" />
-          View Details
-        </DropdownMenuItem>
-        
         {canDispatch && (
           <DropdownMenuItem onClick={() => onMarkDispatched(orderId)} className="gap-2 hover:bg-accent/10">
             <CheckCircle className="h-4 w-4" />

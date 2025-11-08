@@ -1490,7 +1490,6 @@ const OrderDashboard = () => {
                         onMarkDispatched={handleQuickMarkDispatched}
                         onGenerateLabel={handleQuickGenerateLabel}
                         onViewActivity={handleQuickViewActivity}
-                        onViewDetails={handleQuickViewDetails}
                       />
                     </TableCell>
                     
