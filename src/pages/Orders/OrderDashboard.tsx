@@ -1654,15 +1654,25 @@ const OrderDashboard = () => {
                                                     className="h-7 text-xs"
                                                     onClick={async () => {
                                                       try {
+                                                        // Fetch dispatch record
                                                         const { data: dispatch } = await supabase
                                                           .from('dispatches')
-                                                          .select('label_url, label_data, label_format')
+                                                          .select('label_url, label_data, label_format, courier, tracking_id, id')
                                                           .eq('order_id', order.id)
                                                           .order('created_at', { ascending: false })
                                                           .limit(1)
                                                           .single();
                                                         
-                                                        if (dispatch && (dispatch.label_url || dispatch.label_data)) {
+                                                        if (!dispatch) {
+                                                          toast({
+                                                            description: "No dispatch record found",
+                                                            variant: "destructive"
+                                                          });
+                                                          return;
+                                                        }
+                                                        
+                                                        // If label exists, download it
+                                                        if (dispatch.label_url || dispatch.label_data) {
                                                           await downloadCourierLabel(
                                                             dispatch.label_data,
                                                             dispatch.label_url,
@@ -1671,14 +1681,82 @@ const OrderDashboard = () => {
                                                           );
                                                           toast({ description: "Label downloaded successfully" });
                                                         } else {
-                                                          toast({
-                                                            description: "No label available for this order",
-                                                            variant: "destructive"
-                                                          });
+                                                          // Label missing - attempt to fetch it for Postex
+                                                          if (dispatch.courier?.toUpperCase() === 'POSTEX' && dispatch.tracking_id) {
+                                                            toast({ description: "Fetching label from Postex..." });
+                                                            
+                                                            // Get Postex API key from settings
+                                                            const { data: apiSettings } = await supabase
+                                                              .from('api_settings')
+                                                              .select('setting_value')
+                                                              .eq('setting_key', 'POSTEX_API_KEY')
+                                                              .single();
+                                                            
+                                                            if (!apiSettings?.setting_value) {
+                                                              toast({
+                                                                description: "Postex API key not configured",
+                                                                variant: "destructive"
+                                                              });
+                                                              return;
+                                                            }
+                                                            
+                                                            // Fetch label from Postex
+                                                            const labelResponse = await fetch('https://api.postex.pk/services/integration/api/order/v1/get-label', {
+                                                              method: 'POST',
+                                                              headers: {
+                                                                'token': apiSettings.setting_value,
+                                                                'Content-Type': 'application/json',
+                                                              },
+                                                              body: JSON.stringify({ trackingNumber: dispatch.tracking_id })
+                                                            });
+                                                            
+                                                            if (labelResponse.ok) {
+                                                              const labelData = await labelResponse.json();
+                                                              
+                                                              if (labelData.dist?.pdfData || labelData.dist?.labelUrl) {
+                                                                // Update dispatch with label data
+                                                                await supabase
+                                                                  .from('dispatches')
+                                                                  .update({
+                                                                    label_data: labelData.dist.pdfData,
+                                                                    label_url: labelData.dist.labelUrl,
+                                                                    label_format: 'pdf'
+                                                                  })
+                                                                  .eq('id', dispatch.id);
+                                                                
+                                                                // Download the label
+                                                                await downloadCourierLabel(
+                                                                  labelData.dist.pdfData,
+                                                                  labelData.dist.labelUrl,
+                                                                  'pdf',
+                                                                  dispatch.tracking_id
+                                                                );
+                                                                toast({ description: "Label downloaded successfully" });
+                                                              } else {
+                                                                toast({
+                                                                  description: "Label not available yet. Please try again in a few moments.",
+                                                                  variant: "destructive"
+                                                                });
+                                                              }
+                                                            } else {
+                                                              const errorText = await labelResponse.text();
+                                                              console.error('Label fetch failed:', errorText);
+                                                              toast({
+                                                                description: "Failed to fetch label from courier",
+                                                                variant: "destructive"
+                                                              });
+                                                            }
+                                                          } else {
+                                                            toast({
+                                                              description: "No label available for this order",
+                                                              variant: "destructive"
+                                                            });
+                                                          }
                                                         }
-                                                      } catch (error) {
+                                                      } catch (error: any) {
+                                                        console.error('Label download error:', error);
                                                         toast({
-                                                          description: "Failed to download label",
+                                                          description: error.message || "Failed to download label",
                                                           variant: "destructive"
                                                         });
                                                       }
