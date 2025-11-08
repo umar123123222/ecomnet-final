@@ -174,6 +174,8 @@ const OrderDashboard = () => {
         return {
           id: order.id,
           orderNumber: order.order_number,
+          shopifyOrderNumber: order.shopify_order_number,
+          shopifyOrderId: order.shopify_order_id,
           customerId: order.customer_id || 'N/A',
           trackingId: order.tracking_id || 'N/A',
           customer: order.customer_name,
@@ -914,7 +916,7 @@ const OrderDashboard = () => {
     deletePreset,
     activeFiltersCount,
   } = useAdvancedFilters(orders, {
-    searchFields: ['order_number', 'customer_name', 'customer_phone', 'shopify_order_id', 'shopify_order_number', 'tracking_id', 'customer_email', 'city'],
+    searchFields: ['orderNumber', 'customer', 'phone', 'shopifyOrderId', 'shopifyOrderNumber', 'trackingId', 'email', 'city'],
     statusField: 'status',
     dateField: 'createdAtISO',
     amountField: 'totalPrice',
