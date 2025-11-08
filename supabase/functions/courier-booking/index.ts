@@ -511,14 +511,10 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
       console.log('[POSTEX] Using fallback order detail (no items provided)');
     }
     
-    // Postex also supports an items array in newer API versions
-    const orderItems = request.items && request.items.length > 0
-      ? request.items.map(item => ({
-          itemName: item.name,
-          itemQuantity: item.quantity,
-          itemPrice: item.price
-        }))
-      : undefined;
+    // Calculate total item count for Postex (they expect a number, not an array)
+    const totalItemCount = request.items && request.items.length > 0
+      ? request.items.reduce((sum, item) => sum + item.quantity, 0)
+      : request.pieces;
     
     body = {
       customerName: request.deliveryAddress.name,
@@ -532,17 +528,15 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
       orderType: 'Normal', // Valid values: Normal, Reversed, Replacement
       orderDetail: orderDetail,
       pickupAddressCode: pickupAddressCode,
-      ...(orderItems && orderItems.length > 0 ? { items: orderItems } : {})
+      items: totalItemCount // Postex expects a number (count), not an array
     };
     
     // Defensive logging for Postex payload
     console.log('[POSTEX] Booking payload:', {
       hasOrderDetail: 'orderDetail' in body,
-      hasItems: orderItems && orderItems.length > 0,
-      itemsCount: orderItems?.length || 0,
+      itemsCount: totalItemCount,
       hasPickupAddressCode: !!pickupAddressCode,
-      orderDetailValue: body.orderDetail,
-      items: orderItems
+      orderDetailValue: body.orderDetail
     });
   } else {
     // Generic structure for other couriers
@@ -729,14 +723,10 @@ async function bookPostEx(request: BookingRequest, supabaseClient: any) {
     console.log('Postex using fallback order detail');
   }
   
-  // Postex supports items array
-  const orderItems = request.items && request.items.length > 0
-    ? request.items.map(item => ({
-        itemName: item.name,
-        itemQuantity: item.quantity,
-        itemPrice: item.price
-      }))
-    : undefined;
+  // Calculate total item count (Postex expects a number, not an array)
+  const totalItemCount = request.items && request.items.length > 0
+    ? request.items.reduce((sum, item) => sum + item.quantity, 0)
+    : request.pieces;
   
   const body = {
     customerName: request.deliveryAddress.name,
@@ -750,7 +740,7 @@ async function bookPostEx(request: BookingRequest, supabaseClient: any) {
     orderType: 'Normal',
     orderDetail: orderDetail,
     pickupAddressCode: pickupAddressCode,
-    ...(orderItems && orderItems.length > 0 ? { items: orderItems } : {})
+    items: totalItemCount // Postex expects item count as a number
   };
   
   console.log('POSTEX booking payload:', JSON.stringify(body, null, 2));
