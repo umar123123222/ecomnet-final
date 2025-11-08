@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { downloadCourierLabel } from '@/utils/courierLabelDownload';
 
 interface InlineCourierAssignProps {
   orderId: string;
   currentCourier: string;
+  trackingId?: string;
   couriers: Array<{ id: string; name: string; code: string }>;
   orderDetails: {
     orderNumber: string;
@@ -24,12 +27,14 @@ interface InlineCourierAssignProps {
 export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
   orderId,
   currentCourier,
+  trackingId,
   couriers,
   orderDetails,
   onAssigned,
 }) => {
   const { toast } = useToast();
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showUnassignDialog, setShowUnassignDialog] = useState(false);
 
   const handleCourierAssign = async (courierId: string) => {
     setIsUpdating(true);
@@ -140,8 +145,86 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
     }
   };
 
+  const handleCourierUnassign = async () => {
+    setIsUpdating(true);
+    try {
+      // Call courier cancellation edge function
+      const { data, error } = await supabase.functions.invoke('courier-cancellation', {
+        body: {
+          orderId: orderId,
+          trackingId: trackingId || '',
+          reason: 'Unassigned by user'
+        }
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error || 'Cancellation failed');
+      }
+
+      toast({
+        title: "Courier Unassigned",
+        description: "Courier booking cancelled and order reset successfully.",
+      });
+
+      setShowUnassignDialog(false);
+      onAssigned();
+    } catch (error: any) {
+      console.error('Error unassigning courier:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to unassign courier",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   if (currentCourier && currentCourier !== 'N/A') {
-    return <span className="text-sm">{currentCourier}</span>;
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium">{currentCourier.toUpperCase()}</span>
+        <AlertDialog open={showUnassignDialog} onOpenChange={setShowUnassignDialog}>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 hover:bg-destructive/10"
+              disabled={isUpdating}
+            >
+              <X className="h-3 w-3 text-destructive" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Unassign Courier?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will cancel the booking with {currentCourier.toUpperCase()}, delete the tracking ID and airway bill, and reset the order to pending status. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isUpdating}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleCourierUnassign}
+                disabled={isUpdating}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Unassigning...
+                  </>
+                ) : (
+                  'Unassign Courier'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    );
   }
 
   return (

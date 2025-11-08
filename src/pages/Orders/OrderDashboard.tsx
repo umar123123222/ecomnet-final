@@ -1470,6 +1470,7 @@ const OrderDashboard = () => {
                       <InlineCourierAssign 
                         orderId={order.id}
                         currentCourier={order.courier}
+                        trackingId={order.trackingId}
                         couriers={couriers}
                         orderDetails={{
                           orderNumber: order.orderNumber,
