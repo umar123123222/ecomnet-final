@@ -136,28 +136,26 @@ const ReturnsDashboard = () => {
       return;
     }
 
-    // Detect scanner input: scanners type very fast (< 100ms between keystrokes)
-    const isFastTyping = timeSinceLastKey < 100 && timeSinceLastKey > 0;
+    // Detect scanner input: scanners type very fast (< 50ms between keystrokes)
+    const isFastTyping = timeSinceLastKey < 50 && timeSinceLastKey > 0;
     
     if (isFastTyping) {
       setFastKeyCount(prev => prev + 1);
-      // If we've detected 3+ consecutive fast keys, it's definitely a scanner
-      if (fastKeyCount >= 2) {
+      // If we've detected 2+ consecutive fast keys, it's definitely a scanner
+      if (fastKeyCount >= 1) {
         return; // Allow scanner input silently
       }
     } else {
       setFastKeyCount(0);
-      
-      // Only block and show toast for clearly manual typing
-      if (timeSinceLastKey > 200 || lastKeyTime === 0) {
-        e.preventDefault();
-        toast({
-          title: "Manual Entry Disabled",
-          description: "Enable manual entry toggle to type, or use barcode scanner",
-          variant: "destructive"
-        });
-      }
     }
+    
+    // Block all other input (manual typing)
+    e.preventDefault();
+    toast({
+      title: "Manual Entry Disabled",
+      description: "Enable manual entry toggle to type, or use barcode scanner",
+      variant: "destructive"
+    });
   };
 
   const handleManualEntry = async (formData: { bulkEntries: string }) => {
