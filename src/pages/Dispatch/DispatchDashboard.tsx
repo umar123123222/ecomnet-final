@@ -59,7 +59,7 @@ const DispatchDashboard = () => {
               total_amount,
               status
             )
-          `).order('created_at', {
+          `).in('status', ['pending', 'in_transit']).order('created_at', {
           ascending: false
         });
         if (error) {
