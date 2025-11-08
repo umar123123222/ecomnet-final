@@ -126,8 +126,15 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
         throw new Error(errorMsg);
       }
 
-      // Auto-download label if available and enabled
+      // Auto-download label if available
       if (data.labelData || data.labelUrl) {
+        console.log('Attempting to download label:', {
+          hasLabelData: !!data.labelData,
+          hasLabelUrl: !!data.labelUrl,
+          labelFormat: data.labelFormat,
+          trackingId: data.trackingId
+        });
+        
         try {
           await downloadCourierLabel(
             data.labelData,
@@ -138,19 +145,21 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
           
           toast({
             title: "Success",
-            description: `Order booked with ${courier.name}. Tracking ID: ${data.trackingId}. Label downloaded.`,
+            description: `Order booked with ${courier.name}. Tracking ID: ${data.trackingId}. Airway bill downloaded.`,
           });
         } catch (downloadError) {
           console.error('Label download failed:', downloadError);
           toast({
-            title: "Partial Success",
-            description: `Order booked with tracking ID: ${data.trackingId}, but label download failed.`,
+            title: "Booking Successful",
+            description: `Order booked with tracking ID: ${data.trackingId}. Airway bill download failed - you can download it manually from the dispatch page.`,
+            variant: "default",
           });
         }
       } else {
+        console.warn('No label data in response:', data);
         toast({
-          title: "Success",
-          description: `Order booked with ${courier.name}. Tracking ID: ${data.trackingId}`,
+          title: "Booking Successful", 
+          description: `Order booked with ${courier.name}. Tracking ID: ${data.trackingId}. Airway bill will be available in the dispatch page.`,
         });
       }
 

@@ -118,9 +118,27 @@ serve(async (req) => {
             throw new Error(`Unsupported courier: ${courier.code}`);
         }
         
-        // Extract label from standard response
-        labelUrl = bookingResponse.label_url || bookingResponse.labelUrl;
-        labelData = bookingResponse.label_data || bookingResponse.labelData;
+        // Extract label from standard response (check multiple possible fields)
+        labelUrl = bookingResponse.label_url || 
+                   bookingResponse.labelUrl || 
+                   bookingResponse.dist?.label_url ||
+                   bookingResponse.dist?.labelUrl ||
+                   bookingResponse.data?.label_url ||
+                   bookingResponse.data?.labelUrl;
+                   
+        labelData = bookingResponse.label_data || 
+                    bookingResponse.labelData || 
+                    bookingResponse.dist?.label_data ||
+                    bookingResponse.dist?.labelData ||
+                    bookingResponse.data?.label_data ||
+                    bookingResponse.data?.labelData;
+        
+        // Log what we found for debugging
+        console.log('[BOOKING] Label extraction:', {
+          hasLabelUrl: !!labelUrl,
+          hasLabelData: !!labelData,
+          labelFormat
+        });
       }
       
       // Log response structure for debugging
