@@ -283,7 +283,7 @@ const ReturnsDashboard = () => {
           <DialogTrigger asChild>
             <Button variant="outline">
               <Edit className="h-4 w-4 mr-2" />
-              Bulk Entry
+              Mark Returns Received
             </Button>
           </DialogTrigger>
           <DialogContent>
