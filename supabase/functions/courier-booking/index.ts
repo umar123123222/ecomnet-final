@@ -125,7 +125,20 @@ serve(async (req) => {
         // Postex returns tracking in 'dist' -> 'cn' field or 'trackingNumber'
         trackingId = bookingResponse.dist?.cn || bookingResponse.trackingNumber || bookingResponse.cn;
       } else {
-        trackingId = bookingResponse.tracking_number || bookingResponse.track_number || bookingResponse.trackingNumber;
+      trackingId =
+        bookingResponse.tracking_number ||
+        bookingResponse.track_number ||
+        bookingResponse.trackingNumber ||
+        bookingResponse.cn ||
+        bookingResponse.consignment_number ||
+        bookingResponse.consignmentNumber ||
+        bookingResponse?.data?.tracking_number ||
+        bookingResponse?.data?.trackingNumber ||
+        bookingResponse?.data?.cn ||
+        bookingResponse?.result?.tracking_number ||
+        bookingResponse?.result?.track_number ||
+        bookingResponse?.shipment?.tracking_number ||
+        bookingResponse?.dist?.cn;
       }
     }
 
@@ -252,9 +265,16 @@ serve(async (req) => {
         userId = (await supabase.auth.getUser(authHeader.replace('Bearer ', ''))).data.user?.id || null;
       }
       
-      const body = await req.clone().json();
-      orderId = body.orderId;
-      courierId = body.courierId;
+      let body: any = null;
+      try {
+        if (!req.bodyUsed) {
+          body = await req.clone().json();
+        }
+      } catch (_) {
+        body = null;
+      }
+      orderId = body?.orderId || null;
+      courierId = body?.courierId || null;
       
       if (orderId && courierId) {
         // Log failed attempt
