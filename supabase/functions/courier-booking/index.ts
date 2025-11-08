@@ -120,8 +120,17 @@ serve(async (req) => {
         labelData = bookingResponse.label_data || bookingResponse.labelData;
       }
       
-      trackingId = bookingResponse.tracking_number || bookingResponse.track_number || bookingResponse.trackingNumber;
+      // Extract tracking ID based on courier response structure
+      if (courierCode === 'POSTEX') {
+        // Postex returns tracking in 'dist' -> 'cn' field or 'trackingNumber'
+        trackingId = bookingResponse.dist?.cn || bookingResponse.trackingNumber || bookingResponse.cn;
+      } else {
+        trackingId = bookingResponse.tracking_number || bookingResponse.track_number || bookingResponse.trackingNumber;
+      }
     }
+
+    console.log('[BOOKING] Extracted tracking ID:', trackingId);
+    console.log('[BOOKING] Full booking response:', JSON.stringify(bookingResponse));
 
     if (!trackingId) {
       throw new Error('No tracking ID received from courier');
@@ -462,7 +471,9 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
     throw error;
   }
 
-  return await response.json();
+  const responseData = await response.json();
+  console.log(`${courierCode} booking response:`, JSON.stringify(responseData));
+  return responseData;
 }
 
 async function bookTCS(request: BookingRequest, supabaseClient: any) {
