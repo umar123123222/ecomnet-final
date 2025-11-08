@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { Card, CardContent } from "@/components/ui/card";
 import { CustomerInsightsWidget } from "./CustomerInsightsWidget";
 import { OrderActivityLog } from "./OrderActivityLog";
-import { Package, User, TrendingUp, History } from "lucide-react";
+import { Package, User, TrendingUp, History, Mail, Phone, MapPin, Calendar, Truck, ShoppingBag } from "lucide-react";
 
 interface Order {
   id: string;
@@ -36,6 +36,30 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
   if (!order) return null;
 
   const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+
+  // Merge duplicate items
+  const mergedItems = useMemo(() => {
+    if (!Array.isArray(items)) return [];
+    
+    const itemMap = new Map();
+    items.forEach((item: any) => {
+      const name = item.name || item.product_name;
+      const price = Number(item.price || item.unit_price || 0);
+      
+      if (itemMap.has(name)) {
+        const existing = itemMap.get(name);
+        existing.quantity += Number(item.quantity);
+      } else {
+        itemMap.set(name, {
+          name,
+          price,
+          quantity: Number(item.quantity)
+        });
+      }
+    });
+    
+    return Array.from(itemMap.values());
+  }, [items]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -68,99 +92,137 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
           </TabsList>
 
           <TabsContent value="details" className="space-y-4 mt-4">
-            {/* Customer Information */}
-            <div>
-              <h3 className="font-semibold flex items-center gap-2 mb-3">
-                <User className="h-4 w-4" />
-                Customer Information
-              </h3>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Name:</span>
-                  <p className="font-medium">{order.customer_name}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Phone:</span>
-                  <p className="font-medium">{order.customer_phone}</p>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-muted-foreground">Address:</span>
-                  <p className="font-medium">{order.customer_address}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">City:</span>
-                  <p className="font-medium">{order.city}</p>
-                </div>
-                {order.customer_email && (
-                  <div>
-                    <span className="text-muted-foreground">Email:</span>
-                    <p className="font-medium">{order.customer_email}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Order Items */}
-            <div>
-              <h3 className="font-semibold flex items-center gap-2 mb-3">
-                <Package className="h-4 w-4" />
-                Order Items
-              </h3>
-              <div className="space-y-2">
-                {Array.isArray(items) && items.map((item: any, index: number) => (
-                  <div key={index} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
-                    <div>
-                      <p className="font-medium">{item.name || item.product_name}</p>
-                      <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
+            {/* Customer Information Card */}
+            <Card className="border-border/50">
+              <CardContent className="p-5">
+                <h3 className="font-semibold flex items-center gap-2 mb-4 text-lg">
+                  <User className="h-5 w-5 text-primary" />
+                  Customer Information
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground mb-0.5">Name</p>
+                      <p className="font-medium">{order.customer_name}</p>
                     </div>
-                    <p className="font-semibold">
-                      {(Number(item.price || item.unit_price || 0) * Number(item.quantity)).toLocaleString('en-PK', { 
-                        style: 'currency', 
-                        currency: 'PKR',
-                        maximumFractionDigits: 0 
-                      })}
-                    </p>
                   </div>
-                ))}
-              </div>
-              <div className="mt-4 pt-3 border-t flex justify-between items-center">
-                <span className="font-semibold">Total Amount:</span>
-                <span className="text-2xl font-bold">
-                  {Number(order.total_amount).toLocaleString('en-PK', { 
-                    style: 'currency', 
-                    currency: 'PKR',
-                    maximumFractionDigits: 0 
-                  })}
-                </span>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Shipping Info */}
-            <div>
-              <h3 className="font-semibold mb-3">Shipping Information</h3>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Courier:</span>
-                  <p className="font-medium">{order.courier || 'Not Assigned'}</p>
+                  
+                  <div className="flex items-start gap-3">
+                    <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground mb-0.5">Phone</p>
+                      <p className="font-medium">{order.customer_phone}</p>
+                    </div>
+                  </div>
+                  
+                  {order.customer_email ? (
+                    <div className="flex items-start gap-3">
+                      <Mail className="h-4 w-4 text-muted-foreground mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-xs text-muted-foreground mb-0.5">Email</p>
+                        <p className="font-medium">{order.customer_email}</p>
+                      </div>
+                    </div>
+                  ) : null}
+                  
+                  <div className="flex items-start gap-3">
+                    <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground mb-0.5">Address</p>
+                      <p className="font-medium">{order.customer_address}</p>
+                      <p className="text-sm text-muted-foreground mt-1">{order.city}</p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-muted-foreground">Order Date:</span>
-                  <p className="font-medium">
-                    {new Date(order.created_at).toLocaleDateString('en-PK', { 
-                      year: 'numeric', 
-                      month: 'short', 
-                      day: 'numeric' 
+              </CardContent>
+            </Card>
+
+            {/* Order Summary Card */}
+            <Card className="border-border/50">
+              <CardContent className="p-5">
+                <h3 className="font-semibold flex items-center gap-2 mb-4 text-lg">
+                  <ShoppingBag className="h-5 w-5 text-primary" />
+                  Order Summary
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Package className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground mb-0.5">Order Number</p>
+                      <p className="font-medium">#{order.order_number}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground mb-0.5">Order Date</p>
+                      <p className="font-medium">
+                        {new Date(order.created_at).toLocaleDateString('en-PK', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <Truck className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground mb-0.5">Courier</p>
+                      <p className="font-medium">
+                        {order.courier || <span className="text-muted-foreground italic">Not Assigned</span>}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Order Items Card */}
+            <Card className="border-border/50">
+              <CardContent className="p-5">
+                <h3 className="font-semibold flex items-center gap-2 mb-4 text-lg">
+                  <Package className="h-5 w-5 text-primary" />
+                  Items Ordered
+                </h3>
+                <div className="space-y-2.5">
+                  {mergedItems.map((item: any, index: number) => (
+                    <div key={index} className="flex justify-between items-center p-3.5 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors">
+                      <div className="flex-1">
+                        <p className="font-medium text-base">{item.name}</p>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          {item.quantity} × {Number(item.price).toLocaleString('en-PK', { 
+                            style: 'currency', 
+                            currency: 'PKR',
+                            maximumFractionDigits: 0 
+                          })}
+                        </p>
+                      </div>
+                      <p className="font-semibold text-lg ml-4">
+                        {(item.price * item.quantity).toLocaleString('en-PK', { 
+                          style: 'currency', 
+                          currency: 'PKR',
+                          maximumFractionDigits: 0 
+                        })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-5 pt-4 border-t border-border flex justify-between items-center">
+                  <span className="font-semibold text-base">Total Amount</span>
+                  <span className="text-2xl font-bold text-primary">
+                    {Number(order.total_amount).toLocaleString('en-PK', { 
+                      style: 'currency', 
+                      currency: 'PKR',
+                      maximumFractionDigits: 0 
                     })}
-                  </p>
+                  </span>
                 </div>
-              </div>
-            </div>
-
-            <Separator />
+              </CardContent>
+            </Card>
 
             {/* Activity Log Button */}
             <Button
