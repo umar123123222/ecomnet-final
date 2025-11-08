@@ -15,6 +15,7 @@ interface CourierConfig {
   is_active: boolean;
   auth_type: 'bearer_token' | 'api_key_header' | 'basic_auth' | 'custom';
   api_key: string;
+  pickup_address_code?: string;
   booking_endpoint: string;
   tracking_endpoint: string;
   label_endpoint?: string;
@@ -38,6 +39,7 @@ export function CourierConfigCard({ courier, onSave, onDelete, onTest }: Props) 
     is_active: true,
     auth_type: 'bearer_token',
     api_key: '',
+    pickup_address_code: '',
     booking_endpoint: '',
     tracking_endpoint: '',
     label_format: 'pdf',
@@ -195,6 +197,18 @@ export function CourierConfigCard({ courier, onSave, onDelete, onTest }: Props) 
             onChange={(e) => setConfig({ ...config, api_key: e.target.value })}
             placeholder="Enter API key or token"
           />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Pickup Address Code (Optional)</Label>
+          <Input
+            value={config.pickup_address_code || ''}
+            onChange={(e) => setConfig({ ...config, pickup_address_code: e.target.value })}
+            placeholder="e.g., PKC123456 (if required by courier)"
+          />
+          <p className="text-xs text-muted-foreground">
+            Some couriers require a pickup address code for bookings
+          </p>
         </div>
 
         <div className="space-y-2">

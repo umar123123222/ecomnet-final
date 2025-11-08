@@ -387,12 +387,11 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
   
   if (courierCode === 'POSTEX') {
     // Postex v3 API requires specific structure
-    // Get pickup address code or store address code (at least one required)
-    const pickupAddressCode = await getAPISetting('POSTEX_PICKUP_ADDRESS_CODE', supabaseClient);
-    const storeAddressCode = await getAPISetting('POSTEX_STORE_ADDRESS_CODE', supabaseClient);
+    // Get pickup address code from courier-specific setting
+    const pickupAddressCode = await getAPISetting(`${courierCode}_PICKUP_ADDRESS_CODE`, supabaseClient);
     
-    if (!pickupAddressCode && !storeAddressCode) {
-      const error: any = new Error('Postex requires either POSTEX_PICKUP_ADDRESS_CODE or POSTEX_STORE_ADDRESS_CODE. Please configure at least one in Settings > Business Settings > API Configuration.');
+    if (!pickupAddressCode) {
+      const error: any = new Error('Postex requires a Pickup Address Code. Please configure it in the courier settings under Business Settings > Couriers.');
       error.code = 'CONFIGURATION_REQUIRED';
       throw error;
     }
@@ -408,15 +407,13 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
       invoicePayment: request.codAmount || 0,
       orderType: 'Normal', // Valid values: Normal, Reversed, Replacement
       orderDetail: `Order Items x${request.pieces} | Amount: ${request.codAmount || 0}`,
-      ...(pickupAddressCode && { pickupAddressCode }),
-      ...(storeAddressCode && { storeAddressCode })
+      pickupAddressCode: pickupAddressCode
     };
     
     // Defensive logging for Postex payload
     console.log('POSTEX payload check:', {
       hasOrderDetail: 'orderDetail' in body,
       hasPickupAddressCode: !!pickupAddressCode,
-      hasStoreAddressCode: !!storeAddressCode,
       orderDetailType: typeof body.orderDetail,
       orderDetailValue: body.orderDetail
     });
@@ -537,18 +534,17 @@ async function bookPostEx(request: BookingRequest, supabaseClient: any) {
     throw new Error('Postex API key not configured. Please add POSTEX_API_KEY in Settings > Business Settings > API Configuration.');
   }
   
-  // Get pickup address code or store address code (at least one required by Postex)
+  // Get pickup address code (required by Postex)
   const pickupAddressCode = await getAPISetting('POSTEX_PICKUP_ADDRESS_CODE', supabaseClient);
-  const storeAddressCode = await getAPISetting('POSTEX_STORE_ADDRESS_CODE', supabaseClient);
   
-  if (!pickupAddressCode && !storeAddressCode) {
-    const error: any = new Error('Postex requires either POSTEX_PICKUP_ADDRESS_CODE or POSTEX_STORE_ADDRESS_CODE. Please configure at least one in Settings > Business Settings > API Configuration.');
+  if (!pickupAddressCode) {
+    const error: any = new Error('Postex requires a Pickup Address Code. Please configure it in the courier settings under Business Settings > Couriers.');
     error.code = 'CONFIGURATION_REQUIRED';
     throw error;
   }
   
   console.log('Postex API Key present:', !!apiKey);
-  console.log('Postex Address Codes:', { hasPickupCode: !!pickupAddressCode, hasStoreCode: !!storeAddressCode });
+  console.log('Postex Pickup Address Code present:', !!pickupAddressCode);
   
   const body = {
     customerName: request.deliveryAddress.name,
@@ -561,15 +557,13 @@ async function bookPostEx(request: BookingRequest, supabaseClient: any) {
     invoicePayment: request.codAmount || 0,
     orderType: 'Normal', // Valid values: Normal, Reversed, Replacement
     orderDetail: `Order Items x${request.pieces} | Amount: ${request.codAmount || 0}`,
-    ...(pickupAddressCode && { pickupAddressCode }),
-    ...(storeAddressCode && { storeAddressCode })
+    pickupAddressCode: pickupAddressCode
   };
   
   // Defensive logging for Postex payload
   console.log('POSTEX payload check:', {
     hasOrderDetail: 'orderDetail' in body,
     hasPickupAddressCode: !!pickupAddressCode,
-    hasStoreAddressCode: !!storeAddressCode,
     orderDetailType: typeof body.orderDetail,
     orderDetailValue: body.orderDetail
   });
