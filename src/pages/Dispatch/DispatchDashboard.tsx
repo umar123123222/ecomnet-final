@@ -257,13 +257,13 @@ const DispatchDashboard = () => {
           <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
-                <Edit className="h-4 w-4 mr-2" />
-                Bulk Entry
+                <Truck className="h-4 w-4 mr-2" />
+                Mark Dispatched
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Bulk Dispatch Entry</DialogTitle>
+                <DialogTitle>Mark Orders as Dispatched</DialogTitle>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(handleManualEntry)} className="space-y-4">
