@@ -290,7 +290,7 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
       transactionNotes: request.specialInstructions || '',
       orderRefNumber: request.orderId,
       invoicePayment: request.codAmount || 0,
-      orderType: request.codAmount ? 'COD' : 'Normal',
+      orderType: 'Normal', // Valid values: Normal, Reversed, Replacement
       orderDetail: `Order Items x${request.pieces} | Amount: ${request.codAmount || 0}`
     };
     
@@ -428,7 +428,7 @@ async function bookPostEx(request: BookingRequest, supabaseClient: any) {
     transactionNotes: request.specialInstructions || '',
     orderRefNumber: request.orderId,
     invoicePayment: request.codAmount || 0,
-    orderType: request.codAmount ? 'COD' : 'Normal',
+    orderType: 'Normal', // Valid values: Normal, Reversed, Replacement
     orderDetail: `Order Items x${request.pieces} | Amount: ${request.codAmount || 0}`
   };
   
