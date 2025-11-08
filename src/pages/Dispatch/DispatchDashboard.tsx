@@ -272,7 +272,15 @@ const DispatchDashboard = () => {
                 }) => <FormItem>
                         <FormLabel>Tracking IDs</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Enter tracking IDs (one per line)&#10;Example:&#10;TRK123456&#10;TRK789012&#10;TRK345678" className="min-h-[150px] font-mono text-sm" {...field} />
+                          <Textarea 
+                            placeholder="Enter tracking IDs (one per line)&#10;Example:&#10;TRK123456&#10;TRK789012&#10;TRK345678" 
+                            className="min-h-[150px] font-mono text-sm" 
+                            value={field.value}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            name={field.name}
+                            ref={field.ref}
+                          />
                         </FormControl>
                         <p className="text-xs text-muted-foreground">
                           Enter one tracking ID per line
