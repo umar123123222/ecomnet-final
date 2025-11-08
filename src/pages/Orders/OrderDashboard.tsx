@@ -14,7 +14,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescri
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save, Shield, AlertTriangle, AlertCircle, MapPin, Clock, User, Phone, Mail, Calendar, ShoppingBag, FileText } from 'lucide-react';
+import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save, Shield, AlertTriangle, AlertCircle, MapPin, Clock, User, Phone, Mail, Calendar, ShoppingBag, FileText, RefreshCw } from 'lucide-react';
 import TagsNotes from '@/components/TagsNotes';
 import NewOrderDialog from '@/components/NewOrderDialog';
 import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
@@ -995,7 +995,7 @@ const OrderDashboard = () => {
               {showKPIPanel ? 'Hide' : 'Show'} KPIs
             </Button>
             <Button variant="outline" onClick={fetchOrders} size="sm">
-              <Download className="h-4 w-4 mr-2" />
+              <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
             <NewOrderDialog onOrderCreated={handleNewOrderCreated} />
