@@ -8,6 +8,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+
+// Wrapper to avoid passing attributes directly to React.Fragment (fixes dev overlay warnings)
+const Noop: React.FC<{ children: React.ReactNode }> = ({ children }) => <>{children}</>;
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
@@ -1393,7 +1397,7 @@ const OrderDashboard = () => {
                     </div>
                   </TableCell>
                 </TableRow> : finalFilteredOrders.map(order => (
-                  <React.Fragment key={order.id}>
+                  <Noop key={order.id}>
                   <TableRow className="hover:bg-muted/50">
                     <TableCell>
                       <Checkbox 
@@ -1946,7 +1950,7 @@ const OrderDashboard = () => {
                          </Tabs>
                       </TableCell>
                     </TableRow>}
-                 </React.Fragment>
+                 </Noop>
                 ))}
             </TableBody>
           </Table>

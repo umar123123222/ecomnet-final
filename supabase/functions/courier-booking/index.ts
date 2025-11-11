@@ -210,11 +210,36 @@ serve(async (req) => {
       throw error;
     }
 
-    // CRITICAL: Only proceed if we have BOTH tracking ID AND label
+    // If label not available yet, return 200 with informative payload (do not update order)
     if (!labelUrl && !labelData) {
-      const error: any = new Error('Booking incomplete - no airway bill received from courier');
-      error.code = 'BOOKING_NO_LABEL';
-      throw error;
+      console.warn('[BOOKING] No airway bill returned; returning partial success without updating order');
+
+      // Log attempt as partial for auditing
+      const processingTime = Date.now() - requestStartTime;
+      await supabase.from('courier_booking_attempts').insert({
+        order_id: bookingRequest.orderId,
+        courier_id: bookingRequest.courierId,
+        courier_code: courier.code,
+        booking_request: bookingRequest,
+        booking_response: bookingResponse,
+        status: 'partial',
+        tracking_id: trackingId,
+        user_id: userId,
+        attempt_number: 1
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Airway bill not available from courier yet',
+          errorCode: 'BOOKING_NO_LABEL',
+          trackingId,
+          courierId: bookingRequest.courierId,
+          labelAvailable: false,
+          bookingResponse
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Update order with tracking information (only if label is available)
