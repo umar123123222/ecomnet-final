@@ -598,41 +598,64 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
   const responseData = await response.json();
   console.log(`${courierCode} booking response:`, JSON.stringify(responseData));
   
-  // Fetch label for Postex after successful booking
+  // Fetch label for Postex after successful booking with retry logic
   if (courierCode === 'POSTEX') {
     const trackingNumber = responseData.dist?.trackingNumber;
     if (trackingNumber) {
-      try {
-        console.log('[POSTEX] Fetching label for tracking:', trackingNumber);
-        const labelResponse = await fetch('https://api.postex.pk/services/integration/api/order/v1/get-label', {
-          method: 'POST',
-          headers: {
-            'token': apiKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ trackingNumber })
-        });
-        
-        if (labelResponse.ok) {
-          const labelData = await labelResponse.json();
-          console.log('[POSTEX] Label fetch response:', JSON.stringify(labelData));
+      console.log('[POSTEX] Fetching label for tracking:', trackingNumber);
+      
+      // Retry up to 3 times with delays (labels take a few seconds to generate)
+      let labelFetched = false;
+      const maxRetries = 3;
+      const retryDelays = [2000, 3000, 4000]; // 2s, 3s, 4s delays
+      
+      for (let attempt = 0; attempt < maxRetries && !labelFetched; attempt++) {
+        try {
+          if (attempt > 0) {
+            console.log(`[POSTEX] Waiting ${retryDelays[attempt - 1]}ms before retry ${attempt}...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelays[attempt - 1]));
+          }
           
-          // Attach label data to response
-          if (labelData.dist?.pdfData) {
-            responseData.label_data = labelData.dist.pdfData;
-            responseData.label_format = 'pdf';
-            console.log('[POSTEX] Label data extracted successfully');
+          console.log(`[POSTEX] Label fetch attempt ${attempt + 1}/${maxRetries}`);
+          const labelResponse = await fetch('https://api.postex.pk/services/integration/api/order/v1/get-label', {
+            method: 'POST',
+            headers: {
+              'token': apiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ trackingNumber })
+          });
+          
+          if (labelResponse.ok) {
+            const labelData = await labelResponse.json();
+            console.log('[POSTEX] Label fetch response:', JSON.stringify(labelData));
+            
+            // Check if we got valid label data
+            if (labelData.dist?.pdfData || labelData.dist?.labelUrl) {
+              if (labelData.dist.pdfData) {
+                responseData.label_data = labelData.dist.pdfData;
+                responseData.label_format = 'pdf';
+                console.log('[POSTEX] Label data extracted successfully');
+              }
+              if (labelData.dist.labelUrl) {
+                responseData.label_url = labelData.dist.labelUrl;
+                console.log('[POSTEX] Label URL extracted successfully');
+              }
+              labelFetched = true;
+            } else {
+              console.warn(`[POSTEX] No label data in response (attempt ${attempt + 1})`);
+            }
+          } else {
+            const errorText = await labelResponse.text();
+            console.warn(`[POSTEX] Label fetch failed (attempt ${attempt + 1}):`, labelResponse.status, errorText);
           }
-          if (labelData.dist?.labelUrl) {
-            responseData.label_url = labelData.dist.labelUrl;
-            console.log('[POSTEX] Label URL extracted successfully');
-          }
-        } else {
-          const errorText = await labelResponse.text();
-          console.warn('[POSTEX] Label fetch failed:', labelResponse.status, errorText);
+        } catch (labelError) {
+          console.warn(`[POSTEX] Label fetch error (attempt ${attempt + 1}):`, labelError);
         }
-      } catch (labelError) {
-        console.warn('[POSTEX] Label fetch error (non-critical):', labelError);
+      }
+      
+      if (!labelFetched) {
+        console.error('[POSTEX] Failed to fetch label after all retry attempts');
       }
     }
   }
@@ -779,36 +802,62 @@ async function bookPostEx(request: BookingRequest, supabaseClient: any) {
   const bookingData = await createResponse.json();
   console.log('Postex booking response:', JSON.stringify(bookingData));
   
-  // Now fetch the label using tracking number
+  // Now fetch the label with retry logic (labels take a few seconds to generate)
   const trackingNumber = bookingData.dist?.trackingNumber;
   if (trackingNumber) {
-    try {
-      console.log('Fetching label for tracking:', trackingNumber);
-      const labelResponse = await fetch('https://api.postex.pk/services/integration/api/order/v1/get-label', {
-        method: 'POST',
-        headers: {
-          'token': apiKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ trackingNumber })
-      });
-      
-      if (labelResponse.ok) {
-        const labelData = await labelResponse.json();
-        console.log('Label fetch response:', JSON.stringify(labelData));
-        
-        // Add label data to booking response
-        if (labelData.dist?.pdfData || labelData.dist?.labelUrl) {
-          bookingData.label_data = labelData.dist.pdfData;
-          bookingData.label_url = labelData.dist.labelUrl;
-          bookingData.label_format = 'pdf';
-          console.log('Label data extracted successfully');
+    console.log('[POSTEX bookPostEx] Fetching label for tracking:', trackingNumber);
+    
+    let labelFetched = false;
+    const maxRetries = 3;
+    const retryDelays = [2000, 3000, 4000]; // 2s, 3s, 4s delays
+    
+    for (let attempt = 0; attempt < maxRetries && !labelFetched; attempt++) {
+      try {
+        if (attempt > 0) {
+          console.log(`[POSTEX bookPostEx] Waiting ${retryDelays[attempt - 1]}ms before retry ${attempt}...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelays[attempt - 1]));
         }
-      } else {
-        console.warn('Label fetch failed:', labelResponse.status, await labelResponse.text());
+        
+        console.log(`[POSTEX bookPostEx] Label fetch attempt ${attempt + 1}/${maxRetries}`);
+        const labelResponse = await fetch('https://api.postex.pk/services/integration/api/order/v1/get-label', {
+          method: 'POST',
+          headers: {
+            'token': apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ trackingNumber })
+        });
+        
+        if (labelResponse.ok) {
+          const labelData = await labelResponse.json();
+          console.log('[POSTEX bookPostEx] Label fetch response:', JSON.stringify(labelData));
+          
+          // Check if we got valid label data
+          if (labelData.dist?.pdfData || labelData.dist?.labelUrl) {
+            if (labelData.dist.pdfData) {
+              bookingData.label_data = labelData.dist.pdfData;
+              bookingData.label_format = 'pdf';
+              console.log('[POSTEX bookPostEx] Label data extracted successfully');
+            }
+            if (labelData.dist.labelUrl) {
+              bookingData.label_url = labelData.dist.labelUrl;
+              console.log('[POSTEX bookPostEx] Label URL extracted successfully');
+            }
+            labelFetched = true;
+          } else {
+            console.warn(`[POSTEX bookPostEx] No label data in response (attempt ${attempt + 1})`);
+          }
+        } else {
+          const errorText = await labelResponse.text();
+          console.warn(`[POSTEX bookPostEx] Label fetch failed (attempt ${attempt + 1}):`, labelResponse.status, errorText);
+        }
+      } catch (labelError) {
+        console.warn(`[POSTEX bookPostEx] Label fetch error (attempt ${attempt + 1}):`, labelError);
       }
-    } catch (labelError) {
-      console.warn('Failed to fetch label (non-critical):', labelError);
+    }
+    
+    if (!labelFetched) {
+      console.error('[POSTEX bookPostEx] Failed to fetch label after all retry attempts');
     }
   }
 
