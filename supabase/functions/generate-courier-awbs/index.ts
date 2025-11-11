@@ -1,10 +1,112 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { PDFDocument, degrees } from 'https://esm.sh/pdf-lib@1.17.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+/**
+ * Consolidate multiple AWB PDFs into a single PDF with 3 AWBs per A4 sheet
+ * @param pdfBase64Array - Array of base64 encoded PDF strings
+ * @returns Consolidated PDF as base64 string
+ */
+async function consolidateAWBs(pdfBase64Array: string[]): Promise<string> {
+  try {
+    console.log(`[CONSOLIDATE] Starting consolidation of ${pdfBase64Array.length} PDF batches`);
+    
+    // Create a new PDF document for consolidated output
+    const consolidatedPdf = await PDFDocument.create();
+    
+    // A4 dimensions in points (72 points = 1 inch)
+    const A4_WIDTH = 595.28;
+    const A4_HEIGHT = 841.89;
+    const MARGIN = 10; // Small margin between AWBs
+    const AWB_SLOT_HEIGHT = (A4_HEIGHT - (2 * MARGIN)) / 3; // Divide into 3 slots with margins
+    
+    let totalAwbsProcessed = 0;
+    
+    // Process each PDF batch (each batch contains AWBs from one API call)
+    for (let batchIndex = 0; batchIndex < pdfBase64Array.length; batchIndex++) {
+      const base64 = pdfBase64Array[batchIndex];
+      
+      // Convert base64 to Uint8Array
+      const pdfBytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      
+      // Load the PDF batch
+      const sourcePdf = await PDFDocument.load(pdfBytes);
+      const pageCount = sourcePdf.getPageCount();
+      console.log(`[CONSOLIDATE] Batch ${batchIndex + 1}: Processing ${pageCount} AWB pages`);
+      
+      // Extract all pages from this batch
+      for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+        const awbPosition = totalAwbsProcessed % 3; // 0, 1, or 2 (top, middle, bottom)
+        
+        // Create a new A4 page when starting a new sheet (position 0)
+        if (awbPosition === 0) {
+          consolidatedPdf.addPage([A4_WIDTH, A4_HEIGHT]);
+        }
+        
+        // Get the current page (last added page)
+        const currentPage = consolidatedPdf.getPages()[consolidatedPdf.getPageCount() - 1];
+        
+        // Embed the AWB page from the source PDF
+        const [embeddedPage] = await consolidatedPdf.embedPdf(sourcePdf, [pageIndex]);
+        
+        // Calculate scaling to fit the AWB into its slot while maintaining aspect ratio
+        const awbWidth = embeddedPage.width;
+        const awbHeight = embeddedPage.height;
+        
+        const scaleX = A4_WIDTH / awbWidth;
+        const scaleY = AWB_SLOT_HEIGHT / awbHeight;
+        const scale = Math.min(scaleX, scaleY); // Use smaller scale to ensure it fits
+        
+        const scaledWidth = awbWidth * scale;
+        const scaledHeight = awbHeight * scale;
+        
+        // Center the AWB horizontally in its slot
+        const xOffset = (A4_WIDTH - scaledWidth) / 2;
+        
+        // Calculate Y position based on slot (0 = top, 1 = middle, 2 = bottom)
+        const yOffset = A4_HEIGHT - (awbPosition + 1) * AWB_SLOT_HEIGHT - MARGIN + (AWB_SLOT_HEIGHT - scaledHeight) / 2;
+        
+        // Draw the embedded AWB page
+        currentPage.drawPage(embeddedPage, {
+          x: xOffset,
+          y: yOffset,
+          width: scaledWidth,
+          height: scaledHeight,
+        });
+        
+        totalAwbsProcessed++;
+      }
+    }
+    
+    const finalPageCount = consolidatedPdf.getPageCount();
+    const fullSheets = Math.floor(totalAwbsProcessed / 3);
+    const partialAwbs = totalAwbsProcessed % 3;
+    
+    console.log(`[CONSOLIDATE] Consolidation complete: ${totalAwbsProcessed} AWBs consolidated into ${finalPageCount} sheets`);
+    console.log(`[CONSOLIDATE] Layout: ${fullSheets} full sheets (3 AWBs each)${partialAwbs > 0 ? ` + 1 partial sheet (${partialAwbs} AWBs)` : ''}`);
+    console.log(`[CONSOLIDATE] Paper saved: ${totalAwbsProcessed - finalPageCount} sheets (${Math.round((1 - finalPageCount/totalAwbsProcessed) * 100)}%)`);
+    
+    // Save the consolidated PDF and convert to base64
+    const consolidatedBytes = await consolidatedPdf.save();
+    const consolidatedBase64 = btoa(
+      new Uint8Array(consolidatedBytes).reduce(
+        (data, byte) => data + String.fromCharCode(byte),
+        ''
+      )
+    );
+    
+    return consolidatedBase64;
+    
+  } catch (error) {
+    console.error('[CONSOLIDATE] Error consolidating PDFs:', error);
+    throw error;
+  }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -214,21 +316,35 @@ serve(async (req) => {
 
     console.log(`[AWB] Processing complete. Generated ${pdfBase64Data.length} PDFs for ${allTrackingIds.length} tracking IDs`);
 
+    // Consolidate PDFs if we have any (3 AWBs per sheet)
+    let finalPdfData: string | null = null;
+    
+    if (pdfBase64Data.length > 0) {
+      try {
+        console.log(`[AWB] Consolidating ${pdfBase64Data.length} PDF batches into optimized sheets (3 AWBs per sheet)`);
+        finalPdfData = await consolidateAWBs(pdfBase64Data);
+        console.log(`[AWB] Successfully consolidated PDFs, final base64 length: ${finalPdfData.length}`);
+      } catch (consolidateError) {
+        console.error('[AWB] Error consolidating PDFs, falling back to original PDFs:', consolidateError);
+        // Fallback: store multiple PDFs as before if consolidation fails
+        if (pdfBase64Data.length === 1) {
+          finalPdfData = pdfBase64Data[0];
+        } else {
+          finalPdfData = JSON.stringify(pdfBase64Data);
+        }
+      }
+    }
+
     // Update AWB record with results
     const updateData: any = {
       tracking_ids: allTrackingIds,
-      status: pdfBase64Data.length > 0 ? 'completed' : 'failed',
+      status: finalPdfData ? 'completed' : 'failed',
       generated_at: new Date().toISOString()
     };
 
-    if (pdfBase64Data.length === 1) {
-      // Single PDF - store as base64 in pdf_data field
-      updateData.pdf_data = pdfBase64Data[0];
-      console.log(`[AWB] Storing single PDF, base64 length: ${pdfBase64Data[0].length}`);
-    } else if (pdfBase64Data.length > 1) {
-      // Multiple PDFs - store array of base64 strings
-      updateData.pdf_data = JSON.stringify(pdfBase64Data);
-      console.log(`[AWB] Storing ${pdfBase64Data.length} PDFs as JSON array`);
+    if (finalPdfData) {
+      updateData.pdf_data = finalPdfData;
+      console.log(`[AWB] Storing consolidated PDF, base64 length: ${finalPdfData.length}`);
     } else {
       updateData.error_message = 'No AWBs were generated - all batches failed';
       console.error('[AWB] No PDFs generated from any batch');
