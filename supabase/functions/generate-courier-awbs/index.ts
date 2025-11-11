@@ -235,31 +235,25 @@ serve(async (req) => {
     }
 
     console.log(`[AWB] Updating AWB record ${awbRecord.id} with status: ${updateData.status}`);
+    console.log(`[AWB] Update data:`, {
+      status: updateData.status,
+      tracking_ids_count: updateData.tracking_ids?.length || 0,
+      has_pdf_data: !!updateData.pdf_data,
+      pdf_data_length: updateData.pdf_data ? 
+        (typeof updateData.pdf_data === 'string' ? updateData.pdf_data.length : 'object') : 0
+    });
     
-    const { data: updatedRecord, error: updateError } = await supabaseClient
+    const { error: updateError } = await supabaseClient
       .from('courier_awbs')
       .update(updateData)
-      .eq('id', awbRecord.id)
-      .select()
-      .maybeSingle();
+      .eq('id', awbRecord.id);
 
     if (updateError) {
       console.error('[AWB] Error updating AWB record:', updateError);
       throw new Error(`Failed to update AWB record: ${updateError.message}`);
     }
 
-    if (!updatedRecord) {
-      console.error('[AWB] No record returned after update. Record may have been deleted.');
-      throw new Error('AWB record not found after update');
-    }
-
-    console.log(`[AWB] Successfully updated record. Has pdf_data: ${!!updatedRecord.pdf_data}`);
-    if (updatedRecord.pdf_data) {
-      const pdfDataLength = typeof updatedRecord.pdf_data === 'string' 
-        ? updatedRecord.pdf_data.length 
-        : JSON.stringify(updatedRecord.pdf_data).length;
-      console.log(`[AWB] PDF data length in updated record: ${pdfDataLength}`);
-    }
+    console.log(`[AWB] Successfully updated record ${awbRecord.id}`);
 
     return new Response(
       JSON.stringify({
