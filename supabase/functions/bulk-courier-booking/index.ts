@@ -126,6 +126,7 @@ serve(async (req) => {
         const { data: bookingData, error: bookingError } = await supabase.functions.invoke('courier-booking', {
           body: {
             orderId: order.id,
+            orderNumber: order.order_number, // Pass order number for courier reference
             courierId: courierId,
             pickupAddress,
             deliveryAddress: {

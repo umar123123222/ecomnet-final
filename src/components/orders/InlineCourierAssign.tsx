@@ -97,6 +97,7 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
       const { data, error } = await supabase.functions.invoke('courier-booking', {
         body: {
           orderId: orderId,
+          orderNumber: orderDetails.orderNumber, // Pass order number for courier reference
           courierId: courierId,
           pickupAddress: {
             name: pickupName,

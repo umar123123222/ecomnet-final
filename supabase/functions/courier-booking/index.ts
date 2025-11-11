@@ -9,6 +9,7 @@ const corsHeaders = {
 
 interface BookingRequest {
   orderId: string;
+  orderNumber?: string; // Human-readable order number for courier reference
   courierId: string;
   pickupAddress: {
     name: string;
@@ -67,6 +68,24 @@ serve(async (req) => {
 
     console.log('[BOOKING] Using courier:', courier.name, courier.code);
 
+    // Fetch order number if not provided (for use as reference in courier portal)
+    let orderNumber = bookingRequest.orderNumber;
+    if (!orderNumber) {
+      const { data: orderData, error: orderFetchError } = await supabase
+        .from('orders')
+        .select('order_number')
+        .eq('id', bookingRequest.orderId)
+        .single();
+      
+      if (!orderFetchError && orderData) {
+        orderNumber = orderData.order_number;
+        console.log('[BOOKING] Fetched order number:', orderNumber);
+      } else {
+        console.warn('[BOOKING] Could not fetch order number, using order ID as fallback');
+        orderNumber = bookingRequest.orderId;
+      }
+    }
+
     // Define courierCode for use throughout the function
     const courierCode = (courier.code || '').toString().toUpperCase();
 
@@ -96,7 +115,7 @@ serve(async (req) => {
     } else {
       // Use custom booking endpoint if configured
       if (courier.booking_endpoint) {
-        bookingResponse = await bookWithCustomEndpoint(bookingRequest, courier, supabase);
+        bookingResponse = await bookWithCustomEndpoint(bookingRequest, courier, supabase, orderNumber);
         
         // Extract label from response
         if (bookingResponse.label_url) {
@@ -116,7 +135,7 @@ serve(async (req) => {
             break;
           
           case 'POSTEX':
-            bookingResponse = await bookPostEx(bookingRequest, supabase);
+            bookingResponse = await bookPostEx(bookingRequest, supabase, orderNumber);
             break;
           
           default:
@@ -456,7 +475,7 @@ async function fetchWithManualRedirect(url: string, options: RequestInit, maxRed
   throw new Error(`Too many redirects (${maxRedirects})`);
 }
 
-async function bookWithCustomEndpoint(request: BookingRequest, courier: any, supabaseClient: any) {
+async function bookWithCustomEndpoint(request: BookingRequest, courier: any, supabaseClient: any, orderNumber: string) {
   const apiKey = await getAPISetting(`${courier.code.toUpperCase()}_API_KEY`, supabaseClient);
   
   const headers: Record<string, string> = {
@@ -535,7 +554,7 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
       cityName: request.deliveryAddress.city,
       pickupCityName: request.pickupAddress.city,
       transactionNotes: request.specialInstructions || '',
-      orderRefNumber: request.orderId,
+      orderRefNumber: orderNumber, // Use human-readable order number
       invoicePayment: request.codAmount || 0,
       orderType: 'Normal', // Valid values: Normal, Reversed, Replacement
       orderDetail: orderDetail,
@@ -725,7 +744,7 @@ async function bookLeopard(request: BookingRequest, supabaseClient: any) {
   return await response.json();
 }
 
-async function bookPostEx(request: BookingRequest, supabaseClient: any) {
+async function bookPostEx(request: BookingRequest, supabaseClient: any, orderNumber: string) {
   const apiKey = await getAPISetting('POSTEX_API_KEY', supabaseClient);
   
   if (!apiKey) {
@@ -770,7 +789,7 @@ async function bookPostEx(request: BookingRequest, supabaseClient: any) {
     cityName: request.deliveryAddress.city,
     pickupCityName: request.pickupAddress.city,
     transactionNotes: request.specialInstructions || '',
-    orderRefNumber: request.orderId,
+    orderRefNumber: orderNumber, // Use human-readable order number
     invoicePayment: request.codAmount || 0,
     orderType: 'Normal',
     orderDetail: orderDetail,
