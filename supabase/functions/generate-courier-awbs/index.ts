@@ -32,6 +32,8 @@ serve(async (req) => {
 
     // Get authenticated user from JWT token
     const authHeader = req.headers.get('Authorization');
+    console.log('[AUTH] Authorization header present:', !!authHeader);
+    
     if (!authHeader) {
       throw new Error('No authorization header');
     }
@@ -43,11 +45,11 @@ serve(async (req) => {
 
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
     if (userError || !user) {
-      console.error('Auth error:', userError);
+      console.error('[AUTH] Error:', userError);
       throw new Error('Not authenticated');
     }
 
-    console.log(`Authenticated user: ${user.id}`);
+    console.log(`[AUTH] Authenticated user: ${user.id}`);
     const { data: courier, error: courierError } = await supabaseClient
       .from('couriers')
       .select('*')
@@ -59,7 +61,7 @@ serve(async (req) => {
       throw new Error(`Courier not found: ${courier_code}`);
     }
 
-    console.log(`Found courier: ${courier.name} (${courier.code})`);
+    console.log(`[COURIER] Found courier: ${courier.name} (${courier.code})`);
 
     // Get API settings for this courier
     const { data: apiSettings, error: settingsError } = await supabaseClient
@@ -71,9 +73,11 @@ serve(async (req) => {
       ]);
 
     if (settingsError) {
-      console.error('Error fetching API settings:', settingsError);
+      console.error('[SETTINGS] Error fetching API settings:', settingsError);
       throw new Error('Failed to fetch courier API settings');
     }
+
+    console.log(`[SETTINGS] Retrieved ${apiSettings?.length || 0} settings`);
 
     const settingsMap = (apiSettings || []).reduce((acc, setting) => {
       acc[setting.setting_key] = setting.setting_value;
@@ -82,6 +86,9 @@ serve(async (req) => {
 
     const apiKey = settingsMap[`${courier_code.toUpperCase()}_API_KEY`];
     const awbEndpoint = settingsMap[`${courier_code.toUpperCase()}_AWB_ENDPOINT`] || courier.api_endpoint;
+
+    console.log('[SETTINGS] API Key present:', !!apiKey);
+    console.log('[SETTINGS] AWB Endpoint:', awbEndpoint);
 
     if (!apiKey) {
       throw new Error(`API key not configured for ${courier_code}`);
@@ -114,7 +121,7 @@ serve(async (req) => {
       batches.push(order_ids.slice(i, i + batchSize));
     }
 
-    console.log(`Processing ${batches.length} batches`);
+    console.log(`[AWB] Processing ${batches.length} batches`);
 
     const allTrackingIds: string[] = [];
     const pdfBase64Data: string[] = [];
@@ -122,7 +129,7 @@ serve(async (req) => {
 
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
-      console.log(`Processing batch ${batchIndex + 1}/${batches.length} with ${batch.length} orders`);
+      console.log(`[AWB] Processing batch ${batchIndex + 1}/${batches.length} with ${batch.length} orders`);
 
       // Get dispatch records for this batch
       const { data: dispatches, error: dispatchError } = await supabaseClient
@@ -132,20 +139,23 @@ serve(async (req) => {
         .ilike('courier', courier.code);
 
       if (dispatchError) {
-        console.error(`Error fetching dispatches for batch ${batchIndex + 1}:`, dispatchError);
+        console.error(`[AWB] Error fetching dispatches for batch ${batchIndex + 1}:`, dispatchError);
         continue;
       }
 
       const trackingIds = dispatches?.map(d => d.tracking_id).filter(Boolean) || [];
+      console.log(`[AWB] Found ${trackingIds.length} tracking IDs in batch ${batchIndex + 1}`);
       
       if (trackingIds.length === 0) {
-        console.log(`No tracking IDs found for batch ${batchIndex + 1}`);
+        console.log(`[AWB] No tracking IDs found for batch ${batchIndex + 1}, skipping`);
         continue;
       }
 
       // Call courier API to generate AWB for this batch using GET endpoint
       try {
         const trackingNumbersParam = trackingIds.join(',');
+        console.log(`[AWB] Calling API with tracking numbers: ${trackingNumbersParam}`);
+        
         const awbResponse = await fetch(`${awbEndpoint}?trackingNumbers=${trackingNumbersParam}`, {
           method: 'GET',
           headers: {
@@ -153,13 +163,16 @@ serve(async (req) => {
           }
         });
 
+        console.log(`[AWB] API response status: ${awbResponse.status}`);
+
         if (!awbResponse.ok) {
-          console.error(`AWB generation failed for batch ${batchIndex + 1}:`, awbResponse.statusText);
+          console.error(`[AWB] API error for batch ${batchIndex + 1}: ${awbResponse.status} ${awbResponse.statusText}`);
           continue;
         }
 
         // Get PDF as binary data
         const pdfArrayBuffer = await awbResponse.arrayBuffer();
+        console.log(`[AWB] Received PDF of size: ${pdfArrayBuffer.byteLength} bytes`);
         
         // Convert to base64
         const base64 = btoa(
@@ -169,14 +182,16 @@ serve(async (req) => {
           )
         );
 
+        console.log(`[AWB] Converted to base64, length: ${base64.length}`);
+
         pdfBase64Data.push(base64);
         allTrackingIds.push(...trackingIds);
         processedCount += batch.length;
 
-        console.log(`Successfully generated AWB for batch ${batchIndex + 1}`);
+        console.log(`[AWB] Successfully processed batch ${batchIndex + 1}`);
 
       } catch (error) {
-        console.error(`Error calling AWB API for batch ${batchIndex + 1}:`, error);
+        console.error(`[AWB] Error calling AWB API for batch ${batchIndex + 1}:`, error);
         continue;
       }
 
@@ -185,6 +200,8 @@ serve(async (req) => {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
+
+    console.log(`[AWB] Processing complete. Generated ${pdfBase64Data.length} PDFs for ${allTrackingIds.length} tracking IDs`);
 
     // Update AWB record with results
     const updateData: any = {

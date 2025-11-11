@@ -429,21 +429,26 @@ const OrderDashboard = () => {
   // Generate AWBs for booked orders
   const handleGenerateAWBs = async (orderIds: string[], courierId: string, courierName: string) => {
     try {
+      console.log('[AWB] Starting generation for:', { orderIds, courierId, courierName });
+      
       toast({
         title: "Generating AWBs...",
         description: `Processing ${orderIds.length} orders`,
       });
 
       // Get courier code
-      const { data: courier } = await supabase
+      const { data: courier, error: courierError } = await supabase
         .from('couriers')
         .select('code')
         .eq('id', courierId)
         .single();
 
-      if (!courier) {
+      if (courierError || !courier) {
+        console.error('[AWB] Courier lookup failed:', courierError);
         throw new Error('Courier not found');
       }
+
+      console.log('[AWB] Calling edge function with:', { courier_code: courier.code, order_ids: orderIds });
 
       const { data, error } = await supabase.functions.invoke('generate-courier-awbs', {
         body: {
@@ -452,56 +457,92 @@ const OrderDashboard = () => {
         }
       });
 
-      if (error) throw error;
+      console.log('[AWB] Edge function response:', { data, error });
+
+      if (error) {
+        console.error('[AWB] Edge function error:', error);
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error('No response from AWB generation service');
+      }
 
       if (data.success) {
+        console.log('[AWB] Generation successful:', data);
+        
         toast({
           title: "AWBs Generated",
           description: `Generated ${data.pdf_count} PDF(s) for ${data.tracking_ids.length} orders`,
         });
 
         // Download generated AWBs
-        const { data: awbRecord } = await supabase
+        const { data: awbRecord, error: awbError } = await supabase
           .from('courier_awbs')
           .select('*')
           .eq('id', data.awb_id)
           .single();
 
-        if (awbRecord?.pdf_data) {
-          const pdfData = awbRecord.pdf_data;
+        console.log('[AWB] Retrieved record:', { awbRecord, awbError });
+
+        if (awbError) {
+          console.error('[AWB] Failed to fetch AWB record:', awbError);
+          throw new Error('Failed to retrieve AWB data');
+        }
+
+        if (!awbRecord?.pdf_data) {
+          throw new Error('No PDF data found in AWB record');
+        }
+
+        const pdfData = awbRecord.pdf_data;
+        console.log('[AWB] PDF data type:', typeof pdfData, 'starts with:', pdfData.substring(0, 10));
+        
+        // Check if it's multiple PDFs or single
+        if (pdfData.startsWith('[')) {
+          // Multiple PDFs (JSON array of base64 strings)
+          const pdfArray = JSON.parse(pdfData);
+          console.log('[AWB] Downloading multiple PDFs:', pdfArray.length);
           
-          // Check if it's multiple PDFs or single
-          if (pdfData.startsWith('[')) {
-            // Multiple PDFs (JSON array of base64 strings)
-            const pdfArray = JSON.parse(pdfData);
-            toast({
-              title: "Downloading PDFs",
-              description: `Downloading ${pdfArray.length} PDF file(s)...`,
-            });
-            pdfArray.forEach((base64: string, index: number) => {
-              setTimeout(() => {
-                const link = document.createElement('a');
-                link.href = `data:application/pdf;base64,${base64}`;
-                link.download = `awb-${courierName}-batch-${index + 1}.pdf`;
-                link.click();
-              }, index * 500);
-            });
-          } else {
-            // Single PDF (base64 string)
-            const link = document.createElement('a');
-            link.href = `data:application/pdf;base64,${pdfData}`;
-            link.download = `awb-${courierName}.pdf`;
-            link.click();
-          }
+          toast({
+            title: "Downloading PDFs",
+            description: `Downloading ${pdfArray.length} PDF file(s)...`,
+          });
+          
+          pdfArray.forEach((base64: string, index: number) => {
+            setTimeout(() => {
+              console.log(`[AWB] Triggering download ${index + 1}/${pdfArray.length}`);
+              const link = document.createElement('a');
+              link.href = `data:application/pdf;base64,${base64}`;
+              link.download = `awb-${courierName}-batch-${index + 1}.pdf`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }, index * 500);
+          });
+        } else {
+          // Single PDF (base64 string)
+          console.log('[AWB] Downloading single PDF');
+          const link = document.createElement('a');
+          link.href = `data:application/pdf;base64,${pdfData}`;
+          link.download = `awb-${courierName}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          toast({
+            title: "Download Started",
+            description: "AWB PDF is downloading...",
+          });
         }
       } else {
-        throw new Error(data.message || 'Failed to generate AWBs');
+        console.error('[AWB] Generation failed:', data);
+        throw new Error(data.error || data.message || 'Failed to generate AWBs');
       }
     } catch (error: any) {
-      console.error('AWB generation error:', error);
+      console.error('[AWB] Error:', error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to generate AWBs",
+        title: "AWB Generation Failed",
+        description: error.message || "Failed to generate AWBs. Please try again.",
         variant: "destructive",
       });
     }
