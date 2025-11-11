@@ -30,7 +30,19 @@ serve(async (req) => {
 
     console.log(`Generating AWBs for ${courier_code} with ${order_ids.length} orders`);
 
-    // Get courier configuration (case-insensitive lookup)
+    // Get authenticated user from JWT token
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('No authorization header');
+    }
+
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    if (userError || !user) {
+      console.error('Auth error:', userError);
+      throw new Error('Not authenticated');
+    }
+
+    console.log(`Authenticated user: ${user.id}`);
     const { data: courier, error: courierError } = await supabaseClient
       .from('couriers')
       .select('*')
@@ -68,12 +80,6 @@ serve(async (req) => {
 
     if (!apiKey) {
       throw new Error(`API key not configured for ${courier_code}`);
-    }
-
-    // Get user ID
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    if (!user) {
-      throw new Error('Not authenticated');
     }
 
     // Create AWB record
