@@ -48,8 +48,11 @@ serve(async (req) => {
     if (courierError || !courier) {
       console.warn('Courier not found, proceeding with database cleanup only');
     } else {
-      // Try to cancel with courier API if endpoint is configured
-      if (courier.tracking_endpoint) {
+      const courierCode = (courier.code || '').toString().toUpperCase();
+      
+      // Try to cancel with courier API
+      // For Postex, always attempt cancellation. For others, check if tracking endpoint exists
+      if (courierCode === 'POSTEX' || courier.tracking_endpoint) {
         try {
           await cancelWithCourier(trackingId, courier, supabase, reason);
           console.log('Cancellation successful with courier API');
@@ -136,16 +139,15 @@ async function cancelWithCourier(
 
   // Configure cancellation based on courier type
   if (courierCode === 'POSTEX') {
-    // Postex-specific configuration - use v1 API for cancellation
+    // Postex-specific configuration - use v1 API for cancellation with PUT method
     cancelEndpoint = 'https://api.postex.pk/services/integration/api/order/v1/cancel-order';
     
     headers['token'] = apiKey;
     payload = {
-      trackingNumber: trackingId,
-      reason: reason || 'Cancelled by merchant'
+      trackingNumber: trackingId
     };
     
-    console.log('[CANCEL] Using Postex cancellation:', { endpoint: cancelEndpoint, trackingNumber: trackingId });
+    console.log('[CANCEL] Using Postex cancellation:', { endpoint: cancelEndpoint, trackingNumber: trackingId, method: 'PUT' });
   } else if (courierCode === 'TCS' || courierCode === 'LEOPARD') {
     // TCS/Leopard-specific configuration (if they support cancellation)
     console.warn(`[CANCEL] ${courierCode} cancellation not implemented yet, proceeding with local cleanup`);
@@ -182,8 +184,11 @@ async function cancelWithCourier(
   }
 
   try {
+    // Use PUT method for Postex, POST for others
+    const method = courierCode === 'POSTEX' ? 'PUT' : 'POST';
+    
     const response = await fetch(cancelEndpoint, {
-      method: 'POST',
+      method,
       headers,
       body: JSON.stringify(payload),
     });
