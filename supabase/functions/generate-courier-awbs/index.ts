@@ -30,16 +30,19 @@ serve(async (req) => {
 
     console.log(`Generating AWBs for ${courier_code} with ${order_ids.length} orders`);
 
-    // Get courier configuration
+    // Get courier configuration (case-insensitive lookup)
     const { data: courier, error: courierError } = await supabaseClient
       .from('couriers')
       .select('*')
-      .eq('code', courier_code.toUpperCase())
+      .ilike('code', courier_code)
       .single();
 
     if (courierError || !courier) {
+      console.error('Courier lookup error:', courierError);
       throw new Error(`Courier not found: ${courier_code}`);
     }
+
+    console.log(`Found courier: ${courier.name} (${courier.code})`);
 
     // Get API settings for this courier
     const { data: apiSettings, error: settingsError } = await supabaseClient
@@ -77,7 +80,7 @@ serve(async (req) => {
     const { data: awbRecord, error: awbError } = await supabaseClient
       .from('courier_awbs')
       .insert({
-        courier_code: courier_code.toUpperCase(),
+        courier_code: courier.code,
         order_ids: order_ids,
         tracking_ids: [],
         generated_by: user.id,
@@ -115,7 +118,7 @@ serve(async (req) => {
         .from('dispatches')
         .select('tracking_id, order_id')
         .in('order_id', batch)
-        .eq('courier', courier_code.toUpperCase());
+        .ilike('courier', courier.code);
 
       if (dispatchError) {
         console.error(`Error fetching dispatches for batch ${batchIndex + 1}:`, dispatchError);
