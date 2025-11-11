@@ -665,33 +665,34 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
           }
           
           console.log(`[POSTEX] Label fetch attempt ${attempt + 1}/${maxRetries}`);
-          const labelResponse = await fetch('https://api.postex.pk/services/integration/api/order/v1/get-label', {
-            method: 'POST',
+          // Use correct GET /get-invoice endpoint per API documentation
+          const labelResponse = await fetch(`https://api.postex.pk/services/integration/api/order/v1/get-invoice?trackingNumbers=${trackingNumber}`, {
+            method: 'GET',
             headers: {
               'token': apiKey,
-              'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ trackingNumber })
           });
           
           if (labelResponse.ok) {
-            const labelData = await labelResponse.json();
-            console.log('[POSTEX] Label fetch response:', JSON.stringify(labelData));
+            const contentType = labelResponse.headers.get('content-type');
+            console.log('[POSTEX] Label fetch response content-type:', contentType);
             
-            // Check if we got valid label data
-            if (labelData.dist?.pdfData || labelData.dist?.labelUrl) {
-              if (labelData.dist.pdfData) {
-                responseData.label_data = labelData.dist.pdfData;
-                responseData.label_format = 'pdf';
-                console.log('[POSTEX] Label data extracted successfully');
-              }
-              if (labelData.dist.labelUrl) {
-                responseData.label_url = labelData.dist.labelUrl;
-                console.log('[POSTEX] Label URL extracted successfully');
-              }
+            // API returns PDF binary directly
+            if (contentType?.includes('application/pdf')) {
+              const pdfBuffer = await labelResponse.arrayBuffer();
+              
+              // Convert ArrayBuffer to base64
+              const base64 = btoa(
+                new Uint8Array(pdfBuffer)
+                  .reduce((data, byte) => data + String.fromCharCode(byte), '')
+              );
+              
+              responseData.label_data = base64;
+              responseData.label_format = 'pdf';
+              console.log('[POSTEX] PDF label converted to base64 successfully');
               labelFetched = true;
             } else {
-              console.warn(`[POSTEX] No label data in response (attempt ${attempt + 1})`);
+              console.warn(`[POSTEX] Unexpected content-type: ${contentType} (attempt ${attempt + 1})`);
             }
           } else {
             const errorText = await labelResponse.text();
@@ -859,50 +860,51 @@ async function bookPostEx(request: BookingRequest, supabaseClient: any, orderNum
     const maxRetries = 3;
     const retryDelays = [2000, 3000, 4000]; // 2s, 3s, 4s delays
     
-    for (let attempt = 0; attempt < maxRetries && !labelFetched; attempt++) {
-      try {
-        if (attempt > 0) {
-          console.log(`[POSTEX bookPostEx] Waiting ${retryDelays[attempt - 1]}ms before retry ${attempt}...`);
-          await new Promise(resolve => setTimeout(resolve, retryDelays[attempt - 1]));
-        }
-        
-        console.log(`[POSTEX bookPostEx] Label fetch attempt ${attempt + 1}/${maxRetries}`);
-        const labelResponse = await fetch('https://api.postex.pk/services/integration/api/order/v1/get-label', {
-          method: 'POST',
-          headers: {
-            'token': apiKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ trackingNumber })
-        });
-        
-        if (labelResponse.ok) {
-          const labelData = await labelResponse.json();
-          console.log('[POSTEX bookPostEx] Label fetch response:', JSON.stringify(labelData));
-          
-          // Check if we got valid label data
-          if (labelData.dist?.pdfData || labelData.dist?.labelUrl) {
-            if (labelData.dist.pdfData) {
-              bookingData.label_data = labelData.dist.pdfData;
-              bookingData.label_format = 'pdf';
-              console.log('[POSTEX bookPostEx] Label data extracted successfully');
-            }
-            if (labelData.dist.labelUrl) {
-              bookingData.label_url = labelData.dist.labelUrl;
-              console.log('[POSTEX bookPostEx] Label URL extracted successfully');
-            }
-            labelFetched = true;
-          } else {
-            console.warn(`[POSTEX bookPostEx] No label data in response (attempt ${attempt + 1})`);
+      for (let attempt = 0; attempt < maxRetries && !labelFetched; attempt++) {
+        try {
+          if (attempt > 0) {
+            console.log(`[POSTEX bookPostEx] Waiting ${retryDelays[attempt - 1]}ms before retry ${attempt}...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelays[attempt - 1]));
           }
-        } else {
-          const errorText = await labelResponse.text();
-          console.warn(`[POSTEX bookPostEx] Label fetch failed (attempt ${attempt + 1}):`, labelResponse.status, errorText);
+          
+          console.log(`[POSTEX bookPostEx] Label fetch attempt ${attempt + 1}/${maxRetries}`);
+          // Use correct GET /get-invoice endpoint per API documentation
+          const labelResponse = await fetch(`https://api.postex.pk/services/integration/api/order/v1/get-invoice?trackingNumbers=${trackingNumber}`, {
+            method: 'GET',
+            headers: {
+              'token': apiKey,
+            },
+          });
+          
+          if (labelResponse.ok) {
+            const contentType = labelResponse.headers.get('content-type');
+            console.log('[POSTEX bookPostEx] Label fetch response content-type:', contentType);
+            
+            // API returns PDF binary directly
+            if (contentType?.includes('application/pdf')) {
+              const pdfBuffer = await labelResponse.arrayBuffer();
+              
+              // Convert ArrayBuffer to base64
+              const base64 = btoa(
+                new Uint8Array(pdfBuffer)
+                  .reduce((data, byte) => data + String.fromCharCode(byte), '')
+              );
+              
+              bookingData.label_data = base64;
+              bookingData.label_format = 'pdf';
+              console.log('[POSTEX bookPostEx] PDF label converted to base64 successfully');
+              labelFetched = true;
+            } else {
+              console.warn(`[POSTEX bookPostEx] Unexpected content-type: ${contentType} (attempt ${attempt + 1})`);
+            }
+          } else {
+            const errorText = await labelResponse.text();
+            console.warn(`[POSTEX bookPostEx] Label fetch failed (attempt ${attempt + 1}):`, labelResponse.status, errorText);
+          }
+        } catch (labelError) {
+          console.warn(`[POSTEX bookPostEx] Label fetch error (attempt ${attempt + 1}):`, labelError);
         }
-      } catch (labelError) {
-        console.warn(`[POSTEX bookPostEx] Label fetch error (attempt ${attempt + 1}):`, labelError);
       }
-    }
     
     if (!labelFetched) {
       console.error('[POSTEX bookPostEx] Failed to fetch label after all retry attempts');
