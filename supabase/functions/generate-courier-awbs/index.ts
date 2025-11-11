@@ -164,15 +164,23 @@ serve(async (req) => {
         });
 
         console.log(`[AWB] API response status: ${awbResponse.status}`);
+        console.log(`[AWB] API response content-type: ${awbResponse.headers.get('content-type')}`);
 
         if (!awbResponse.ok) {
+          const errorText = await awbResponse.text();
           console.error(`[AWB] API error for batch ${batchIndex + 1}: ${awbResponse.status} ${awbResponse.statusText}`);
+          console.error(`[AWB] Error response: ${errorText}`);
           continue;
         }
 
         // Get PDF as binary data
         const pdfArrayBuffer = await awbResponse.arrayBuffer();
         console.log(`[AWB] Received PDF of size: ${pdfArrayBuffer.byteLength} bytes`);
+        
+        if (pdfArrayBuffer.byteLength === 0) {
+          console.error(`[AWB] Empty PDF received for batch ${batchIndex + 1}`);
+          continue;
+        }
         
         // Convert to base64
         const base64 = btoa(
@@ -184,11 +192,14 @@ serve(async (req) => {
 
         console.log(`[AWB] Converted to base64, length: ${base64.length}`);
 
-        pdfBase64Data.push(base64);
-        allTrackingIds.push(...trackingIds);
-        processedCount += batch.length;
-
-        console.log(`[AWB] Successfully processed batch ${batchIndex + 1}`);
+        if (base64.length > 0) {
+          pdfBase64Data.push(base64);
+          allTrackingIds.push(...trackingIds);
+          processedCount += batch.length;
+          console.log(`[AWB] Successfully processed batch ${batchIndex + 1}`);
+        } else {
+          console.error(`[AWB] Failed to convert PDF to base64 for batch ${batchIndex + 1}`);
+        }
 
       } catch (error) {
         console.error(`[AWB] Error calling AWB API for batch ${batchIndex + 1}:`, error);
@@ -213,20 +224,36 @@ serve(async (req) => {
     if (pdfBase64Data.length === 1) {
       // Single PDF - store as base64 in pdf_data field
       updateData.pdf_data = pdfBase64Data[0];
+      console.log(`[AWB] Storing single PDF, base64 length: ${pdfBase64Data[0].length}`);
     } else if (pdfBase64Data.length > 1) {
       // Multiple PDFs - store array of base64 strings
       updateData.pdf_data = JSON.stringify(pdfBase64Data);
+      console.log(`[AWB] Storing ${pdfBase64Data.length} PDFs as JSON array`);
     } else {
-      updateData.error_message = 'No AWBs were generated';
+      updateData.error_message = 'No AWBs were generated - all batches failed';
+      console.error('[AWB] No PDFs generated from any batch');
     }
 
-    const { error: updateError } = await supabaseClient
+    console.log(`[AWB] Updating AWB record ${awbRecord.id} with status: ${updateData.status}`);
+    
+    const { data: updatedRecord, error: updateError } = await supabaseClient
       .from('courier_awbs')
       .update(updateData)
-      .eq('id', awbRecord.id);
+      .eq('id', awbRecord.id)
+      .select()
+      .single();
 
     if (updateError) {
-      console.error('Error updating AWB record:', updateError);
+      console.error('[AWB] Error updating AWB record:', updateError);
+      throw new Error(`Failed to update AWB record: ${updateError.message}`);
+    }
+
+    console.log(`[AWB] Successfully updated record. Has pdf_data: ${!!updatedRecord.pdf_data}`);
+    if (updatedRecord.pdf_data) {
+      const pdfDataLength = typeof updatedRecord.pdf_data === 'string' 
+        ? updatedRecord.pdf_data.length 
+        : JSON.stringify(updatedRecord.pdf_data).length;
+      console.log(`[AWB] PDF data length in updated record: ${pdfDataLength}`);
     }
 
     return new Response(

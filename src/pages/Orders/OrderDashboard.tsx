@@ -476,6 +476,9 @@ const OrderDashboard = () => {
           description: `Generated ${data.pdf_count} PDF(s) for ${data.tracking_ids.length} orders`,
         });
 
+        // Wait a moment for database consistency
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
         // Download generated AWBs
         const { data: awbRecord, error: awbError } = await supabase
           .from('courier_awbs')
@@ -483,7 +486,19 @@ const OrderDashboard = () => {
           .eq('id', data.awb_id)
           .single();
 
-        console.log('[AWB] Retrieved record:', { awbRecord, awbError });
+        console.log('[AWB] Retrieved record:', { 
+          awbRecord: awbRecord ? {
+            id: awbRecord.id,
+            status: awbRecord.status,
+            hasPdfData: !!awbRecord.pdf_data,
+            pdfDataType: typeof awbRecord.pdf_data,
+            pdfDataLength: awbRecord.pdf_data ? 
+              (typeof awbRecord.pdf_data === 'string' ? awbRecord.pdf_data.length : 'object') : 0,
+            trackingIdsCount: awbRecord.tracking_ids?.length || 0,
+            errorMessage: awbRecord.error_message
+          } : null,
+          awbError 
+        });
 
         if (awbError) {
           console.error('[AWB] Failed to fetch AWB record:', awbError);
@@ -491,14 +506,20 @@ const OrderDashboard = () => {
         }
 
         if (!awbRecord?.pdf_data) {
-          throw new Error('No PDF data found in AWB record');
+          console.error('[AWB] No pdf_data in record. Full record:', awbRecord);
+          throw new Error(`No PDF data found. Status: ${awbRecord?.status || 'unknown'}${awbRecord?.error_message ? ` - ${awbRecord.error_message}` : ''}`);
         }
 
         const pdfData = awbRecord.pdf_data;
-        console.log('[AWB] PDF data type:', typeof pdfData, 'starts with:', pdfData.substring(0, 10));
+        console.log('[AWB] PDF data info:', {
+          type: typeof pdfData,
+          length: typeof pdfData === 'string' ? pdfData.length : 'not-string',
+          startsWithBracket: typeof pdfData === 'string' ? pdfData.startsWith('[') : false,
+          preview: typeof pdfData === 'string' ? pdfData.substring(0, 50) : 'not-string'
+        });
         
         // Check if it's multiple PDFs or single
-        if (pdfData.startsWith('[')) {
+        if (typeof pdfData === 'string' && pdfData.startsWith('[')) {
           // Multiple PDFs (JSON array of base64 strings)
           const pdfArray = JSON.parse(pdfData);
           console.log('[AWB] Downloading multiple PDFs:', pdfArray.length);
@@ -511,6 +532,10 @@ const OrderDashboard = () => {
           pdfArray.forEach((base64: string, index: number) => {
             setTimeout(() => {
               console.log(`[AWB] Triggering download ${index + 1}/${pdfArray.length}`);
+              if (!base64 || base64.length === 0) {
+                console.error(`[AWB] Empty base64 at index ${index}`);
+                return;
+              }
               const link = document.createElement('a');
               link.href = `data:application/pdf;base64,${base64}`;
               link.download = `awb-${courierName}-batch-${index + 1}.pdf`;
@@ -522,6 +547,11 @@ const OrderDashboard = () => {
         } else {
           // Single PDF (base64 string)
           console.log('[AWB] Downloading single PDF');
+          
+          if (!pdfData || (typeof pdfData === 'string' && pdfData.length === 0)) {
+            throw new Error('PDF data is empty');
+          }
+          
           const link = document.createElement('a');
           link.href = `data:application/pdf;base64,${pdfData}`;
           link.download = `awb-${courierName}.pdf`;
