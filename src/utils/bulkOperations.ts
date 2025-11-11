@@ -20,6 +20,8 @@ export async function processBatch<T>(
 
 /**
  * Bulk update order statuses
+ * WARNING: This only updates the database status. 
+ * To properly unassign couriers, use bulkUnassignCouriers instead.
  */
 export async function bulkUpdateOrderStatus(
   orderIds: string[],
@@ -44,6 +46,79 @@ export async function bulkUpdateOrderStatus(
       failed += batch.length - (data?.length || 0);
     }
   });
+
+  return { success, failed, errors: errors.length > 0 ? errors : undefined };
+}
+
+/**
+ * Bulk unassign couriers from orders
+ * Properly cancels orders on courier portals before clearing local data
+ */
+export async function bulkUnassignCouriers(
+  orderIds: string[]
+): Promise<BulkOperationResult> {
+  let success = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  // Process one order at a time to properly call cancellation API for each
+  for (const orderId of orderIds) {
+    try {
+      // Get order details
+      const { data: order, error: fetchError } = await supabase
+        .from('orders')
+        .select('id, tracking_id, courier')
+        .eq('id', orderId)
+        .single();
+
+      if (fetchError || !order) {
+        failed++;
+        errors.push(`Order ${orderId}: Failed to fetch`);
+        continue;
+      }
+
+      // Skip if no courier assigned
+      if (!order.courier || !order.tracking_id) {
+        // Just update to pending
+        const { error: updateError } = await supabase
+          .from('orders')
+          .update({
+            status: 'pending',
+            courier: null,
+            tracking_id: null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', orderId);
+
+        if (updateError) {
+          failed++;
+          errors.push(`Order ${orderId}: ${updateError.message}`);
+        } else {
+          success++;
+        }
+        continue;
+      }
+
+      // Call courier cancellation API
+      const { error: cancelError } = await supabase.functions.invoke('courier-cancellation', {
+        body: {
+          orderId: order.id,
+          trackingId: order.tracking_id,
+          reason: 'Bulk unassign by user'
+        }
+      });
+
+      if (cancelError) {
+        failed++;
+        errors.push(`Order ${orderId}: ${cancelError.message}`);
+      } else {
+        success++;
+      }
+    } catch (error: any) {
+      failed++;
+      errors.push(`Order ${orderId}: ${error.message || 'Unknown error'}`);
+    }
+  }
 
   return { success, failed, errors: errors.length > 0 ? errors : undefined };
 }

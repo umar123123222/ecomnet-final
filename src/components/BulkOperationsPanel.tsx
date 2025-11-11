@@ -12,6 +12,7 @@ interface BulkOperationsPanelProps {
   selectedCount: number;
   onStatusChange: (status: string) => void;
   onCourierAssign: (courierId: string, courierName: string) => void;
+  onCourierUnassign: () => void;
   onExport: () => void;
   progress?: BulkOperationProgress;
   couriers: Array<{ id: string; name: string; code: string }>;
@@ -21,6 +22,7 @@ export const BulkOperationsPanel: React.FC<BulkOperationsPanelProps> = ({
   selectedCount,
   onStatusChange,
   onCourierAssign,
+  onCourierUnassign,
   onExport,
   progress,
   couriers,
@@ -120,6 +122,17 @@ export const BulkOperationsPanel: React.FC<BulkOperationsPanelProps> = ({
                   <SelectItem value="cancelled">Mark as Cancelled</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Unassign Courier Button */}
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={onCourierUnassign}
+                disabled={progress?.inProgress || selectedCount === 0}
+                className="gap-2"
+              >
+                Unassign Courier
+              </Button>
 
               {/* Courier Assignment Dropdown */}
               <Select 

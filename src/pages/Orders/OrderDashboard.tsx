@@ -31,7 +31,7 @@ import { useAdvancedFilters } from '@/hooks/useAdvancedFilters';
 import { AdvancedFilterPanel } from '@/components/AdvancedFilterPanel';
 import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
 import { BulkOperationsPanel } from '@/components/BulkOperationsPanel';
-import { bulkUpdateOrderStatus, bulkUpdateOrderCourier, bulkAssignOrders, exportToCSV } from '@/utils/bulkOperations';
+import { bulkUpdateOrderStatus, bulkUpdateOrderCourier, bulkAssignOrders, bulkUnassignCouriers, exportToCSV } from '@/utils/bulkOperations';
 import { useToast } from '@/hooks/use-toast';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { batchAnalyzeOrders } from '@/utils/orderFraudDetection';
@@ -427,6 +427,43 @@ const OrderDashboard = () => {
       toast({
         title: "Error",
         description: "Failed to book orders with courier",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Bulk courier unassignment - calls courier API to cancel
+  const handleBulkCourierUnassign = async () => {
+    try {
+      // Show loading toast
+      toast({
+        title: "Processing",
+        description: `Unassigning couriers from ${selectedOrders.length} orders...`,
+      });
+
+      // Call bulk unassign function
+      const result = await bulkUnassignCouriers(selectedOrders);
+
+      if (result.success > 0) {
+        toast({
+          title: "Success",
+          description: `Unassigned ${result.success} order(s) from couriers. Orders cancelled on courier portals.`,
+        });
+        fetchOrders();
+        setSelectedOrders([]);
+      }
+
+      if (result.failed > 0) {
+        toast({
+          title: "Partial Success",
+          description: `${result.failed} order(s) failed to unassign. ${result.errors?.join(', ')}`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to unassign couriers",
         variant: "destructive",
       });
     }
@@ -1016,6 +1053,7 @@ const OrderDashboard = () => {
           selectedCount={selectedOrders.length}
           onStatusChange={handleBulkStatusChange}
           onCourierAssign={handleBulkCourierAssign}
+          onCourierUnassign={handleBulkCourierUnassign}
           onExport={handleExport}
           progress={progress}
           couriers={couriers}
