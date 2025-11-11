@@ -343,108 +343,83 @@ const OrderDashboard = () => {
   // Bulk courier assignment with booking and label generation
   const handleBulkCourierAssign = async (courierId: string, courierName: string) => {
     try {
-      const selectedOrderDetails = orders.filter(o => selectedOrders.includes(o.id));
+      // Show loading toast
+      toast({
+        title: "Processing",
+        description: `Booking ${selectedOrders.length} orders with ${courierName}...`,
+      });
+
+      // Call bulk booking edge function
+      const { data, error } = await supabase.functions.invoke('bulk-courier-booking', {
+        body: {
+          orderIds: selectedOrders,
+          courierId: courierId
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data.success && data.failedCount === data.total) {
+        throw new Error(data.error || 'All bookings failed');
+      }
+
+      // Download labels for successful bookings
+      const successfulBookings = data.results.filter((r: any) => r.success);
       
-      let successCount = 0;
-      let failedCount = 0;
-      const allLabels: string[] = [];
-
-      for (const order of selectedOrderDetails) {
-        try {
-          // Update courier in database
-          const courier = couriers.find(c => c.id === courierId);
-          const { error: updateError } = await supabase
-            .from('orders')
-            .update({ 
-              courier: courier?.code || courierName.toLowerCase(),
-              status: 'booked' // Auto-update status to booked
-            })
-            .eq('id', order.id);
-
-          if (updateError) throw updateError;
-
-          // Generate label for this order
-          const labelHTML = `
-            <div style="border: 2px solid #000; padding: 20px; margin: 10px; page-break-after: always; font-family: Arial;">
-              <h2 style="text-align: center; margin-bottom: 20px;">SHIPPING LABEL - ${courierName.toUpperCase()}</h2>
-              <div style="margin-bottom: 15px;">
-                <strong>Order ID:</strong> ${order.order_id}<br/>
-                <strong>Tracking ID:</strong> ${order.tracking_id || 'Pending'}<br/>
-                <strong>Date:</strong> ${new Date().toLocaleDateString()}
-              </div>
-              <div style="margin-bottom: 15px;">
-                <strong>Customer:</strong><br/>
-                ${order.customer_name}<br/>
-                ${order.customer_phone}<br/>
-                ${order.customer_address}<br/>
-                ${order.city}
-              </div>
-              <div style="margin-bottom: 15px;">
-                <strong>Items:</strong><br/>
-                ${order.items.map((item: any) => `${item.product_name} (x${item.quantity})`).join('<br/>')}
-              </div>
-              <div style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed #000;">
-                <strong>Total Amount:</strong> PKR ${order.total_amount.toFixed(2)}
-              </div>
-            </div>
-          `;
-          allLabels.push(labelHTML);
-          successCount++;
-        } catch (error) {
-          console.error(`Failed to process order ${order.id}:`, error);
-          failedCount++;
+      for (const result of successfulBookings) {
+        if (result.labelData || result.labelUrl) {
+          try {
+            await downloadCourierLabel(
+              result.labelData,
+              result.labelUrl,
+              result.labelFormat || 'pdf',
+              result.trackingId
+            );
+          } catch (downloadError) {
+            console.error(`Failed to download label for ${result.orderNumber}:`, downloadError);
+          }
         }
       }
 
-      // Download all labels as a single HTML file
-      if (allLabels.length > 0) {
-        const fullHTML = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="UTF-8">
-            <title>Shipping Labels - ${courierName}</title>
-            <style>
-              @media print {
-                @page { margin: 0.5cm; }
-                body { margin: 0; }
-              }
-            </style>
-          </head>
-          <body>
-            ${allLabels.join('')}
-          </body>
-          </html>
-        `;
-        
-        const blob = new Blob([fullHTML], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${courierName}-labels-${new Date().toISOString().split('T')[0]}.html`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }
-
-      if (successCount > 0) {
+      // Show results
+      if (data.successCount > 0) {
         toast({
-          title: "Success",
-          description: `Booked ${successCount} order(s) with ${courierName}. Labels downloaded.`,
+          title: "Booking Complete",
+          description: `Successfully booked ${data.successCount} of ${data.total} orders. ${data.successCount} airway bills downloaded.`,
         });
-        fetchOrders();
-        setSelectedOrders([]);
       }
 
-      if (failedCount > 0) {
+      if (data.failedCount > 0) {
+        const failedOrders = data.results.filter((r: any) => !r.success);
+        const errorSummary = failedOrders
+          .slice(0, 3)
+          .map((r: any) => `${r.orderNumber}: ${r.error}`)
+          .join('\n');
+        
         toast({
-          title: "Partial Success",
-          description: `${failedCount} order(s) failed to book`,
+          title: `${data.failedCount} Bookings Failed`,
+          description: (
+            <div className="text-xs">
+              <p className="mb-2">Failed orders:</p>
+              <pre className="whitespace-pre-wrap">{errorSummary}</pre>
+              {failedOrders.length > 3 && (
+                <p className="mt-2">...and {failedOrders.length - 3} more</p>
+              )}
+            </div>
+          ),
           variant: "destructive",
         });
       }
-    } catch (error) {
+
+      // Refresh orders and clear selection
+      fetchOrders();
+      if (data.successCount > 0) {
+        setSelectedOrders([]);
+      }
+
+    } catch (error: any) {
       toast({
         title: "Error",
         description: "Failed to book orders with courier",

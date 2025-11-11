@@ -182,6 +182,7 @@ serve(async (req) => {
     }
 
     console.log('[BOOKING] Extracted tracking ID:', trackingId);
+    console.log('[BOOKING] Extracted label:', { hasLabelUrl: !!labelUrl, hasLabelData: !!labelData });
     console.log('[BOOKING] Full booking response:', JSON.stringify(bookingResponse));
 
     if (!trackingId) {
@@ -190,7 +191,14 @@ serve(async (req) => {
       throw error;
     }
 
-    // Update order with tracking information
+    // CRITICAL: Only proceed if we have BOTH tracking ID AND label
+    if (!labelUrl && !labelData) {
+      const error: any = new Error('Booking incomplete - no airway bill received from courier');
+      error.code = 'BOOKING_NO_LABEL';
+      throw error;
+    }
+
+    // Update order with tracking information (only if label is available)
     const { error: orderError } = await supabase
       .from('orders')
       .update({
@@ -290,6 +298,10 @@ serve(async (req) => {
     } else if (error.message?.includes('No tracking ID received')) {
       errorCode = error.code || 'BOOKING_MISSING_TRACKING_ID';
       errorDetail = 'Courier booking succeeded but no tracking ID was found in response';
+      isRetryable = false;
+    } else if (error.message?.includes('no airway bill received') || error.code === 'BOOKING_NO_LABEL') {
+      errorCode = 'BOOKING_NO_LABEL';
+      errorDetail = 'Courier booking succeeded but no airway bill was provided. Order status not updated.';
       isRetryable = false;
     } else if (error.message?.includes('INVALID ORDER TYPE')) {
       errorCode = 'INVALID_ORDER_TYPE';

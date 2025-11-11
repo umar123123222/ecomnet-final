@@ -17,6 +17,8 @@ const getErrorMessage = (errorCode: string, fallback: string): string => {
     'COURIER_NOT_FOUND': 'Courier configuration not found. Please check courier setup.',
     'CONFIGURATION_REQUIRED': 'Pickup address not configured. Go to Settings > Business Settings.',
     'BOOKING_API_ERROR': 'Courier API returned an error. Please try again or contact support.',
+    'BOOKING_NO_LABEL': 'Booking succeeded but no airway bill was provided by courier. Order not marked as booked. Please try again.',
+    'BOOKING_MISSING_TRACKING_ID': 'Courier did not provide a tracking ID. Booking incomplete.',
   };
   
   return errorMessages[errorCode] || fallback || 'An unexpected error occurred. Please try again.';
@@ -131,9 +133,9 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
         throw new Error(errorMsg);
       }
 
-      // Auto-download label if available
+      // Labels should always be available with successful bookings
       if (data.labelData || data.labelUrl) {
-        console.log('Attempting to download label:', {
+        console.log('Downloading label:', {
           hasLabelData: !!data.labelData,
           hasLabelUrl: !!data.labelUrl,
           labelFormat: data.labelFormat,
@@ -149,22 +151,24 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
           );
           
           toast({
-            title: "Success",
-            description: `Order booked with ${courier.name}. Tracking ID: ${data.trackingId}. Airway bill downloaded.`,
+            title: "Order Booked",
+            description: `Order booked with ${courier.name}. Tracking: ${data.trackingId}. Airway bill downloaded.`,
           });
         } catch (downloadError) {
           console.error('Label download failed:', downloadError);
           toast({
-            title: "Booking Successful",
-            description: `Order booked with tracking ID: ${data.trackingId}. Airway bill download failed - you can download it manually from the dispatch page.`,
+            title: "Order Booked",
+            description: `Tracking: ${data.trackingId}. Label download failed - please try downloading from the Label button.`,
             variant: "default",
           });
         }
       } else {
-        console.warn('No label data in response:', data);
+        // This shouldn't happen with the new validation, but handle it gracefully
+        console.warn('No label data despite successful booking:', data);
         toast({
-          title: "Booking Successful", 
-          description: `Order booked with ${courier.name}. Tracking ID: ${data.trackingId}. Airway bill will be available in the dispatch page.`,
+          title: "Order Booked",
+          description: `Tracking: ${data.trackingId}. Label unavailable - please contact support.`,
+          variant: "default",
         });
       }
 
