@@ -1602,19 +1602,22 @@ const OrderDashboard = () => {
                                       )}
                                       
                                       {/* Courier & Tracking ID */}
-                                      {((order.courier && order.courier !== 'N/A') || (order.trackingId && order.trackingId !== 'N/A')) && (
-                                        <div className="flex items-start gap-3 pt-3 border-t border-border/50">
-                                          <Truck className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
-                                          <div className="flex-1">
-                                            {order.courier && order.courier !== 'N/A' && (
-                                              <div className="mb-3">
-                                                <div className="text-xs text-muted-foreground mb-0.5">Courier</div>
-                                                <div className="font-medium">{order.courier.toUpperCase()}</div>
-                                              </div>
-                                            )}
-                                            <div>
-                                              <div className="text-xs text-muted-foreground mb-0.5">Tracking ID</div>
-                                              {order.trackingId && order.trackingId !== 'N/A' ? (
+                                      <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                        <Truck className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                                        <div className="flex-1 space-y-3">
+                                          <div>
+                                            <div className="text-xs text-muted-foreground mb-0.5">Courier</div>
+                                            <div className="font-medium">
+                                              {order.courier && order.courier !== 'N/A' ? (
+                                                order.courier.toUpperCase()
+                                              ) : (
+                                                <span className="text-muted-foreground">Not assigned</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <div>
+                                            <div className="text-xs text-muted-foreground mb-0.5">Tracking ID</div>
+                                            {order.trackingId && order.trackingId !== 'N/A' ? (
                                                 <div className="flex items-center gap-2">
                                                   <code className="font-mono text-sm font-medium bg-muted px-2 py-1 rounded">{order.trackingId}</code>
                                                   <Button
@@ -1780,12 +1783,11 @@ const OrderDashboard = () => {
                                                   />
                                                 </div>
                                               ) : (
-                                                <span className="text-sm text-muted-foreground italic">Pending - will be generated when courier is assigned</span>
+                                                <span className="text-muted-foreground">Not assigned</span>
                                               )}
                                             </div>
                                           </div>
                                         </div>
-                                      )}
                                       
                                       {/* Dispatched At */}
                                       {order.dispatchedAt && order.dispatchedAt !== 'N/A' && (
