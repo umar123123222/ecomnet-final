@@ -241,11 +241,16 @@ serve(async (req) => {
       .update(updateData)
       .eq('id', awbRecord.id)
       .select()
-      .single();
+      .maybeSingle();
 
     if (updateError) {
       console.error('[AWB] Error updating AWB record:', updateError);
       throw new Error(`Failed to update AWB record: ${updateError.message}`);
+    }
+
+    if (!updatedRecord) {
+      console.error('[AWB] No record returned after update. Record may have been deleted.');
+      throw new Error('AWB record not found after update');
     }
 
     console.log(`[AWB] Successfully updated record. Has pdf_data: ${!!updatedRecord.pdf_data}`);
