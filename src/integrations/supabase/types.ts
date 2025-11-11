@@ -482,6 +482,54 @@ export type Database = {
           },
         ]
       }
+      courier_awbs: {
+        Row: {
+          batch_count: number
+          courier_code: string
+          created_at: string
+          error_message: string | null
+          generated_at: string
+          generated_by: string | null
+          id: string
+          order_ids: string[]
+          pdf_data: string | null
+          pdf_url: string | null
+          status: string
+          total_orders: number
+          tracking_ids: string[]
+        }
+        Insert: {
+          batch_count?: number
+          courier_code: string
+          created_at?: string
+          error_message?: string | null
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          order_ids: string[]
+          pdf_data?: string | null
+          pdf_url?: string | null
+          status?: string
+          total_orders?: number
+          tracking_ids: string[]
+        }
+        Update: {
+          batch_count?: number
+          courier_code?: string
+          created_at?: string
+          error_message?: string | null
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          order_ids?: string[]
+          pdf_data?: string | null
+          pdf_url?: string | null
+          status?: string
+          total_orders?: number
+          tracking_ids?: string[]
+        }
+        Relationships: []
+      }
       courier_booking_attempts: {
         Row: {
           attempt_number: number

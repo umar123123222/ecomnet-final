@@ -25,6 +25,7 @@ import { CustomerSyncControl } from "@/components/shopify/CustomerSyncControl";
 import { FullSyncControl } from "@/components/shopify/FullSyncControl";
 import { MissingOrdersSync } from "@/components/shopify/MissingOrdersSync";
 import { CourierConfigCard } from "@/components/settings/CourierConfigCard";
+import { AWBGenerationPanel } from "@/components/settings/AWBGenerationPanel";
 
 const BusinessSettings = () => {
   const { hasRole } = useUserRoles();
@@ -752,6 +753,10 @@ const BusinessSettings = () => {
 
                   <Separator />
 
+                  <AWBGenerationPanel couriers={couriers} />
+
+                  <Separator />
+
                   <div className="space-y-2">
                     <h4 className="text-sm font-medium">System Features</h4>
                     <ul className="text-sm text-muted-foreground space-y-1">
@@ -760,6 +765,7 @@ const BusinessSettings = () => {
                       <li>• Automatic shipping slip downloads</li>
                       <li>• Support for custom authentication methods</li>
                       <li>• Flexible label formats (PDF, PNG, HTML, URL)</li>
+                      <li>• Bulk AWB generation (up to 1000 orders)</li>
                     </ul>
                   </div>
                 </>

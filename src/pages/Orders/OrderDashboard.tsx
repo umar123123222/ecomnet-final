@@ -40,6 +40,7 @@ import { OrderKPIPanel } from '@/components/orders/OrderKPIPanel';
 import { FilterPresets } from '@/components/orders/FilterPresets';
 import { OrderDetailsModal } from '@/components/orders/OrderDetailsModal';
 import { Eye, EyeOff } from 'lucide-react';
+import { AWBDownloadButton } from '@/components/orders/AWBDownloadButton';
 
 const OrderDashboard = () => {
   const { isManager, isSeniorStaff, primaryRole } = useUserRoles();
@@ -1794,6 +1795,10 @@ const OrderDashboard = () => {
                                                     <Download className="h-3 w-3 mr-1" />
                                                     Label
                                                   </Button>
+                                                  <AWBDownloadButton 
+                                                    orderId={order.id} 
+                                                    courierCode={order.courier}
+                                                  />
                                                 </div>
                                               ) : (
                                                 <span className="text-sm text-muted-foreground italic">Pending - will be generated when courier is assigned</span>

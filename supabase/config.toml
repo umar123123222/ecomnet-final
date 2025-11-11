@@ -161,3 +161,6 @@ verify_jwt = true
 
 [functions.generate-product-barcode]
 verify_jwt = true
+
+[functions.generate-courier-awbs]
+verify_jwt = true
