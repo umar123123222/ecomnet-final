@@ -44,24 +44,38 @@ export function AWBDownloadButton({ orderId, courierCode }: AWBDownloadButtonPro
     setLoading(true);
     try {
       if (awb.pdf_url) {
-        // Single PDF URL
+        // Legacy: Single PDF URL
         const link = document.createElement('a');
         link.href = awb.pdf_url;
         link.download = `awb-${awb.courier_code}-${awb.id}.pdf`;
         link.target = '_blank';
         link.click();
       } else if (awb.pdf_data) {
-        // Multiple PDF URLs stored as JSON
-        const urls = JSON.parse(awb.pdf_data);
-        urls.forEach((url: string, index: number) => {
-          setTimeout(() => {
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `awb-${awb.courier_code}-batch-${index + 1}.pdf`;
-            link.target = '_blank';
-            link.click();
-          }, index * 500); // Delay to avoid browser blocking multiple downloads
-        });
+        const pdfData = awb.pdf_data;
+        
+        // Check if it's multiple PDFs (JSON array) or single base64 string
+        if (pdfData.startsWith('[')) {
+          // Multiple PDFs
+          const pdfArray = JSON.parse(pdfData);
+          toast({
+            title: "Downloading PDFs",
+            description: `Downloading ${pdfArray.length} PDF file(s)...`,
+          });
+          pdfArray.forEach((base64: string, index: number) => {
+            setTimeout(() => {
+              const link = document.createElement('a');
+              link.href = `data:application/pdf;base64,${base64}`;
+              link.download = `awb-${awb.courier_code}-batch-${index + 1}.pdf`;
+              link.click();
+            }, index * 500); // Delay to avoid browser blocking multiple downloads
+          });
+        } else {
+          // Single base64 PDF
+          const link = document.createElement('a');
+          link.href = `data:application/pdf;base64,${pdfData}`;
+          link.download = `awb-${awb.courier_code}-${awb.id}.pdf`;
+          link.click();
+        }
       }
 
       toast({

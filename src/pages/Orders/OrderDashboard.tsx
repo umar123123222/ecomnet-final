@@ -369,30 +369,24 @@ const OrderDashboard = () => {
         throw new Error(data.error || 'All bookings failed');
       }
 
-      // Download labels for successful bookings
-      const successfulBookings = data.results.filter((r: any) => r.success);
-      
-      for (const result of successfulBookings) {
-        if (result.labelData || result.labelUrl) {
-          try {
-            await downloadCourierLabel(
-              result.labelData,
-              result.labelUrl,
-              result.labelFormat || 'pdf',
-              result.trackingId
-            );
-          } catch (downloadError) {
-            console.error(`Failed to download label for ${result.orderNumber}:`, downloadError);
-          }
-        }
-      }
+      // Get successful order IDs for AWB generation
+      const successfulOrderIds = data.results
+        .filter((r: any) => r.success)
+        .map((r: any) => r.orderId);
 
       // Show results
       if (data.successCount > 0) {
         toast({
           title: "Booking Complete",
-          description: `Successfully booked ${data.successCount} of ${data.total} orders. ${data.successCount} airway bills downloaded.`,
+          description: `Successfully booked ${data.successCount} of ${data.total} orders. Click to generate AWBs.`,
         });
+
+        // Auto-generate AWBs after successful booking
+        if (successfulOrderIds.length > 0) {
+          setTimeout(() => {
+            handleGenerateAWBs(successfulOrderIds, courierId, courierName);
+          }, 1000);
+        }
       }
 
       if (data.failedCount > 0) {
@@ -427,6 +421,87 @@ const OrderDashboard = () => {
       toast({
         title: "Error",
         description: "Failed to book orders with courier",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Generate AWBs for booked orders
+  const handleGenerateAWBs = async (orderIds: string[], courierId: string, courierName: string) => {
+    try {
+      toast({
+        title: "Generating AWBs...",
+        description: `Processing ${orderIds.length} orders`,
+      });
+
+      // Get courier code
+      const { data: courier } = await supabase
+        .from('couriers')
+        .select('code')
+        .eq('id', courierId)
+        .single();
+
+      if (!courier) {
+        throw new Error('Courier not found');
+      }
+
+      const { data, error } = await supabase.functions.invoke('generate-courier-awbs', {
+        body: {
+          courier_code: courier.code,
+          order_ids: orderIds
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast({
+          title: "AWBs Generated",
+          description: `Generated ${data.pdf_count} PDF(s) for ${data.tracking_ids.length} orders`,
+        });
+
+        // Download generated AWBs
+        const { data: awbRecord } = await supabase
+          .from('courier_awbs')
+          .select('*')
+          .eq('id', data.awb_id)
+          .single();
+
+        if (awbRecord?.pdf_data) {
+          const pdfData = awbRecord.pdf_data;
+          
+          // Check if it's multiple PDFs or single
+          if (pdfData.startsWith('[')) {
+            // Multiple PDFs (JSON array of base64 strings)
+            const pdfArray = JSON.parse(pdfData);
+            toast({
+              title: "Downloading PDFs",
+              description: `Downloading ${pdfArray.length} PDF file(s)...`,
+            });
+            pdfArray.forEach((base64: string, index: number) => {
+              setTimeout(() => {
+                const link = document.createElement('a');
+                link.href = `data:application/pdf;base64,${base64}`;
+                link.download = `awb-${courierName}-batch-${index + 1}.pdf`;
+                link.click();
+              }, index * 500);
+            });
+          } else {
+            // Single PDF (base64 string)
+            const link = document.createElement('a');
+            link.href = `data:application/pdf;base64,${pdfData}`;
+            link.download = `awb-${courierName}.pdf`;
+            link.click();
+          }
+        }
+      } else {
+        throw new Error(data.message || 'Failed to generate AWBs');
+      }
+    } catch (error: any) {
+      console.error('AWB generation error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate AWBs",
         variant: "destructive",
       });
     }

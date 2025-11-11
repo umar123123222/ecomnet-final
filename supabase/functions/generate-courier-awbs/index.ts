@@ -103,7 +103,7 @@ serve(async (req) => {
     console.log(`Processing ${batches.length} batches`);
 
     const allTrackingIds: string[] = [];
-    const pdfUrls: string[] = [];
+    const pdfBase64Data: string[] = [];
     let processedCount = 0;
 
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
@@ -129,33 +129,37 @@ serve(async (req) => {
         continue;
       }
 
-      // Call courier API to generate AWB for this batch
+      // Call courier API to generate AWB for this batch using GET endpoint
       try {
-        const awbResponse = await fetch(awbEndpoint, {
-          method: 'POST',
+        const trackingNumbersParam = trackingIds.join(',');
+        const awbResponse = await fetch(`${awbEndpoint}?trackingNumbers=${trackingNumbersParam}`, {
+          method: 'GET',
           headers: {
-            'Content-Type': 'application/json',
             'token': apiKey
-          },
-          body: JSON.stringify({
-            orderRefNumber: trackingIds
-          })
+          }
         });
 
-        const awbData = await awbResponse.json();
-
-        if (!awbResponse.ok || awbData.dist?.status !== 200) {
-          console.error(`AWB generation failed for batch ${batchIndex + 1}:`, awbData);
+        if (!awbResponse.ok) {
+          console.error(`AWB generation failed for batch ${batchIndex + 1}:`, awbResponse.statusText);
           continue;
         }
 
-        // Extract PDF URL from response
-        if (awbData.dist?.awbFile) {
-          pdfUrls.push(awbData.dist.awbFile);
-          allTrackingIds.push(...trackingIds);
-        }
+        // Get PDF as binary data
+        const pdfArrayBuffer = await awbResponse.arrayBuffer();
+        
+        // Convert to base64
+        const base64 = btoa(
+          new Uint8Array(pdfArrayBuffer).reduce(
+            (data, byte) => data + String.fromCharCode(byte),
+            ''
+          )
+        );
 
+        pdfBase64Data.push(base64);
+        allTrackingIds.push(...trackingIds);
         processedCount += batch.length;
+
+        console.log(`Successfully generated AWB for batch ${batchIndex + 1}`);
 
       } catch (error) {
         console.error(`Error calling AWB API for batch ${batchIndex + 1}:`, error);
@@ -171,15 +175,16 @@ serve(async (req) => {
     // Update AWB record with results
     const updateData: any = {
       tracking_ids: allTrackingIds,
-      status: pdfUrls.length > 0 ? 'completed' : 'failed',
+      status: pdfBase64Data.length > 0 ? 'completed' : 'failed',
       generated_at: new Date().toISOString()
     };
 
-    if (pdfUrls.length === 1) {
-      updateData.pdf_url = pdfUrls[0];
-    } else if (pdfUrls.length > 1) {
-      // For multiple PDFs, store all URLs
-      updateData.pdf_data = JSON.stringify(pdfUrls);
+    if (pdfBase64Data.length === 1) {
+      // Single PDF - store as base64 in pdf_data field
+      updateData.pdf_data = pdfBase64Data[0];
+    } else if (pdfBase64Data.length > 1) {
+      // Multiple PDFs - store array of base64 strings
+      updateData.pdf_data = JSON.stringify(pdfBase64Data);
     } else {
       updateData.error_message = 'No AWBs were generated';
     }
@@ -199,9 +204,9 @@ serve(async (req) => {
         awb_id: awbRecord.id,
         processed_count: processedCount,
         total_batches: batches.length,
-        pdf_urls: pdfUrls,
+        pdf_count: pdfBase64Data.length,
         tracking_ids: allTrackingIds,
-        message: `Successfully generated ${pdfUrls.length} AWB(s) for ${allTrackingIds.length} orders`
+        message: `Successfully generated ${pdfBase64Data.length} AWB PDF(s) for ${allTrackingIds.length} orders`
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

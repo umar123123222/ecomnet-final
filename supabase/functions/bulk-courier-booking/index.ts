@@ -16,9 +16,6 @@ interface BookingResult {
   orderNumber: string;
   success: boolean;
   trackingId?: string;
-  labelUrl?: string;
-  labelData?: string;
-  labelFormat?: string;
   error?: string;
   errorCode?: string;
 }
@@ -87,8 +84,8 @@ serve(async (req) => {
     let successCount = 0;
     let failedCount = 0;
 
-    // Process each order
-    for (const orderId of orderIds) {
+    // Helper function to process a single order
+    const processOrder = async (orderId: string): Promise<BookingResult> => {
       try {
         console.log(`[BULK BOOKING] Processing order ${orderId}`);
 
@@ -100,14 +97,12 @@ serve(async (req) => {
           .single();
 
         if (orderError || !order) {
-          results.push({
+          return {
             orderId,
             orderNumber: 'N/A',
             success: false,
             error: 'Order not found'
-          });
-          failedCount++;
-          continue;
+          };
         }
 
         // Calculate weight and pieces
@@ -126,7 +121,7 @@ serve(async (req) => {
         const { data: bookingData, error: bookingError } = await supabase.functions.invoke('courier-booking', {
           body: {
             orderId: order.id,
-            orderNumber: order.order_number, // Pass order number for courier reference
+            orderNumber: order.order_number,
             courierId: courierId,
             pickupAddress,
             deliveryAddress: {
@@ -144,38 +139,62 @@ serve(async (req) => {
         });
 
         if (bookingError || !bookingData?.success) {
-          results.push({
+          console.error(`[BULK BOOKING] Failed for order ${order.order_number}:`, bookingData?.error);
+          return {
             orderId: order.id,
             orderNumber: order.order_number,
             success: false,
             error: bookingData?.error || bookingError?.message || 'Booking failed',
             errorCode: bookingData?.errorCode
-          });
-          failedCount++;
-          console.error(`[BULK BOOKING] Failed for order ${order.order_number}:`, bookingData?.error);
-        } else {
-          results.push({
-            orderId: order.id,
-            orderNumber: order.order_number,
-            success: true,
-            trackingId: bookingData.trackingId,
-            labelUrl: bookingData.labelUrl,
-            labelData: bookingData.labelData,
-            labelFormat: bookingData.labelFormat || 'pdf'
-          });
-          successCount++;
-          console.log(`[BULK BOOKING] Success for order ${order.order_number}, tracking: ${bookingData.trackingId}`);
+          };
         }
+
+        console.log(`[BULK BOOKING] Success for order ${order.order_number}, tracking: ${bookingData.trackingId}`);
+        return {
+          orderId: order.id,
+          orderNumber: order.order_number,
+          success: true,
+          trackingId: bookingData.trackingId
+        };
       } catch (error: any) {
         console.error(`[BULK BOOKING] Exception for order ${orderId}:`, error.message);
-        results.push({
+        return {
           orderId,
           orderNumber: 'N/A',
           success: false,
           error: error.message
-        });
-        failedCount++;
+        };
       }
+    };
+
+    // Process orders in parallel batches of 50
+    const batchSize = 50;
+    for (let i = 0; i < orderIds.length; i += batchSize) {
+      const batch = orderIds.slice(i, i + batchSize);
+      console.log(`[BULK BOOKING] Processing batch ${Math.floor(i / batchSize) + 1} (${batch.length} orders)`);
+      
+      const batchResults = await Promise.allSettled(
+        batch.map(orderId => processOrder(orderId))
+      );
+
+      batchResults.forEach(result => {
+        if (result.status === 'fulfilled') {
+          results.push(result.value);
+          if (result.value.success) {
+            successCount++;
+          } else {
+            failedCount++;
+          }
+        } else {
+          failedCount++;
+          results.push({
+            orderId: 'unknown',
+            orderNumber: 'N/A',
+            success: false,
+            error: result.reason?.message || 'Unknown error'
+          });
+        }
+      });
     }
 
     const response: BulkBookingResponse = {
