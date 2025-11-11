@@ -472,45 +472,48 @@ const OrderDashboard = () => {
         console.log('[AWB] Generation successful:', data);
         
         toast({
-          title: "AWBs Generated",
-          description: `Generated ${data.pdf_count} PDF(s) for ${data.tracking_ids.length} orders`,
+          title: "AWBs Generation Started",
+          description: `Preparing labels for ${data.tracking_ids.length} orders. This may take a few seconds...`,
         });
 
-        // Wait a moment for database consistency
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Poll the AWB record until it's completed (handles consolidation time)
+        const pollIntervalMs = 1500;
+        const timeoutMs = 90000; // 90 seconds
+        const startTime = Date.now();
+        let lastStatus: string | undefined = undefined;
+        let awbRecord: any = null;
+
+        while (Date.now() - startTime < timeoutMs) {
+          const { data: record, error: awbError } = await supabase
+            .from('courier_awbs')
+            .select('id,status,pdf_data,error_message,tracking_ids')
+            .eq('id', data.awb_id)
+            .maybeSingle();
+
+          if (awbError) {
+            console.error('[AWB] Polling error:', awbError);
+            // brief wait and continue; transient errors can happen
+          } else if (record) {
+            lastStatus = record.status;
+            console.log('[AWB] Poll status:', { status: record.status, hasPdf: !!record.pdf_data });
+            if (record.status === 'failed') {
+              throw new Error(record.error_message || 'AWB generation failed');
+            }
+            if (record.status === 'completed' && record.pdf_data) {
+              awbRecord = record;
+              break;
+            }
+          }
+
+          await new Promise((r) => setTimeout(r, pollIntervalMs));
+        }
+
+        if (!awbRecord) {
+          throw new Error(`No PDF data found. Status: ${lastStatus || 'processing'}. Please wait a moment and try again.`);
+        }
 
         // Download generated AWBs
-        const { data: awbRecord, error: awbError } = await supabase
-          .from('courier_awbs')
-          .select('*')
-          .eq('id', data.awb_id)
-          .single();
-
-        console.log('[AWB] Retrieved record:', { 
-          awbRecord: awbRecord ? {
-            id: awbRecord.id,
-            status: awbRecord.status,
-            hasPdfData: !!awbRecord.pdf_data,
-            pdfDataType: typeof awbRecord.pdf_data,
-            pdfDataLength: awbRecord.pdf_data ? 
-              (typeof awbRecord.pdf_data === 'string' ? awbRecord.pdf_data.length : 'object') : 0,
-            trackingIdsCount: awbRecord.tracking_ids?.length || 0,
-            errorMessage: awbRecord.error_message
-          } : null,
-          awbError 
-        });
-
-        if (awbError) {
-          console.error('[AWB] Failed to fetch AWB record:', awbError);
-          throw new Error('Failed to retrieve AWB data');
-        }
-
-        if (!awbRecord?.pdf_data) {
-          console.error('[AWB] No pdf_data in record. Full record:', awbRecord);
-          throw new Error(`No PDF data found. Status: ${awbRecord?.status || 'unknown'}${awbRecord?.error_message ? ` - ${awbRecord.error_message}` : ''}`);
-        }
-
-        const pdfData = awbRecord.pdf_data;
+        const pdfData = awbRecord.pdf_data as string;
         console.log('[AWB] PDF data info:', {
           type: typeof pdfData,
           length: typeof pdfData === 'string' ? pdfData.length : 'not-string',
@@ -518,9 +521,8 @@ const OrderDashboard = () => {
           preview: typeof pdfData === 'string' ? pdfData.substring(0, 50) : 'not-string'
         });
         
-        // Check if it's multiple PDFs or single
+        // Check if it's multiple PDFs (legacy) or single consolidated PDF
         if (typeof pdfData === 'string' && pdfData.startsWith('[')) {
-          // Multiple PDFs (JSON array of base64 strings)
           const pdfArray = JSON.parse(pdfData);
           console.log('[AWB] Downloading multiple PDFs:', pdfArray.length);
           
@@ -545,8 +547,7 @@ const OrderDashboard = () => {
             }, index * 500);
           });
         } else {
-          // Single PDF (base64 string)
-          console.log('[AWB] Downloading single PDF');
+          console.log('[AWB] Downloading single consolidated PDF');
           
           if (!pdfData || (typeof pdfData === 'string' && pdfData.length === 0)) {
             throw new Error('PDF data is empty');
