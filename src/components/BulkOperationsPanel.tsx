@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Package, AlertCircle, Download } from 'lucide-react';
+import { Package, AlertCircle, Download, FileText } from 'lucide-react';
 import { BulkOperationProgress } from '@/hooks/useBulkOperations';
 
 interface BulkOperationsPanelProps {
@@ -14,6 +14,7 @@ interface BulkOperationsPanelProps {
   onCourierAssign: (courierId: string, courierName: string) => void;
   onCourierUnassign: () => void;
   onExport: () => void;
+  onGenerateAWBs?: () => void;
   progress?: BulkOperationProgress;
   couriers: Array<{ id: string; name: string; code: string }>;
 }
@@ -24,6 +25,7 @@ export const BulkOperationsPanel: React.FC<BulkOperationsPanelProps> = ({
   onCourierAssign,
   onCourierUnassign,
   onExport,
+  onGenerateAWBs,
   progress,
   couriers,
 }) => {
@@ -150,6 +152,19 @@ export const BulkOperationsPanel: React.FC<BulkOperationsPanelProps> = ({
                   ))}
                 </SelectContent>
               </Select>
+
+              {onGenerateAWBs && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={onGenerateAWBs}
+                  disabled={progress?.inProgress || selectedCount === 0}
+                  className="gap-2"
+                >
+                  <FileText className="h-4 w-4" />
+                  Generate AWBs
+                </Button>
+              )}
 
               {/* Export Button */}
               <Button

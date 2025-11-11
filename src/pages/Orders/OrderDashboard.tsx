@@ -616,6 +616,71 @@ const OrderDashboard = () => {
     }
   };
 
+  // Generate AWBs for already-booked, selected orders
+  const handleBulkGenerateAWBs = async () => {
+    try {
+      if (selectedOrders.length === 0) {
+        toast({
+          title: "No orders selected",
+          description: "Select booked orders to generate AWBs.",
+        });
+        return;
+      }
+
+      const { data: selected, error } = await supabase
+        .from('orders')
+        .select('id,status,courier')
+        .in('id', selectedOrders);
+
+      if (error) throw error;
+
+      const eligible = (selected || []).filter(o => o.status === 'booked' && o.courier);
+      const skipped = (selected || []).length - eligible.length;
+
+      if (eligible.length === 0) {
+        toast({
+          title: "No eligible orders",
+          description: "Only booked orders with a courier are eligible.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const groups: Record<string, string[]> = {};
+      eligible.forEach((o: any) => {
+        const code = String(o.courier).toLowerCase();
+        groups[code] = groups[code] || [];
+        groups[code].push(o.id);
+      });
+
+      const courierByCode = new Map<string, { id: string; name: string; code: string }>();
+      couriers.forEach(c => courierByCode.set(String(c.code).toLowerCase(), c));
+
+      for (const code of Object.keys(groups)) {
+        const c = courierByCode.get(code);
+        if (!c) {
+          console.warn('[AWB] Unknown courier for code:', code);
+          continue;
+        }
+        await handleGenerateAWBs(groups[code], c.id, c.name);
+      }
+
+      if (skipped > 0) {
+        toast({
+          title: "Some orders skipped",
+          description: `${skipped} not eligible (not booked or missing courier)`,
+        });
+      }
+    } catch (e: any) {
+      console.error('[AWB] Bulk generate error:', e);
+      toast({
+        title: "AWB generation failed",
+        description: e.message || 'Unexpected error',
+        variant: 'destructive',
+      });
+    }
+  };
+
   // Export handler
   const handleExport = () => {
     const selectedOrdersData = orders.filter(o => selectedOrders.includes(o.id));
@@ -1202,6 +1267,7 @@ const OrderDashboard = () => {
           onCourierAssign={handleBulkCourierAssign}
           onCourierUnassign={handleBulkCourierUnassign}
           onExport={handleExport}
+          onGenerateAWBs={handleBulkGenerateAWBs}
           progress={progress}
           couriers={couriers}
         />
