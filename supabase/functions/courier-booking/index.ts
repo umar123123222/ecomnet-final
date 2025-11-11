@@ -69,22 +69,26 @@ serve(async (req) => {
     console.log('[BOOKING] Using courier:', courier.name, courier.code);
 
     // Fetch order number if not provided (for use as reference in courier portal)
-    let orderNumber = bookingRequest.orderNumber;
-    if (!orderNumber) {
-      const { data: orderData, error: orderFetchError } = await supabase
-        .from('orders')
-        .select('order_number')
-        .eq('id', bookingRequest.orderId)
-        .single();
-      
-      if (!orderFetchError && orderData) {
-        orderNumber = orderData.order_number;
-        console.log('[BOOKING] Fetched order number:', orderNumber);
-      } else {
-        console.warn('[BOOKING] Could not fetch order number, using order ID as fallback');
-        orderNumber = bookingRequest.orderId;
-      }
+  let orderNumber = bookingRequest.orderNumber;
+  if (!orderNumber) {
+    const { data: orderData, error: orderFetchError } = await supabase
+      .from('orders')
+      .select('order_number')
+      .eq('id', bookingRequest.orderId)
+      .single();
+    
+    if (!orderFetchError && orderData) {
+      orderNumber = orderData.order_number;
+      console.log('[BOOKING] Fetched order number:', orderNumber);
+    } else {
+      console.warn('[BOOKING] Could not fetch order number, using order ID as fallback');
+      orderNumber = bookingRequest.orderId;
     }
+  }
+
+  // Strip prefix for courier reference (e.g., "SHOP-321274" -> "321274")
+  const orderRefNumber = orderNumber.replace(/^[A-Z]+-/i, '');
+  console.log('[BOOKING] Order reference for courier:', orderRefNumber);
 
     // Define courierCode for use throughout the function
     const courierCode = (courier.code || '').toString().toUpperCase();
@@ -115,7 +119,7 @@ serve(async (req) => {
     } else {
       // Use custom booking endpoint if configured
       if (courier.booking_endpoint) {
-        bookingResponse = await bookWithCustomEndpoint(bookingRequest, courier, supabase, orderNumber);
+        bookingResponse = await bookWithCustomEndpoint(bookingRequest, courier, supabase, orderRefNumber);
         
         // Extract label from response
         if (bookingResponse.label_url) {
@@ -135,7 +139,7 @@ serve(async (req) => {
             break;
           
           case 'POSTEX':
-            bookingResponse = await bookPostEx(bookingRequest, supabase, orderNumber);
+            bookingResponse = await bookPostEx(bookingRequest, supabase, orderRefNumber);
             break;
           
           default:
