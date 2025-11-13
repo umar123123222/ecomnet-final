@@ -201,18 +201,39 @@ serve(async (req) => {
     }
 
     console.log(`[AUTH] Authenticated user: ${user.id}`);
-    const { data: courier, error: courierError } = await supabaseClient
-      .from('couriers')
-      .select('*')
-      .ilike('code', courier_code)
-      .single();
+    console.log('[AWB] Starting generation for courier:', courier_code);
+    console.log('[AWB] Order IDs:', order_ids);
 
-    if (courierError || !courier) {
-      console.error('Courier lookup error:', courierError);
-      throw new Error(`Courier not found: ${courier_code}`);
+    // Get dispatches with tracking IDs for these orders
+    const { data: dispatches, error: dispatchError } = await supabaseClient
+      .from('dispatches')
+      .select('id, tracking_id, order_id')
+      .in('order_id', order_ids)
+      .eq('courier_code', courier_code)
+      .not('tracking_id', 'is', null);
+
+    if (dispatchError) {
+      console.error('[AWB] Error fetching dispatches:', dispatchError);
+      throw dispatchError;
     }
 
-    console.log(`[COURIER] Found courier: ${courier.name} (${courier.code})`);
+    console.log(`[AWB] Found ${dispatches?.length || 0} dispatches with tracking IDs out of ${order_ids.length} orders`);
+
+    if (!dispatches || dispatches.length === 0) {
+      console.error('[AWB] No dispatches found with tracking IDs');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'No dispatches found with tracking IDs for these orders',
+          found: 0,
+          requested: order_ids.length
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const trackingIds = dispatches.map(d => d.tracking_id);
+    console.log(`[AWB] Processing ${trackingIds.length} tracking IDs:`, trackingIds);
 
     // Get API settings for this courier
     const { data: apiSettings, error: settingsError } = await supabaseClient
@@ -370,9 +391,11 @@ serve(async (req) => {
     
     if (pdfBase64Data.length > 0) {
       try {
-        console.log(`[AWB] Consolidating ${pdfBase64Data.length} PDF batches into optimized sheets (3 AWBs per sheet)`);
+        const totalLabels = allTrackingIds.length;
+        const totalPages = Math.ceil(totalLabels / 3);
+        console.log(`[AWB] Consolidating ${pdfBase64Data.length} PDF batches into ${totalPages} A4 pages (3 labels per page)...`);
         finalPdfData = await consolidateAWBs(pdfBase64Data);
-        console.log(`[AWB] Successfully consolidated PDFs, final base64 length: ${finalPdfData.length}`);
+        console.log(`[AWB] ✅ Consolidation complete: ${totalLabels} labels consolidated into ${totalPages} pages (base64 length: ${finalPdfData.length})`);
       } catch (consolidateError) {
         console.error('[AWB] Error consolidating PDFs, falling back to original PDFs:', consolidateError);
         // Fallback: store multiple PDFs as before if consolidation fails
@@ -439,6 +462,10 @@ serve(async (req) => {
 
     console.log(`[AWB] Successfully updated record ${awbRecord.id}`);
 
+    const labelCount = allTrackingIds.length;
+    const pageCount = Math.ceil(labelCount / 3);
+    console.log(`[AWB] ✅ Generation complete: ${labelCount} labels, ${pageCount} pages`);
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -447,7 +474,12 @@ serve(async (req) => {
         total_batches: batches.length,
         pdf_count: pdfBase64Data.length,
         tracking_ids: allTrackingIds,
-        message: `Successfully generated ${pdfBase64Data.length} AWB PDF(s) for ${allTrackingIds.length} orders`
+        stats: {
+          total_labels: labelCount,
+          total_pages: pageCount,
+          labels_per_page: 3
+        },
+        message: `Successfully generated ${labelCount} label${labelCount !== 1 ? 's' : ''} (${pageCount} page${pageCount !== 1 ? 's' : ''})`
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
