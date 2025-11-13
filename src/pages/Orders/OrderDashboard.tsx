@@ -74,7 +74,8 @@ const OrderDashboard = () => {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(() => {
     const saved = localStorage.getItem('orders_page_size');
-    return saved ? Number(saved) : 50;
+    const initial = saved ? Number(saved) : 50;
+    return Math.min(initial, 100);
   });
   const [totalCount, setTotalCount] = useState(0);
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
@@ -374,6 +375,14 @@ const OrderDashboard = () => {
     setPage(0);
   };
 
+  // Clamp legacy saved value > 100
+  useEffect(() => {
+    if (pageSize > 100) {
+      setPageSize(100);
+      localStorage.setItem('orders_page_size', '100');
+    }
+  }, [pageSize]);
+
   const handleNewOrderCreated = async () => {
     setPage(0);
     await fetchOrders();
@@ -535,7 +544,14 @@ const OrderDashboard = () => {
 
       if (data.success) {
         console.log('[AWB] Generation successful:', data);
-        
+        if (!data.tracking_ids || data.tracking_ids.length === 0) {
+          toast({
+            title: "No tracking IDs found",
+            description: "Couldn’t find labels for the selected orders. Ensure orders are booked and have dispatch records.",
+            variant: "destructive",
+          });
+          return;
+        }
         toast({
           title: "AWBs Generation Started",
           description: `Preparing labels for ${data.tracking_ids.length} orders. This may take a few seconds...`,
