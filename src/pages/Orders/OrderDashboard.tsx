@@ -457,9 +457,8 @@ const OrderDashboard = () => {
 
         // Auto-generate AWBs after successful booking
         if (successfulOrderIds.length > 0) {
-          setTimeout(() => {
-            handleGenerateAWBs(successfulOrderIds, courierId, courierName);
-          }, 1000);
+          // No delay needed - handleGenerateAWBs now has built-in retry logic
+          handleGenerateAWBs(successfulOrderIds, courierId, courierName);
         }
       }
 
@@ -500,15 +499,78 @@ const OrderDashboard = () => {
     }
   };
 
+  // Verify tracking IDs exist with retry logic
+  const verifyTrackingIds = async (orderIds: string[], maxAttempts = 5): Promise<string[]> => {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      console.log(`[AWB] Verifying tracking IDs (attempt ${attempt}/${maxAttempts})`);
+      
+      const { data: dispatches, error } = await supabase
+        .from('dispatches')
+        .select('tracking_id, order_id')
+        .in('order_id', orderIds)
+        .not('tracking_id', 'is', null);
+
+      if (error) {
+        console.error('[AWB] Error verifying tracking IDs:', error);
+        throw error;
+      }
+
+      const foundTrackingIds = dispatches?.map(d => d.tracking_id) || [];
+      
+      if (foundTrackingIds.length === orderIds.length) {
+        console.log(`[AWB] All ${foundTrackingIds.length} tracking IDs verified`);
+        return foundTrackingIds;
+      }
+
+      if (attempt < maxAttempts) {
+        console.log(`[AWB] Found ${foundTrackingIds.length}/${orderIds.length} tracking IDs, retrying...`);
+        toast({
+          title: "Waiting for booking records...",
+          description: `Found ${foundTrackingIds.length}/${orderIds.length} orders (${attempt}/${maxAttempts})`,
+        });
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } else {
+        // Return what we found on last attempt
+        console.log(`[AWB] Final attempt: found ${foundTrackingIds.length}/${orderIds.length} tracking IDs`);
+        return foundTrackingIds;
+      }
+    }
+    return [];
+  };
+
   // Generate AWBs for booked orders
   const handleGenerateAWBs = async (orderIds: string[], courierId: string, courierName: string) => {
     try {
       console.log('[AWB] Starting generation for:', { orderIds, courierId, courierName });
       
       toast({
-        title: "Generating AWBs...",
-        description: `Processing ${orderIds.length} orders`,
+        title: "Verifying bookings...",
+        description: `Checking ${orderIds.length} orders`,
       });
+
+      // Verify tracking IDs exist with retry logic
+      const trackingIds = await verifyTrackingIds(orderIds);
+
+      if (trackingIds.length === 0) {
+        toast({
+          title: "No tracking IDs found",
+          description: "Couldn't find booking records for the selected orders. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (trackingIds.length < orderIds.length) {
+        toast({
+          title: "Partial booking detected",
+          description: `Found ${trackingIds.length} of ${orderIds.length} bookings. Generating AWBs for available orders.`,
+        });
+      } else {
+        toast({
+          title: "Generating AWBs...",
+          description: `Processing ${trackingIds.length} labels. This may take a moment...`,
+        });
+      }
 
       // Get courier code
       const { data: courier, error: courierError } = await supabase
@@ -544,6 +606,14 @@ const OrderDashboard = () => {
 
       if (data.success) {
         console.log('[AWB] Generation successful:', data);
+        
+        const labelCount = data.tracking_ids?.length || 0;
+        const pageCount = Math.ceil(labelCount / 3); // 3 labels per page
+        
+        toast({
+          title: "Generating consolidated AWBs...",
+          description: `Creating ${labelCount} labels (${pageCount} page${pageCount !== 1 ? 's' : ''}, 3 labels per page)`,
+        });
         if (!data.tracking_ids || data.tracking_ids.length === 0) {
           toast({
             title: "No tracking IDs found",
@@ -634,16 +704,19 @@ const OrderDashboard = () => {
             throw new Error('PDF data is empty');
           }
           
+          const labelCount = awbRecord.tracking_ids?.length || orderIds.length;
+          const pageCount = Math.ceil(labelCount / 3);
+          
           const link = document.createElement('a');
           link.href = `data:application/pdf;base64,${pdfData}`;
-          link.download = `awb-${courierName}.pdf`;
+          link.download = `awb-${courierName}-${labelCount}labels.pdf`;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
           
           toast({
-            title: "Download Started",
-            description: "AWB PDF is downloading...",
+            title: "✅ AWBs Downloaded",
+            description: `${labelCount} label${labelCount !== 1 ? 's' : ''} (${pageCount} page${pageCount !== 1 ? 's' : ''}) • awb-${courierName}-${labelCount}labels.pdf`,
           });
         }
       } else {
