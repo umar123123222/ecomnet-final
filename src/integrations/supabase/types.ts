@@ -490,6 +490,7 @@ export type Database = {
           error_message: string | null
           generated_at: string
           generated_by: string | null
+          html_images: string | null
           id: string
           order_ids: string[]
           pdf_data: string | null
@@ -505,6 +506,7 @@ export type Database = {
           error_message?: string | null
           generated_at?: string
           generated_by?: string | null
+          html_images?: string | null
           id?: string
           order_ids: string[]
           pdf_data?: string | null
@@ -520,6 +522,7 @@ export type Database = {
           error_message?: string | null
           generated_at?: string
           generated_by?: string | null
+          html_images?: string | null
           id?: string
           order_ids?: string[]
           pdf_data?: string | null
