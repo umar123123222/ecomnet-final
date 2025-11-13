@@ -62,96 +62,243 @@ const Dashboard = () => {
   const { toast } = useToast();
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
+  // Calculate date ranges for current and previous periods
+  const getDateRanges = () => {
+    const now = new Date();
+    let currentStart: Date, currentEnd: Date, previousStart: Date, previousEnd: Date;
+
+    if (dateRange?.from && dateRange?.to) {
+      currentStart = dateRange.from;
+      currentEnd = dateRange.to;
+      const duration = currentEnd.getTime() - currentStart.getTime();
+      previousEnd = new Date(currentStart.getTime() - 1);
+      previousStart = new Date(previousEnd.getTime() - duration);
+    } else {
+      // Default: last 30 days vs previous 30 days
+      currentEnd = now;
+      currentStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      previousEnd = new Date(currentStart.getTime() - 1);
+      previousStart = new Date(previousEnd.getTime() - 30 * 24 * 60 * 60 * 1000);
+    }
+
+    return {
+      currentStart: currentStart.toISOString(),
+      currentEnd: currentEnd.toISOString(),
+      previousStart: previousStart.toISOString(),
+      previousEnd: previousEnd.toISOString(),
+    };
+  };
+
   // Optimized data fetching with React Query and aggregation
   const { data: dashboardData, isLoading: loading } = useQuery({
-    queryKey: ['dashboard-stats'],
+    queryKey: ['dashboard-stats', dateRange],
     queryFn: async () => {
-      const [ordersRes, returnsRes, customersRes] = await Promise.all([
-        supabase.from('orders').select('status', { count: 'exact', head: false }),
-        supabase.from('returns').select('return_status', { count: 'exact', head: false }),
-        supabase.from('customers').select('id', { count: 'exact', head: true })
+      const ranges = getDateRanges();
+
+      const [
+        currentOrdersRes,
+        previousOrdersRes,
+        currentReturnsRes,
+        previousReturnsRes,
+        currentCustomersRes,
+        previousCustomersRes,
+      ] = await Promise.all([
+        supabase.from('orders').select('status, created_at', { count: 'exact', head: false })
+          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
+        supabase.from('orders').select('status, created_at', { count: 'exact', head: false })
+          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
+        supabase.from('returns').select('return_status, created_at', { count: 'exact', head: false })
+          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
+        supabase.from('returns').select('return_status, created_at', { count: 'exact', head: false })
+          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
+        supabase.from('customers').select('id, created_at', { count: 'exact', head: true })
+          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
+        supabase.from('customers').select('id, created_at', { count: 'exact', head: true })
+          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
       ]);
 
-      if (ordersRes.error || returnsRes.error || customersRes.error) {
+      if (currentOrdersRes.error || previousOrdersRes.error || currentReturnsRes.error || 
+          previousReturnsRes.error || currentCustomersRes.error || previousCustomersRes.error) {
         throw new Error('Failed to fetch dashboard data');
       }
 
-      const orders = ordersRes.data || [];
-      const returns = returnsRes.data || [];
-      
+      const currentOrders = currentOrdersRes.data || [];
+      const previousOrders = previousOrdersRes.data || [];
+      const currentReturns = currentReturnsRes.data || [];
+      const previousReturns = previousReturnsRes.data || [];
+
+      const calculateTrend = (current: number, previous: number) => {
+        if (previous === 0) return current > 0 ? 100 : 0;
+        return ((current - previous) / previous) * 100;
+      };
+
+      const currentStats = {
+        totalOrders: currentOrders.length,
+        bookedOrders: currentOrders.filter(o => o.status === 'booked').length,
+        dispatchedOrders: currentOrders.filter(o => o.status === 'dispatched').length,
+        deliveredOrders: currentOrders.filter(o => o.status === 'delivered').length,
+        cancelledOrders: currentOrders.filter(o => o.status === 'cancelled').length,
+        returnsInTransit: currentReturns.filter(r => r.return_status === 'in_transit').length,
+        returnedOrders: currentReturns.filter(r => r.return_status === 'received').length,
+        customers: currentCustomersRes.count || 0,
+      };
+
+      const previousStats = {
+        totalOrders: previousOrders.length,
+        bookedOrders: previousOrders.filter(o => o.status === 'booked').length,
+        dispatchedOrders: previousOrders.filter(o => o.status === 'dispatched').length,
+        deliveredOrders: previousOrders.filter(o => o.status === 'delivered').length,
+        cancelledOrders: previousOrders.filter(o => o.status === 'cancelled').length,
+        returnsInTransit: previousReturns.filter(r => r.return_status === 'in_transit').length,
+        returnedOrders: previousReturns.filter(r => r.return_status === 'received').length,
+        customers: previousCustomersRes.count || 0,
+      };
+
       return {
-        totalOrders: orders.length,
-        bookedOrders: orders.filter(o => o.status === 'booked').length,
-        dispatchedOrders: orders.filter(o => o.status === 'dispatched').length,
-        deliveredOrders: orders.filter(o => o.status === 'delivered').length,
-        cancelledOrders: orders.filter(o => o.status === 'cancelled').length,
-        returnsInTransit: returns.filter(r => r.return_status === 'in_transit').length,
-        returnedOrders: returns.filter(r => r.return_status === 'received').length,
-        customers: customersRes.count || 0
+        current: currentStats,
+        previous: previousStats,
+        trends: {
+          totalOrders: calculateTrend(currentStats.totalOrders, previousStats.totalOrders),
+          bookedOrders: calculateTrend(currentStats.bookedOrders, previousStats.bookedOrders),
+          dispatchedOrders: calculateTrend(currentStats.dispatchedOrders, previousStats.dispatchedOrders),
+          deliveredOrders: calculateTrend(currentStats.deliveredOrders, previousStats.deliveredOrders),
+          cancelledOrders: calculateTrend(currentStats.cancelledOrders, previousStats.cancelledOrders),
+          returnsInTransit: calculateTrend(currentStats.returnsInTransit, previousStats.returnsInTransit),
+          returnedOrders: calculateTrend(currentStats.returnedOrders, previousStats.returnedOrders),
+          customers: calculateTrend(currentStats.customers, previousStats.customers),
+        },
       };
     },
     refetchInterval: 30000, // Refresh every 30 seconds
     staleTime: 20000, // Consider data fresh for 20 seconds
   });
 
-  // Memoize summary data with real data
-  const summaryData = useMemo(() => [{
-    title: "Total Orders",
-    value: loading ? "..." : (dashboardData?.totalOrders || 0).toLocaleString(),
-    change: "+12.5%",
-    trend: "up",
-    icon: Package,
-    color: "from-blue-500 to-cyan-500"
-  }, {
-    title: "Booked Orders",
-    value: loading ? "..." : (dashboardData?.bookedOrders || 0).toLocaleString(),
-    change: "+8.2%",
-    trend: "up",
-    icon: Calendar,
-    color: "from-purple-500 to-pink-500"
-  }, {
-    title: "Dispatched Orders",
-    value: loading ? "..." : (dashboardData?.dispatchedOrders || 0).toLocaleString(),
-    change: "+15.7%",
-    trend: "up",
-    icon: Truck,
-    color: "from-orange-500 to-yellow-500"
-  }, {
-    title: "Delivered Orders",
-    value: loading ? "..." : (dashboardData?.deliveredOrders || 0).toLocaleString(),
-    change: "+18.3%",
-    trend: "up",
-    icon: CheckCircle,
-    color: "from-green-500 to-emerald-500"
-  }, {
-    title: "Cancelled Orders",
-    value: loading ? "..." : (dashboardData?.cancelledOrders || 0).toLocaleString(),
-    change: "-23.1%",
-    trend: "down",
-    icon: XCircle,
-    color: "from-red-500 to-pink-500"
-  }, {
-    title: "Returns in Transit",
-    value: loading ? "..." : (dashboardData?.returnsInTransit || 0).toLocaleString(),
-    change: "+5.4%",
-    trend: "up",
-    icon: RotateCcw,
-    color: "from-indigo-500 to-purple-500"
-  }, {
-    title: "Returned Orders",
-    value: loading ? "..." : (dashboardData?.returnedOrders || 0).toLocaleString(),
-    change: "-12.8%",
-    trend: "down",
-    icon: Package,
-    color: "from-gray-500 to-gray-600"
-  }, {
-    title: "Customers",
-    value: loading ? "..." : (dashboardData?.customers || 0).toLocaleString(),
-    change: "+9.7%",
-    trend: "up",
-    icon: Users,
-    color: "from-teal-500 to-blue-500"
-  }], [dashboardData, loading]);
+  // Format trend percentage
+  const formatTrend = (value: number) => {
+    const sign = value >= 0 ? '+' : '';
+    return `${sign}${value.toFixed(1)}%`;
+  };
+
+  // Memoize summary data with real data and calculated trends
+  const summaryData = useMemo(() => {
+    if (loading || !dashboardData) {
+      return [{
+        title: "Total Orders",
+        value: "...",
+        change: "...",
+        trend: "up",
+        icon: Package,
+        color: "from-blue-500 to-cyan-500"
+      }, {
+        title: "Booked Orders",
+        value: "...",
+        change: "...",
+        trend: "up",
+        icon: Calendar,
+        color: "from-purple-500 to-pink-500"
+      }, {
+        title: "Dispatched Orders",
+        value: "...",
+        change: "...",
+        trend: "up",
+        icon: Truck,
+        color: "from-orange-500 to-yellow-500"
+      }, {
+        title: "Delivered Orders",
+        value: "...",
+        change: "...",
+        trend: "up",
+        icon: CheckCircle,
+        color: "from-green-500 to-emerald-500"
+      }, {
+        title: "Cancelled Orders",
+        value: "...",
+        change: "...",
+        trend: "up",
+        icon: XCircle,
+        color: "from-red-500 to-pink-500"
+      }, {
+        title: "Returns in Transit",
+        value: "...",
+        change: "...",
+        trend: "up",
+        icon: RotateCcw,
+        color: "from-indigo-500 to-purple-500"
+      }, {
+        title: "Returned Orders",
+        value: "...",
+        change: "...",
+        trend: "up",
+        icon: Package,
+        color: "from-gray-500 to-gray-600"
+      }, {
+        title: "Customers",
+        value: "...",
+        change: "...",
+        trend: "up",
+        icon: Users,
+        color: "from-teal-500 to-blue-500"
+      }];
+    }
+
+    return [{
+      title: "Total Orders",
+      value: (dashboardData.current.totalOrders || 0).toLocaleString(),
+      change: formatTrend(dashboardData.trends.totalOrders),
+      trend: dashboardData.trends.totalOrders >= 0 ? "up" : "down",
+      icon: Package,
+      color: "from-blue-500 to-cyan-500"
+    }, {
+      title: "Booked Orders",
+      value: (dashboardData.current.bookedOrders || 0).toLocaleString(),
+      change: formatTrend(dashboardData.trends.bookedOrders),
+      trend: dashboardData.trends.bookedOrders >= 0 ? "up" : "down",
+      icon: Calendar,
+      color: "from-purple-500 to-pink-500"
+    }, {
+      title: "Dispatched Orders",
+      value: (dashboardData.current.dispatchedOrders || 0).toLocaleString(),
+      change: formatTrend(dashboardData.trends.dispatchedOrders),
+      trend: dashboardData.trends.dispatchedOrders >= 0 ? "up" : "down",
+      icon: Truck,
+      color: "from-orange-500 to-yellow-500"
+    }, {
+      title: "Delivered Orders",
+      value: (dashboardData.current.deliveredOrders || 0).toLocaleString(),
+      change: formatTrend(dashboardData.trends.deliveredOrders),
+      trend: dashboardData.trends.deliveredOrders >= 0 ? "up" : "down",
+      icon: CheckCircle,
+      color: "from-green-500 to-emerald-500"
+    }, {
+      title: "Cancelled Orders",
+      value: (dashboardData.current.cancelledOrders || 0).toLocaleString(),
+      change: formatTrend(dashboardData.trends.cancelledOrders),
+      trend: dashboardData.trends.cancelledOrders >= 0 ? "up" : "down",
+      icon: XCircle,
+      color: "from-red-500 to-pink-500"
+    }, {
+      title: "Returns in Transit",
+      value: (dashboardData.current.returnsInTransit || 0).toLocaleString(),
+      change: formatTrend(dashboardData.trends.returnsInTransit),
+      trend: dashboardData.trends.returnsInTransit >= 0 ? "up" : "down",
+      icon: RotateCcw,
+      color: "from-indigo-500 to-purple-500"
+    }, {
+      title: "Returned Orders",
+      value: (dashboardData.current.returnedOrders || 0).toLocaleString(),
+      change: formatTrend(dashboardData.trends.returnedOrders),
+      trend: dashboardData.trends.returnedOrders >= 0 ? "up" : "down",
+      icon: Package,
+      color: "from-gray-500 to-gray-600"
+    }, {
+      title: "Customers",
+      value: (dashboardData.current.customers || 0).toLocaleString(),
+      change: formatTrend(dashboardData.trends.customers),
+      trend: dashboardData.trends.customers >= 0 ? "up" : "down",
+      icon: Users,
+      color: "from-teal-500 to-blue-500"
+    }];
+  }, [dashboardData, loading]);
 
   // Handler functions for button actions
   const handleExportReport = () => {
