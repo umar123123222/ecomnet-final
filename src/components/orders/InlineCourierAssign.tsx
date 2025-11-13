@@ -89,8 +89,24 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
         return;
       }
 
+      // Ensure we have items (lazy-fetch if not provided)
+      let items = orderDetails.items || [];
+      if (!items || items.length === 0) {
+        const { data: fetchedItems, error: itemsError } = await supabase
+          .from('order_items')
+          .select('item_name, quantity, price')
+          .eq('order_id', orderId);
+        if (!itemsError && fetchedItems) {
+          items = fetchedItems.map((it: any) => ({
+            name: it.item_name || 'Product',
+            quantity: Number(it.quantity || 1),
+            price: Number(it.price || 0),
+          }));
+        }
+      }
+
       // Calculate weight (assuming 1kg per item, can be enhanced)
-      const totalPieces = orderDetails.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+      const totalPieces = items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
       const estimatedWeight = totalPieces * 1; // 1kg per item
 
       // Call courier booking edge function
@@ -115,8 +131,8 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
           pieces: totalPieces,
           codAmount: orderDetails.totalPrice,
           specialInstructions: '',
-          items: orderDetails.items.map(item => ({
-            name: item.name || item.item_name || 'Product',
+          items: items.map((item: any) => ({
+            name: item.name || 'Product',
             quantity: item.quantity || 1,
             price: parseFloat(item.price || 0)
           }))

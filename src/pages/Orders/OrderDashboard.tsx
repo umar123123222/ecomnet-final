@@ -34,7 +34,7 @@ import { BulkOperationsPanel } from '@/components/BulkOperationsPanel';
 import { bulkUpdateOrderStatus, bulkUpdateOrderCourier, bulkAssignOrders, bulkUnassignCouriers, exportToCSV } from '@/utils/bulkOperations';
 import { useToast } from '@/hooks/use-toast';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
-import { batchAnalyzeOrders } from '@/utils/orderFraudDetection';
+
 import { BulkUploadDialog } from '@/components/orders/BulkUploadDialog';
 import { OrderActivityLog } from '@/components/orders/OrderActivityLog';
 import { QuickActionButtons } from '@/components/orders/QuickActionButtons';
@@ -58,7 +58,8 @@ const OrderDashboard = () => {
   });
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [staffUsers, setStaffUsers] = useState<any[]>([]);
+   const [staffUsers, setStaffUsers] = useState<any[]>([]);
+   const [orderItemsCache, setOrderItemsCache] = useState<Map<string, any[]>>(new Map());
   const [summaryData, setSummaryData] = useState({
     totalOrders: 0,
     booked: 0,
@@ -106,7 +107,8 @@ const OrderDashboard = () => {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const offset = page * pageSize;
+      const effectivePageSize = Math.min(pageSize, 100);
+      const offset = page * effectivePageSize;
       
       // Build dynamic query with filters
       let query = supabase
@@ -182,7 +184,7 @@ const OrderDashboard = () => {
       query = query.order('created_at', { ascending: sortOrder === 'oldest' });
       
       // Apply pagination
-      query = query.range(offset, offset + pageSize - 1);
+      query = query.range(offset, offset + effectivePageSize - 1);
       
       const { data: baseOrders, error: ordersError, count } = await query;
 
@@ -211,29 +213,15 @@ const OrderDashboard = () => {
         .map(o => o.assigned_to)
         .filter((id): id is string => id != null);
 
-      // 3. Fetch related data in parallel
-      const [itemsResult, profilesResult] = await Promise.all([
-        supabase
-          .from('order_items')
-          .select('item_name, quantity, price, order_id')
-          .in('order_id', orderIds),
-        assignedIds.length > 0
-          ? supabase
-              .from('profiles')
-              .select('id, full_name, email')
-              .in('id', assignedIds)
-          : Promise.resolve({ data: [], error: null })
-      ]);
+      // 3. Fetch assigned staff profiles only (lazy-load items on demand)
+      const profilesResult = assignedIds.length > 0
+        ? await supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .in('id', assignedIds)
+        : ({ data: [], error: null } as any);
 
-      // 4. Build lookup maps
-      const itemsByOrderId = new Map<string, any[]>();
-      (itemsResult.data || []).forEach(item => {
-        if (!itemsByOrderId.has(item.order_id)) {
-          itemsByOrderId.set(item.order_id, []);
-        }
-        itemsByOrderId.get(item.order_id)!.push(item);
-      });
-
+      // Build profile lookup map
       const profilesById = new Map<string, any>();
       (profilesResult.data || []).forEach(profile => {
         profilesById.set(profile.id, profile);
@@ -281,7 +269,7 @@ const OrderDashboard = () => {
           totalPrice: order.total_amount || 0,
           orderType: order.order_type || 'COD',
           city: order.city,
-          items: (itemsByOrderId.get(order.id) && (itemsByOrderId.get(order.id) as any[]).length > 0) ? itemsByOrderId.get(order.id) : [],
+          items: [],
           assignedTo: order.assigned_to,
           assignedToProfile: order.assigned_to ? profilesById.get(order.assigned_to) : null,
           dispatchedAt: order.dispatched_at ? new Date(order.dispatched_at).toLocaleString() : 'N/A',
@@ -293,14 +281,7 @@ const OrderDashboard = () => {
         };
       });
 
-      // Phase 4: Analyze orders for fraud
-      const fraudAnalyses = batchAnalyzeOrders(formattedOrders, baseOrders);
-      const ordersWithFraud = formattedOrders.map((order, index) => ({
-        ...order,
-        fraudIndicators: fraudAnalyses[index]?.fraudIndicators || { riskScore: 0, riskLevel: 'low', flags: [], patterns: [], autoActions: [], shouldBlock: false, shouldFlag: false }
-      }));
-
-      setOrders(ordersWithFraud);
+      setOrders(formattedOrders);
 
       // Calculate summary data from current page
       setSummaryData({
@@ -355,9 +336,10 @@ const OrderDashboard = () => {
           table: 'orders'
         },
         (payload) => {
-          console.log('Real-time order change detected:', payload);
-          // Refetch orders to get the latest data
-          fetchOrders();
+          const changedId = (payload as any)?.new?.id || (payload as any)?.old?.id;
+          if (changedId && orders.some(o => o.id === changedId)) {
+            fetchOrders();
+          }
         }
       )
       .subscribe();
@@ -365,7 +347,7 @@ const OrderDashboard = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [page, pageSize]);
+  }, [page, pageSize, orders]);
 
   // Keyboard shortcuts for pagination
   useEffect(() => {
@@ -1022,6 +1004,29 @@ const OrderDashboard = () => {
     });
   };
 
+  // Lazy-load order items only when a row is expanded
+  useEffect(() => {
+    const toFetch = Array.from(expandedRows).filter(id => !orderItemsCache.has(id));
+    if (toFetch.length === 0) return;
+
+    (async () => {
+      const { data, error } = await supabase
+        .from('order_items')
+        .select('item_name, quantity, price, order_id')
+        .in('order_id', toFetch);
+      if (error) {
+        console.error('Error fetching order items:', error);
+        return;
+      }
+      const newMap = new Map(orderItemsCache);
+      (data || []).forEach((item: any) => {
+        if (!newMap.has(item.order_id)) newMap.set(item.order_id, []);
+        newMap.get(item.order_id)!.push(item);
+      });
+      setOrderItemsCache(newMap);
+      setOrders(prev => prev.map(o => newMap.has(o.id) ? { ...o, items: newMap.get(o.id) } : o));
+    })();
+  }, [expandedRows]);
   const handleAssignStaff = async (orderId: string, staffId: string | null) => {
     try {
       const { data: currentOrder } = await supabase
@@ -1314,9 +1319,10 @@ const OrderDashboard = () => {
     }
   };
 
-  const start = page * pageSize + 1;
-  const end = Math.min((page + 1) * pageSize, totalCount);
-  const totalPages = Math.ceil(totalCount / pageSize);
+  const effectivePageSize = Math.min(pageSize, 100);
+  const start = page * effectivePageSize + 1;
+  const end = Math.min((page + 1) * effectivePageSize, totalCount);
+  const totalPages = Math.ceil(totalCount / effectivePageSize);
   return <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-6">
@@ -1417,8 +1423,6 @@ const OrderDashboard = () => {
                 <SelectContent className="bg-background z-50">
                   <SelectItem value="50">50</SelectItem>
                   <SelectItem value="100">100</SelectItem>
-                  <SelectItem value="200">200</SelectItem>
-                  <SelectItem value="500">500</SelectItem>
                 </SelectContent>
               </Select>
             </div>
