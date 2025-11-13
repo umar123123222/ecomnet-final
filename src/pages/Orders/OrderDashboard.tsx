@@ -48,9 +48,9 @@ import { AWBDownloadButton } from '@/components/orders/AWBDownloadButton';
 
 const OrderDashboard = () => {
   const { isManager, isSeniorStaff, primaryRole } = useUserRoles();
-  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [selectAllPages, setSelectAllPages] = useState(false);
-  const [expandedRows, setExpandedRows] = useState<string[]>([]);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [editingOrder, setEditingOrder] = useState<any>(null);
   const [editForm, setEditForm] = useState({
     email: '',
@@ -87,6 +87,18 @@ const OrderDashboard = () => {
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  
+  // Filter state (replacing useAdvancedFilters)
+  const [filters, setFilters] = useState({
+    search: '',
+    status: 'all',
+    courier: 'all',
+    orderType: 'all',
+    verificationStatus: 'all',
+    dateRange: null as { from: Date; to?: Date } | null,
+    amountMin: undefined as number | undefined,
+    amountMax: undefined as number | undefined,
+  });
 
   const { user } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
@@ -96,12 +108,83 @@ const OrderDashboard = () => {
     try {
       const offset = page * pageSize;
       
-      // 1. Get base orders with pagination and count
-      const { data: baseOrders, error: ordersError, count } = await supabase
+      // Build dynamic query with filters
+      let query = supabase
         .from('orders')
-        .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range(offset, offset + pageSize - 1);
+        .select(`
+          id,
+          order_number,
+          shopify_order_number,
+          shopify_order_id,
+          customer_id,
+          customer_name,
+          customer_email,
+          customer_phone,
+          customer_address,
+          city,
+          total_amount,
+          status,
+          courier,
+          tracking_id,
+          order_type,
+          verification_status,
+          assigned_to,
+          created_at,
+          dispatched_at,
+          delivered_at,
+          notes,
+          comments,
+          gpt_score
+        `, { count: 'exact' });
+      
+      // Apply search filter
+      if (filters.search) {
+        query = query.or(`order_number.ilike.%${filters.search}%,shopify_order_number.ilike.%${filters.search}%,customer_name.ilike.%${filters.search}%,customer_phone.ilike.%${filters.search}%,customer_email.ilike.%${filters.search}%,tracking_id.ilike.%${filters.search}%,city.ilike.%${filters.search}%`);
+      }
+      
+      // Apply status filter
+      if (filters.status !== 'all') {
+        query = query.eq('status', filters.status as any);
+      }
+      
+      // Apply courier filter
+      if (filters.courier !== 'all') {
+        query = query.eq('courier', filters.courier as any);
+      }
+      
+      // Apply order type filter
+      if (filters.orderType !== 'all') {
+        query = query.eq('order_type', filters.orderType);
+      }
+      
+      // Apply verification status filter
+      if (filters.verificationStatus !== 'all') {
+        query = query.eq('verification_status', filters.verificationStatus as any);
+      }
+      
+      // Apply date range filter
+      if (filters.dateRange?.from) {
+        query = query.gte('created_at', filters.dateRange.from.toISOString());
+        if (filters.dateRange.to) {
+          query = query.lte('created_at', filters.dateRange.to.toISOString());
+        }
+      }
+      
+      // Apply amount range filter
+      if (filters.amountMin !== undefined) {
+        query = query.gte('total_amount', filters.amountMin);
+      }
+      if (filters.amountMax !== undefined) {
+        query = query.lte('total_amount', filters.amountMax);
+      }
+      
+      // Apply sorting
+      query = query.order('created_at', { ascending: sortOrder === 'oldest' });
+      
+      // Apply pagination
+      query = query.range(offset, offset + pageSize - 1);
+      
+      const { data: baseOrders, error: ordersError, count } = await query;
 
       if (ordersError) {
         console.error('Error fetching orders:', ordersError);
@@ -198,7 +281,7 @@ const OrderDashboard = () => {
           totalPrice: order.total_amount || 0,
           orderType: order.order_type || 'COD',
           city: order.city,
-          items: (itemsByOrderId.get(order.id) && (itemsByOrderId.get(order.id) as any[]).length > 0) ? itemsByOrderId.get(order.id) : (order.items || []),
+          items: (itemsByOrderId.get(order.id) && (itemsByOrderId.get(order.id) as any[]).length > 0) ? itemsByOrderId.get(order.id) : [],
           assignedTo: order.assigned_to,
           assignedToProfile: order.assigned_to ? profilesById.get(order.assigned_to) : null,
           dispatchedAt: order.dispatched_at ? new Date(order.dispatched_at).toLocaleString() : 'N/A',
@@ -243,7 +326,7 @@ const OrderDashboard = () => {
   useEffect(() => {
     fetchOrders();
     fetchCouriers();
-  }, [page, pageSize]);
+  }, [page, pageSize, filters, sortOrder]);
 
   const fetchCouriers = async () => {
     try {
@@ -317,7 +400,7 @@ const OrderDashboard = () => {
   // Bulk status update handler
   const handleBulkStatusChange = async (status: string) => {
     try {
-      const result = await bulkUpdateOrderStatus(selectedOrders, status as any);
+      const result = await bulkUpdateOrderStatus(Array.from(selectedOrders), status as any);
       
       if (result.success > 0) {
         toast({
@@ -325,7 +408,7 @@ const OrderDashboard = () => {
           description: `Updated ${result.success} order(s) to ${status}`,
         });
         fetchOrders();
-        setSelectedOrders([]);
+        setSelectedOrders(new Set());
       }
       
       if (result.failed > 0) {
@@ -350,13 +433,13 @@ const OrderDashboard = () => {
       // Show loading toast
       toast({
         title: "Processing",
-        description: `Booking ${selectedOrders.length} orders with ${courierName}...`,
+        description: `Booking ${selectedOrders.size} orders with ${courierName}...`,
       });
 
       // Call bulk booking edge function
       const { data, error } = await supabase.functions.invoke('bulk-courier-booking', {
         body: {
-          orderIds: selectedOrders,
+          orderIds: Array.from(selectedOrders),
           courierId: courierId
         }
       });
@@ -414,7 +497,7 @@ const OrderDashboard = () => {
       // Refresh orders and clear selection
       fetchOrders();
       if (data.successCount > 0) {
-        setSelectedOrders([]);
+        setSelectedOrders(new Set());
       }
 
     } catch (error: any) {
@@ -585,11 +668,11 @@ const OrderDashboard = () => {
       // Show loading toast
       toast({
         title: "Processing",
-        description: `Unassigning couriers from ${selectedOrders.length} orders...`,
+        description: `Unassigning couriers from ${selectedOrders.size} orders...`,
       });
 
       // Call bulk unassign function
-      const result = await bulkUnassignCouriers(selectedOrders);
+      const result = await bulkUnassignCouriers(Array.from(selectedOrders));
 
       if (result.success > 0) {
         toast({
@@ -597,7 +680,7 @@ const OrderDashboard = () => {
           description: `Unassigned ${result.success} order(s) from couriers. Orders cancelled on courier portals.`,
         });
         fetchOrders();
-        setSelectedOrders([]);
+        setSelectedOrders(new Set());
       }
 
       if (result.failed > 0) {
@@ -619,7 +702,7 @@ const OrderDashboard = () => {
   // Generate AWBs for already-booked, selected orders
   const handleBulkGenerateAWBs = async () => {
     try {
-      if (selectedOrders.length === 0) {
+      if (selectedOrders.size === 0) {
         toast({
           title: "No orders selected",
           description: "Select booked orders to generate AWBs.",
@@ -630,7 +713,7 @@ const OrderDashboard = () => {
       const { data: selected, error } = await supabase
         .from('orders')
         .select('id,status,courier')
-        .in('id', selectedOrders);
+        .in('id', Array.from(selectedOrders));
 
       if (error) throw error;
 
@@ -683,7 +766,7 @@ const OrderDashboard = () => {
 
   // Export handler
   const handleExport = () => {
-    const selectedOrdersData = orders.filter(o => selectedOrders.includes(o.id));
+    const selectedOrdersData = orders.filter(o => selectedOrders.has(o.id));
     exportToCSV(selectedOrdersData, `orders-${new Date().toISOString().split('T')[0]}`);
     toast({
       title: "Export Complete",
@@ -775,21 +858,44 @@ const OrderDashboard = () => {
     color: 'bg-gray-500'
   }];
   const handleSelectOrder = (orderId: string) => {
-    setSelectedOrders(prev => prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]);
+    setSelectedOrders(prev => {
+      const next = new Set(prev);
+      if (next.has(orderId)) {
+        next.delete(orderId);
+      } else {
+        next.add(orderId);
+      }
+      return next;
+    });
   };
+  
   const handleSelectAllCurrentPage = () => {
-    setSelectedOrders(selectedOrders.length === orders.length ? [] : orders.map(order => order.id));
+    if (selectedOrders.size === orders.length) {
+      setSelectedOrders(new Set());
+    } else {
+      setSelectedOrders(new Set(orders.map(order => order.id)));
+    }
   };
+  
   const handleSelectAllPages = () => {
     setSelectAllPages(!selectAllPages);
     if (!selectAllPages) {
-      setSelectedOrders(orders.map(order => order.id));
+      setSelectedOrders(new Set(orders.map(order => order.id)));
     } else {
-      setSelectedOrders([]);
+      setSelectedOrders(new Set());
     }
   };
+  
   const toggleExpanded = (orderId: string) => {
-    setExpandedRows(prev => prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]);
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(orderId)) {
+        next.delete(orderId);
+      } else {
+        next.add(orderId);
+      }
+      return next;
+    });
   };
   const handleBulkAction = (action: string) => {
     // Bulk action implementation would go here
@@ -904,8 +1010,16 @@ const OrderDashboard = () => {
   };
   const handleDeleteOrder = (orderId: string) => {
     setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
-    setSelectedOrders(prev => prev.filter(id => id !== orderId));
-    setExpandedRows(prev => prev.filter(id => id !== orderId));
+    setSelectedOrders(prev => {
+      const next = new Set(prev);
+      next.delete(orderId);
+      return next;
+    });
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      next.delete(orderId);
+      return next;
+    });
   };
 
   const handleAssignStaff = async (orderId: string, staffId: string | null) => {
@@ -1134,28 +1248,41 @@ const OrderDashboard = () => {
   };
 
   // Advanced filtering
-  const {
-    filters,
-    filteredData: filteredOrders,
-    updateFilter,
-    updateCustomFilter,
-    resetFilters,
-    savedPresets,
-    savePreset,
-    loadPreset,
-    deletePreset,
-    activeFiltersCount,
-  } = useAdvancedFilters(orders, {
-    searchFields: ['orderNumber', 'customer', 'phone', 'shopifyOrderId', 'shopifyOrderNumber', 'trackingId', 'email', 'city'],
-    statusField: 'status',
-    dateField: 'createdAtISO',
-    amountField: 'totalPrice',
-    customFilters: {
-      courier: (order, value) => order.courier?.toLowerCase() === value.toLowerCase(),
-      orderType: (order, value) => order.orderType === value,
-      verificationStatus: (order, value) => order.verificationStatus === value,
-    },
-  });
+  const updateFilter = (key: string, value: any) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+    setPage(0); // Reset to first page when filters change
+  };
+
+  const updateCustomFilter = (key: string, value: any) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+    setPage(0);
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      search: '',
+      status: 'all',
+      courier: 'all',
+      orderType: 'all',
+      verificationStatus: 'all',
+      dateRange: null,
+      amountMin: undefined,
+      amountMax: undefined,
+    });
+    setPage(0);
+  };
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filters.search) count++;
+    if (filters.status !== 'all') count++;
+    if (filters.courier !== 'all') count++;
+    if (filters.orderType !== 'all') count++;
+    if (filters.verificationStatus !== 'all') count++;
+    if (filters.dateRange) count++;
+    if (filters.amountMin !== undefined || filters.amountMax !== undefined) count++;
+    return count;
+  }, [filters]);
 
   // Quick filter handlers
   const applyQuickFilter = (filterType: string) => {
@@ -1171,35 +1298,21 @@ const OrderDashboard = () => {
         case 'needsConfirmation':
           setCombinedStatus('pending_order');
           updateFilter('status', 'pending');
-          updateCustomFilter('verificationStatus', 'all');
+          updateFilter('verificationStatus', 'all');
           break;
         case 'needsVerification':
           setCombinedStatus('pending_address');
-          updateCustomFilter('verificationStatus', 'pending');
+          updateFilter('verificationStatus', 'pending');
           updateFilter('status', 'all');
           break;
         case 'actionRequired':
-          // This will show orders where either status is pending
-          // We'll handle this with a custom filter approach
           setCombinedStatus('all');
           updateFilter('status', 'all');
-          updateCustomFilter('verificationStatus', 'all');
+          updateFilter('verificationStatus', 'all');
           break;
       }
     }
   };
-
-  // Apply action required filter manually
-  let finalFilteredOrders = quickFilter === 'actionRequired' 
-    ? filteredOrders.filter(order => order.status === 'pending' || order.verificationStatus === 'pending')
-    : filteredOrders;
-
-  // Apply sorting based on sortOrder
-  finalFilteredOrders = [...finalFilteredOrders].sort((a, b) => {
-    const dateA = new Date(a.createdAtISO || a.created_at).getTime();
-    const dateB = new Date(b.createdAtISO || b.created_at).getTime();
-    return sortOrder === 'latest' ? dateB - dateA : dateA - dateB;
-  });
 
   const start = page * pageSize + 1;
   const end = Math.min((page + 1) * pageSize, totalCount);
@@ -1243,7 +1356,7 @@ const OrderDashboard = () => {
 
         {/* KPI Panel */}
         <OrderKPIPanel 
-          orders={finalFilteredOrders.map(o => ({
+          orders={orders.map(o => ({
             id: o.id,
             total_amount: o.totalPrice,
             city: o.city,
@@ -1262,7 +1375,7 @@ const OrderDashboard = () => {
 
         {/* Bulk Operations */}
         <BulkOperationsPanel
-          selectedCount={selectedOrders.length}
+          selectedCount={selectedOrders.size}
           onStatusChange={handleBulkStatusChange}
           onCourierAssign={handleBulkCourierAssign}
           onCourierUnassign={handleBulkCourierUnassign}
@@ -1482,12 +1595,12 @@ const OrderDashboard = () => {
                     </div>
                   </div>
                   
-                  {/* Courier */}
+                   {/* Courier */}
                   <div className="space-y-3">
                     <Label className="text-base font-semibold">Courier</Label>
                     <Select
-                      value={filters.customValues?.courier || 'all'}
-                      onValueChange={(value) => updateCustomFilter('courier', value)}
+                      value={filters.courier}
+                      onValueChange={(value) => updateFilter('courier', value)}
                     >
                       <SelectTrigger className="bg-background">
                         <SelectValue placeholder="All Couriers" />
@@ -1505,8 +1618,8 @@ const OrderDashboard = () => {
                   <div className="space-y-3">
                     <Label className="text-base font-semibold">Order Type</Label>
                     <Select
-                      value={filters.customValues?.orderType || 'all'}
-                      onValueChange={(value) => updateCustomFilter('orderType', value)}
+                      value={filters.orderType}
+                      onValueChange={(value) => updateFilter('orderType', value)}
                     >
                       <SelectTrigger className="bg-background">
                         <SelectValue placeholder="All Types" />
@@ -1536,56 +1649,6 @@ const OrderDashboard = () => {
                     </Select>
                   </div>
                   
-                  {/* Saved Presets Section */}
-                  {savedPresets.length > 0 && (
-                    <div className="space-y-3 pt-4 border-t">
-                      <Label className="text-base font-semibold">Saved Presets</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {savedPresets.map(preset => (
-                          <div key={preset.id} className="flex items-center gap-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => loadPreset(preset.id)}
-                            >
-                              {preset.name}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => deletePreset(preset.id)}
-                              className="h-8 w-8 p-0"
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Save Current Filters as Preset */}
-                  {activeFiltersCount > 0 && (
-                    <div className="space-y-3 pt-4 border-t">
-                      <Label className="text-base font-semibold">Save Current Filters</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Enter preset name..."
-                          value={presetName}
-                          onChange={(e) => setPresetName(e.target.value)}
-                        />
-                        <Button onClick={() => {
-                          if (presetName.trim()) {
-                            savePreset(presetName);
-                            setPresetName('');
-                          }
-                        }}>
-                          <Save className="h-4 w-4 mr-1" />
-                          Save
-                        </Button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </SheetContent>
             </Sheet>
@@ -1599,13 +1662,13 @@ const OrderDashboard = () => {
               <span>Orders {start}–{end} of {totalCount.toLocaleString()}</span>
               {activeFiltersCount > 0 && (
                 <span className="text-xs text-muted-foreground font-normal">
-                  Some orders may be hidden by active filters
+                  {activeFiltersCount} active filter{activeFiltersCount > 1 ? 's' : ''}
                 </span>
               )}
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <Checkbox checked={selectedOrders.length === finalFilteredOrders.length && finalFilteredOrders.length > 0} onCheckedChange={handleSelectAllCurrentPage} />
+                <Checkbox checked={selectedOrders.size === orders.length && orders.length > 0} onCheckedChange={handleSelectAllCurrentPage} />
                 <span className="text-sm text-muted-foreground">Select All (Current Page)</span>
               </div>
               <div className="flex items-center gap-2">
@@ -1640,19 +1703,19 @@ const OrderDashboard = () => {
                       <span className="text-sm text-muted-foreground">Loading orders...</span>
                     </div>
                   </TableCell>
-                </TableRow> : finalFilteredOrders.length === 0 ? <TableRow>
+                </TableRow> : orders.length === 0 ? <TableRow>
                   <TableCell colSpan={9} className="text-center py-12">
                     <div className="flex flex-col items-center gap-2">
                       <Package className="h-12 w-12 text-muted-foreground/50" />
                       <span className="text-sm text-muted-foreground">No orders found</span>
                     </div>
                   </TableCell>
-                </TableRow> : finalFilteredOrders.map(order => (
+                </TableRow> : orders.map(order => (
                   <Noop key={order.id}>
                   <TableRow className="hover:bg-muted/50">
                     <TableCell>
                       <Checkbox 
-                        checked={selectedOrders.includes(order.id)} 
+                        checked={selectedOrders.has(order.id)} 
                         onCheckedChange={() => handleSelectOrder(order.id)} 
                       />
                     </TableCell>
@@ -1733,7 +1796,7 @@ const OrderDashboard = () => {
                         onClick={() => toggleExpanded(order.id)}
                         className="h-8 w-8 p-0"
                       >
-                        {expandedRows.includes(order.id) ? (
+                        {expandedRows.has(order.id) ? (
                           <ChevronUp className="h-4 w-4" />
                         ) : (
                           <ChevronDown className="h-4 w-4" />
@@ -1742,7 +1805,7 @@ const OrderDashboard = () => {
                     </TableCell>
                   </TableRow>
                   
-                  {expandedRows.includes(order.id) && <TableRow>
+                  {expandedRows.has(order.id) && <TableRow>
                        <TableCell colSpan={9} className="bg-muted/30 p-6">
                          <Tabs defaultValue="customer-details" className="w-full">
                            <TabsList className="grid w-full grid-cols-2">
