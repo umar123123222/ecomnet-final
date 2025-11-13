@@ -8,6 +8,55 @@ const corsHeaders = {
 };
 
 /**
+ * Extract individual PDF pages as separate base64 PDFs for HTML rendering
+ * @param pdfBase64Array - Array of base64 encoded PDF strings
+ * @returns Array of individual PDF pages as base64 strings
+ */
+async function extractIndividualPages(pdfBase64Array: string[]): Promise<string[]> {
+  try {
+    const individualPages: string[] = [];
+    
+    console.log(`[EXTRACT] Extracting individual pages from ${pdfBase64Array.length} PDF batches`);
+    
+    for (let batchIndex = 0; batchIndex < pdfBase64Array.length; batchIndex++) {
+      const base64 = pdfBase64Array[batchIndex];
+      
+      // Convert base64 to Uint8Array
+      const pdfBytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      
+      // Load the PDF batch
+      const sourcePdf = await PDFDocument.load(pdfBytes);
+      const pageCount = sourcePdf.getPageCount();
+      console.log(`[EXTRACT] Batch ${batchIndex + 1}: Extracting ${pageCount} pages`);
+      
+      // Extract each page as a separate PDF
+      for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+        const singlePagePdf = await PDFDocument.create();
+        const [copiedPage] = await singlePagePdf.copyPages(sourcePdf, [pageIndex]);
+        singlePagePdf.addPage(copiedPage);
+        
+        const singlePageBytes = await singlePagePdf.save();
+        const singlePageBase64 = btoa(
+          new Uint8Array(singlePageBytes).reduce(
+            (data, byte) => data + String.fromCharCode(byte),
+            ''
+          )
+        );
+        
+        individualPages.push(singlePageBase64);
+      }
+    }
+    
+    console.log(`[EXTRACT] Extracted ${individualPages.length} individual PDF pages`);
+    return individualPages;
+    
+  } catch (error) {
+    console.error('[EXTRACT] Error extracting individual pages:', error);
+    throw error;
+  }
+}
+
+/**
  * Consolidate multiple AWB PDFs into a single PDF with 3 AWBs per A4 sheet
  * @param pdfBase64Array - Array of base64 encoded PDF strings
  * @returns Consolidated PDF as base64 string
@@ -335,6 +384,19 @@ serve(async (req) => {
       }
     }
 
+    // Extract individual pages for HTML rendering
+    let individualPages: string[] = [];
+    if (pdfBase64Data.length > 0) {
+      try {
+        console.log(`[AWB] Extracting individual pages for HTML rendering`);
+        individualPages = await extractIndividualPages(pdfBase64Data);
+        console.log(`[AWB] Successfully extracted ${individualPages.length} individual pages`);
+      } catch (extractError) {
+        console.error('[AWB] Error extracting individual pages:', extractError);
+        // Continue without individual pages - HTML format will be unavailable
+      }
+    }
+
     // Update AWB record with results
     const updateData: any = {
       tracking_ids: allTrackingIds,
@@ -345,6 +407,12 @@ serve(async (req) => {
     if (finalPdfData) {
       updateData.pdf_data = finalPdfData;
       console.log(`[AWB] Storing consolidated PDF, base64 length: ${finalPdfData.length}`);
+      
+      // Store individual pages for HTML rendering
+      if (individualPages.length > 0) {
+        updateData.html_images = JSON.stringify(individualPages);
+        console.log(`[AWB] Storing ${individualPages.length} individual pages for HTML format`);
+      }
     } else {
       updateData.error_message = 'No AWBs were generated - all batches failed';
       console.error('[AWB] No PDFs generated from any batch');

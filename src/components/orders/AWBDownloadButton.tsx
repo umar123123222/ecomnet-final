@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Loader2 } from "lucide-react";
+import { Download, FileText, Loader2, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -8,7 +8,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
+import { openAWBPrintWindow, downloadAWBHTML } from "@/utils/awbHtmlGenerator";
+import { convertPDFPagesToImages, loadPdfJsLibrary } from "@/utils/pdfToImage";
 
 interface AWBDownloadButtonProps {
   orderId: string;
@@ -40,7 +44,7 @@ export function AWBDownloadButton({ orderId, courierCode }: AWBDownloadButtonPro
     }
   };
 
-  const handleDownload = async (awb: any) => {
+  const handleDownloadPDF = async (awb: any) => {
     setLoading(true);
     try {
       if (awb.pdf_url) {
@@ -80,7 +84,7 @@ export function AWBDownloadButton({ orderId, courierCode }: AWBDownloadButtonPro
 
       toast({
         title: "Success",
-        description: "AWB download started"
+        description: "AWB PDF download started"
       });
     } catch (error: any) {
       console.error('Error downloading AWB:', error);
@@ -94,25 +98,140 @@ export function AWBDownloadButton({ orderId, courierCode }: AWBDownloadButtonPro
     }
   };
 
+  const handlePrintHTML = async (awb: any) => {
+    setLoading(true);
+    try {
+      if (!awb.html_images) {
+        toast({
+          title: "Not Available",
+          description: "HTML format not available for this AWB. Please use PDF format.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Load PDF.js library if not already loaded
+      toast({
+        title: "Processing",
+        description: "Converting PDFs to images for printing..."
+      });
+
+      await loadPdfJsLibrary();
+
+      const pdfPagesBase64 = JSON.parse(awb.html_images);
+      
+      if (pdfPagesBase64.length === 0) {
+        throw new Error('No PDF pages available');
+      }
+
+      // Convert PDF pages to images
+      const imageDataArray = await convertPDFPagesToImages(pdfPagesBase64);
+
+      if (imageDataArray.length === 0) {
+        throw new Error('Failed to convert PDFs to images');
+      }
+
+      openAWBPrintWindow(imageDataArray);
+
+      toast({
+        title: "Success",
+        description: `Print window opened with ${imageDataArray.length} AWBs (3 per page layout)`
+      });
+    } catch (error: any) {
+      console.error('Error opening print window:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to open print window. Please allow popups.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadHTML = async (awb: any) => {
+    setLoading(true);
+    try {
+      if (!awb.html_images) {
+        toast({
+          title: "Not Available",
+          description: "HTML format not available for this AWB.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      toast({
+        title: "Processing",
+        description: "Converting PDFs to images..."
+      });
+
+      await loadPdfJsLibrary();
+
+      const pdfPagesBase64 = JSON.parse(awb.html_images);
+      const imageDataArray = await convertPDFPagesToImages(pdfPagesBase64);
+
+      downloadAWBHTML(imageDataArray, `awb-${awb.courier_code}-${awb.id}.html`);
+
+      toast({
+        title: "Success",
+        description: "HTML file downloaded with 3 AWBs per page layout"
+      });
+    } catch (error: any) {
+      console.error('Error downloading HTML:', error);
+      toast({
+        title: "Error",
+        description: "Failed to download HTML",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (awbs.length === 0) {
     return null;
   }
 
   if (awbs.length === 1) {
+    const awb = awbs[0];
+    const hasHTML = !!awb.html_images;
+
     return (
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() => handleDownload(awbs[0])}
-        disabled={loading}
-      >
-        {loading ? (
-          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-        ) : (
-          <FileText className="h-4 w-4 mr-2" />
-        )}
-        AWB
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="outline" disabled={loading}>
+            {loading ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <FileText className="h-4 w-4 mr-2" />
+            )}
+            AWB
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>PDF Format</DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => handleDownloadPDF(awb)}>
+            <Download className="h-4 w-4 mr-2" />
+            Download PDF
+          </DropdownMenuItem>
+          
+          {hasHTML && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>HTML Format (3/page)</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => handlePrintHTML(awb)}>
+                <Printer className="h-4 w-4 mr-2" />
+                Print HTML
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDownloadHTML(awb)}>
+                <Download className="h-4 w-4 mr-2" />
+                Download HTML
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   }
 
@@ -129,15 +248,35 @@ export function AWBDownloadButton({ orderId, courierCode }: AWBDownloadButtonPro
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {awbs.map((awb, index) => (
-          <DropdownMenuItem
-            key={awb.id}
-            onClick={() => handleDownload(awb)}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            AWB {index + 1} - {new Date(awb.generated_at).toLocaleDateString()}
-          </DropdownMenuItem>
-        ))}
+        {awbs.map((awb, index) => {
+          const hasHTML = !!awb.html_images;
+          const date = new Date(awb.generated_at).toLocaleDateString();
+          
+          return (
+            <div key={awb.id}>
+              {index > 0 && <DropdownMenuSeparator />}
+              <DropdownMenuLabel>
+                AWB {index + 1} - {date}
+              </DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => handleDownloadPDF(awb)}>
+                <Download className="h-4 w-4 mr-2" />
+                Download PDF
+              </DropdownMenuItem>
+              {hasHTML && (
+                <>
+                  <DropdownMenuItem onClick={() => handlePrintHTML(awb)}>
+                    <Printer className="h-4 w-4 mr-2" />
+                    Print HTML (3/page)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDownloadHTML(awb)}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download HTML
+                  </DropdownMenuItem>
+                </>
+              )}
+            </div>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );
