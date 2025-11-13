@@ -1,5 +1,6 @@
-import React, { useState, memo, useMemo, useEffect } from 'react';
+import React, { useState, memo, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GradientCard } from "@/components/ui/gradient-card";
@@ -16,7 +17,6 @@ import { RecentActivityFeed } from "@/components/dashboard/RecentActivityFeed";
 import { AlertsSummary } from "@/components/dashboard/AlertsSummary";
 import { TopPerformers } from "@/components/dashboard/TopPerformers";
 import { PerformanceMetrics } from "@/components/dashboard/PerformanceMetrics";
-import { usePerformanceLogger, useWebVitals } from "@/hooks/usePerformance";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar, Package, Truck, CheckCircle, XCircle, RotateCcw, TrendingUp, TrendingDown, Users, BarChart3, Upload, FileText, Settings, UserCog } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
@@ -58,128 +58,95 @@ const SummaryCard = memo(({
 });
 SummaryCard.displayName = 'SummaryCard';
 const Dashboard = () => {
-  usePerformanceLogger('Dashboard');
-  useWebVitals();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const [dashboardData, setDashboardData] = useState<any>({
-    totalOrders: 0,
-    bookedOrders: 0,
-    dispatchedOrders: 0,
-    deliveredOrders: 0,
-    cancelledOrders: 0,
-    returnsInTransit: 0,
-    returnedOrders: 0,
-    customers: 0
-  });
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      setLoading(true);
-      try {
-        // Fetch orders data
-        const { data: orders, error: ordersError } = await supabase
-          .from('orders')
-          .select('*');
+  // Optimized data fetching with React Query and aggregation
+  const { data: dashboardData, isLoading: loading } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: async () => {
+      const [ordersRes, returnsRes, customersRes] = await Promise.all([
+        supabase.from('orders').select('status', { count: 'exact', head: false }),
+        supabase.from('returns').select('return_status', { count: 'exact', head: false }),
+        supabase.from('customers').select('id', { count: 'exact', head: true })
+      ]);
 
-        // Fetch returns data
-        const { data: returns, error: returnsError } = await supabase
-          .from('returns')
-          .select('*');
-
-        // Fetch customers data
-        const { data: customers, error: customersError } = await supabase
-          .from('customers')
-          .select('*');
-
-        if (ordersError || returnsError || customersError) {
-          console.error('Error fetching dashboard data:', { ordersError, returnsError, customersError });
-          toast({
-            title: "Error",
-            description: "Failed to fetch dashboard data",
-            variant: "destructive",
-          });
-        } else {
-          const orderData = orders || [];
-          const returnData = returns || [];
-          const customerData = customers || [];
-
-          setDashboardData({
-            totalOrders: orderData.length,
-            bookedOrders: orderData.filter(o => o.status === 'booked').length,
-            dispatchedOrders: orderData.filter(o => o.status === 'dispatched').length,
-            deliveredOrders: orderData.filter(o => o.status === 'delivered').length,
-            cancelledOrders: orderData.filter(o => o.status === 'cancelled').length,
-            returnsInTransit: returnData.filter(r => r.return_status === 'in_transit').length,
-            returnedOrders: returnData.filter(r => r.return_status === 'received').length,
-            customers: customerData.length
-          });
-        }
-      } catch (error) {
-        console.error('Error:', error);
-      } finally {
-        setLoading(false);
+      if (ordersRes.error || returnsRes.error || customersRes.error) {
+        throw new Error('Failed to fetch dashboard data');
       }
-    };
 
-    fetchDashboardData();
-  }, [toast]);
+      const orders = ordersRes.data || [];
+      const returns = returnsRes.data || [];
+      
+      return {
+        totalOrders: orders.length,
+        bookedOrders: orders.filter(o => o.status === 'booked').length,
+        dispatchedOrders: orders.filter(o => o.status === 'dispatched').length,
+        deliveredOrders: orders.filter(o => o.status === 'delivered').length,
+        cancelledOrders: orders.filter(o => o.status === 'cancelled').length,
+        returnsInTransit: returns.filter(r => r.return_status === 'in_transit').length,
+        returnedOrders: returns.filter(r => r.return_status === 'received').length,
+        customers: customersRes.count || 0
+      };
+    },
+    refetchInterval: 30000, // Refresh every 30 seconds
+    staleTime: 20000, // Consider data fresh for 20 seconds
+  });
 
   // Memoize summary data with real data
   const summaryData = useMemo(() => [{
     title: "Total Orders",
-    value: loading ? "..." : dashboardData.totalOrders.toLocaleString(),
+    value: loading ? "..." : (dashboardData?.totalOrders || 0).toLocaleString(),
     change: "+12.5%",
     trend: "up",
     icon: Package,
     color: "from-blue-500 to-cyan-500"
   }, {
     title: "Booked Orders",
-    value: loading ? "..." : dashboardData.bookedOrders.toLocaleString(),
+    value: loading ? "..." : (dashboardData?.bookedOrders || 0).toLocaleString(),
     change: "+8.2%",
     trend: "up",
     icon: Calendar,
     color: "from-purple-500 to-pink-500"
   }, {
     title: "Dispatched Orders",
-    value: loading ? "..." : dashboardData.dispatchedOrders.toLocaleString(),
+    value: loading ? "..." : (dashboardData?.dispatchedOrders || 0).toLocaleString(),
     change: "+15.7%",
     trend: "up",
     icon: Truck,
     color: "from-orange-500 to-yellow-500"
   }, {
     title: "Delivered Orders",
-    value: loading ? "..." : dashboardData.deliveredOrders.toLocaleString(),
+    value: loading ? "..." : (dashboardData?.deliveredOrders || 0).toLocaleString(),
     change: "+18.3%",
     trend: "up",
     icon: CheckCircle,
     color: "from-green-500 to-emerald-500"
   }, {
     title: "Cancelled Orders",
-    value: loading ? "..." : dashboardData.cancelledOrders.toLocaleString(),
+    value: loading ? "..." : (dashboardData?.cancelledOrders || 0).toLocaleString(),
     change: "-23.1%",
     trend: "down",
     icon: XCircle,
     color: "from-red-500 to-pink-500"
   }, {
     title: "Returns in Transit",
-    value: loading ? "..." : dashboardData.returnsInTransit.toLocaleString(),
+    value: loading ? "..." : (dashboardData?.returnsInTransit || 0).toLocaleString(),
     change: "+5.4%",
     trend: "up",
     icon: RotateCcw,
     color: "from-indigo-500 to-purple-500"
   }, {
     title: "Returned Orders",
-    value: loading ? "..." : dashboardData.returnedOrders.toLocaleString(),
+    value: loading ? "..." : (dashboardData?.returnedOrders || 0).toLocaleString(),
     change: "-12.8%",
     trend: "down",
     icon: Package,
     color: "from-gray-500 to-gray-600"
   }, {
     title: "Customers",
-    value: loading ? "..." : dashboardData.customers.toLocaleString(),
+    value: loading ? "..." : (dashboardData?.customers || 0).toLocaleString(),
     change: "+9.7%",
     trend: "up",
     icon: Users,
