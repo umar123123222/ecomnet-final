@@ -209,7 +209,7 @@ serve(async (req) => {
       .from('dispatches')
       .select('id, tracking_id, order_id')
       .in('order_id', order_ids)
-      .eq('courier_code', courier_code)
+      .ilike('courier', courier_code)
       .not('tracking_id', 'is', null);
 
     if (dispatchError) {
@@ -257,7 +257,7 @@ serve(async (req) => {
     }, {} as Record<string, string>);
 
     const apiKey = settingsMap[`${courier_code.toUpperCase()}_API_KEY`];
-    const awbEndpoint = settingsMap[`${courier_code.toUpperCase()}_AWB_ENDPOINT`] || courier.api_endpoint;
+    const awbEndpoint = settingsMap[`${courier_code.toUpperCase()}_AWB_ENDPOINT`];
 
     console.log('[SETTINGS] API Key present:', !!apiKey);
     console.log('[SETTINGS] AWB Endpoint:', awbEndpoint);
@@ -270,7 +270,7 @@ serve(async (req) => {
     const { data: awbRecord, error: awbError } = await supabaseClient
       .from('courier_awbs')
       .insert({
-        courier_code: courier.code,
+        courier_code: courier_code,
         order_ids: order_ids,
         tracking_ids: [],
         generated_by: user.id,
@@ -308,7 +308,7 @@ serve(async (req) => {
         .from('dispatches')
         .select('tracking_id, order_id')
         .in('order_id', batch)
-        .ilike('courier', courier.code);
+        .ilike('courier', courier_code);
 
       if (dispatchError) {
         console.error(`[AWB] Error fetching dispatches for batch ${batchIndex + 1}:`, dispatchError);
