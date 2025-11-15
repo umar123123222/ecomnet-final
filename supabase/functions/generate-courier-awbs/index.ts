@@ -261,7 +261,7 @@ serve(async (req) => {
 
     // Use default PostEx AWB endpoint if not configured
     if (!awbEndpoint && courier_code.toLowerCase() === 'postex') {
-      awbEndpoint = 'https://api.postex.pk/services/integration/api/order/v1/get-order-detail-with-template';
+      awbEndpoint = 'https://api.postex.pk/services/integration/api/order/v1/get-invoice';
       console.log('[SETTINGS] Using default PostEx AWB endpoint');
     }
 
