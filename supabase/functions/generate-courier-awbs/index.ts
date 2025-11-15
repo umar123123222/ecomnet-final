@@ -257,13 +257,23 @@ serve(async (req) => {
     }, {} as Record<string, string>);
 
     const apiKey = settingsMap[`${courier_code.toUpperCase()}_API_KEY`];
-    const awbEndpoint = settingsMap[`${courier_code.toUpperCase()}_AWB_ENDPOINT`];
+    let awbEndpoint = settingsMap[`${courier_code.toUpperCase()}_AWB_ENDPOINT`];
+
+    // Use default PostEx AWB endpoint if not configured
+    if (!awbEndpoint && courier_code.toLowerCase() === 'postex') {
+      awbEndpoint = 'https://api.postex.pk/services/integration/api/order/v1/get-order-detail-with-template';
+      console.log('[SETTINGS] Using default PostEx AWB endpoint');
+    }
 
     console.log('[SETTINGS] API Key present:', !!apiKey);
     console.log('[SETTINGS] AWB Endpoint:', awbEndpoint);
 
     if (!apiKey) {
       throw new Error(`API key not configured for ${courier_code}`);
+    }
+
+    if (!awbEndpoint) {
+      throw new Error(`AWB endpoint not configured for ${courier_code}`);
     }
 
     // Create AWB record
