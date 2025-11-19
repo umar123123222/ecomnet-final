@@ -266,7 +266,18 @@ const DispatchDashboard = () => {
           continue;
         }
         
-        const trackingId = order.tracking_id;
+        // Determine the tracking ID based on entry type
+        // If searching by tracking_id, the entry IS the tracking ID
+        // If searching by order_number, use the order's existing tracking_id or prompt to add one
+        const trackingId = entryType === 'tracking_id' ? entry : (order.tracking_id || null);
+        
+        // Update order's tracking_id if we have a new one
+        if (entryType === 'tracking_id' && entry !== order.tracking_id) {
+          await supabase
+            .from('orders')
+            .update({ tracking_id: entry })
+            .eq('id', order.id);
+        }
 
         // Check if dispatch already exists
         const {
