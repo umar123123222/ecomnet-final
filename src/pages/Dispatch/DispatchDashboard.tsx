@@ -19,7 +19,10 @@ import { useForm } from 'react-hook-form';
 import TagsNotes from '@/components/TagsNotes';
 import { useToast } from '@/hooks/use-toast';
 import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/AuthContext';
+import { logActivity } from '@/utils/activityLogger';
+
 const DispatchDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDispatches, setSelectedDispatches] = useState<string[]>([]);
@@ -36,14 +39,29 @@ const DispatchDashboard = () => {
   const [allowManualEntry, setAllowManualEntry] = useState(false);
   const [lastKeyTime, setLastKeyTime] = useState<number>(0);
   const [fastKeyCount, setFastKeyCount] = useState<number>(0);
+  const [selectedCourier, setSelectedCourier] = useState<string | null>(null);
   const [entryType, setEntryType] = useState<'tracking_id' | 'order_number'>(() => {
     const saved = localStorage.getItem('dispatch_entry_type');
     return (saved === 'order_number' ? 'order_number' : 'tracking_id') as 'tracking_id' | 'order_number';
   });
-  const {
-    toast
-  } = useToast();
+  
+  const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
+  
+  // Fetch active couriers
+  const { data: couriers = [], isLoading: couriersLoading } = useQuery({
+    queryKey: ['active-couriers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('couriers')
+        .select('id, name, code')
+        .eq('is_active', true)
+        .order('name');
+      if (error) throw error;
+      return data;
+    }
+  });
   const form = useForm({
     defaultValues: {
       bulkEntries: ''
@@ -66,6 +84,14 @@ const DispatchDashboard = () => {
               city,
               total_amount,
               status
+            ),
+            dispatched_by_profile:profiles!dispatches_dispatched_by_fkey (
+              full_name,
+              email
+            ),
+            courier_info:couriers!dispatches_courier_id_fkey (
+              name,
+              code
             )
           `).in('status', ['pending', 'dispatched']).order('created_at', {
           ascending: false
@@ -157,12 +183,27 @@ const DispatchDashboard = () => {
   const handleManualEntry = async (data: {
     bulkEntries: string;
   }) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to perform this action",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       // Parse entries - one entry per line
       const entries = data.bulkEntries.split('\n').map(line => line.trim()).filter(line => line.length > 0);
       let successCount = 0;
       let errorCount = 0;
       const errors: string[] = [];
+      
+      // Get courier name if selected
+      const courierName = selectedCourier 
+        ? couriers.find(c => c.id === selectedCourier)?.name || 'Manual Entry'
+        : 'Manual Entry';
+      
       for (const entry of entries) {
         // Find order by selected entry type
         const searchField = entryType === 'tracking_id' ? 'tracking_id' : 'order_number';
@@ -189,6 +230,9 @@ const DispatchDashboard = () => {
           } = await supabase.from('dispatches').update({
             tracking_id: trackingId,
             status: 'dispatched',
+            courier: courierName,
+            courier_id: selectedCourier,
+            dispatched_by: user.id,
             dispatch_date: new Date().toISOString()
           }).eq('id', existingDispatch.id);
           if (updateDispatchError) {
@@ -218,8 +262,25 @@ const DispatchDashboard = () => {
         const {
           error: updateError
         } = await supabase.from('orders').update({
-          status: 'dispatched'
+          status: 'dispatched',
+          courier: courierName as any,
+          dispatched_at: new Date().toISOString()
         }).eq('id', order.id);
+        
+        // Log activity
+        await logActivity({
+          entityType: 'dispatch',
+          entityId: existingDispatch?.id || order.id,
+          action: 'order_dispatched',
+          details: {
+            order_id: order.id,
+            tracking_id: trackingId,
+            courier: courierName,
+            courier_id: selectedCourier,
+            entry_type: entryType,
+            search_value: entry
+          }
+        });
         if (updateError) {
           errors.push(`Failed to update order status for ${trackingId}: ${updateError.message}`);
           errorCount++;
@@ -371,6 +432,45 @@ const DispatchDashboard = () => {
                       </div>
                     </div>
                     
+                    {/* Courier Selection */}
+                    <div className="space-y-2">
+                      <FormLabel>
+                        Courier Assignment (Optional)
+                        <span className="text-xs text-muted-foreground ml-2">
+                          Select if all orders are for a specific courier
+                        </span>
+                      </FormLabel>
+                      <Select 
+                        value={selectedCourier || "none"} 
+                        onValueChange={(value) => setSelectedCourier(value === "none" ? null : value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="No specific courier (Manual Entry)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">
+                            <div className="flex items-center gap-2">
+                              <Truck className="h-4 w-4 text-muted-foreground" />
+                              <span>No specific courier</span>
+                            </div>
+                          </SelectItem>
+                          {couriers.map((courier) => (
+                            <SelectItem key={courier.id} value={courier.id}>
+                              <div className="flex items-center gap-2">
+                                <Truck className="h-4 w-4 text-primary" />
+                                <span>{courier.name} ({courier.code})</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedCourier && (
+                        <Badge variant="outline" className="text-xs">
+                          All orders will be assigned to {couriers.find(c => c.id === selectedCourier)?.name}
+                        </Badge>
+                      )}
+                    </div>
+                    
                     <FormField control={form.control} name="bulkEntries" render={({
                     field
                   }) => <FormItem>
@@ -493,6 +593,7 @@ const DispatchDashboard = () => {
                 <TableHead>Phone</TableHead>
                 <TableHead>Address</TableHead>
                 <TableHead>Courier</TableHead>
+                <TableHead>Dispatched By</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Actions</TableHead>
@@ -500,9 +601,9 @@ const DispatchDashboard = () => {
             </TableHeader>
             <TableBody>
               {loading ? <TableRow>
-                  <TableCell colSpan={10} className="text-center">Loading...</TableCell>
+                  <TableCell colSpan={11} className="text-center">Loading...</TableCell>
                 </TableRow> : filteredDispatches.length === 0 ? <TableRow>
-                  <TableCell colSpan={10} className="text-center">No dispatches found</TableCell>
+                  <TableCell colSpan={11} className="text-center">No dispatches found</TableCell>
                 </TableRow> : filteredDispatches.map(dispatch => <React.Fragment key={dispatch.id}>
                     <TableRow>
                       <TableCell>
@@ -516,7 +617,12 @@ const DispatchDashboard = () => {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Truck className="h-4 w-4 text-gray-500" />
-                          {dispatch.courier || 'N/A'}
+                          {dispatch.courier_info?.name || dispatch.courier || 'N/A'}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          {dispatch.dispatched_by_profile?.full_name || 'System'}
                         </div>
                       </TableCell>
                       <TableCell>
