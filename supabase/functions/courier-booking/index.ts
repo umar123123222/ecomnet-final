@@ -301,6 +301,23 @@ serve(async (req) => {
 
     console.log(`[BOOKING] Success in ${processingTime}ms - Tracking: ${trackingId}`);
 
+    // Log dispatch activity
+    try {
+      await supabase.from('activity_logs').insert({
+        user_id: userId || '00000000-0000-0000-0000-000000000000',
+        entity_type: 'order',
+        entity_id: bookingRequest.orderId,
+        action: 'order_dispatched',
+        details: {
+          courier: courier.name,
+          tracking_id: trackingId,
+          courier_code: courier.code
+        }
+      });
+    } catch (logError) {
+      console.error('[BOOKING] Failed to log activity:', logError);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
