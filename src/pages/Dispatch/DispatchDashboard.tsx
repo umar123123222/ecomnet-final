@@ -130,16 +130,22 @@ const DispatchDashboard = () => {
         setLoading(false);
       }
     };
+    
     fetchDispatches();
 
-    // Set up real-time subscription
-    const channel = supabase.channel('dispatch-changes').on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'dispatches'
-    }, () => {
-      fetchDispatches();
-    }).subscribe();
+    // Set up real-time subscription for automatic metrics updates
+    const channel = supabase
+      .channel('dispatch-changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'dispatches'
+      }, () => {
+        console.log('Dispatch change detected, refreshing data...');
+        fetchDispatches();
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
     };
