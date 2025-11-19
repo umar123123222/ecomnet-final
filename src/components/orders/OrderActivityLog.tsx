@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
@@ -35,13 +35,7 @@ export function OrderActivityLog({ orderId, open, onOpenChange }: OrderActivityL
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (open && orderId) {
-      fetchActivities();
-    }
-  }, [open, orderId]);
-
-  const fetchActivities = async () => {
+  const fetchActivities = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -77,7 +71,13 @@ export function OrderActivityLog({ orderId, open, onOpenChange }: OrderActivityL
     } finally {
       setLoading(false);
     }
-  };
+  }, [orderId]);
+
+  useEffect(() => {
+    if (open && orderId) {
+      fetchActivities();
+    }
+  }, [open, orderId, fetchActivities]);
 
   const getActionLabel = (action: string) => {
     const labels: Record<string, string> = {
