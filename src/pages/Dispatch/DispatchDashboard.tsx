@@ -94,7 +94,6 @@ const DispatchDashboard = () => {
               code
             )
           `)
-          .in('status', ['pending', 'dispatched'])
           .order('created_at', { ascending: false });
         if (error) {
           console.error('Error fetching dispatches:', error);
