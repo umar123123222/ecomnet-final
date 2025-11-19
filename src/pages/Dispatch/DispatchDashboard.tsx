@@ -85,11 +85,11 @@ const DispatchDashboard = () => {
               total_amount,
               status
             ),
-            dispatched_by_profile:profiles!dispatches_dispatched_by_fkey (
+            dispatched_by_profile:profiles(
               full_name,
               email
             ),
-            courier_info:couriers!dispatches_courier_id_fkey (
+            courier_info:couriers(
               name,
               code
             )
@@ -206,12 +206,37 @@ const DispatchDashboard = () => {
       
       for (const entry of entries) {
         // Find order by selected entry type
-        const searchField = entryType === 'tracking_id' ? 'tracking_id' : 'order_number';
-        const {
-          data: order,
-          error: orderError
-        } = await supabase.from('orders').select('id, tracking_id').eq(searchField, entry).maybeSingle();
-        if (orderError || !order) {
+        let order;
+        
+        if (entryType === 'tracking_id') {
+          const { data, error: orderError } = await supabase
+            .from('orders')
+            .select('id, tracking_id, order_number')
+            .eq('tracking_id', entry)
+            .maybeSingle();
+          order = data;
+        } else {
+          // For order number, try exact match first, then partial match
+          let { data, error: orderError } = await supabase
+            .from('orders')
+            .select('id, tracking_id, order_number')
+            .eq('order_number', entry)
+            .maybeSingle();
+          
+          // If no exact match, try with SHOP- prefix or partial match
+          if (!data) {
+            const { data: partialData } = await supabase
+              .from('orders')
+              .select('id, tracking_id, order_number')
+              .or(`order_number.eq.SHOP-${entry},order_number.ilike.%${entry}%,shopify_order_number.eq.${entry}`)
+              .limit(1)
+              .maybeSingle();
+            data = partialData;
+          }
+          order = data;
+        }
+        
+        if (!order) {
           errors.push(`Order not found for ${entryType === 'tracking_id' ? 'tracking ID' : 'order number'}: ${entry}`);
           errorCount++;
           continue;
