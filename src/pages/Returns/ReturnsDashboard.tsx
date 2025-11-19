@@ -61,6 +61,10 @@ const ReturnsDashboard = () => {
               customer_name,
               customer_phone,
               customer_email
+            ),
+            received_by_profile:profiles!returns_received_by_fkey (
+              full_name,
+              email
             )
           `).order('created_at', {
           ascending: false
@@ -467,6 +471,7 @@ const ReturnsDashboard = () => {
                 <TableHead>Phone</TableHead>
                 <TableHead>Reason</TableHead>
                 <TableHead>Worth</TableHead>
+                <TableHead>Received By</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Actions</TableHead>
@@ -474,9 +479,9 @@ const ReturnsDashboard = () => {
             </TableHeader>
             <TableBody>
               {loading ? <TableRow>
-                  <TableCell colSpan={9} className="text-center">Loading...</TableCell>
+                  <TableCell colSpan={10} className="text-center">Loading...</TableCell>
                 </TableRow> : filteredReturns.length === 0 ? <TableRow>
-                  <TableCell colSpan={9} className="text-center">No returns found</TableCell>
+                  <TableCell colSpan={10} className="text-center">No returns found</TableCell>
                 </TableRow> : filteredReturns.map(returnItem => <React.Fragment key={returnItem.id}>
                     <TableRow>
                       <TableCell className="font-medium">{returnItem.orders?.order_number || 'N/A'}</TableCell>
@@ -485,6 +490,11 @@ const ReturnsDashboard = () => {
                       <TableCell>{returnItem.orders?.customer_phone || 'N/A'}</TableCell>
                       <TableCell>{returnItem.reason || 'N/A'}</TableCell>
                       <TableCell>PKR {(returnItem.worth || 0).toLocaleString()}</TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          {returnItem.received_by_profile?.full_name || 'Not received'}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge className={returnItem.return_status === 'received' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}>
                           {returnItem.return_status || 'in_transit'}
@@ -498,7 +508,7 @@ const ReturnsDashboard = () => {
                       </TableCell>
                     </TableRow>
                     {expandedRows.includes(returnItem.id) && <TableRow>
-                        <TableCell colSpan={9} className="bg-gray-50 p-4">
+                        <TableCell colSpan={10} className="bg-gray-50 p-4">
                           <div className="space-y-2">
                             <p><strong>Notes:</strong> {returnItem.notes || 'No notes available'}</p>
                             <p><strong>Received Date:</strong> {returnItem.received_at ? new Date(returnItem.received_at).toLocaleDateString() : 'Not received yet'}</p>
