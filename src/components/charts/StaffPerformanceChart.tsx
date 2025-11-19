@@ -4,19 +4,24 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import { Loader2 } from "lucide-react";
 
 export const StaffPerformanceChart = () => {
-  const { data: staffPerformance, isLoading } = useQuery({
+  const { data: staffPerformance, isLoading, error } = useQuery({
     queryKey: ["staff-performance"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_performance")
         .select(`
           *,
-          user:profiles(full_name)
+          user:profiles!fk_user_performance_user(full_name)
         `)
         .gte("date", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
         .order("date", { ascending: true });
 
       if (error) throw error;
+
+      // Return empty array if no data
+      if (!data || data.length === 0) {
+        return [];
+      }
 
       // Aggregate by user
       const aggregated = data.reduce((acc: any[], curr: any) => {
@@ -38,6 +43,9 @@ export const StaffPerformanceChart = () => {
 
       return aggregated;
     },
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: false,
   });
 
   if (isLoading) {
@@ -48,10 +56,18 @@ export const StaffPerformanceChart = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+        <p className="text-sm">Unable to load staff performance data</p>
+      </div>
+    );
+  }
+
   if (!staffPerformance || staffPerformance.length === 0) {
     return (
       <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-        No staff performance data available
+        <p className="text-sm">No staff performance data available for the last 7 days</p>
       </div>
     );
   }
