@@ -62,7 +62,7 @@ const ReturnsDashboard = () => {
               customer_phone,
               customer_email
             ),
-            received_by_profile:profiles!returns_received_by_fkey (
+            received_by_profile:profiles(
               full_name,
               email
             )
@@ -199,18 +199,32 @@ const ReturnsDashboard = () => {
             .maybeSingle();
           returnRecord = data;
           
-          if (returnError || !returnRecord) {
+          if (!returnRecord) {
             errors.push(`Return not found for tracking ID: ${entry}`);
             errorCount++;
             continue;
           }
         } else {
-          // Search by order number (need to join with orders table)
-          const { data: order } = await supabase
+          // Search by order number - try exact match first, then partial
+          let order;
+          const { data: exactMatch } = await supabase
             .from('orders')
             .select('id')
             .eq('order_number', entry)
             .maybeSingle();
+          
+          if (exactMatch) {
+            order = exactMatch;
+          } else {
+            // Try with prefix or partial match
+            const { data: partialMatch } = await supabase
+              .from('orders')
+              .select('id')
+              .or(`order_number.eq.SHOP-${entry},order_number.ilike.%${entry}%,shopify_order_number.eq.${entry}`)
+              .limit(1)
+              .maybeSingle();
+            order = partialMatch;
+          }
           
           if (order) {
             const { data } = await supabase
