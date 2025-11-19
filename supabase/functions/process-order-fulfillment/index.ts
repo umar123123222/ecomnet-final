@@ -126,6 +126,17 @@ serve(async (req) => {
           })
           .eq('id', data.order_id);
 
+        // Log dispatch activity
+        await supabaseClient.from('activity_logs').insert({
+          user_id: user.id,
+          entity_type: 'order',
+          entity_id: data.order_id,
+          action: 'order_dispatched',
+          details: {
+            outlet_id: data.outlet_id
+          }
+        });
+
         return new Response(
           JSON.stringify({ 
             success: true, 
@@ -185,6 +196,17 @@ serve(async (req) => {
           .from('orders')
           .update({ status: 'cancelled' })
           .eq('id', data.order_id);
+
+        // Log cancellation activity
+        await supabaseClient.from('activity_logs').insert({
+          user_id: user.id,
+          entity_type: 'order',
+          entity_id: data.order_id,
+          action: 'order_cancelled',
+          details: {
+            outlet_id: data.outlet_id
+          }
+        });
 
         return new Response(
           JSON.stringify({ 

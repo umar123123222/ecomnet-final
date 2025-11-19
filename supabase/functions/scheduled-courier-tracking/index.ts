@@ -97,6 +97,19 @@ serve(async (req) => {
                 delivered_at: new Date().toISOString()
               })
               .eq('id', dispatch.order_id);
+            
+            // Log delivery activity
+            await supabase.from('activity_logs').insert({
+              user_id: '00000000-0000-0000-0000-000000000000',
+              entity_type: 'order',
+              entity_id: dispatch.order_id,
+              action: 'order_delivered',
+              details: {
+                courier: dispatch.courier,
+                tracking_id: dispatch.tracking_id,
+                location: tracking.currentLocation
+              }
+            });
           } else if (tracking.status === 'returned') {
             await supabase
               .from('orders')
@@ -104,6 +117,19 @@ serve(async (req) => {
                 status: 'returned'
               })
               .eq('id', dispatch.order_id);
+            
+            // Log return activity
+            await supabase.from('activity_logs').insert({
+              user_id: '00000000-0000-0000-0000-000000000000',
+              entity_type: 'order',
+              entity_id: dispatch.order_id,
+              action: 'order_returned',
+              details: {
+                courier: dispatch.courier,
+                tracking_id: dispatch.tracking_id,
+                location: tracking.currentLocation
+              }
+            });
           }
 
           // Log tracking history
