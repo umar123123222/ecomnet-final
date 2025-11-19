@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
 interface HandheldScannerContextType {
   isConnected: boolean;
@@ -14,7 +14,7 @@ export const HandheldScannerProvider: React.FC<{ children: React.ReactNode }> = 
   const [isConnected, setIsConnected] = useState(false);
   const [deviceName, setDeviceName] = useState<string | null>(null);
   const [scanCallbacks, setScanCallbacks] = useState<((data: string) => void)[]>([]);
-  const [buffer, setBuffer] = useState('');
+  const bufferRef = useRef('');
 
   // Listen for keyboard input (HID mode)
   useEffect(() => {
@@ -23,19 +23,19 @@ export const HandheldScannerProvider: React.FC<{ children: React.ReactNode }> = 
 
       if (e.key === 'Enter') {
         // Scanner sends Enter after data
-        if (buffer.trim()) {
-          scanCallbacks.forEach(cb => cb(buffer.trim()));
-          setBuffer('');
+        if (bufferRef.current.trim()) {
+          scanCallbacks.forEach(cb => cb(bufferRef.current.trim()));
+          bufferRef.current = '';
         }
       } else if (e.key.length === 1) {
-        // Accumulate barcode data
-        setBuffer(prev => prev + e.key);
+        // Accumulate barcode data synchronously using ref
+        bufferRef.current += e.key;
       }
     };
 
     window.addEventListener('keypress', handleKeyPress);
     return () => window.removeEventListener('keypress', handleKeyPress);
-  }, [isConnected, buffer, scanCallbacks]);
+  }, [isConnected, scanCallbacks]);
 
   // Load connection state from localStorage
   useEffect(() => {
@@ -64,7 +64,7 @@ export const HandheldScannerProvider: React.FC<{ children: React.ReactNode }> = 
     setIsConnected(false);
     setDeviceName(null);
     localStorage.removeItem('handheld_scanner_device');
-    setBuffer('');
+    bufferRef.current = '';
   }, []);
 
   const onScan = useCallback((callback: (data: string) => void) => {
