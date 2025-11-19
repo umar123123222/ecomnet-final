@@ -248,7 +248,7 @@ const DispatchDashboard = () => {
           continue;
         }
         
-        const trackingId = order.tracking_id || entry;
+        const trackingId = order.tracking_id;
 
         // Check if dispatch already exists
         const {
