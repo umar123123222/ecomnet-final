@@ -72,6 +72,7 @@ const DispatchDashboard = () => {
     const fetchDispatches = async () => {
       setLoading(true);
       try {
+        // Step 1: Fetch dispatches with only orders embedded
         const { data, error } = await supabase
           .from('dispatches')
           .select(`
@@ -84,17 +85,10 @@ const DispatchDashboard = () => {
               city,
               total_amount,
               status
-            ),
-            dispatched_by_user:profiles(
-              full_name,
-              email
-            ),
-            courier_details:couriers(
-              name,
-              code
             )
           `)
           .order('created_at', { ascending: false });
+          
         if (error) {
           console.error('Error fetching dispatches:', error);
           toast({
@@ -102,9 +96,34 @@ const DispatchDashboard = () => {
             description: "Failed to fetch dispatches",
             variant: "destructive"
           });
-        } else {
-          setDispatches(data || []);
+          return;
         }
+
+        // Step 2: Fetch profiles separately for dispatched_by users
+        const userIds = [...new Set(data?.filter(d => d.dispatched_by).map(d => d.dispatched_by) || [])];
+        let profilesById: Record<string, any> = {};
+        
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .in('id', userIds);
+          
+          if (profiles) {
+            profilesById = profiles.reduce((acc, profile) => {
+              acc[profile.id] = profile;
+              return acc;
+            }, {} as Record<string, any>);
+          }
+        }
+
+        // Step 3: Enrich dispatches with profile data
+        const enrichedDispatches = data?.map(dispatch => ({
+          ...dispatch,
+          dispatched_by_user: dispatch.dispatched_by ? profilesById[dispatch.dispatched_by] : null
+        })) || [];
+
+        setDispatches(enrichedDispatches);
       } catch (error) {
         console.error('Error:', error);
       } finally {
@@ -651,7 +670,9 @@ const DispatchDashboard = () => {
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          {dispatch.dispatched_by_user?.full_name || 'System'}
+                          {dispatch.dispatched_by_user?.full_name || 
+                           dispatch.dispatched_by_user?.email || 
+                           (dispatch.dispatched_by ? 'Unknown user' : 'System')}
                         </div>
                       </TableCell>
                       <TableCell>{dispatchDate}</TableCell>
