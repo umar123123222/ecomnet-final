@@ -33,12 +33,11 @@ interface OrderDetailsModalProps {
 export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsModalProps) => {
   const [activityLogOpen, setActivityLogOpen] = useState(false);
   
-  if (!order) return null;
-
-  const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+  const items = order ? (typeof order.items === 'string' ? JSON.parse(order.items) : order.items) : [];
 
   // Merge duplicate items
   const mergedItems = useMemo(() => {
+    if (!order) return [];
     if (!Array.isArray(items)) return [];
     
     const itemMap = new Map();
@@ -60,6 +59,8 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
     
     return Array.from(itemMap.values());
   }, [items]);
+
+  if (!order) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
