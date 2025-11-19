@@ -312,6 +312,54 @@ const Settings = () => {
             </ModernButton>
           </CardContent>
         </Card>
+
+        {/* System Operations - Super Admin Only */}
+        {profile?.role === 'super_admin' && (
+          <Card className="card">
+            <CardHeader className="card-header">
+              <CardTitle className="card-title">System Operations</CardTitle>
+              <CardDescription className="card-description">
+                System-wide administrative operations (Super Admin only)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="card-content">
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">Reset All Orders Status</Label>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    This will update all orders in the system to "pending" status. This action cannot be undone.
+                  </p>
+                  <ModernButton
+                    variant="destructive"
+                    onClick={async () => {
+                      if (confirm('Are you sure you want to reset ALL orders to pending status? This cannot be undone.')) {
+                        try {
+                          const { updateAllOrdersPending } = await import('@/integrations/supabase/functions');
+                          const { data, error } = await updateAllOrdersPending();
+                          
+                          if (error) throw error;
+                          
+                          toast({
+                            title: "System Update Complete",
+                            description: `Successfully updated ${data?.ordersUpdated || 0} orders to pending status.`,
+                          });
+                        } catch (error: any) {
+                          toast({
+                            title: "Update Failed",
+                            description: error.message || "Failed to update orders",
+                            variant: "destructive",
+                          });
+                        }
+                      }
+                    }}
+                  >
+                    Reset All Orders to Pending
+                  </ModernButton>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
