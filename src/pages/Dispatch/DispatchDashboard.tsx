@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -199,10 +200,16 @@ const DispatchDashboard = () => {
       let errorCount = 0;
       const errors: string[] = [];
       
-      // Get courier name if selected
-      const courierName = selectedCourier 
-        ? couriers.find(c => c.id === selectedCourier)?.name || 'Manual Entry'
-        : 'Manual Entry';
+      // Determine selected courier details
+      const selectedCourierObj = selectedCourier
+        ? couriers.find(c => c.id === selectedCourier)
+        : undefined;
+
+      // Display name (for UI / logs) – safe even if courier enum expects a code
+      const courierName = selectedCourierObj?.name || 'Manual Entry';
+
+      // Enum-safe courier code for orders.courier (enum courier_type)
+      const courierCode = selectedCourierObj?.code as Database["public"]["Enums"]["courier_type"] | undefined;
       
       for (const entry of entries) {
         // Find order by selected entry type
@@ -273,7 +280,9 @@ const DispatchDashboard = () => {
             order_id: order.id,
             tracking_id: trackingId,
             status: 'dispatched',
-            courier: 'Manual Entry',
+            courier: courierName,
+            courier_id: selectedCourier,
+            dispatched_by: user.id,
             dispatch_date: new Date().toISOString()
           });
           if (dispatchError) {
@@ -288,7 +297,7 @@ const DispatchDashboard = () => {
           error: updateError
         } = await supabase.from('orders').update({
           status: 'dispatched',
-          courier: courierName as any,
+          courier: courierCode ?? null,
           dispatched_at: new Date().toISOString()
         }).eq('id', order.id);
         
