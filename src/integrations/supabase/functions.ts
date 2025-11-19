@@ -430,3 +430,11 @@ export async function updateShopifyCredentials(request: UpdateShopifyCredentials
   });
 }
 
+// ============================================
+// SYSTEM OPERATIONS
+// ============================================
+
+export async function updateAllOrdersPending() {
+  return await supabase.functions.invoke('update-all-orders-pending');
+}
+
