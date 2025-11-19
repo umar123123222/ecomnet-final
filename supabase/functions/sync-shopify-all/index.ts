@@ -187,7 +187,7 @@ Deno.serve(async (req) => {
                 city: order.shipping_address?.city || 'N/A',
                 total_amount: parseFloat(order.total_price),
                 tags: order.tags ? order.tags.split(',').map((t: string) => t.trim()) : [],
-                status: order.fulfillment_status === 'fulfilled' ? 'delivered' : 'pending',
+                status: order.cancelled_at ? 'cancelled' : (order.fulfillment_status === 'fulfilled' || order.fulfillment_status === 'partial') ? 'booked' : order.financial_status === 'paid' ? 'pending' : 'pending',
                 synced_to_shopify: true,
                 last_shopify_sync: new Date().toISOString(),
               };

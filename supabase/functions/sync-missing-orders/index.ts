@@ -166,12 +166,13 @@ Deno.serve(async (req) => {
 
         // Map Shopify status to internal status
         let internalStatus = 'pending';
-        if (order.financial_status === 'refunded' || order.financial_status === 'voided') {
+        if (order.cancelled_at || order.financial_status === 'refunded' || order.financial_status === 'voided') {
           internalStatus = 'cancelled';
-        } else if (order.fulfillment_status === 'fulfilled') {
-          internalStatus = 'delivered';
-        } else if (order.fulfillment_status === 'partial') {
-          internalStatus = 'dispatched';
+        } else if (order.fulfillment_status === 'fulfilled' || order.fulfillment_status === 'partial') {
+          // Fulfilled or partially fulfilled = confirmed and ready for dispatch
+          internalStatus = 'booked';
+        } else if (order.financial_status === 'paid') {
+          internalStatus = 'pending';
         }
 
         // Create order
