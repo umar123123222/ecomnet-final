@@ -72,12 +72,11 @@ const DispatchDashboard = () => {
     const fetchDispatches = async () => {
       setLoading(true);
       try {
-        const {
-          data,
-          error
-        } = await supabase.from('dispatches').select(`
+        const { data, error } = await supabase
+          .from('dispatches')
+          .select(`
             *,
-            orders!dispatches_order_id_fkey (
+            orders:orders!dispatches_order_id_fkey (
               order_number,
               customer_name,
               customer_phone,
@@ -85,18 +84,10 @@ const DispatchDashboard = () => {
               city,
               total_amount,
               status
-            ),
-            dispatched_by_profile:profiles!dispatched_by(
-              full_name,
-              email
-            ),
-            courier_info:couriers!courier_id(
-              name,
-              code
             )
-          `).in('status', ['pending', 'dispatched']).order('created_at', {
-          ascending: false
-        });
+          `)
+          .in('status', ['pending', 'dispatched'])
+          .order('created_at', { ascending: false });
         if (error) {
           console.error('Error fetching dispatches:', error);
           toast({
