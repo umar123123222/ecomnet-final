@@ -123,12 +123,11 @@ Deno.serve(async (req) => {
     let newStatus = 'pending';
     if (order.cancelled_at) {
       newStatus = 'cancelled';
-    } else if (order.fulfillment_status === 'fulfilled') {
-      newStatus = 'delivered';
-    } else if (order.fulfillment_status === 'partial') {
-      newStatus = 'dispatched';
+    } else if (order.fulfillment_status === 'fulfilled' || order.fulfillment_status === 'partial') {
+      // Fulfilled or partially fulfilled = confirmed and ready for dispatch
+      newStatus = 'booked';
     } else if (order.financial_status === 'paid') {
-      newStatus = 'processing';
+      newStatus = 'pending';
     }
 
     // Extract tracking info
