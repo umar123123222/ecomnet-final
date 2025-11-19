@@ -1,12 +1,18 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { CustomerInsightsWidget } from "./CustomerInsightsWidget";
-import { OrderActivityLog } from "./OrderActivityLog";
-import { Package, User, TrendingUp, History, Mail, Phone, MapPin, Calendar, Truck, ShoppingBag } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+import { 
+  Package, 
+  Truck, 
+  MapPin, 
+  Clock,
+  CheckCircle,
+  XCircle,
+  AlertCircle
+} from "lucide-react";
 
 interface Order {
   id: string;
@@ -30,48 +36,106 @@ interface OrderDetailsModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsModalProps) => {
-  const [activityLogOpen, setActivityLogOpen] = useState(false);
-  
-  const items = order ? (typeof order.items === 'string' ? JSON.parse(order.items) : order.items) : [];
+interface TrackingEvent {
+  id: string;
+  status: string;
+  current_location: string | null;
+  checked_at: string;
+  raw_response: any;
+}
 
-  // Merge duplicate items
-  const mergedItems = useMemo(() => {
-    if (!order) return [];
-    if (!Array.isArray(items)) return [];
+interface DispatchInfo {
+  tracking_id: string | null;
+  courier: string;
+  dispatch_date: string | null;
+  status: string;
+  estimated_delivery: string | null;
+  couriers: {
+    name: string;
+  } | null;
+}
+
+export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsModalProps) => {
+  const [trackingHistory, setTrackingHistory] = useState<TrackingEvent[]>([]);
+  const [dispatchInfo, setDispatchInfo] = useState<DispatchInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (open && order?.id) {
+      fetchTrackingDetails();
+    }
+  }, [open, order?.id]);
+
+  const fetchTrackingDetails = async () => {
+    if (!order?.id) return;
     
-    const itemMap = new Map();
-    items.forEach((item: any) => {
-      const name = item.name || item.product_name;
-      const price = Number(item.price || item.unit_price || 0);
-      
-      if (itemMap.has(name)) {
-        const existing = itemMap.get(name);
-        existing.quantity += Number(item.quantity);
-      } else {
-        itemMap.set(name, {
-          name,
-          price,
-          quantity: Number(item.quantity)
-        });
-      }
-    });
-    
-    return Array.from(itemMap.values());
-  }, [items]);
+    try {
+      setLoading(true);
+
+      // Fetch dispatch info
+      const { data: dispatch } = await supabase
+        .from('dispatches')
+        .select('*, couriers(name)')
+        .eq('order_id', order.id)
+        .maybeSingle();
+
+      setDispatchInfo(dispatch);
+
+      // Fetch tracking history
+      const { data: tracking } = await supabase
+        .from('courier_tracking_history')
+        .select('*')
+        .eq('order_id', order.id)
+        .order('checked_at', { ascending: false });
+
+      setTrackingHistory(tracking || []);
+    } catch (error) {
+      console.error('Error fetching tracking details:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatTrackingStatus = (status: string) => {
+    const statusMap: Record<string, string> = {
+      booked: 'Shipment Booked',
+      picked_up: 'Picked Up',
+      in_transit: 'In Transit',
+      at_warehouse: 'At Warehouse',
+      out_for_delivery: 'Out for Delivery',
+      delivered: 'Delivered',
+      returned: 'Returned to Sender',
+      cancelled: 'Cancelled',
+      failed_delivery: 'Delivery Failed',
+    };
+    return statusMap[status] || status;
+  };
+
+  const getStatusIcon = (status: string) => {
+    if (status === 'delivered') return <CheckCircle className="h-5 w-5 text-green-500" />;
+    if (status === 'returned' || status === 'cancelled') return <XCircle className="h-5 w-5 text-red-500" />;
+    if (status === 'failed_delivery') return <AlertCircle className="h-5 w-5 text-orange-500" />;
+    return <Truck className="h-5 w-5 text-blue-500" />;
+  };
+
+  const getStatusColor = (status: string) => {
+    if (status === 'delivered') return 'bg-green-500/10 text-green-500 border-green-500/20';
+    if (status === 'returned' || status === 'cancelled') return 'bg-red-500/10 text-red-500 border-red-500/20';
+    if (status === 'failed_delivery') return 'bg-orange-500/10 text-orange-500 border-orange-500/20';
+    return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+  };
 
   if (!order) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto animate-scale-in">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
-            <span>Order Details - #{order.order_number}</span>
+            <span>Tracking Details - #{order.order_number}</span>
             <Badge variant={
               order.status === 'delivered' ? 'success' :
               order.status === 'pending' ? 'warning' :
-              order.status === 'booked' ? 'default' :
               order.status === 'dispatched' ? 'secondary' :
               order.status === 'returned' ? 'destructive' : 'outline'
             }>
@@ -80,176 +144,116 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="details" className="mt-4">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="details" className="gap-2">
-              <Package className="h-4 w-4" />
-              Order Details
-            </TabsTrigger>
-            <TabsTrigger value="customer" className="gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Customer Insights
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="details" className="space-y-4 mt-4">
-            {/* Customer Information Card */}
-            <Card className="border-border/50">
-              <CardContent className="p-5">
-                <h3 className="font-semibold flex items-center gap-2 mb-4 text-lg">
-                  <User className="h-5 w-5 text-primary" />
-                  Customer Information
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <User className="h-4 w-4 text-muted-foreground mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-xs text-muted-foreground mb-0.5">Name</p>
-                      <p className="font-medium">{order.customer_name}</p>
-                    </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-muted-foreground">Loading tracking details...</div>
+          </div>
+        ) : !dispatchInfo ? (
+          <div className="flex flex-col items-center justify-center py-12 space-y-2">
+            <Package className="h-12 w-12 text-muted-foreground/50" />
+            <div className="text-muted-foreground">Order not yet dispatched</div>
+            <div className="text-sm text-muted-foreground">Tracking information will appear once the order is shipped</div>
+          </div>
+        ) : (
+          <div className="space-y-6 mt-4">
+            {/* Dispatch Information */}
+            <div className="border rounded-lg p-4 bg-card space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Truck className="h-5 w-5 text-primary" />
+                    <span className="font-semibold text-lg">
+                      {dispatchInfo.couriers?.name || dispatchInfo.courier}
+                    </span>
                   </div>
-                  
-                  <div className="flex items-start gap-3">
-                    <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-xs text-muted-foreground mb-0.5">Phone</p>
-                      <p className="font-medium">{order.customer_phone}</p>
+                  {dispatchInfo.tracking_id && (
+                    <div className="text-sm text-muted-foreground">
+                      Tracking ID: <span className="font-mono font-medium text-foreground">{dispatchInfo.tracking_id}</span>
                     </div>
-                  </div>
-                  
-                  {order.customer_email ? (
-                    <div className="flex items-start gap-3">
-                      <Mail className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-xs text-muted-foreground mb-0.5">Email</p>
-                        <p className="font-medium">{order.customer_email}</p>
-                      </div>
-                    </div>
-                  ) : null}
-                  
-                  <div className="flex items-start gap-3">
-                    <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-xs text-muted-foreground mb-0.5">Address</p>
-                      <p className="font-medium">{order.customer_address}</p>
-                      <p className="text-sm text-muted-foreground mt-1">{order.city}</p>
-                    </div>
-                  </div>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+                <Badge className={getStatusColor(dispatchInfo.status)}>
+                  {formatTrackingStatus(dispatchInfo.status)}
+                </Badge>
+              </div>
 
-            {/* Order Summary Card */}
-            <Card className="border-border/50">
-              <CardContent className="p-5">
-                <h3 className="font-semibold flex items-center gap-2 mb-4 text-lg">
-                  <ShoppingBag className="h-5 w-5 text-primary" />
-                  Order Summary
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                {dispatchInfo.dispatch_date && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <div className="text-xs text-muted-foreground">Dispatched</div>
+                      <div className="font-medium">{format(new Date(dispatchInfo.dispatch_date), 'MMM d, yyyy HH:mm')}</div>
+                    </div>
+                  </div>
+                )}
+                {dispatchInfo.estimated_delivery && (
+                  <div className="flex items-center gap-2 text-sm">
                     <Package className="h-4 w-4 text-muted-foreground" />
-                    <div className="flex-1">
-                      <p className="text-xs text-muted-foreground mb-0.5">Order Number</p>
-                      <p className="font-medium">#{order.order_number}</p>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Est. Delivery</div>
+                      <div className="font-medium">{format(new Date(dispatchInfo.estimated_delivery), 'MMM d, yyyy')}</div>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <div className="flex-1">
-                      <p className="text-xs text-muted-foreground mb-0.5">Order Date</p>
-                      <p className="font-medium">
-                        {new Date(order.created_at).toLocaleDateString('en-PK', { 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <Truck className="h-4 w-4 text-muted-foreground" />
-                    <div className="flex-1">
-                      <p className="text-xs text-muted-foreground mb-0.5">Courier</p>
-                      <p className="font-medium">
-                        {order.courier || <span className="text-muted-foreground italic">Not Assigned</span>}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                )}
+              </div>
+            </div>
 
-            {/* Order Items Card */}
-            <Card className="border-border/50">
-              <CardContent className="p-5">
-                <h3 className="font-semibold flex items-center gap-2 mb-4 text-lg">
-                  <Package className="h-5 w-5 text-primary" />
-                  Items Ordered
+            {/* Tracking History Timeline */}
+            {trackingHistory.length > 0 ? (
+              <div className="space-y-4">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-primary" />
+                  Tracking History
                 </h3>
-                <div className="space-y-2.5">
-                  {mergedItems.map((item: any, index: number) => (
-                    <div key={index} className="flex justify-between items-center p-3.5 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors">
-                      <div className="flex-1">
-                        <p className="font-medium text-base">{item.name}</p>
-                        <p className="text-sm text-muted-foreground mt-0.5">
-                          {item.quantity} × {Number(item.price).toLocaleString('en-PK', { 
-                            style: 'currency', 
-                            currency: 'PKR',
-                            maximumFractionDigits: 0 
-                          })}
-                        </p>
-                      </div>
-                      <p className="font-semibold text-lg ml-4">
-                        {(item.price * item.quantity).toLocaleString('en-PK', { 
-                          style: 'currency', 
-                          currency: 'PKR',
-                          maximumFractionDigits: 0 
-                        })}
-                      </p>
+                
+                <ScrollArea className="h-[400px] pr-4">
+                  <div className="relative">
+                    {/* Timeline line */}
+                    <div className="absolute left-6 top-0 bottom-0 w-px bg-border" />
+                    
+                    <div className="space-y-4">
+                      {trackingHistory.map((event) => (
+                        <div key={event.id} className="relative pl-14">
+                          {/* Timeline dot */}
+                          <div className={`absolute left-4 top-1 p-1.5 rounded-full border-2 bg-background ${getStatusColor(event.status)}`}>
+                            {getStatusIcon(event.status)}
+                          </div>
+
+                          <div className="border rounded-lg p-4 bg-card space-y-2">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="space-y-1 flex-1">
+                                <Badge className={getStatusColor(event.status)}>
+                                  {formatTrackingStatus(event.status)}
+                                </Badge>
+                                {event.current_location && (
+                                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                                    <MapPin className="h-4 w-4" />
+                                    {event.current_location}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
+                                <Clock className="h-3 w-3" />
+                                {format(new Date(event.checked_at), 'MMM d, yyyy HH:mm')}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <div className="mt-5 pt-4 border-t border-border flex justify-between items-center">
-                  <span className="font-semibold text-base">Total Amount</span>
-                  <span className="text-2xl font-bold text-primary">
-                    {Number(order.total_amount).toLocaleString('en-PK', { 
-                      style: 'currency', 
-                      currency: 'PKR',
-                      maximumFractionDigits: 0 
-                    })}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Activity Log Button */}
-            <Button
-              variant="outline"
-              className="w-full gap-2"
-              onClick={() => setActivityLogOpen(true)}
-            >
-              <History className="h-4 w-4" />
-              View Activity Log
-            </Button>
-          </TabsContent>
-
-          <TabsContent value="customer" className="mt-4">
-            <CustomerInsightsWidget 
-              customerId={order.customer_id || null}
-              customerName={order.customer_name}
-            />
-          </TabsContent>
-        </Tabs>
-
-        {/* Activity Log Dialog */}
-        <OrderActivityLog 
-          orderId={order.id} 
-          open={activityLogOpen}
-          onOpenChange={setActivityLogOpen}
-        />
+                  </div>
+                </ScrollArea>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 space-y-2 border rounded-lg bg-muted/20">
+                <MapPin className="h-10 w-10 text-muted-foreground/50" />
+                <div className="text-sm text-muted-foreground">No tracking updates yet</div>
+                <div className="text-xs text-muted-foreground">Updates will appear here as the shipment moves</div>
+              </div>
+            )}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
