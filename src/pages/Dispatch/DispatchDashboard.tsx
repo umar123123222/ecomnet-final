@@ -86,11 +86,11 @@ const DispatchDashboard = () => {
               total_amount,
               status
             ),
-            dispatched_by_profile:profiles(
+            dispatched_by_profile:profiles!dispatched_by(
               full_name,
               email
             ),
-            courier_info:couriers(
+            courier_info:couriers!courier_id(
               name,
               code
             )
