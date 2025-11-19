@@ -31,6 +31,10 @@ const ReturnsDashboard = () => {
   const [allowManualEntry, setAllowManualEntry] = useState(false);
   const [lastKeyTime, setLastKeyTime] = useState<number>(0);
   const [fastKeyCount, setFastKeyCount] = useState<number>(0);
+  const [entryType, setEntryType] = useState<'tracking_id' | 'order_number'>(() => {
+    const saved = localStorage.getItem('returns_entry_type');
+    return (saved === 'order_number' ? 'order_number' : 'tracking_id') as 'tracking_id' | 'order_number';
+  });
   const {
     toast
   } = useToast();
@@ -169,8 +173,8 @@ const ReturnsDashboard = () => {
     }
 
     try {
-      // Parse entries - one tracking ID per line
-      const trackingIds = formData.bulkEntries
+      // Parse entries - one entry per line
+      const entries = formData.bulkEntries
         .split('\n')
         .map(line => line.trim())
         .filter(line => line.length > 0);
@@ -179,18 +183,45 @@ const ReturnsDashboard = () => {
       let errorCount = 0;
       const errors: string[] = [];
 
-      for (const trackingId of trackingIds) {
-        // Find return by tracking_id
-        const { data: returnRecord, error: returnError } = await supabase
-          .from('returns')
-          .select('id, order_id')
-          .eq('tracking_id', trackingId)
-          .maybeSingle();
-
-        if (returnError || !returnRecord) {
-          errors.push(`Return not found for tracking ID: ${trackingId}`);
-          errorCount++;
-          continue;
+      for (const entry of entries) {
+        let returnRecord;
+        
+        if (entryType === 'tracking_id') {
+          // Search by tracking ID
+          const { data, error: returnError } = await supabase
+            .from('returns')
+            .select('id, order_id')
+            .eq('tracking_id', entry)
+            .maybeSingle();
+          returnRecord = data;
+          
+          if (returnError || !returnRecord) {
+            errors.push(`Return not found for tracking ID: ${entry}`);
+            errorCount++;
+            continue;
+          }
+        } else {
+          // Search by order number (need to join with orders table)
+          const { data: order } = await supabase
+            .from('orders')
+            .select('id')
+            .eq('order_number', entry)
+            .maybeSingle();
+          
+          if (order) {
+            const { data } = await supabase
+              .from('returns')
+              .select('id, order_id')
+              .eq('order_id', order.id)
+              .maybeSingle();
+            returnRecord = data;
+          }
+          
+          if (!returnRecord) {
+            errors.push(`Return not found for order number: ${entry}`);
+            errorCount++;
+            continue;
+          }
         }
 
         // Update return status to received
@@ -204,7 +235,7 @@ const ReturnsDashboard = () => {
           .eq('id', returnRecord.id);
 
         if (updateReturnError) {
-          errors.push(`Failed to update return for ${trackingId}: ${updateReturnError.message}`);
+          errors.push(`Failed to update return for ${entryType === 'tracking_id' ? 'tracking ID' : 'order number'}: ${entry}: ${updateReturnError.message}`);
           errorCount++;
           continue;
         }
@@ -218,7 +249,7 @@ const ReturnsDashboard = () => {
           .eq('id', returnRecord.order_id);
 
         if (updateOrderError) {
-          errors.push(`Failed to update order status for ${trackingId}: ${updateOrderError.message}`);
+          errors.push(`Failed to update order status for ${entryType === 'tracking_id' ? 'tracking ID' : 'order number'}: ${entry}: ${updateOrderError.message}`);
           errorCount++;
           continue;
         }
@@ -311,33 +342,63 @@ const ReturnsDashboard = () => {
                   </div>
                 )}
 
-                <FormField
-                  control={form.control}
-                  name="bulkEntries"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tracking IDs</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder={allowManualEntry 
-                            ? "Enter tracking IDs (one per line)\nExample:\nRTN123456\nRTN789012\nRTN345678"
-                            : "Scan tracking IDs with barcode scanner\nScanner will automatically input data"
-                          }
-                          className={`min-h-[150px] font-mono text-sm ${!allowManualEntry ? 'bg-muted/30' : ''}`}
-                          onKeyDown={handleKeyDown}
-                          {...field}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-6">
+                    <FormLabel>Search By:</FormLabel>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          value="tracking_id"
+                          checked={entryType === 'tracking_id'}
+                          onChange={(e) => {
+                            setEntryType('tracking_id');
+                            localStorage.setItem('returns_entry_type', 'tracking_id');
+                          }}
+                          className="w-4 h-4 text-primary"
                         />
-                      </FormControl>
-                      <p className="text-xs text-muted-foreground">
-                        {allowManualEntry 
-                          ? "Enter one tracking ID per line. Returns will be marked as received and orders updated to 'Returned' status."
-                          : "Manual typing is disabled. Use your barcode scanner or enable manual entry above."
-                        }
-                      </p>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <span className="text-sm">Tracking ID</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          value="order_number"
+                          checked={entryType === 'order_number'}
+                          onChange={(e) => {
+                            setEntryType('order_number');
+                            localStorage.setItem('returns_entry_type', 'order_number');
+                          }}
+                          className="w-4 h-4 text-primary"
+                        />
+                        <span className="text-sm">Order Number</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="bulkEntries"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Bulk Entry</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder={`${allowManualEntry ? 'Enter' : 'Scan'} ${entryType === 'tracking_id' ? 'tracking IDs' : 'order numbers'} (one per line)...`}
+                            className={`min-h-[150px] font-mono text-sm ${!allowManualEntry ? 'bg-muted/30' : ''}`}
+                            onKeyDown={handleKeyDown}
+                            {...field}
+                          />
+                        </FormControl>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {entryType === 'tracking_id' 
+                            ? 'Enter courier tracking numbers (e.g., TRK123456789)'
+                            : 'Enter order numbers (e.g., ORD-12345)'}
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
                 <div className="flex justify-end gap-2">
                   <Button
                     type="button"
