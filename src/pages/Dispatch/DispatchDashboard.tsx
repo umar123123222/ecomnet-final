@@ -668,10 +668,18 @@ const DispatchDashboard = () => {
                     ? new Date(dispatch.dispatch_date).toLocaleDateString()
                     : new Date(dispatch.created_at).toLocaleDateString();
                   
+                  // Check if tracking_id is actually a valid tracking ID or just the order number
+                  // Valid tracking IDs are typically 10+ digits, order numbers are 5-6 digits
+                  const trackingId = dispatch.tracking_id;
+                  const isValidTrackingId = trackingId && 
+                    trackingId !== orderNumber && 
+                    trackingId.length >= 10;
+                  const displayTrackingId = isValidTrackingId ? trackingId : 'N/A';
+                  
                   return (
                     <TableRow key={dispatch.id}>
                       <TableCell className="font-medium">{orderNumber}</TableCell>
-                      <TableCell>{dispatch.tracking_id || 'N/A'}</TableCell>
+                      <TableCell>{displayTrackingId}</TableCell>
                       <TableCell>{dispatch.orders?.customer_name || 'N/A'}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
