@@ -84,6 +84,14 @@ const DispatchDashboard = () => {
               city,
               total_amount,
               status
+            ),
+            dispatched_by_user:profiles(
+              full_name,
+              email
+            ),
+            courier_details:couriers(
+              name,
+              code
             )
           `)
           .in('status', ['pending', 'dispatched'])
@@ -611,66 +619,46 @@ const DispatchDashboard = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Select</TableHead>
-                <TableHead>Order ID</TableHead>
+                <TableHead>Order Number</TableHead>
                 <TableHead>Tracking ID</TableHead>
                 <TableHead>Customer</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Address</TableHead>
                 <TableHead>Courier</TableHead>
                 <TableHead>Dispatched By</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Actions</TableHead>
+                <TableHead>Dispatch Date</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? <TableRow>
-                  <TableCell colSpan={11} className="text-center">Loading...</TableCell>
+                  <TableCell colSpan={6} className="text-center">Loading...</TableCell>
                 </TableRow> : filteredDispatches.length === 0 ? <TableRow>
-                  <TableCell colSpan={11} className="text-center">No dispatches found</TableCell>
-                </TableRow> : filteredDispatches.map(dispatch => <React.Fragment key={dispatch.id}>
-                    <TableRow>
-                      <TableCell>
-                        <Checkbox checked={selectedDispatches.includes(dispatch.id)} onCheckedChange={() => handleSelectDispatch(dispatch.id)} />
-                      </TableCell>
-                      <TableCell className="font-medium">{dispatch.orders?.order_number || 'N/A'}</TableCell>
+                  <TableCell colSpan={6} className="text-center">No dispatches found</TableCell>
+                </TableRow> : filteredDispatches.map(dispatch => {
+                  // Extract just the order number without SHOP- prefix
+                  const orderNumber = dispatch.orders?.order_number?.replace('SHOP-', '') || 'N/A';
+                  const dispatchDate = dispatch.dispatch_date 
+                    ? new Date(dispatch.dispatch_date).toLocaleDateString()
+                    : new Date(dispatch.created_at).toLocaleDateString();
+                  
+                  return (
+                    <TableRow key={dispatch.id}>
+                      <TableCell className="font-medium">{orderNumber}</TableCell>
                       <TableCell>{dispatch.tracking_id || 'N/A'}</TableCell>
                       <TableCell>{dispatch.orders?.customer_name || 'N/A'}</TableCell>
-                      <TableCell>{dispatch.orders?.customer_phone || 'N/A'}</TableCell>
-                      <TableCell className="max-w-xs truncate">{dispatch.orders?.customer_address || 'N/A'}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Truck className="h-4 w-4 text-gray-500" />
-                          {dispatch.courier_info?.name || dispatch.courier || 'N/A'}
+                          {dispatch.courier || 'N/A'}
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          {dispatch.dispatched_by_profile?.full_name || 'System'}
+                          {dispatch.dispatched_by_user?.full_name || 'System'}
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(dispatch.status || 'pending')}>
-                          {dispatch.status || 'pending'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{new Date(dispatch.created_at).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="sm" onClick={() => toggleRowExpansion(dispatch.id)}>
-                          {expandedRows.includes(dispatch.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </Button>
-                      </TableCell>
+                      <TableCell>{dispatchDate}</TableCell>
                     </TableRow>
-                    {expandedRows.includes(dispatch.id) && <TableRow>
-                        <TableCell colSpan={10} className="bg-gray-50 p-4">
-                          <div className="space-y-2">
-                            <p><strong>Notes:</strong> {dispatch.notes || 'No notes available'}</p>
-                            <p><strong>Dispatch Date:</strong> {dispatch.dispatch_date ? new Date(dispatch.dispatch_date).toLocaleDateString() : 'Not set'}</p>
-                          </div>
-                        </TableCell>
-                      </TableRow>}
-                  </React.Fragment>)}
+                  );
+                })}
             </TableBody>
           </Table>
         </CardContent>
