@@ -36,6 +36,10 @@ const DispatchDashboard = () => {
   const [allowManualEntry, setAllowManualEntry] = useState(false);
   const [lastKeyTime, setLastKeyTime] = useState<number>(0);
   const [fastKeyCount, setFastKeyCount] = useState<number>(0);
+  const [entryType, setEntryType] = useState<'tracking_id' | 'order_number'>(() => {
+    const saved = localStorage.getItem('dispatch_entry_type');
+    return (saved === 'order_number' ? 'order_number' : 'tracking_id') as 'tracking_id' | 'order_number';
+  });
   const {
     toast
   } = useToast();
@@ -154,22 +158,25 @@ const DispatchDashboard = () => {
     bulkEntries: string;
   }) => {
     try {
-      // Parse entries - one tracking ID per line
-      const trackingIds = data.bulkEntries.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      // Parse entries - one entry per line
+      const entries = data.bulkEntries.split('\n').map(line => line.trim()).filter(line => line.length > 0);
       let successCount = 0;
       let errorCount = 0;
       const errors: string[] = [];
-      for (const trackingId of trackingIds) {
-        // Find order by tracking_id
+      for (const entry of entries) {
+        // Find order by selected entry type
+        const searchField = entryType === 'tracking_id' ? 'tracking_id' : 'order_number';
         const {
           data: order,
           error: orderError
-        } = await supabase.from('orders').select('id').eq('tracking_id', trackingId).maybeSingle();
+        } = await supabase.from('orders').select('id, tracking_id').eq(searchField, entry).maybeSingle();
         if (orderError || !order) {
-          errors.push(`Order not found for tracking ID: ${trackingId}`);
+          errors.push(`Order not found for ${entryType === 'tracking_id' ? 'tracking ID' : 'order number'}: ${entry}`);
           errorCount++;
           continue;
         }
+        
+        const trackingId = order.tracking_id || entry;
 
         // Check if dispatch already exists
         const {
@@ -225,7 +232,7 @@ const DispatchDashboard = () => {
       if (successCount > 0) {
         toast({
           title: "Bulk Entry Complete",
-          description: `Successfully processed ${successCount} tracking ID(s)${errorCount > 0 ? `, ${errorCount} failed` : ''}`
+          description: `Successfully processed ${successCount} ${entryType === 'tracking_id' ? 'tracking ID(s)' : 'order number(s)'}${errorCount > 0 ? `, ${errorCount} failed` : ''}`
         });
       }
       if (errors.length > 0) {
@@ -331,36 +338,65 @@ const DispatchDashboard = () => {
                     />
                   </div>
                   
-                  <FormField control={form.control} name="bulkEntries" render={({
-                  field
-                }) => <FormItem>
-                        <FormLabel>Tracking IDs</FormLabel>
-                        {!allowManualEntry && (
-                          <Badge variant="secondary" className="ml-2">
-                            <Lock className="h-3 w-3 mr-1" />
-                            Scanner Mode
-                          </Badge>
-                        )}
-                        <FormControl>
-                          <Textarea 
-                            placeholder="Scan tracking IDs with barcode scanner (one per line)&#10;or enable manual entry above to type"
-                            className="min-h-[150px] font-mono text-sm" 
-                            value={field.value}
-                            onChange={field.onChange}
-                            onBlur={field.onBlur}
-                            onKeyDown={handleKeyDown}
-                            name={field.name}
-                            ref={field.ref}
-                            style={!allowManualEntry ? { backgroundColor: 'hsl(var(--muted))' } : {}}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-6">
+                      <FormLabel>Search By:</FormLabel>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            value="tracking_id"
+                            checked={entryType === 'tracking_id'}
+                            onChange={(e) => {
+                              setEntryType('tracking_id');
+                              localStorage.setItem('dispatch_entry_type', 'tracking_id');
+                            }}
+                            className="w-4 h-4 text-primary"
                           />
-                        </FormControl>
-                        <p className="text-xs text-muted-foreground">
-                          {allowManualEntry 
-                            ? "Enter one tracking ID per line" 
-                            : "Keyboard typing disabled. Use barcode scanner or enable manual entry above"}
-                        </p>
-                        <FormMessage />
-                      </FormItem>} />
+                          <span className="text-sm">Tracking ID</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            value="order_number"
+                            checked={entryType === 'order_number'}
+                            onChange={(e) => {
+                              setEntryType('order_number');
+                              localStorage.setItem('dispatch_entry_type', 'order_number');
+                            }}
+                            className="w-4 h-4 text-primary"
+                          />
+                          <span className="text-sm">Order Number</span>
+                        </label>
+                      </div>
+                    </div>
+                    
+                    <FormField control={form.control} name="bulkEntries" render={({
+                    field
+                  }) => <FormItem>
+                          <FormLabel>Bulk Entry</FormLabel>
+                          {!allowManualEntry && (
+                            <Badge variant="secondary" className="ml-2">
+                              <Lock className="h-3 w-3 mr-1" />
+                              Scanner Mode
+                            </Badge>
+                          )}
+                          <FormControl>
+                            <Textarea 
+                              {...field}
+                              placeholder={`${!allowManualEntry ? 'Scan' : 'Enter'} ${entryType === 'tracking_id' ? 'tracking IDs' : 'order numbers'} (one per line)...`}
+                              className="min-h-[150px] font-mono text-sm" 
+                              onKeyDown={handleKeyDown}
+                            />
+                          </FormControl>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {entryType === 'tracking_id' 
+                              ? 'Enter courier tracking numbers (e.g., TRK123456789)'
+                              : 'Enter order numbers (e.g., ORD-12345)'}
+                          </p>
+                          <FormMessage />
+                        </FormItem>} />
+                  </div>
                   <div className="flex justify-end gap-2">
                     <Button type="button" variant="outline" onClick={() => setIsManualEntryOpen(false)}>
                       Cancel
