@@ -50,14 +50,14 @@ const DispatchDashboard = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
-  // Fetch active couriers
+  // Fetch all couriers from business settings
   const { data: couriers = [], isLoading: couriersLoading } = useQuery({
-    queryKey: ['active-couriers'],
+    queryKey: ['all-couriers'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('couriers')
-        .select('id, name, code')
-        .eq('is_active', true)
+        .select('id, name, code, is_active')
+        .order('is_active', { ascending: false })
         .order('name');
       if (error) throw error;
       return data;
@@ -519,8 +519,11 @@ const DispatchDashboard = () => {
                           {couriers.map((courier) => (
                             <SelectItem key={courier.id} value={courier.id}>
                               <div className="flex items-center gap-2">
-                                <Truck className="h-4 w-4 text-primary" />
-                                <span>{courier.name} ({courier.code})</span>
+                                <Truck className={`h-4 w-4 ${courier.is_active ? 'text-primary' : 'text-muted-foreground'}`} />
+                                <span className={courier.is_active ? '' : 'text-muted-foreground'}>
+                                  {courier.name} ({courier.code})
+                                  {!courier.is_active && ' - Inactive'}
+                                </span>
                               </div>
                             </SelectItem>
                           ))}
