@@ -66,8 +66,29 @@ Deno.serve(async (req) => {
               body: { order_id: item.entity_id },
             });
         } else if (item.action === 'update') {
-          // Determine what kind of update to perform based on the data
-          const changes = item.payload?.changes || {};
+          // Fetch order data first to get current state
+          const { data: orderData, error: orderError } = await supabase
+            .from('orders')
+            .select('shopify_order_id, status, tags, tracking_id, customer_address, customer_new_address, city, customer_name, customer_phone, notes')
+            .eq('id', item.entity_id)
+            .single();
+
+          if (orderError || !orderData?.shopify_order_id) {
+            throw new Error(`Order not found or missing shopify_order_id: ${item.entity_id}`);
+          }
+
+          // Get changes from payload (new format) or construct from current order data (old format)
+          const changes = item.payload?.changes || {
+            status: orderData.status,
+            tracking_id: orderData.tracking_id,
+            customer_address: orderData.customer_address,
+            customer_new_address: orderData.customer_new_address,
+            city: orderData.city,
+            tags: orderData.tags,
+            notes: orderData.notes,
+            customer_name: orderData.customer_name,
+            customer_phone: orderData.customer_phone
+          };
           
           // ALWAYS handle status tag if status is present
           let tagsToUpdate: string[] = [];
@@ -76,25 +97,14 @@ Deno.serve(async (req) => {
             // Generate status tag
             const statusTag = `Ecomnet - ${changes.status.charAt(0).toUpperCase() + changes.status.slice(1)}`;
             
-            // Fetch existing order data to get current tags
-            const { data: orderData } = await supabase
-              .from('orders')
-              .select('shopify_order_id, tags')
-              .eq('id', item.entity_id)
-              .single();
+            // Get existing tags and filter out old Ecomnet status tags
+            const existingTags = orderData.tags || [];
+            const filteredTags = existingTags.filter((tag: string) => 
+              !tag.startsWith('Ecomnet - ')
+            );
             
-            if (orderData?.shopify_order_id) {
-              // Get existing tags and filter out old Ecomnet status tags
-              const existingTags = orderData.tags || [];
-              const filteredTags = existingTags.filter((tag: string) => 
-                !tag.startsWith('Ecomnet - ')
-              );
-              
-              // Add new status tag
-              tagsToUpdate = [...filteredTags, statusTag];
-            } else {
-              tagsToUpdate = [statusTag];
-            }
+            // Add new status tag
+            tagsToUpdate = [...filteredTags, statusTag];
           }
           
           // Determine update action priority
@@ -186,10 +196,12 @@ Deno.serve(async (req) => {
 
         // Check if invocation was successful
         if (result?.error) {
+          console.error('Edge function invocation error:', JSON.stringify(result.error));
           throw new Error(result.error.message || 'Function invocation failed');
         }
 
         const responseData = result?.data;
+        console.log(`Response from edge function for item ${item.id}:`, JSON.stringify(responseData));
 
         if (responseData?.success) {
           // Mark as completed
@@ -205,7 +217,9 @@ Deno.serve(async (req) => {
           processed++;
           results.push({ id: item.id, status: 'completed' });
         } else {
-          throw new Error(responseData?.error || 'Unknown error');
+          const errorMsg = responseData?.error || responseData?.message || 'Unknown error';
+          console.error(`Edge function returned error for item ${item.id}:`, errorMsg);
+          throw new Error(errorMsg);
         }
 
       } catch (error) {

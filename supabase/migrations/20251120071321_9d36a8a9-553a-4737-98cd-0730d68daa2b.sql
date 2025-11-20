@@ -1,0 +1,87 @@
+-- Fix the trigger to sync status changes back to Shopify for ALL orders with shopify_order_id
+CREATE OR REPLACE FUNCTION public.queue_order_sync_to_shopify()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  auto_sync_enabled TEXT;
+BEGIN
+  -- Check if auto-sync is enabled
+  SELECT setting_value INTO auto_sync_enabled
+  FROM api_settings
+  WHERE setting_key = 'SHOPIFY_AUTO_SYNC_ORDERS';
+
+  -- Only proceed if auto-sync is enabled
+  IF auto_sync_enabled = 'true' THEN
+    -- For new orders WITHOUT shopify_order_id, queue create action
+    IF TG_OP = 'INSERT' AND NEW.shopify_order_id IS NULL THEN
+      INSERT INTO sync_queue (entity_type, entity_id, action, direction, payload)
+      VALUES ('order', NEW.id, 'create', 'to_shopify', jsonb_build_object('order_id', NEW.id));
+    
+    -- For updates to orders WITH shopify_order_id, sync changes back to Shopify
+    ELSIF TG_OP = 'UPDATE' AND NEW.shopify_order_id IS NOT NULL AND (
+      OLD.status IS DISTINCT FROM NEW.status OR
+      OLD.tracking_id IS DISTINCT FROM NEW.tracking_id OR
+      OLD.customer_name IS DISTINCT FROM NEW.customer_name OR
+      OLD.customer_address IS DISTINCT FROM NEW.customer_address OR
+      OLD.city IS DISTINCT FROM NEW.city OR
+      OLD.tags IS DISTINCT FROM NEW.tags OR
+      OLD.notes IS DISTINCT FROM NEW.notes OR
+      OLD.customer_phone IS DISTINCT FROM NEW.customer_phone
+    ) THEN
+      INSERT INTO sync_queue (entity_type, entity_id, action, direction, payload)
+      VALUES ('order', NEW.id, 'update', 'to_shopify', 
+        jsonb_build_object(
+          'order_id', NEW.id,
+          'changes', jsonb_build_object(
+            'status', NEW.status,
+            'tracking_id', NEW.tracking_id,
+            'customer_address', NEW.customer_address,
+            'customer_new_address', NEW.customer_new_address,
+            'city', NEW.city,
+            'tags', NEW.tags,
+            'notes', NEW.notes,
+            'customer_name', NEW.customer_name,
+            'customer_phone', NEW.customer_phone
+          )
+        )
+      )
+      ON CONFLICT DO NOTHING;
+    
+    -- For updates to orders WITHOUT shopify_order_id, also queue updates
+    ELSIF TG_OP = 'UPDATE' AND NEW.shopify_order_id IS NULL AND (
+      OLD.status IS DISTINCT FROM NEW.status OR
+      OLD.tracking_id IS DISTINCT FROM NEW.tracking_id OR
+      OLD.customer_name IS DISTINCT FROM NEW.customer_name OR
+      OLD.customer_address IS DISTINCT FROM NEW.customer_address OR
+      OLD.city IS DISTINCT FROM NEW.city OR
+      OLD.tags IS DISTINCT FROM NEW.tags OR
+      OLD.notes IS DISTINCT FROM NEW.notes OR
+      OLD.customer_phone IS DISTINCT FROM NEW.customer_phone
+    ) THEN
+      INSERT INTO sync_queue (entity_type, entity_id, action, direction, payload)
+      VALUES ('order', NEW.id, 'update', 'to_shopify', 
+        jsonb_build_object(
+          'order_id', NEW.id,
+          'changes', jsonb_build_object(
+            'status', NEW.status,
+            'tracking_id', NEW.tracking_id,
+            'customer_address', NEW.customer_address,
+            'customer_new_address', NEW.customer_new_address,
+            'city', NEW.city,
+            'tags', NEW.tags,
+            'notes', NEW.notes,
+            'customer_name', NEW.customer_name,
+            'customer_phone', NEW.customer_phone
+          )
+        )
+      )
+      ON CONFLICT DO NOTHING;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$function$;
