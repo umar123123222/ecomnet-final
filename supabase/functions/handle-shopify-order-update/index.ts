@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 import { createHmac } from 'https://deno.land/std@0.177.0/node/crypto.ts';
+import { getEcomnetStatusTag, updateEcomnetStatusTag } from '../_shared/ecomnetStatusTags.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -175,50 +176,6 @@ Deno.serve(async (req) => {
     // Exception: Set status to cancelled if order is cancelled in Shopify
     if (order.cancelled_at) {
       updateData.status = 'cancelled';
-    }
-
-    if (trackingId) {
-      updateData.tracking_id = trackingId;
-    }
-
-    // Update address if changed
-    if (shippingAddress) {
-      const newAddress = [
-        shippingAddress.address1,
-        shippingAddress.address2,
-        shippingAddress.city,
-        shippingAddress.province,
-        shippingAddress.zip
-      ].filter(Boolean).join(', ');
-      
-      if (newAddress) {
-        updateData.customer_address = newAddress;
-        updateData.city = shippingAddress.city || updateData.city;
-        updateData.customer_name = `${shippingAddress.first_name || ''} ${shippingAddress.last_name || ''}`.trim() || updateData.customer_name;
-        
-        // Smart phone number handling
-        let phone = shippingAddress.phone || order.phone;
-        
-        // If no phone in shipping address or order, try to fetch from Shopify customer API
-        if (!phone && order.customer?.id) {
-          console.log(`No phone in order ${order.id}, fetching from Shopify customer API`);
-          phone = await fetchShopifyCustomerPhone(order.customer.id, supabase);
-          
-          if (!phone) {
-            console.warn(`Unable to fetch phone for order ${order.id}, customer ${order.customer.id}`);
-          }
-        }
-        
-        updateData.customer_phone = phone || '';
-      }
-    }
-
-    // Update tags if present
-    if (order.tags) {
-      updateData.tags = order.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
-    }
-
-    if (order.cancelled_at) {
       updateData.notes = `Order cancelled in Shopify at ${order.cancelled_at}. Reason: ${order.cancel_reason || 'Not specified'}`;
     }
 
@@ -227,7 +184,7 @@ Deno.serve(async (req) => {
       .update(updateData)
       .eq('id', existingOrder.id);
 
-    console.log(`Updated order ${existingOrder.id} with status: ${newStatus}`);
+    console.log(`Updated order ${existingOrder.id} from Shopify webhook: ${topic}`);
 
     // Log the sync
     await supabase.from('shopify_sync_log').insert({
@@ -238,7 +195,7 @@ Deno.serve(async (req) => {
         shopify_order_id: order.id,
         local_order_id: existingOrder.id,
         topic,
-        new_status: newStatus,
+        status: updateData.status || existingOrder.status,
       },
     });
 
