@@ -102,6 +102,9 @@ const OrderDashboard = () => {
     amountMax: undefined as number | undefined,
   });
 
+  // Local search input state for debouncing
+  const [searchInput, setSearchInput] = useState('');
+
   const { user } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
   const { toast } = useToast();
@@ -309,6 +312,18 @@ const OrderDashboard = () => {
     fetchOrders();
     fetchCouriers();
   }, [page, pageSize, filters, sortOrder]);
+
+  // Debounce search input to prevent flickering
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== filters.search) {
+        setFilters(prev => ({ ...prev, search: searchInput }));
+        setPage(0);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const fetchCouriers = async () => {
     try {
@@ -1363,6 +1378,7 @@ const OrderDashboard = () => {
       amountMin: undefined,
       amountMax: undefined,
     });
+    setSearchInput(''); // Clear search input as well
     setPage(0);
   };
 
@@ -1520,8 +1536,8 @@ const OrderDashboard = () => {
             <div className="flex-1 min-w-[200px]">
               <Input
                 placeholder="Search orders, tracking ID, customer..."
-                value={filters.search}
-                onChange={(e) => updateFilter('search', e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="h-9"
               />
             </div>
