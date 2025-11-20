@@ -80,14 +80,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(session);
         setUser(session?.user ?? null);
         
-        // Fetch profile and roles when user logs in (removed setTimeout)
+        // Fetch profile and roles when user logs in
         if (session?.user) {
           fetchUserProfile(session.user.id);
         } else {
           setProfile(null);
           setUserRole(null);
+          setIsLoading(false); // Only set false when no user
         }
-        setIsLoading(false);
       }
     );
 
@@ -98,8 +98,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (session?.user) {
         fetchUserProfile(session.user.id);
+      } else {
+        setIsLoading(false); // Only set false when no session
       }
-      setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();
