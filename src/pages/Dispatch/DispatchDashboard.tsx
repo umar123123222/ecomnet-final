@@ -217,6 +217,18 @@ const DispatchDashboard = () => {
       return;
     }
 
+    // Capture user ID at the start to prevent race conditions
+    const currentUserId = user.id;
+    
+    if (!currentUserId) {
+      toast({
+        title: "Error",
+        description: "Invalid user session. Please log out and log back in.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
@@ -313,11 +325,11 @@ const DispatchDashboard = () => {
             status: 'dispatched',
             courier: courierName,
             courier_id: selectedCourier,
-            dispatched_by: user.id,
+            dispatched_by: currentUserId,
             dispatch_date: new Date().toISOString()
           }).eq('id', existingDispatch.id);
           if (updateDispatchError) {
-            errors.push(`Failed to update dispatch for ${trackingId}: ${updateDispatchError.message}`);
+            errors.push(`Failed to update dispatch for ${entry}: ${updateDispatchError.message}`);
             errorCount++;
             continue;
           }
@@ -331,11 +343,11 @@ const DispatchDashboard = () => {
             status: 'dispatched',
             courier: courierName,
             courier_id: selectedCourier,
-            dispatched_by: user.id,
+            dispatched_by: currentUserId,
             dispatch_date: new Date().toISOString()
           });
           if (dispatchError) {
-            errors.push(`Failed to create dispatch for ${trackingId}: ${dispatchError.message}`);
+            errors.push(`Failed to create dispatch for ${entry}: ${dispatchError.message}`);
             errorCount++;
             continue;
           }
