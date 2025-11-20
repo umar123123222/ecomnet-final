@@ -597,22 +597,37 @@ const DispatchDashboard = () => {
       return;
     }
 
+    // IMMEDIATE UI UPDATE - Add processing entry and play sound instantly
+    const processingId = Date.now().toString();
+    setRecentScans(prev => [{
+      entry: trimmedValue,
+      type: 'unknown',
+      status: 'success' as const,
+      message: '⏳ Processing...',
+      timestamp: new Date(),
+      orderId: processingId
+    }, ...prev.slice(0, 9)]);
+    setLastScanTime(Date.now());
+    
+    // Play sound immediately for instant feedback
+    successSound.volume = 0.2;
+    successSound.play().catch(() => {});
+
+    // NOW DO DATABASE WORK
     try {
       const result = await findOrderByEntry(trimmedValue);
 
       if (!result) {
         errorSound.volume = 0.5;
-        await errorSound.play();
+        errorSound.play().catch(() => {});
 
-        const errorMsg = `No order record found for: ${trimmedValue}`;
+        const errorMsg = `No order record found`;
         setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
-        setRecentScans(prev => [{
-          entry: trimmedValue,
-          type: 'unknown',
-          status: 'error',
-          message: errorMsg,
-          timestamp: new Date()
-        }, ...prev.slice(0, 9)]);
+        setRecentScans(prev => prev.map(scan => 
+          scan.orderId === processingId 
+            ? { ...scan, type: 'unknown' as const, status: 'error' as const, message: errorMsg }
+            : scan
+        ));
 
         setScanHistoryForExport(prev => [...prev, {
           timestamp: new Date().toISOString(),
@@ -626,7 +641,7 @@ const DispatchDashboard = () => {
           title: "❌ Order Not Found",
           description: errorMsg,
           variant: "destructive",
-          duration: 3000,
+          duration: 2000,
         });
         return;
       }
@@ -657,18 +672,15 @@ const DispatchDashboard = () => {
 
       if (!courierToUse && !courierNameToUse) {
         errorSound.volume = 0.5;
-        await errorSound.play();
+        errorSound.play().catch(() => {});
 
-        const errorMsg = 'No courier assigned. Please select a courier first.';
+        const errorMsg = 'No courier assigned';
         setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
-        setRecentScans(prev => [{
-          entry: trimmedValue,
-          type: matchType,
-          status: 'error',
-          message: errorMsg,
-          timestamp: new Date(),
-          orderId: order.order_number
-        }, ...prev.slice(0, 9)]);
+        setRecentScans(prev => prev.map(scan => 
+          scan.orderId === processingId 
+            ? { ...scan, type: matchType, status: 'error' as const, message: errorMsg, orderId: order.order_number }
+            : scan
+        ));
 
         setScanHistoryForExport(prev => [...prev, {
           timestamp: new Date().toISOString(),
@@ -680,10 +692,10 @@ const DispatchDashboard = () => {
         }]);
 
         toast({
-          title: "⚠️ No Courier",
-          description: errorMsg,
+          title: "❌ No Courier",
+          description: order.order_number,
           variant: "destructive",
-          duration: 3000,
+          duration: 2000,
         });
         return;
       }
@@ -698,18 +710,15 @@ const DispatchDashboard = () => {
 
       if (existingDispatch) {
         errorSound.volume = 0.3;
-        await errorSound.play();
+        errorSound.play().catch(() => {});
 
-        const errorMsg = `Already dispatched (Status: ${existingDispatch.status})`;
+        const errorMsg = `Already dispatched`;
         setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
-        setRecentScans(prev => [{
-          entry: trimmedValue,
-          type: matchType,
-          status: 'error',
-          message: errorMsg,
-          timestamp: new Date(),
-          orderId: order.order_number
-        }, ...prev.slice(0, 9)]);
+        setRecentScans(prev => prev.map(scan => 
+          scan.orderId === processingId 
+            ? { ...scan, type: matchType, status: 'error' as const, message: errorMsg, orderId: order.order_number }
+            : scan
+        ));
 
         setScanHistoryForExport(prev => [...prev, {
           timestamp: new Date().toISOString(),
@@ -722,9 +731,9 @@ const DispatchDashboard = () => {
 
         toast({
           title: "⚠️ Already Dispatched",
-          description: `Order ${order.order_number} - ${errorMsg}`,
+          description: order.order_number,
           variant: "destructive",
-          duration: 3000,
+          duration: 2000,
         });
         return;
       }
@@ -761,7 +770,8 @@ const DispatchDashboard = () => {
 
       if (orderError) throw orderError;
 
-      await logActivity({
+      // Log activity asynchronously (non-blocking - fire and forget)
+      logActivity({
         entityType: 'dispatch',
         entityId: order.id,
         action: 'order_dispatched',
@@ -771,24 +781,21 @@ const DispatchDashboard = () => {
           tracking_id: trackingId,
           scan_mode: 'live_scanner'
         }
-      });
+      }).catch(console.error);
 
+      // UI UPDATE AND SOUND < 100ms - No await!
       successSound.volume = 0.4;
-      await successSound.play();
+      successSound.play().catch(() => {});
 
       const processingTime = Date.now() - scanStartTime;
-      const successMsg = `${order.order_number} dispatched via ${courierNameToUse}`;
+      const successMsg = `${order.order_number} via ${courierNameToUse}`;
 
       setScannerStats(prev => ({ ...prev, success: prev.success + 1 }));
-      setRecentScans(prev => [{
-        entry: trimmedValue,
-        type: matchType,
-        status: 'success',
-        message: successMsg,
-        timestamp: new Date(),
-        orderId: order.order_number,
-        courier: courierNameToUse
-      }, ...prev.slice(0, 9)]);
+      setRecentScans(prev => prev.map(scan => 
+        scan.orderId === processingId 
+          ? { ...scan, type: matchType, status: 'success' as const, message: successMsg, orderId: order.order_number, courier: courierNameToUse }
+          : scan
+      ));
 
       setScanHistoryForExport(prev => [...prev, {
         timestamp: new Date().toISOString(),
@@ -804,9 +811,9 @@ const DispatchDashboard = () => {
       }]);
 
       toast({
-        title: "✅ Dispatched Successfully",
+        title: "✅ Dispatched",
         description: successMsg,
-        duration: 2000,
+        duration: 1500,
       });
 
       queryClient.invalidateQueries({ queryKey: ['dispatches'] });
@@ -815,17 +822,15 @@ const DispatchDashboard = () => {
       console.error('Error processing scan:', error);
       
       errorSound.volume = 0.5;
-      await errorSound.play();
+      errorSound.play().catch(() => {});
 
-      const errorMsg = error.message || 'Failed to process dispatch';
+      const errorMsg = error.message || 'Failed';
       setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
-      setRecentScans(prev => [{
-        entry: trimmedValue,
-        type: 'unknown',
-        status: 'error',
-        message: errorMsg,
-        timestamp: new Date()
-      }, ...prev.slice(0, 9)]);
+      setRecentScans(prev => prev.map(scan => 
+        scan.orderId === processingId 
+          ? { ...scan, type: 'unknown' as const, status: 'error' as const, message: errorMsg }
+          : scan
+      ));
 
       setScanHistoryForExport(prev => [...prev, {
         timestamp: new Date().toISOString(),
@@ -836,14 +841,12 @@ const DispatchDashboard = () => {
       }]);
 
       toast({
-        title: "❌ Dispatch Failed",
+        title: "❌ Failed",
         description: errorMsg,
         variant: "destructive",
-        duration: 3000,
+        duration: 2000,
       });
     }
-
-    setLastScanTime(Date.now());
   };
 
   // Scanner Mode: Deactivate scanner mode
