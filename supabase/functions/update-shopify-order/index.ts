@@ -209,16 +209,31 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { data: authData } = await supabase.auth.getUser(
-      req.headers.get('Authorization')?.replace('Bearer ', '') || ''
-    );
+    // Extract token from Authorization header
+    const authHeader = req.headers.get('Authorization') || '';
+    const token = authHeader.replace('Bearer ', '');
 
-    if (!authData.user) {
+    // Check if this is an internal service-role call (from process-sync-queue)
+    const isServiceRoleCall = token === supabaseServiceKey;
+
+    // For non-service-role calls, verify user authentication
+    let user = null;
+    if (!isServiceRoleCall && token) {
+      const { data: authData } = await supabase.auth.getUser(token);
+      user = authData.user;
+    }
+
+    // Reject if neither service-role nor valid user
+    if (!isServiceRoleCall && !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    console.log(
+      `update-shopify-order called: internal=${isServiceRoleCall}, user_id=${user?.id ?? 'service'}`
+    );
 
     const request: UpdateOrderRequest = await req.json();
 
