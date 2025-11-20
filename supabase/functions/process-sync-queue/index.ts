@@ -65,39 +65,101 @@ Deno.serve(async (req) => {
             result = await supabase.functions.invoke('create-shopify-order', {
               body: { order_id: item.entity_id },
             });
-          } else if (item.action === 'update') {
-            // Determine what kind of update to perform based on the data
-            const changes = item.data?.changes || {};
-            let updateAction = 'update_customer';
-            let updateData: any = {};
-
-            // Prioritize updates
-            if (changes.tracking_id) {
-              updateAction = 'update_tracking';
-              updateData = {
-                tracking_number: changes.tracking_id,
-                tracking_company: 'TCS', // Default, should be dynamic
-                notify_customer: true
-              };
-            } else if (changes.customer_address || changes.customer_new_address || changes.city) {
-              updateAction = 'update_address';
-              updateData = {
-                address: {
-                  address1: changes.customer_address || changes.customer_new_address,
-                  city: changes.city,
-                  first_name: changes.customer_name?.split(' ')[0],
-                  last_name: changes.customer_name?.split(' ').slice(1).join(' '),
-                  phone: changes.customer_phone,
-                }
-              };
-            } else if (changes.tags) {
-              updateAction = 'update_tags';
-              updateData = { tags: changes.tags };
-            } else if (changes.notes) {
-              updateAction = 'update_customer';
-              updateData = { customer_note: changes.notes };
+        } else if (item.action === 'update') {
+          // Determine what kind of update to perform based on the data
+          const changes = item.payload?.changes || {};
+          
+          // ALWAYS handle status tag if status is present
+          let tagsToUpdate: string[] = [];
+          
+          if (changes.status) {
+            // Generate status tag
+            const statusTag = `Ecomnet - ${changes.status.charAt(0).toUpperCase() + changes.status.slice(1)}`;
+            
+            // Fetch existing order data to get current tags
+            const { data: orderData } = await supabase
+              .from('orders')
+              .select('shopify_order_id, tags')
+              .eq('id', item.entity_id)
+              .single();
+            
+            if (orderData?.shopify_order_id) {
+              // Get existing tags and filter out old Ecomnet status tags
+              const existingTags = orderData.tags || [];
+              const filteredTags = existingTags.filter((tag: string) => 
+                !tag.startsWith('Ecomnet - ')
+              );
+              
+              // Add new status tag
+              tagsToUpdate = [...filteredTags, statusTag];
+            } else {
+              tagsToUpdate = [statusTag];
             }
+          }
+          
+          // Determine update action priority
+          let updateAction = 'update_tags'; // Default to tags if status changed
+          let updateData: any = { tags: tagsToUpdate };
+          
+          // If tracking changed, prioritize that (but still update tags separately)
+          if (changes.tracking_id) {
+            updateAction = 'update_tracking';
+            updateData = {
+              tracking_number: changes.tracking_id,
+              tracking_company: 'TCS', // Default, should be dynamic
+              notify_customer: true
+            };
+            
+            // Update tags in a separate call if status changed
+            if (changes.status && tagsToUpdate.length > 0) {
+              await supabase.functions.invoke('update-shopify-order', {
+                body: { 
+                  order_id: item.entity_id,
+                  action: 'update_tags',
+                  data: { tags: tagsToUpdate }
+                }
+              });
+            }
+          } else if (changes.customer_address || changes.customer_new_address || changes.city) {
+            updateAction = 'update_address';
+            updateData = {
+              address: {
+                address1: changes.customer_address || changes.customer_new_address,
+                city: changes.city,
+                first_name: changes.customer_name?.split(' ')[0],
+                last_name: changes.customer_name?.split(' ').slice(1).join(' '),
+                phone: changes.customer_phone,
+              }
+            };
+            
+            // Update tags separately if status changed
+            if (changes.status && tagsToUpdate.length > 0) {
+              await supabase.functions.invoke('update-shopify-order', {
+                body: { 
+                  order_id: item.entity_id,
+                  action: 'update_tags',
+                  data: { tags: tagsToUpdate }
+                }
+              });
+            }
+          } else if (changes.notes) {
+            updateAction = 'update_customer';
+            updateData = { customer_note: changes.notes };
+            
+            // Update tags separately if status changed
+            if (changes.status && tagsToUpdate.length > 0) {
+              await supabase.functions.invoke('update-shopify-order', {
+                body: { 
+                  order_id: item.entity_id,
+                  action: 'update_tags',
+                  data: { tags: tagsToUpdate }
+                }
+              });
+            }
+          }
 
+          // Execute main update (if not tags-only)
+          if (updateAction !== 'update_tags' || tagsToUpdate.length === 0) {
             result = await supabase.functions.invoke('update-shopify-order', {
               body: { 
                 order_id: item.entity_id,
@@ -105,6 +167,16 @@ Deno.serve(async (req) => {
                 data: updateData
               },
             });
+          } else {
+            // For tags-only updates
+            result = await supabase.functions.invoke('update-shopify-order', {
+              body: { 
+                order_id: item.entity_id,
+                action: 'update_tags',
+                data: { tags: tagsToUpdate }
+              },
+            });
+          }
           }
         } else if (item.entity_type === 'inventory' && item.direction === 'to_shopify') {
           result = await supabase.functions.invoke('sync-inventory-to-shopify', {
