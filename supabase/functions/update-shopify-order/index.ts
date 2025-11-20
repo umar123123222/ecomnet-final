@@ -52,25 +52,56 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
 
   switch (action) {
     case 'update_tracking': {
-      // Get fulfillment ID first
+      // Get order details first
       const orderResponse = await fetch(`${baseUrl}/orders/${shopifyOrderId}.json`, { headers });
+      
+      if (!orderResponse.ok) {
+        throw new Error('Failed to fetch order from Shopify');
+      }
+      
       const orderData = await orderResponse.json();
       
+      // Check if fulfillment exists
       if (!orderData.order.fulfillments || orderData.order.fulfillments.length === 0) {
-        throw new Error('No fulfillment found for this order');
+        console.log('No fulfillment exists, creating new fulfillment with tracking');
+        
+        // Create new fulfillment with tracking
+        const createResponse = await fetch(`${baseUrl}/orders/${shopifyOrderId}/fulfillments.json`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            fulfillment: {
+              location_id: null,
+              tracking_number: data.tracking_number,
+              tracking_company: data.tracking_company || 'Custom',
+              tracking_url: data.tracking_url,
+              notify_customer: data.notify_customer || false,
+            },
+          }),
+        });
+
+        if (!createResponse.ok) {
+          const error = await createResponse.json();
+          console.error('Failed to create fulfillment:', error);
+          throw new Error(`Failed to create fulfillment with tracking: ${JSON.stringify(error)}`);
+        }
+
+        console.log('Successfully created fulfillment with tracking');
+        return await createResponse.json();
       }
 
+      // Fulfillment exists, update it
       const fulfillmentId = orderData.order.fulfillments[0].id;
+      console.log('Fulfillment exists, updating tracking info:', fulfillmentId);
 
-      // Update tracking
-      const response = await fetch(`${baseUrl}/fulfillments/${fulfillmentId}.json`, {
+      const updateResponse = await fetch(`${baseUrl}/fulfillments/${fulfillmentId}.json`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({
           fulfillment: {
             tracking_info: {
               number: data.tracking_number,
-              company: data.tracking_company,
+              company: data.tracking_company || 'Custom',
               url: data.tracking_url,
             },
             notify_customer: data.notify_customer || false,
@@ -78,12 +109,14 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
         }),
       });
 
-      if (!response.ok) {
-        const error = await response.json();
+      if (!updateResponse.ok) {
+        const error = await updateResponse.json();
+        console.error('Failed to update fulfillment tracking:', error);
         throw new Error(`Failed to update tracking: ${JSON.stringify(error)}`);
       }
 
-      return await response.json();
+      console.log('Successfully updated fulfillment tracking');
+      return await updateResponse.json();
     }
 
     case 'update_tags': {

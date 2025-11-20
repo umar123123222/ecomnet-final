@@ -137,11 +137,41 @@ Deno.serve(async (req) => {
             customer_phone: orderData.customer_phone
           };
           
-          // ALWAYS handle status tag if status is present
-          let tagsToUpdate: string[] = [];
+          // Handle tracking update if tracking_id changed
+          if (changes.tracking_id) {
+            console.log('Calling update-shopify-order for tracking update:', {
+              order_id: item.entity_id,
+              tracking_id: changes.tracking_id,
+              tracking_company: changes.tracking_company,
+              courier: changes.courier
+            });
+
+            const trackingResult = await supabase.functions.invoke('update-shopify-order', {
+              body: {
+                order_id: item.entity_id,
+                action: 'update_tracking',
+                data: {
+                  tracking_number: changes.tracking_id,
+                  tracking_company: changes.tracking_company || changes.courier || 'Custom',
+                  notify_customer: false
+                }
+              }
+            });
+
+            if (trackingResult.error) {
+              console.error('Failed to update tracking in Shopify:', trackingResult.error);
+              throw trackingResult.error;
+            }
+          }
           
-          if (changes.status) {
-            // Generate status tag
+          // Handle tags update (status change or explicit tags)
+          let tagsToUpdate: string[] | null = null;
+          
+          if (changes.tags) {
+            // Explicit tags provided
+            tagsToUpdate = changes.tags;
+          } else if (changes.status) {
+            // Generate status tag from status change
             const statusTag = `Ecomnet - ${changes.status.charAt(0).toUpperCase() + changes.status.slice(1)}`;
             
             // Get existing tags and filter out old Ecomnet status tags
@@ -152,148 +182,69 @@ Deno.serve(async (req) => {
             
             // Add new status tag
             tagsToUpdate = [...filteredTags, statusTag];
-            
-            console.log(`Updating Shopify tags for order ${item.entity_id}:`, JSON.stringify(tagsToUpdate));
           }
           
-          // Determine update action priority
-          let updateAction = 'update_tags'; // Default to tags if status changed
-          let updateData: any = { tags: tagsToUpdate };
-          
-          // If tracking changed, prioritize that (but still update tags separately)
-          if (changes.tracking_id) {
-            updateAction = 'update_tracking';
-            updateData = {
-              tracking_number: changes.tracking_id,
-              tracking_company: 'TCS', // Default, should be dynamic
-              notify_customer: true
-            };
-            
-            // Update tags in a separate call if status changed
-            if (changes.status && tagsToUpdate.length > 0) {
-              try {
-                console.log('Invoking update-shopify-order (tags) from process-sync-queue:', {
-                  queue_id: item.id,
-                  order_id: item.entity_id,
-                  action: 'update_tags',
-                  data: { tags: tagsToUpdate }
-                });
+          if (tagsToUpdate) {
+            console.log('Calling update-shopify-order for tags update:', {
+              order_id: item.entity_id,
+              tags: tagsToUpdate
+            });
 
-                await supabase.functions.invoke('update-shopify-order', {
-                  body: { 
-                    order_id: item.entity_id,
-                    action: 'update_tags',
-                    data: { tags: tagsToUpdate }
-                  }
-                });
-              } catch (invokeError) {
-                console.error(`Error invoking update-shopify-order (tags) for queue item ${item.id}:`, invokeError);
-                throw invokeError;
-              }
-            }
-          } else if (changes.customer_address || changes.customer_new_address || changes.city) {
-            updateAction = 'update_address';
-            updateData = {
-              address: {
-                address1: changes.customer_address || changes.customer_new_address,
-                city: changes.city,
-                first_name: changes.customer_name?.split(' ')[0],
-                last_name: changes.customer_name?.split(' ').slice(1).join(' '),
-                phone: changes.customer_phone,
-              }
-            };
-            
-            // Update tags separately if status changed
-            if (changes.status && tagsToUpdate.length > 0) {
-              try {
-                console.log('Invoking update-shopify-order (tags for address) from process-sync-queue:', {
-                  queue_id: item.id,
-                  order_id: item.entity_id,
-                  action: 'update_tags',
-                  data: { tags: tagsToUpdate }
-                });
-
-                await supabase.functions.invoke('update-shopify-order', {
-                  body: { 
-                    order_id: item.entity_id,
-                    action: 'update_tags',
-                    data: { tags: tagsToUpdate }
-                  }
-                });
-              } catch (invokeError) {
-                console.error(`Error invoking update-shopify-order (tags for address) for queue item ${item.id}:`, invokeError);
-                throw invokeError;
-              }
-            }
-          } else if (changes.notes) {
-            updateAction = 'update_customer';
-            updateData = { customer_note: changes.notes };
-            
-            // Update tags separately if status changed
-            if (changes.status && tagsToUpdate.length > 0) {
-              try {
-                console.log('Invoking update-shopify-order (tags for notes) from process-sync-queue:', {
-                  queue_id: item.id,
-                  order_id: item.entity_id,
-                  action: 'update_tags',
-                  data: { tags: tagsToUpdate }
-                });
-
-                await supabase.functions.invoke('update-shopify-order', {
-                  body: { 
-                    order_id: item.entity_id,
-                    action: 'update_tags',
-                    data: { tags: tagsToUpdate }
-                  }
-                });
-              } catch (invokeError) {
-                console.error(`Error invoking update-shopify-order (tags for notes) for queue item ${item.id}:`, invokeError);
-                throw invokeError;
-              }
-            }
-          }
-
-          // Execute main update (if not tags-only)
-          if (updateAction !== 'update_tags' || tagsToUpdate.length === 0) {
-            try {
-              console.log('Invoking update-shopify-order (main) from process-sync-queue:', {
-                queue_id: item.id,
-                order_id: item.entity_id,
-                action: updateAction,
-                data: updateData
-              });
-
-              result = await supabase.functions.invoke('update-shopify-order', {
-                body: { 
-                  order_id: item.entity_id,
-                  action: updateAction,
-                  data: updateData
-                },
-              });
-            } catch (invokeError) {
-              console.error(`Error invoking update-shopify-order (${updateAction}) for queue item ${item.id}:`, invokeError);
-              throw invokeError;
-            }
-          } else {
-            // For tags-only updates
-            try {
-              console.log('Invoking update-shopify-order (tags-only) from process-sync-queue:', {
-                queue_id: item.id,
+            const tagsResult = await supabase.functions.invoke('update-shopify-order', {
+              body: {
                 order_id: item.entity_id,
                 action: 'update_tags',
                 data: { tags: tagsToUpdate }
-              });
+              }
+            });
 
-              result = await supabase.functions.invoke('update-shopify-order', {
-                body: {
-                  order_id: item.entity_id,
-                  action: 'update_tags',
-                  data: { tags: tagsToUpdate }
-                },
-              });
-            } catch (invokeError) {
-              console.error(`Error invoking update-shopify-order (tags-only) for queue item ${item.id}:`, invokeError);
-              throw invokeError;
+            if (tagsResult.error) {
+              console.error('Failed to update tags in Shopify:', tagsResult.error);
+              throw tagsResult.error;
+            }
+          }
+          
+          // Handle address update if address fields changed
+          if (changes.customer_address || changes.customer_new_address || changes.city) {
+            console.log('Calling update-shopify-order for address update');
+            
+            const addressResult = await supabase.functions.invoke('update-shopify-order', {
+              body: {
+                order_id: item.entity_id,
+                action: 'update_address',
+                data: {
+                  address: {
+                    address1: changes.customer_address || changes.customer_new_address,
+                    city: changes.city,
+                    first_name: changes.customer_name?.split(' ')[0],
+                    last_name: changes.customer_name?.split(' ').slice(1).join(' '),
+                    phone: changes.customer_phone,
+                  }
+                }
+              }
+            });
+
+            if (addressResult.error) {
+              console.error('Failed to update address in Shopify:', addressResult.error);
+              throw addressResult.error;
+            }
+          }
+          
+          // Handle customer note update
+          if (changes.notes) {
+            console.log('Calling update-shopify-order for notes update');
+            
+            const notesResult = await supabase.functions.invoke('update-shopify-order', {
+              body: {
+                order_id: item.entity_id,
+                action: 'update_customer',
+                data: { customer_note: changes.notes }
+              }
+            });
+
+            if (notesResult.error) {
+              console.error('Failed to update notes in Shopify:', notesResult.error);
+              throw notesResult.error;
             }
           }
           }

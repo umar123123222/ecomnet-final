@@ -246,18 +246,71 @@ serve(async (req) => {
       );
     }
 
-    // Update order with tracking information (only if label is available)
+    // Get existing order to fetch current tags and shopify_order_id
+    const { data: existingOrder } = await supabase
+      .from('orders')
+      .select('tags, shopify_order_id')
+      .eq('id', bookingRequest.orderId)
+      .single();
+
+    // Create "Ecomnet - Assigned to [Courier]" tag
+    const courierName = courier.name;
+    const ecomnetCourierTag = `Ecomnet - Assigned to ${courierName}`;
+    
+    // Remove any old "Ecomnet - Assigned to" tags and add the new one
+    const existingTags = existingOrder?.tags || [];
+    const filteredTags = existingTags.filter(tag => !tag.startsWith('Ecomnet - Assigned to'));
+    const updatedTags = [...filteredTags, ecomnetCourierTag];
+
+    console.log('[BOOKING] Updating order tags:', {
+      old_tags: existingTags,
+      new_tags: updatedTags,
+      courier_tag: ecomnetCourierTag
+    });
+
+    // Update order with tracking information and tags (only if label is available)
     const { error: orderError } = await supabase
       .from('orders')
       .update({
         tracking_id: trackingId,
         status: 'booked',
-        courier: courier.code.toLowerCase()
+        courier: courier.code.toLowerCase(),
+        tags: updatedTags
       })
       .eq('id', bookingRequest.orderId);
 
     if (orderError) {
       console.error('Error updating order:', orderError);
+    }
+
+    // If order has shopify_order_id, queue sync to Shopify
+    if (existingOrder?.shopify_order_id) {
+      console.log('[BOOKING] Queueing Shopify sync for tracking and courier tag');
+      
+      const { error: syncError } = await supabase
+        .from('sync_queue')
+        .insert({
+          entity_type: 'order',
+          entity_id: bookingRequest.orderId,
+          action: 'update',
+          direction: 'to_shopify',
+          payload: {
+            order_id: bookingRequest.orderId,
+            changes: {
+              tracking_id: trackingId,
+              courier: courier.code.toLowerCase(),
+              tracking_company: courierName,
+              tags: updatedTags
+            }
+          },
+          status: 'pending'
+        });
+
+      if (syncError) {
+        console.error('[BOOKING] Failed to queue Shopify sync:', syncError);
+      } else {
+        console.log('[BOOKING] Successfully queued Shopify sync');
+      }
     }
 
     // Create dispatch record with label information
