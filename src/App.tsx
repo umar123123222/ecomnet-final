@@ -9,6 +9,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Layout from "@/components/Layout";
 import { Loader2 } from "lucide-react";
+import VersionChecker from "@/components/VersionChecker";
 
 // Lazy load all pages with prefetching hints
 const Dashboard = lazy(() => 
@@ -162,6 +163,7 @@ const App = () => {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider delayDuration={300}>
           <BrowserRouter>
+            <VersionChecker />
             <AuthProvider>
               <Routes>
                 <Route path="/" element={

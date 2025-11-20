@@ -3,12 +3,15 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { ModernButton } from "@/components/ui/modern-button";
 import { Badge } from "@/components/ui/badge";
-import { Home, Package, Truck, RotateCcw, Users, Settings, Bell, Moon, Sun, Shield, MapPin, LogOut, ChevronDown, Box, Building2, ArrowRightLeft, Warehouse, Activity, Factory } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Home, Package, Truck, RotateCcw, Users, Settings, Bell, Moon, Sun, Shield, MapPin, LogOut, ChevronDown, Box, Building2, ArrowRightLeft, Warehouse, Activity, Factory, RefreshCw } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from '@/contexts/AuthContext';
 import { getNavigationItems } from '@/utils/rolePermissions';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
+import VersionDisplay from '@/components/VersionDisplay';
+import { useToast } from '@/hooks/use-toast';
 
 const Layout = () => {
   const [isDark, setIsDark] = useState(false);
@@ -16,6 +19,7 @@ const Layout = () => {
   const { user, profile, userRole, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const toggleTheme = () => {
     setIsDark(!isDark);
@@ -25,6 +29,22 @@ const Layout = () => {
   const handleLogout = async () => {
     await signOut();
     navigate('/auth');
+  };
+
+  const handleForceRefresh = () => {
+    // Clear all caches and reload
+    if ('caches' in window) {
+      caches.keys().then(names => {
+        names.forEach(name => caches.delete(name));
+      });
+    }
+    toast({
+      title: "Refreshing...",
+      description: "Clearing cache and reloading application",
+    });
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
   };
 
   const { primaryRole } = useUserRoles();
@@ -147,6 +167,9 @@ const Layout = () => {
                 <p className="text-xs text-muted-foreground truncate capitalize">{formatRole}</p>
               </div>
             </div>
+            <div className="group-data-[collapsible=icon]:hidden">
+              <VersionDisplay />
+            </div>
           </SidebarFooter>
         </Sidebar>
 
@@ -160,6 +183,15 @@ const Layout = () => {
               
               <div className="flex items-center gap-3">
                 <NotificationsPanel />
+                
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={handleForceRefresh}
+                  title="Force refresh and clear cache"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
                 
                 <ModernButton variant="ghost" size="icon" onClick={toggleTheme}>
                   {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
