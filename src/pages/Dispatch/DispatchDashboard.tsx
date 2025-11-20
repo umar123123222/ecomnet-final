@@ -609,17 +609,17 @@ const DispatchDashboard = () => {
     }, ...prev.slice(0, 9)]);
     setLastScanTime(Date.now());
     
-    // Play sound immediately for instant feedback
-    successSound.volume = 0.2;
-    successSound.play().catch(() => {});
+    // Don't play sound yet - wait for actual result
 
     // NOW DO DATABASE WORK
     try {
       const result = await findOrderByEntry(trimmedValue);
 
       if (!result) {
+        // Play error sound immediately
         errorSound.volume = 0.5;
-        errorSound.play().catch(() => {});
+        errorSound.currentTime = 0;
+        errorSound.play().catch(e => console.log('Audio play failed:', e));
 
         const errorMsg = `No order record found`;
         setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
@@ -671,8 +671,10 @@ const DispatchDashboard = () => {
       }
 
       if (!courierToUse && !courierNameToUse) {
+        // Play error sound immediately
         errorSound.volume = 0.5;
-        errorSound.play().catch(() => {});
+        errorSound.currentTime = 0;
+        errorSound.play().catch(e => console.log('Audio play failed:', e));
 
         const errorMsg = 'No courier assigned';
         setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
@@ -709,8 +711,10 @@ const DispatchDashboard = () => {
         .maybeSingle();
 
       if (existingDispatch) {
+        // Play error sound immediately
         errorSound.volume = 0.3;
-        errorSound.play().catch(() => {});
+        errorSound.currentTime = 0;
+        errorSound.play().catch(e => console.log('Audio play failed:', e));
 
         const errorMsg = `Already dispatched`;
         setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
@@ -783,9 +787,10 @@ const DispatchDashboard = () => {
         }
       }).catch(console.error);
 
-      // UI UPDATE AND SOUND < 100ms - No await!
+      // UI UPDATE AND SOUND < 100ms - Play success sound immediately
       successSound.volume = 0.4;
-      successSound.play().catch(() => {});
+      successSound.currentTime = 0;
+      successSound.play().catch(e => console.log('Audio play failed:', e));
 
       const processingTime = Date.now() - scanStartTime;
       const successMsg = `${order.order_number} via ${courierNameToUse}`;
@@ -821,8 +826,10 @@ const DispatchDashboard = () => {
     } catch (error: any) {
       console.error('Error processing scan:', error);
       
+      // Play error sound immediately
       errorSound.volume = 0.5;
-      errorSound.play().catch(() => {});
+      errorSound.currentTime = 0;
+      errorSound.play().catch(e => console.log('Audio play failed:', e));
 
       const errorMsg = error.message || 'Failed';
       setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
