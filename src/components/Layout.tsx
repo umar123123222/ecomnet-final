@@ -27,8 +27,14 @@ const Layout = () => {
   };
 
   const handleLogout = async () => {
+    // Clear all caches on logout to prevent old data showing
+    if ('caches' in window) {
+      const cacheKeys = await caches.keys();
+      await Promise.all(cacheKeys.map(key => caches.delete(key)));
+    }
+    
     await signOut();
-    navigate('/auth');
+    navigate('/auth', { replace: true });
   };
 
   const handleForceRefresh = () => {

@@ -27,6 +27,16 @@ const AuthPage = () => {
   // Redirect if already authenticated and profile loaded
   useEffect(() => {
     if (user && profile && !isLoading) {
+      // Clear any cached auth state before redirecting
+      if ('caches' in window) {
+        caches.keys().then(names => {
+          names.forEach(name => {
+            if (name.includes('auth')) {
+              caches.delete(name);
+            }
+          });
+        });
+      }
       navigate('/', { replace: true });
     }
   }, [user, profile, isLoading, navigate]);
