@@ -46,6 +46,39 @@ function generateShopifyTags(order: any, existingTags: string[] = []): string[] 
   return [...nonShopifyTags, ...shopifyTags];
 }
 
+// Map Shopify tracking company names to internal courier codes
+function mapShopifyCourierToCode(trackingCompany: string | null): string | null {
+  if (!trackingCompany) return null;
+  
+  const company = trackingCompany.toLowerCase();
+  if (company.includes('tcs')) return 'tcs';
+  if (company.includes('leopard')) return 'leopard';
+  if (company.includes('postex') || company.includes('post ex')) return 'postex';
+  if (company.includes('trax')) return 'trax';
+  if (company.includes('rider')) return 'rider';
+  if (company.includes('call')) return 'callcourier';
+  
+  return null;
+}
+
+// Detect courier from Shopify tags (e.g., "postex", "tcs", etc.)
+function detectCourierFromTags(tags: string): string | null {
+  if (!tags) return null;
+  
+  const tagArray = tags.toLowerCase().split(',').map(t => t.trim());
+  
+  for (const tag of tagArray) {
+    if (tag === 'postex' || tag.includes('postex')) return 'postex';
+    if (tag === 'tcs' || tag.includes('tcs')) return 'tcs';
+    if (tag === 'leopard' || tag.includes('leopard')) return 'leopard';
+    if (tag === 'trax' || tag.includes('trax')) return 'trax';
+    if (tag === 'rider' || tag.includes('rider')) return 'rider';
+    if (tag.includes('call') && tag.includes('courier')) return 'callcourier';
+  }
+  
+  return null;
+}
+
 async function fetchShopifyCustomerPhone(customerId: number, supabase: any): Promise<string> {
   try {
     // Get Shopify credentials from api_settings
@@ -155,13 +188,29 @@ Deno.serve(async (req) => {
     // Generate Shopify tags based on order state
     const updatedTags = generateShopifyTags(order, existingOrder.tags || []);
 
-    // Extract tracking info
+    // Extract tracking info and courier from Shopify fulfillment
     let trackingId = null;
+    let trackingCompany = null;
+    let detectedCourier = null;
+    
     if (order.fulfillments && order.fulfillments.length > 0) {
       const fulfillment = order.fulfillments[0];
       if (fulfillment.tracking_number) {
         trackingId = fulfillment.tracking_number;
+        trackingCompany = fulfillment.tracking_company;
+        detectedCourier = mapShopifyCourierToCode(trackingCompany);
+        console.log('Extracted tracking from Shopify fulfillment:', {
+          tracking_id: trackingId,
+          tracking_company: trackingCompany,
+          mapped_courier: detectedCourier
+        });
       }
+    }
+
+    // If no courier detected from tracking_company, try detecting from tags
+    if (!detectedCourier && order.tags) {
+      detectedCourier = detectCourierFromTags(order.tags);
+      console.log('Detected courier from Shopify tags:', detectedCourier);
     }
 
     // Extract address changes
@@ -172,6 +221,16 @@ Deno.serve(async (req) => {
       tags: updatedTags,
       last_shopify_sync: new Date().toISOString(),
     };
+
+    // Update tracking_id if found in Shopify
+    if (trackingId) {
+      updateData.tracking_id = trackingId;
+    }
+
+    // Update courier if detected from Shopify
+    if (detectedCourier) {
+      updateData.courier = detectedCourier;
+    }
 
     // Exception: Set status to cancelled if order is cancelled in Shopify
     if (order.cancelled_at) {
