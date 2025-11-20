@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, Lock, ScanBarcode, Wifi, WifiOff } from 'lucide-react';
+import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, Lock, ScanBarcode } from 'lucide-react';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
@@ -536,33 +536,6 @@ const DispatchDashboard = () => {
     }
   };
 
-  const handleScannerConnect = async () => {
-    try {
-      await scanner.connect();
-      toast({
-        title: "✅ Scanner Connected",
-        description: "You can now scan orders for dispatch",
-        duration: 3000,
-      });
-    } catch (error) {
-      toast({
-        title: "❌ Connection Failed",
-        description: "Could not connect to scanner. Please try again.",
-        variant: "destructive",
-        duration: 4000,
-      });
-    }
-  };
-
-  const handleScannerDisconnect = () => {
-    scanner.disconnect();
-    toast({
-      title: "Scanner Disconnected",
-      description: "Scanner mode has been disabled",
-      duration: 2000,
-    });
-  };
-
   // Scanner Mode: Find order by entry
   const findOrderByEntry = async (entry: string): Promise<{
     order: any;
@@ -1012,19 +985,6 @@ const DispatchDashboard = () => {
           <p className="text-gray-600 mt-1">Track and manage order dispatches</p>
         </div>
         <div className="flex gap-2 flex-wrap items-center">
-          {/* Scanner Status Badge */}
-          {scanner.isConnected ? (
-            <Badge variant="default" className="bg-green-600 text-white">
-              <Wifi className="h-3 w-3 mr-1" />
-              Scanner Connected
-            </Badge>
-          ) : (
-            <Badge variant="secondary" className="bg-gray-500 text-white">
-              <WifiOff className="h-3 w-3 mr-1" />
-              Scanner Not Connected
-            </Badge>
-          )}
-
           <Select
             value={selectedCourier || ''}
             onValueChange={setSelectedCourier}
@@ -1046,31 +1006,9 @@ const DispatchDashboard = () => {
             </SelectContent>
           </Select>
 
-          {/* Connect/Disconnect Scanner Button */}
-          {!scanner.isConnected ? (
-            <Button
-              onClick={handleScannerConnect}
-              variant="outline"
-              className="border-green-600 text-green-600 hover:bg-green-50"
-            >
-              <Wifi className="mr-2 h-4 w-4" />
-              Connect Scanner
-            </Button>
-          ) : (
-            <Button
-              onClick={handleScannerDisconnect}
-              variant="outline"
-              className="border-gray-600"
-              size="sm"
-            >
-              <WifiOff className="mr-2 h-3 w-3" />
-              Disconnect
-            </Button>
-          )}
-
           <Button
             onClick={activateScannerMode}
-            disabled={!scanner.isConnected || scannerModeActive}
+            disabled={scannerModeActive}
             className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
           >
             <ScanBarcode className="mr-2 h-4 w-4" />
