@@ -44,6 +44,7 @@ const DispatchDashboard = () => {
     const saved = localStorage.getItem('dispatch_entry_type');
     return (saved === 'order_number' ? 'order_number' : 'tracking_id') as 'tracking_id' | 'order_number';
   });
+  const [isProcessing, setIsProcessing] = useState(false);
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -216,9 +217,23 @@ const DispatchDashboard = () => {
       return;
     }
 
+    setIsProcessing(true);
+
     try {
       // Parse entries - one entry per line
       const entries = data.bulkEntries.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      
+      // Remove duplicates
+      const uniqueEntries = [...new Set(entries)];
+      const duplicateCount = entries.length - uniqueEntries.length;
+
+      if (duplicateCount > 0) {
+        toast({
+          title: "Duplicates Removed",
+          description: `${duplicateCount} duplicate ${duplicateCount === 1 ? 'entry' : 'entries'} removed from the list.`,
+        });
+      }
+      
       let successCount = 0;
       let errorCount = 0;
       const errors: string[] = [];
@@ -234,7 +249,7 @@ const DispatchDashboard = () => {
       // Enum-safe courier code for orders.courier (enum courier_type)
       const courierCode = selectedCourierObj?.code as Database["public"]["Enums"]["courier_type"] | undefined;
       
-      for (const entry of entries) {
+      for (const entry of uniqueEntries) {
         // Find order by selected entry type
         let order;
         
@@ -414,6 +429,9 @@ const DispatchDashboard = () => {
         };
         
         fetchDispatchesFunction();
+        
+        // Clear the form after successful processing
+        form.reset({ bulkEntries: '' });
       }
       if (errors.length > 0) {
         console.error('Bulk entry errors:', errors);
@@ -423,8 +441,10 @@ const DispatchDashboard = () => {
           variant: "destructive"
         });
       }
-      setIsManualEntryOpen(false);
-      form.reset();
+      
+      if (successCount > 0) {
+        setIsManualEntryOpen(false);
+      }
     } catch (error) {
       console.error('Bulk entry error:', error);
       toast({
@@ -432,6 +452,8 @@ const DispatchDashboard = () => {
         description: "Failed to process bulk entries",
         variant: "destructive"
       });
+    } finally {
+      setIsProcessing(false);
     }
   };
   const toggleRowExpansion = (dispatchId: string) => {
@@ -466,7 +488,11 @@ const DispatchDashboard = () => {
           <p className="text-gray-600 mt-1">Track and manage order dispatches</p>
         </div>
         <div className="flex gap-2">
-          <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
+          <Dialog open={isManualEntryOpen} onOpenChange={(open) => {
+            if (!isProcessing || !open) {
+              setIsManualEntryOpen(open);
+            }
+          }}>
             <DialogTrigger asChild>
               <Button variant="outline">
                 <Truck className="h-4 w-4 mr-2" />
@@ -593,6 +619,12 @@ const DispatchDashboard = () => {
                               disabled={!allowManualEntry && !scanner.isConnected}
                             />
                           </FormControl>
+                          {isProcessing && (
+                            <div className="mt-2 p-3 bg-primary/5 border border-primary/20 rounded-md text-sm text-primary flex items-center gap-2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
+                              <span className="font-medium">Processing entries, please wait...</span>
+                            </div>
+                          )}
                           <p className="text-sm text-muted-foreground mt-1">
                             {entryType === 'tracking_id' 
                               ? 'Enter courier tracking numbers (e.g., TRK123456789)'
@@ -602,10 +634,27 @@ const DispatchDashboard = () => {
                         </FormItem>} />
                   </div>
                   <div className="flex justify-end gap-2">
-                    <Button type="button" variant="outline" onClick={() => setIsManualEntryOpen(false)}>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setIsManualEntryOpen(false)}
+                      disabled={isProcessing}
+                    >
                       Cancel
                     </Button>
-                    <Button type="submit">Process Entries</Button>
+                    <Button 
+                      type="submit" 
+                      disabled={isProcessing || (!allowManualEntry && !scanner.isConnected)}
+                    >
+                      {isProcessing ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-background border-t-transparent mr-2" />
+                          Processing...
+                        </>
+                      ) : (
+                        'Process Entries'
+                      )}
+                    </Button>
                   </div>
                 </form>
               </Form>
