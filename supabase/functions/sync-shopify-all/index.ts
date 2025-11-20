@@ -6,6 +6,38 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function generateShopifyTags(order: any, existingTags: string[] = []): string[] {
+  // Remove all existing "Shopify - *" tags
+  const nonShopifyTags = existingTags.filter(tag => !tag.startsWith('Shopify - '));
+  const shopifyTags: string[] = [];
+  
+  // Add fulfillment status tag
+  if (order.fulfillment_status === 'fulfilled') {
+    shopifyTags.push('Shopify - Fulfilled');
+  } else if (order.fulfillment_status === 'partial') {
+    shopifyTags.push('Shopify - Partially Fulfilled');
+  }
+  
+  // Add financial status tag
+  if (order.financial_status === 'paid') {
+    shopifyTags.push('Shopify - Paid');
+  } else if (order.financial_status === 'pending') {
+    shopifyTags.push('Shopify - Pending Payment');
+  } else if (order.financial_status === 'refunded') {
+    shopifyTags.push('Shopify - Refunded');
+  } else if (order.financial_status === 'voided') {
+    shopifyTags.push('Shopify - Voided');
+  }
+  
+  // Add cancellation tag
+  if (order.cancelled_at) {
+    shopifyTags.push('Shopify - Cancelled');
+  }
+  
+  // Combine non-Shopify tags with new Shopify tags
+  return [...nonShopifyTags, ...shopifyTags];
+}
+
 interface SyncStats {
   products: number;
   orders: number;
@@ -175,6 +207,11 @@ Deno.serve(async (req) => {
                 }
               }
 
+              // Generate Shopify tags based on order state
+              const existingTags = existing?.tags || [];
+              const baseShopifyTags = order.tags ? order.tags.split(',').map((t: string) => t.trim()) : [];
+              const shopifyStateTags = generateShopifyTags(order, [...existingTags, ...baseShopifyTags]);
+
               const orderData: Record<string, any> = {
                 order_number: `SHOP-${order.order_number}`,
                 shopify_order_number: String(order.order_number),
@@ -186,8 +223,8 @@ Deno.serve(async (req) => {
                 customer_address: order.shipping_address?.address1 || 'N/A',
                 city: order.shipping_address?.city || 'N/A',
                 total_amount: parseFloat(order.total_price),
-                tags: order.tags ? order.tags.split(',').map((t: string) => t.trim()) : [],
-                status: order.cancelled_at ? 'cancelled' : (order.fulfillment_status === 'fulfilled' || order.fulfillment_status === 'partial') ? 'booked' : order.financial_status === 'paid' ? 'pending' : 'pending',
+                tags: shopifyStateTags,
+                status: order.cancelled_at ? 'cancelled' : 'pending',
                 synced_to_shopify: true,
                 last_shopify_sync: new Date().toISOString(),
               };
