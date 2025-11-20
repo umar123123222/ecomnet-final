@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 import { crypto } from 'https://deno.land/std@0.177.0/crypto/mod.ts';
+import { getEcomnetStatusTag } from '../_shared/ecomnetStatusTags.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -214,6 +215,14 @@ Deno.serve(async (req) => {
     
     const normalizedOrderPhone = orderPhone?.replace(/\D/g, '') || '';
     
+    // Determine initial status
+    const initialStatus = order.fulfillment_status === 'fulfilled' ? 'delivered' : 'pending';
+    
+    // Prepare tags with initial Ecomnet status tag
+    const shopifyTags = order.tags ? order.tags.split(',').map(t => t.trim()) : [];
+    const ecomnetTag = getEcomnetStatusTag(initialStatus);
+    const allTags = [...shopifyTags, ecomnetTag];
+    
     const orderData = {
       order_number: `SHOP-${order.order_number}`,
       shopify_order_number: order.order_number.toString(),
@@ -227,9 +236,9 @@ Deno.serve(async (req) => {
       city: order.shipping_address.city,
       total_amount: parseFloat(order.total_price),
       total_items: order.line_items.length.toString(),
-      tags: order.tags ? order.tags.split(',').map(t => t.trim()) : [],
+      tags: allTags,
       notes: order.note,
-      status: order.fulfillment_status === 'fulfilled' ? 'delivered' : 'pending',
+      status: initialStatus,
       synced_to_shopify: true,
       last_shopify_sync: new Date().toISOString(),
       items: order.line_items.map(item => ({
@@ -276,6 +285,25 @@ Deno.serve(async (req) => {
       }
 
       console.log('Created new order:', newOrder?.id);
+      
+      // Queue sync to push Ecomnet tag back to Shopify
+      if (newOrder) {
+        await supabase.from('sync_queue').insert({
+          entity_type: 'order',
+          entity_id: newOrder.id,
+          action: 'update',
+          direction: 'to_shopify',
+          priority: 'normal',
+          payload: {
+            shopify_order_id: order.id,
+            changes: {
+              tags: allTags
+            }
+          },
+          status: 'pending'
+        });
+        console.log('Queued initial Ecomnet tag sync to Shopify');
+      }
     }
 
     return new Response(JSON.stringify({ success: true }), {
