@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import nodemailer from "npm:nodemailer@6.9.7";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.50.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +13,38 @@ interface UserCredentialsRequest {
   password: string;
   roles: string[];
   portal_url: string;
+}
+
+async function getSuperAdminEmails(): Promise<string[]> {
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing Supabase configuration for fetching super admins');
+      return [];
+    }
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    const { data: superAdmins, error } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('role', 'super_admin')
+      .eq('is_active', true);
+    
+    if (error) {
+      console.error('Error fetching super admin emails:', error);
+      return [];
+    }
+    
+    const emails = superAdmins?.map(admin => admin.email).filter(Boolean) || [];
+    console.log(`Found ${emails.length} super admin(s) to BCC`);
+    return emails;
+  } catch (error) {
+    console.error('Exception fetching super admins:', error);
+    return [];
+  }
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -220,16 +253,28 @@ This is an automated message. Please do not reply to this email.
 © ${new Date().getFullYear()} ${fromName}. All rights reserved.
     `;
 
-    // Send email
-    await transporter.sendMail({
+    // Fetch super admin emails for BCC
+    const superAdminEmails = await getSuperAdminEmails();
+    
+    // Prepare mail options
+    const mailOptions: any = {
       from: `${fromName} <${fromEmail}>`,
       to: email,
       subject: `Welcome to ${fromName} - Your Portal Access`,
       text: textContent,
       html: htmlContent,
-    });
+    };
 
-    console.log(`Credentials email sent successfully to ${email}`);
+    // Add BCC if super admins exist
+    if (superAdminEmails.length > 0) {
+      mailOptions.bcc = superAdminEmails.join(', ');
+      console.log(`BCCing ${superAdminEmails.length} super admin(s): ${superAdminEmails.join(', ')}`);
+    }
+
+    // Send email
+    await transporter.sendMail(mailOptions);
+
+    console.log(`Credentials email sent successfully to ${email} with ${superAdminEmails.length} super admin(s) BCCed`);
 
     return new Response(
       JSON.stringify({
