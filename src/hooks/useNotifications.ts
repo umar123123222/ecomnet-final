@@ -93,7 +93,7 @@ export const useNotifications = () => {
       console.log('Cleaning up notifications subscription');
       supabase.removeChannel(channel);
     };
-  }, [user, queryClient]);
+  }, [user]);
 
   return {
     notifications: notifications || [],
