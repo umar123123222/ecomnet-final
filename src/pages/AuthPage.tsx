@@ -54,6 +54,8 @@ const AuthPage = () => {
         title: 'Success',
         description: 'Logged in successfully!'
       });
+      // After successful login, send user to home/dashboard
+      navigate('/', { replace: true });
     }
   };
   const handleResetDemoPassword = async () => {

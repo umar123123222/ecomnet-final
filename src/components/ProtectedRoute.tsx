@@ -1,8 +1,8 @@
-
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthPage from '@/pages/AuthPage';
 import { Loader2 } from 'lucide-react';
+import { Navigate, useLocation } from 'react-router-dom';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -10,6 +10,7 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { user, isLoading, profile } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -23,7 +24,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   }
 
   if (!user || !profile) {
-    return <AuthPage />;
+    // Redirect unauthenticated users to dedicated auth route
+    return <Navigate to="/auth" replace state={{ from: location }} />;
   }
 
   return <>{children}</>;
