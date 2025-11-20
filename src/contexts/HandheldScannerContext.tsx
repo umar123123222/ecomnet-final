@@ -19,7 +19,7 @@ export const HandheldScannerProvider: React.FC<{ children: React.ReactNode }> = 
   // Listen for keyboard input (HID mode)
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      if (!isConnected) return;
+      // Process all keyboard input when callbacks are registered
 
       if (e.key === 'Enter') {
         // Scanner sends Enter after data
@@ -35,7 +35,7 @@ export const HandheldScannerProvider: React.FC<{ children: React.ReactNode }> = 
 
     window.addEventListener('keypress', handleKeyPress);
     return () => window.removeEventListener('keypress', handleKeyPress);
-  }, [isConnected, scanCallbacks]);
+  }, [scanCallbacks]);
 
   // Load connection state from localStorage
   useEffect(() => {
