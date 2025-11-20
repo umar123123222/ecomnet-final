@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const batchSize = 10; // Process 10 items at a time
+    const batchSize = 50; // Process up to 50 items at a time for faster catch-up
     let processed = 0;
     let failed = 0;
     const results: any[] = [];
@@ -27,7 +27,8 @@ Deno.serve(async (req) => {
       .select('*')
       .eq('status', 'pending')
       .lt('retry_count', 5)
-      .order('created_at', { ascending: true })
+      // Process newest items first so recent status updates are prioritized
+      .order('created_at', { ascending: false })
       .limit(batchSize);
 
     if (queueError) {
