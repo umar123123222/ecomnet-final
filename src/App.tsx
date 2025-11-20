@@ -12,6 +12,9 @@ import { Loader2 } from "lucide-react";
 import VersionChecker from "@/components/VersionChecker";
 
 // Lazy load all pages with prefetching hints
+const AuthPage = lazy(() => 
+  import("@/pages/AuthPage").then(module => ({ default: module.default }))
+);
 const Dashboard = lazy(() => 
   import("@/pages/Dashboard").then(module => ({ default: module.default }))
 );
@@ -166,6 +169,14 @@ const App = () => {
             <VersionChecker />
             <AuthProvider>
               <Routes>
+                <Route
+                  path="/auth"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <AuthPage />
+                    </Suspense>
+                  }
+                />
                 <Route path="/" element={
                   <ProtectedRoute>
                     <Layout />
