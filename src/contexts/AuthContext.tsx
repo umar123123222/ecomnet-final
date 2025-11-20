@@ -46,24 +46,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('profiles')
         .select(`
           *,
-          user_roles!inner(role)
+          user_roles!inner(role, is_active)
         `)
         .eq('id', userId)
         .eq('user_roles.is_active', true)
         .single();
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error('Profile fetch error:', profileError);
+        throw profileError;
+      }
       
-      setProfile(profileData);
-      // user_roles returns an array, get first element
-      const roleData = Array.isArray(profileData.user_roles) ? profileData.user_roles[0] : profileData.user_roles;
-      setUserRole(roleData?.role || profileData.role);
+      if (profileData) {
+        setProfile(profileData);
+        // user_roles returns an array, get first element
+        const roleData = Array.isArray(profileData.user_roles) ? profileData.user_roles[0] : profileData.user_roles;
+        setUserRole(roleData?.role || profileData.role);
+      }
     } catch (error) {
       console.error('Error fetching user profile:', error);
       setProfile(null);
       setUserRole(null);
     } finally {
       setIsFetching(false);
+      setIsLoading(false);
     }
   };
 
@@ -101,11 +107,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     setIsLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error, data } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    setIsLoading(false);
+    
+    if (!error && data.session) {
+      // Wait for profile to load before setting loading to false
+      await fetchUserProfile(data.session.user.id);
+    } else {
+      setIsLoading(false);
+    }
+    
     return { error };
   };
 

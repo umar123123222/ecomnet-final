@@ -16,19 +16,20 @@ const AuthPage = () => {
   const {
     signIn,
     isLoading,
-    user
+    user,
+    profile
   } = useAuth();
   const {
     toast
   } = useToast();
   const navigate = useNavigate();
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated and profile loaded
   useEffect(() => {
-    if (user) {
-      navigate('/');
+    if (user && profile && !isLoading) {
+      navigate('/', { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, profile, isLoading, navigate]);
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
