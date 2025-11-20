@@ -1230,6 +1230,17 @@ const OrderDashboard = () => {
       });
 
       fetchOrders();
+
+      // Trigger sync queue processing to update Shopify immediately
+      supabase.functions.invoke('process-sync-queue')
+        .then(({ error }) => {
+          if (error) {
+            console.error('Error processing Shopify sync queue:', error);
+          }
+        })
+        .catch(err => {
+          console.error('Unexpected error invoking process-sync-queue:', err);
+        });
     } catch (error) {
       console.error('Error updating order:', error);
       toast({

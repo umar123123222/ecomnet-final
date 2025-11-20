@@ -105,6 +105,8 @@ Deno.serve(async (req) => {
             
             // Add new status tag
             tagsToUpdate = [...filteredTags, statusTag];
+            
+            console.log(`Updating Shopify tags for order ${item.entity_id}:`, JSON.stringify(tagsToUpdate));
           }
           
           // Determine update action priority
@@ -122,13 +124,18 @@ Deno.serve(async (req) => {
             
             // Update tags in a separate call if status changed
             if (changes.status && tagsToUpdate.length > 0) {
-              await supabase.functions.invoke('update-shopify-order', {
-                body: { 
-                  order_id: item.entity_id,
-                  action: 'update_tags',
-                  data: { tags: tagsToUpdate }
-                }
-              });
+              try {
+                await supabase.functions.invoke('update-shopify-order', {
+                  body: { 
+                    order_id: item.entity_id,
+                    action: 'update_tags',
+                    data: { tags: tagsToUpdate }
+                  }
+                });
+              } catch (invokeError) {
+                console.error(`Error invoking update-shopify-order (tags) for queue item ${item.id}:`, invokeError);
+                throw invokeError;
+              }
             }
           } else if (changes.customer_address || changes.customer_new_address || changes.city) {
             updateAction = 'update_address';
@@ -144,13 +151,18 @@ Deno.serve(async (req) => {
             
             // Update tags separately if status changed
             if (changes.status && tagsToUpdate.length > 0) {
-              await supabase.functions.invoke('update-shopify-order', {
-                body: { 
-                  order_id: item.entity_id,
-                  action: 'update_tags',
-                  data: { tags: tagsToUpdate }
-                }
-              });
+              try {
+                await supabase.functions.invoke('update-shopify-order', {
+                  body: { 
+                    order_id: item.entity_id,
+                    action: 'update_tags',
+                    data: { tags: tagsToUpdate }
+                  }
+                });
+              } catch (invokeError) {
+                console.error(`Error invoking update-shopify-order (tags for address) for queue item ${item.id}:`, invokeError);
+                throw invokeError;
+              }
             }
           } else if (changes.notes) {
             updateAction = 'update_customer';
@@ -158,34 +170,49 @@ Deno.serve(async (req) => {
             
             // Update tags separately if status changed
             if (changes.status && tagsToUpdate.length > 0) {
-              await supabase.functions.invoke('update-shopify-order', {
-                body: { 
-                  order_id: item.entity_id,
-                  action: 'update_tags',
-                  data: { tags: tagsToUpdate }
-                }
-              });
+              try {
+                await supabase.functions.invoke('update-shopify-order', {
+                  body: { 
+                    order_id: item.entity_id,
+                    action: 'update_tags',
+                    data: { tags: tagsToUpdate }
+                  }
+                });
+              } catch (invokeError) {
+                console.error(`Error invoking update-shopify-order (tags for notes) for queue item ${item.id}:`, invokeError);
+                throw invokeError;
+              }
             }
           }
 
           // Execute main update (if not tags-only)
           if (updateAction !== 'update_tags' || tagsToUpdate.length === 0) {
-            result = await supabase.functions.invoke('update-shopify-order', {
-              body: { 
-                order_id: item.entity_id,
-                action: updateAction,
-                data: updateData
-              },
-            });
+            try {
+              result = await supabase.functions.invoke('update-shopify-order', {
+                body: { 
+                  order_id: item.entity_id,
+                  action: updateAction,
+                  data: updateData
+                },
+              });
+            } catch (invokeError) {
+              console.error(`Error invoking update-shopify-order (${updateAction}) for queue item ${item.id}:`, invokeError);
+              throw invokeError;
+            }
           } else {
             // For tags-only updates
-            result = await supabase.functions.invoke('update-shopify-order', {
-              body: { 
-                order_id: item.entity_id,
-                action: 'update_tags',
-                data: { tags: tagsToUpdate }
-              },
-            });
+            try {
+              result = await supabase.functions.invoke('update-shopify-order', {
+                body: { 
+                  order_id: item.entity_id,
+                  action: 'update_tags',
+                  data: { tags: tagsToUpdate }
+                },
+              });
+            } catch (invokeError) {
+              console.error(`Error invoking update-shopify-order (tags-only) for queue item ${item.id}:`, invokeError);
+              throw invokeError;
+            }
           }
           }
         } else if (item.entity_type === 'inventory' && item.direction === 'to_shopify') {
@@ -196,7 +223,7 @@ Deno.serve(async (req) => {
 
         // Check if invocation was successful
         if (result?.error) {
-          console.error('Edge function invocation error:', JSON.stringify(result.error));
+          console.error(`update-shopify-order returned error for queue item ${item.id}:`, JSON.stringify(result.error));
           throw new Error(result.error.message || 'Function invocation failed');
         }
 
