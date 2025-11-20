@@ -963,12 +963,75 @@ const OrderDashboard = () => {
     }
   };
   
-  const handleSelectAllPages = () => {
-    setSelectAllPages(!selectAllPages);
-    if (!selectAllPages) {
-      setSelectedOrders(new Set(orders.map(order => order.id)));
-    } else {
+  const handleSelectAllPages = async () => {
+    if (selectAllPages) {
+      // Deselect all
+      setSelectAllPages(false);
       setSelectedOrders(new Set());
+      return;
+    }
+
+    try {
+      // Build the same query with filters but fetch ALL IDs
+      let query = supabase
+        .from('orders')
+        .select('id', { count: 'exact' });
+      
+      // Apply the same filters as fetchOrders
+      if (filters.search) {
+        query = query.or(`order_number.ilike.%${filters.search}%,shopify_order_number.ilike.%${filters.search}%,customer_name.ilike.%${filters.search}%,customer_phone.ilike.%${filters.search}%,customer_email.ilike.%${filters.search}%,tracking_id.ilike.%${filters.search}%,city.ilike.%${filters.search}%`);
+      }
+      if (filters.status !== 'all') {
+        query = query.eq('status', filters.status as any);
+      }
+      if (filters.courier !== 'all') {
+        query = query.eq('courier', filters.courier as any);
+      }
+      if (filters.orderType !== 'all') {
+        query = query.eq('order_type', filters.orderType);
+      }
+      if (filters.verificationStatus !== 'all') {
+        query = query.eq('verification_status', filters.verificationStatus as any);
+      }
+      if (filters.dateRange?.from) {
+        query = query.gte('created_at', filters.dateRange.from.toISOString());
+        if (filters.dateRange.to) {
+          query = query.lte('created_at', filters.dateRange.to.toISOString());
+        }
+      }
+      if (filters.amountMin !== undefined) {
+        query = query.gte('total_amount', filters.amountMin);
+      }
+      if (filters.amountMax !== undefined) {
+        query = query.lte('total_amount', filters.amountMax);
+      }
+
+      const { data, error, count } = await query;
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const allIds = data.map(order => order.id);
+        setSelectedOrders(new Set(allIds));
+        setSelectAllPages(true);
+        toast({
+          title: "All Records Selected",
+          description: `Selected ${allIds.length} order(s) matching your filters`,
+        });
+      } else {
+        toast({
+          title: "No Records Found",
+          description: "No orders match your current filters",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error selecting all pages:', error);
+      toast({
+        title: "Selection Failed",
+        description: "Could not select all records. Please try again.",
+        variant: "destructive",
+      });
     }
   };
   
