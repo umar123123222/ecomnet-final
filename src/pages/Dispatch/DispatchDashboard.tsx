@@ -1427,9 +1427,6 @@ const DispatchDashboard = () => {
           <div className="mt-3 pt-3 border-t text-xs text-gray-500">
             <div>💡 Scan orders to dispatch instantly</div>
             <div>⌨️ Press <kbd className="px-1 py-0.5 bg-gray-200 rounded">ESC</kbd> or <kbd className="px-1 py-0.5 bg-gray-200 rounded">Ctrl+Shift+S</kbd> to exit</div>
-            {!scanner.isConnected && (
-              <div className="mt-1 text-red-600">⚠️ Scanner disconnected</div>
-            )}
           </div>
         </div>
       )}
