@@ -42,11 +42,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsFetching(true);
     try {
       // Combined query: fetch profile and role in a single request using PostgreSQL join
+      // Use specific foreign key to avoid ambiguity
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select(`
           *,
-          user_roles!inner(role, is_active)
+          user_roles!user_roles_user_id_profiles_fkey!inner(role, is_active)
         `)
         .eq('id', userId)
         .eq('user_roles.is_active', true)
