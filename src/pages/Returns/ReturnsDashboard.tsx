@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Download, ChevronDown, ChevronUp, Edit, Lock } from 'lucide-react';
+import { Search, Download, ChevronDown, ChevronUp, Edit, Lock, ScanBarcode } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
@@ -18,6 +18,8 @@ import TagsNotes from '@/components/TagsNotes';
 import { useToast } from '@/hooks/use-toast';
 import { logActivity, updateUserPerformance } from '@/utils/activityLogger';
 import { useAuth } from '@/contexts/AuthContext';
+import { useHandheldScanner } from '@/contexts/HandheldScannerContext';
+import { useQueryClient } from '@tanstack/react-query';
 const ReturnsDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [returns, setReturns] = useState<any[]>([]);
@@ -35,12 +37,28 @@ const ReturnsDashboard = () => {
     const saved = localStorage.getItem('returns_entry_type');
     return (saved === 'order_number' ? 'order_number' : 'tracking_id') as 'tracking_id' | 'order_number';
   });
-  const {
-    toast
-  } = useToast();
-  const {
-    user
-  } = useAuth();
+  
+  // Scanner Mode States
+  const [scannerModeActive, setScannerModeActive] = useState(false);
+  const [scannerStats, setScannerStats] = useState({ success: 0, errors: 0 });
+  const [recentScans, setRecentScans] = useState<Array<{
+    entry: string;
+    type: 'order_number' | 'tracking_id' | 'unknown';
+    status: 'success' | 'error';
+    message: string;
+    timestamp: Date;
+    orderId?: string;
+  }>>([]);
+  const [scanHistoryForExport, setScanHistoryForExport] = useState<any[]>([]);
+  const [lastScanTime, setLastScanTime] = useState<number>(Date.now());
+  
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const scanner = useHandheldScanner();
+  const queryClient = useQueryClient();
+  
+  const successSound = useMemo(() => new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTeJ0fPTgjMGHm7A7+OZURE='), []);
+  const errorSound = useMemo(() => new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAAB0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dA=='), []);
   
   const form = useForm({
     defaultValues: {
