@@ -363,6 +363,57 @@ const DispatchDashboard = () => {
           title: "Bulk Entry Complete",
           description: `Successfully processed ${successCount} ${entryType === 'tracking_id' ? 'tracking ID(s)' : 'order number(s)'}${errorCount > 0 ? `, ${errorCount} failed` : ''}`
         });
+        
+        // Immediately refetch dispatches to show updated data
+        const fetchDispatchesFunction = async () => {
+          try {
+            const { data, error } = await supabase
+              .from('dispatches')
+              .select(`
+                *,
+                orders:orders!dispatches_order_id_fkey (
+                  order_number,
+                  customer_name,
+                  customer_phone,
+                  customer_address,
+                  city,
+                  total_amount,
+                  status
+                )
+              `)
+              .order('created_at', { ascending: false });
+              
+            if (error) throw error;
+
+            const userIds = [...new Set(data?.filter(d => d.dispatched_by).map(d => d.dispatched_by) || [])];
+            let profilesById: Record<string, any> = {};
+            
+            if (userIds.length > 0) {
+              const { data: profiles } = await supabase
+                .from('profiles')
+                .select('id, full_name, email')
+                .in('id', userIds);
+              
+              if (profiles) {
+                profilesById = profiles.reduce((acc, profile) => {
+                  acc[profile.id] = profile;
+                  return acc;
+                }, {} as Record<string, any>);
+              }
+            }
+
+            const enrichedDispatches = data?.map(dispatch => ({
+              ...dispatch,
+              dispatched_by_user: dispatch.dispatched_by ? profilesById[dispatch.dispatched_by] : null
+            })) || [];
+
+            setDispatches(enrichedDispatches);
+          } catch (error) {
+            console.error('Error refetching dispatches:', error);
+          }
+        };
+        
+        fetchDispatchesFunction();
       }
       if (errors.length > 0) {
         console.error('Bulk entry errors:', errors);
