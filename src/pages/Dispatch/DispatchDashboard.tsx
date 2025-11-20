@@ -23,6 +23,7 @@ import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { logActivity } from '@/utils/activityLogger';
+import { useHandheldScanner } from '@/contexts/HandheldScannerContext';
 
 const DispatchDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,8 +39,6 @@ const DispatchDashboard = () => {
   const [isNewDispatchOpen, setIsNewDispatchOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [allowManualEntry, setAllowManualEntry] = useState(false);
-  const [lastKeyTime, setLastKeyTime] = useState<number>(0);
-  const [fastKeyCount, setFastKeyCount] = useState<number>(0);
   const [selectedCourier, setSelectedCourier] = useState<string | null>(null);
   const [entryType, setEntryType] = useState<'tracking_id' | 'order_number'>(() => {
     const saved = localStorage.getItem('dispatch_entry_type');
@@ -49,6 +48,7 @@ const DispatchDashboard = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const scanner = useHandheldScanner();
   
   // Fetch all couriers from business settings
   const { data: couriers = [], isLoading: couriersLoading } = useQuery({
@@ -387,51 +387,26 @@ const DispatchDashboard = () => {
     setExpandedRows(prev => prev.includes(dispatchId) ? prev.filter(id => id !== dispatchId) : [...prev, dispatchId]);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Allow manual entry if toggle is enabled
-    if (allowManualEntry) {
-      setLastKeyTime(Date.now());
-      setFastKeyCount(0);
-      return;
-    }
-
-    const currentTime = Date.now();
-    const timeSinceLastKey = currentTime - lastKeyTime;
-    setLastKeyTime(currentTime);
-
-    // Special keys are always allowed
-    const isSpecialKey = ['Tab', 'Enter', 'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key);
-    const isSelectAll = (e.ctrlKey || e.metaKey) && e.key === 'a';
-    
-    if (isSpecialKey || isSelectAll) {
-      return;
-    }
-
-    // Detect scanner input: scanners type very fast (< 100ms between keystrokes)
-    const isFastTyping = timeSinceLastKey < 100 && timeSinceLastKey > 0;
-    
-    if (isFastTyping) {
-      // Track consecutive fast keys - scanner produces multiple fast keys in sequence
-      setFastKeyCount(prev => prev + 1);
-      // If we've detected 3+ consecutive fast keys, it's definitely a scanner
-      if (fastKeyCount >= 2) {
-        return; // Allow scanner input silently
-      }
-    } else {
-      // Reset counter if typing slows down
-      setFastKeyCount(0);
+  // Set up scanner listener when manual entry is disabled
+  useEffect(() => {
+    if (!allowManualEntry && isManualEntryOpen) {
+      // When manual entry is off, listen for scanner input
+      const cleanup = scanner.onScan((scannedData) => {
+        // Get current value from textarea
+        const currentValue = form.getValues('bulkEntries');
+        
+        // Append scanned data on a new line (or as first line if empty)
+        const newValue = currentValue 
+          ? `${currentValue}\n${scannedData}` 
+          : scannedData;
+        
+        // Programmatically set the textarea value
+        form.setValue('bulkEntries', newValue);
+      });
       
-      // Only block and show toast for clearly manual typing (slow, deliberate keystrokes)
-      if (timeSinceLastKey > 200 || lastKeyTime === 0) {
-        e.preventDefault();
-        toast({
-          title: "Manual Entry Disabled",
-          description: "Enable manual entry toggle to type, or use barcode scanner",
-          variant: "destructive"
-        });
-      }
+      return cleanup;
     }
-  };
+  }, [allowManualEntry, isManualEntryOpen, scanner, form]);
   return <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -546,7 +521,13 @@ const DispatchDashboard = () => {
                     field
                   }) => <FormItem>
                           <FormLabel>Bulk Entry</FormLabel>
-                          {!allowManualEntry && (
+                          {!allowManualEntry && !scanner.isConnected && (
+                            <div className="p-2 mt-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+                              <Lock className="h-4 w-4 inline mr-1" />
+                              Scanner not connected. Connect scanner or enable manual entry.
+                            </div>
+                          )}
+                          {!allowManualEntry && scanner.isConnected && (
                             <Badge variant="secondary" className="ml-2">
                               <Lock className="h-3 w-3 mr-1" />
                               Scanner Mode
@@ -557,7 +538,8 @@ const DispatchDashboard = () => {
                               {...field}
                               placeholder={`${!allowManualEntry ? 'Scan' : 'Enter'} ${entryType === 'tracking_id' ? 'tracking IDs' : 'order numbers'} (one per line)...`}
                               className="min-h-[150px] font-mono text-sm" 
-                              onKeyDown={handleKeyDown}
+                              readOnly={!allowManualEntry}
+                              disabled={!allowManualEntry && !scanner.isConnected}
                             />
                           </FormControl>
                           <p className="text-sm text-muted-foreground mt-1">
