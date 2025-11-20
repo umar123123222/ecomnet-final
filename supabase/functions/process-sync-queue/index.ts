@@ -21,17 +21,35 @@ Deno.serve(async (req) => {
     let failed = 0;
     const results: any[] = [];
 
-    // Get pending items from sync queue (oldest first, with retry logic)
-    const { data: queueItems, error: queueError } = await supabase
+    // Prioritize pending items first (new jobs), then fall back to failed items for retries
+    let { data: queueItems, error: queueError } = await supabase
       .from('sync_queue')
       .select('*')
-      .in('status', ['pending', 'failed'])
+      .eq('status', 'pending')
       .lt('retry_count', 5)
       .order('created_at', { ascending: true })
       .limit(batchSize);
 
     if (queueError) {
       throw queueError;
+    }
+
+    // If no pending items, fetch a smaller batch of failed items to retry
+    if (!queueItems || queueItems.length === 0) {
+      const retryBatchSize = 10;
+      const { data: failedItems, error: failedError } = await supabase
+        .from('sync_queue')
+        .select('*')
+        .eq('status', 'failed')
+        .lt('retry_count', 5)
+        .order('created_at', { ascending: true })
+        .limit(retryBatchSize);
+
+      if (failedError) {
+        throw failedError;
+      }
+      
+      queueItems = failedItems || [];
     }
 
     if (!queueItems || queueItems.length === 0) {
@@ -73,8 +91,30 @@ Deno.serve(async (req) => {
             .eq('id', item.entity_id)
             .single();
 
+          // Skip orders missing shopify_order_id (can't sync to Shopify)
           if (orderError || !orderData?.shopify_order_id) {
-            throw new Error(`Order not found or missing shopify_order_id: ${item.entity_id}`);
+            console.warn(
+              `Skipping queue item ${item.id}: order ${item.entity_id} missing shopify_order_id or not found`
+            );
+
+            await supabase
+              .from('sync_queue')
+              .update({
+                status: 'failed',
+                retry_count: 5, // Mark as permanently failed
+                error_message: 'Missing shopify_order_id or order not found'
+              })
+              .eq('id', item.id);
+
+            failed++;
+            results.push({
+              id: item.id,
+              status: 'failed',
+              error: 'Missing shopify_order_id or order not found',
+              retry_count: 5
+            });
+
+            continue; // Skip to next item
           }
 
           // Get changes from payload (new format) or construct from current order data (old format)
