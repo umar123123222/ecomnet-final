@@ -976,7 +976,7 @@ export type Database = {
             foreignKeyName: "dispatches_dispatched_by_fkey"
             columns: ["dispatched_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
