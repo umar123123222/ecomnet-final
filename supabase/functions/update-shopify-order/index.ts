@@ -87,12 +87,33 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
     }
 
     case 'update_tags': {
+      // First, fetch the current order to get existing tags
+      const getResponse = await fetch(`${baseUrl}/orders/${shopifyOrderId}.json`, { headers });
+      
+      if (!getResponse.ok) {
+        throw new Error('Failed to fetch existing order tags');
+      }
+      
+      const orderData = await getResponse.json();
+      const existingTagsString = orderData.order.tags || '';
+      const existingTags = existingTagsString.split(',').map((t: string) => t.trim()).filter(Boolean);
+      
+      // Remove old Ecomnet status tags from existing tags
+      const filteredExistingTags = existingTags.filter((tag: string) => 
+        !tag.startsWith('Ecomnet - ')
+      );
+      
+      // Merge with new tags (avoid duplicates)
+      const newTags = data.tags || [];
+      const mergedTags = [...new Set([...filteredExistingTags, ...newTags])];
+      
+      // Update with merged tags
       const response = await fetch(`${baseUrl}/orders/${shopifyOrderId}.json`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({
           order: {
-            tags: data.tags.join(', '),
+            tags: mergedTags.join(', '),
           },
         }),
       });
