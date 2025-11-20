@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, memo, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { ModernButton } from "@/components/ui/modern-button";
 
@@ -30,10 +30,10 @@ const monthlyData = [
   { period: 'Jun', success: 5456, failed: 178 },
 ];
 
-export const CourierPerformanceChart = () => {
+export const CourierPerformanceChart = memo(() => {
   const [selectedPeriod, setSelectedPeriod] = useState<'days' | 'weeks' | 'months'>('days');
 
-  const getData = () => {
+  const chartData = useMemo(() => {
     switch (selectedPeriod) {
       case 'weeks':
         return weeklyData;
@@ -42,7 +42,7 @@ export const CourierPerformanceChart = () => {
       default:
         return dailyData;
     }
-  };
+  }, [selectedPeriod]);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -101,7 +101,7 @@ export const CourierPerformanceChart = () => {
       {/* Chart */}
       <div className="h-[300px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={getData()} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+          <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis 
               dataKey="period" 
@@ -131,4 +131,6 @@ export const CourierPerformanceChart = () => {
       </div>
     </div>
   );
-};
+});
+
+CourierPerformanceChart.displayName = 'CourierPerformanceChart';
