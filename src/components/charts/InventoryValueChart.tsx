@@ -1,9 +1,10 @@
+import { memo, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Loader2 } from "lucide-react";
 
-export const InventoryValueChart = () => {
+export const InventoryValueChart = memo(() => {
   const { data: inventoryValue, isLoading } = useQuery({
     queryKey: ["inventory-value"],
     queryFn: async () => {
@@ -35,7 +36,12 @@ export const InventoryValueChart = () => {
 
       return grouped.sort((a, b) => b.value - a.value);
     },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    refetchOnMount: false,
   });
+
+  // Memoize chart data to prevent unnecessary re-renders
+  const chartData = useMemo(() => inventoryValue || [], [inventoryValue]);
 
   if (isLoading) {
     return (
@@ -45,7 +51,7 @@ export const InventoryValueChart = () => {
     );
   }
 
-  if (!inventoryValue || inventoryValue.length === 0) {
+  if (!chartData || chartData.length === 0) {
     return (
       <div className="flex items-center justify-center h-[300px] text-muted-foreground">
         No inventory value data available
@@ -55,7 +61,7 @@ export const InventoryValueChart = () => {
 
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <AreaChart data={inventoryValue}>
+      <AreaChart data={chartData}>
         <defs>
           <linearGradient id="valueGradient" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.8} />
@@ -91,4 +97,6 @@ export const InventoryValueChart = () => {
       </AreaChart>
     </ResponsiveContainer>
   );
-};
+});
+
+InventoryValueChart.displayName = 'InventoryValueChart';

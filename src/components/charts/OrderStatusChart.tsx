@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, Legend } from "recharts";
@@ -11,7 +12,7 @@ const COLORS = {
   cancelled: 'hsl(var(--chart-5))',
 };
 
-export const OrderStatusChart = () => {
+export const OrderStatusChart = memo(() => {
   const { data: orderStatus, isLoading } = useQuery({
     queryKey: ["order-status-distribution"],
     queryFn: async () => {
@@ -34,7 +35,12 @@ export const OrderStatusChart = () => {
         color: COLORS[name as keyof typeof COLORS] || COLORS.pending,
       }));
     },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    refetchOnMount: false,
   });
+
+  // Memoize chart data to prevent unnecessary re-renders
+  const chartData = useMemo(() => orderStatus || [], [orderStatus]);
 
   if (isLoading) {
     return (
@@ -44,7 +50,7 @@ export const OrderStatusChart = () => {
     );
   }
 
-  if (!orderStatus || orderStatus.length === 0) {
+  if (!chartData || chartData.length === 0) {
     return (
       <div className="flex items-center justify-center h-[300px] text-muted-foreground">
         No order status data available
@@ -56,7 +62,7 @@ export const OrderStatusChart = () => {
     <ResponsiveContainer width="100%" height={300}>
       <PieChart>
         <Pie
-          data={orderStatus}
+          data={chartData}
           cx="50%"
           cy="50%"
           labelLine={false}
@@ -65,7 +71,7 @@ export const OrderStatusChart = () => {
           fill="#8884d8"
           dataKey="value"
         >
-          {orderStatus.map((entry, index) => (
+          {chartData.map((entry, index) => (
             <Cell key={`cell-${index}`} fill={entry.color} />
           ))}
         </Pie>
@@ -80,4 +86,6 @@ export const OrderStatusChart = () => {
       </PieChart>
     </ResponsiveContainer>
   );
-};
+});
+
+OrderStatusChart.displayName = 'OrderStatusChart';

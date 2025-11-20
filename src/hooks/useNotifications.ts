@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Notification } from '@/utils/notificationHelpers';
 import { useAuth } from '@/contexts/AuthContext';
+import { debounce } from '@/utils/performanceOptimizations';
 
 export const useNotifications = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [unreadCount, setUnreadCount] = useState(0);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Fetch notifications
   const { data: notifications, isLoading } = useQuery<Notification[]>({
@@ -37,9 +39,29 @@ export const useNotifications = () => {
     }
   }, [notifications]);
 
-  // Set up real-time subscription
+  // Debounced invalidation to prevent cascade refetches
+  const debouncedInvalidate = useCallback(
+    debounce(() => {
+      if (user) {
+        queryClient.invalidateQueries({ queryKey: ['notifications', user.id] });
+      }
+    }, 500),
+    [user, queryClient]
+  );
+
+  // Set up real-time subscription with stable reference
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      // Clean up existing channel if user logs out
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      return;
+    }
+
+    // Only set up channel if it doesn't exist
+    if (channelRef.current) return;
 
     console.log('Setting up notifications real-time subscription');
 
@@ -53,10 +75,8 @@ export const useNotifications = () => {
           table: 'notifications',
           filter: `user_id=eq.${user.id}`,
         },
-        (payload) => {
-          console.log('New notification received:', payload);
-          // Invalidate and refetch notifications
-          queryClient.invalidateQueries({ queryKey: ['notifications', user.id] });
+        () => {
+          debouncedInvalidate();
         }
       )
       .on(
@@ -67,10 +87,8 @@ export const useNotifications = () => {
           table: 'notifications',
           filter: `user_id=eq.${user.id}`,
         },
-        (payload) => {
-          console.log('Notification updated:', payload);
-          // Invalidate and refetch notifications
-          queryClient.invalidateQueries({ queryKey: ['notifications', user.id] });
+        () => {
+          debouncedInvalidate();
         }
       )
       .on(
@@ -81,19 +99,22 @@ export const useNotifications = () => {
           table: 'notifications',
           filter: `user_id=eq.${user.id}`,
         },
-        (payload) => {
-          console.log('Notification deleted:', payload);
-          // Invalidate and refetch notifications
-          queryClient.invalidateQueries({ queryKey: ['notifications', user.id] });
+        () => {
+          debouncedInvalidate();
         }
       )
       .subscribe();
 
+    channelRef.current = channel;
+
     return () => {
       console.log('Cleaning up notifications subscription');
-      supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
-  }, [user]);
+  }, [user?.id, debouncedInvalidate]);
 
   return {
     notifications: notifications || [],

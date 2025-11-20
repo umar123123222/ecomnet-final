@@ -1,9 +1,10 @@
+import { memo, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Loader2 } from "lucide-react";
 
-export const StaffPerformanceChart = () => {
+export const StaffPerformanceChart = memo(() => {
   const { data: staffPerformance, isLoading, error } = useQuery({
     queryKey: ["staff-performance"],
     queryFn: async () => {
@@ -45,8 +46,11 @@ export const StaffPerformanceChart = () => {
     },
     retry: 1,
     staleTime: 5 * 60 * 1000,
-    refetchInterval: false,
+    refetchOnMount: false,
   });
+
+  // Memoize chart data
+  const chartData = useMemo(() => staffPerformance || [], [staffPerformance]);
 
   if (isLoading) {
     return (
@@ -64,7 +68,7 @@ export const StaffPerformanceChart = () => {
     );
   }
 
-  if (!staffPerformance || staffPerformance.length === 0) {
+  if (!chartData || chartData.length === 0) {
     return (
       <div className="flex items-center justify-center h-[300px] text-muted-foreground">
         <p className="text-sm">No staff performance data available for the last 7 days</p>
@@ -74,7 +78,7 @@ export const StaffPerformanceChart = () => {
 
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={staffPerformance}>
+      <BarChart data={chartData}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
         <XAxis 
           dataKey="name" 
@@ -99,4 +103,6 @@ export const StaffPerformanceChart = () => {
       </BarChart>
     </ResponsiveContainer>
   );
-};
+});
+
+StaffPerformanceChart.displayName = 'StaffPerformanceChart';

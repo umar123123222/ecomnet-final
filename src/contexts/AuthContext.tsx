@@ -33,35 +33,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
 
   const fetchUserProfile = async (userId: string) => {
+    // Prevent concurrent fetches
+    if (isFetching) return;
+    
+    setIsFetching(true);
     try {
-      // Fetch profile
+      // Combined query: fetch profile and role in a single request using PostgreSQL join
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('*')
+        .select(`
+          *,
+          user_roles!inner(role)
+        `)
         .eq('id', userId)
+        .eq('user_roles.is_active', true)
         .single();
 
       if (profileError) throw profileError;
-      setProfile(profileData);
-
-      // Fetch user role from user_roles table (single role per user)
-      const { data: roleData, error: roleError } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (roleError) throw roleError;
       
-      const role = roleData?.role || profileData.role;
-      setUserRole(role);
+      setProfile(profileData);
+      // user_roles returns an array, get first element
+      const roleData = Array.isArray(profileData.user_roles) ? profileData.user_roles[0] : profileData.user_roles;
+      setUserRole(roleData?.role || profileData.role);
     } catch (error) {
       console.error('Error fetching user profile:', error);
       setProfile(null);
       setUserRole(null);
+    } finally {
+      setIsFetching(false);
     }
   };
 
@@ -72,11 +74,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(session);
         setUser(session?.user ?? null);
         
-        // Fetch profile and roles when user logs in
+        // Fetch profile and roles when user logs in (removed setTimeout)
         if (session?.user) {
-          setTimeout(() => {
-            fetchUserProfile(session.user.id);
-          }, 0);
+          fetchUserProfile(session.user.id);
         } else {
           setProfile(null);
           setUserRole(null);
