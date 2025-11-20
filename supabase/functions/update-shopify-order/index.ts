@@ -107,6 +107,13 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
       const newTags = data.tags || [];
       const mergedTags = [...new Set([...filteredExistingTags, ...newTags])];
       
+      console.log('Preparing Shopify update_tags call:', {
+        shopify_order_id: shopifyOrderId,
+        filteredExistingTags,
+        newTags,
+        mergedTags,
+      });
+
       // Update with merged tags
       const response = await fetch(`${baseUrl}/orders/${shopifyOrderId}.json`, {
         method: 'PUT',
@@ -120,10 +127,21 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
 
       if (!response.ok) {
         const error = await response.json();
+        console.error('Shopify API error response for update_tags:', {
+          status: response.status,
+          statusText: response.statusText,
+          error,
+        });
         throw new Error(`Failed to update tags: ${JSON.stringify(error)}`);
       }
 
-      return await response.json();
+      const result = await response.json();
+      console.log('Shopify update_tags successful:', {
+        shopify_order_id: shopifyOrderId,
+        updated_tags: result.order?.tags,
+      });
+
+      return result;
     }
 
     case 'update_fulfillment': {
@@ -237,12 +255,28 @@ Deno.serve(async (req) => {
 
     const request: UpdateOrderRequest = await req.json();
 
+    console.log('update-shopify-order request body:', {
+      order_id: request.order_id,
+      action: request.action,
+      data: {
+        tags: request.data.tags,
+        tracking_number: request.data.tracking_number,
+        address: request.data.address ? 'present' : 'not provided',
+      },
+    });
+
     // Get order from database
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('shopify_order_id, order_number')
       .eq('id', request.order_id)
       .single();
+
+    console.log('Loaded local order for Shopify update:', {
+      order_id: request.order_id,
+      shopify_order_id: order?.shopify_order_id,
+      order_number: order?.order_number,
+    });
 
     if (orderError || !order) {
       return new Response(JSON.stringify({ error: 'Order not found' }), {

@@ -21,8 +21,8 @@ Deno.serve(async (req) => {
     let failed = 0;
     const results: any[] = [];
 
-    // Prioritize pending items first (new jobs), then fall back to failed items for retries
-    let { data: queueItems, error: queueError } = await supabase
+    // SIMPLIFIED: Only process pending items for now (removed failed item retry logic)
+    const { data: queueItems, error: queueError } = await supabase
       .from('sync_queue')
       .select('*')
       .eq('status', 'pending')
@@ -32,24 +32,6 @@ Deno.serve(async (req) => {
 
     if (queueError) {
       throw queueError;
-    }
-
-    // If no pending items, fetch a smaller batch of failed items to retry
-    if (!queueItems || queueItems.length === 0) {
-      const retryBatchSize = 10;
-      const { data: failedItems, error: failedError } = await supabase
-        .from('sync_queue')
-        .select('*')
-        .eq('status', 'failed')
-        .lt('retry_count', 5)
-        .order('created_at', { ascending: true })
-        .limit(retryBatchSize);
-
-      if (failedError) {
-        throw failedError;
-      }
-      
-      queueItems = failedItems || [];
     }
 
     if (!queueItems || queueItems.length === 0) {
@@ -65,6 +47,15 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Processing ${queueItems.length} sync queue items`);
+    console.log('Fetched sync_queue items:', queueItems.map((i: any) => ({
+      id: i.id,
+      status: i.status,
+      entity_type: i.entity_type,
+      direction: i.direction,
+      action: i.action,
+      retry_count: i.retry_count,
+      created_at: i.created_at,
+    })));
 
     // Process each item
     for (const item of queueItems) {
@@ -79,6 +70,13 @@ Deno.serve(async (req) => {
         
         // Route to appropriate handler based on entity type and action
         if (item.entity_type === 'order' && item.direction === 'to_shopify') {
+          console.log('Processing order sync_queue item:', {
+            queue_id: item.id,
+            order_id: item.entity_id,
+            action: item.action,
+            status: item.status,
+          });
+
           if (item.action === 'create') {
             result = await supabase.functions.invoke('create-shopify-order', {
               body: { order_id: item.entity_id },
@@ -90,6 +88,14 @@ Deno.serve(async (req) => {
             .select('shopify_order_id, status, tags, tracking_id, customer_address, customer_new_address, city, customer_name, customer_phone, notes')
             .eq('id', item.entity_id)
             .single();
+
+          console.log('Order data for Shopify update:', {
+            queue_id: item.id,
+            order_id: item.entity_id,
+            shopify_order_id: orderData?.shopify_order_id,
+            current_tags: orderData?.tags,
+            changes: item.payload?.changes,
+          });
 
           // Skip orders missing shopify_order_id (can't sync to Shopify)
           if (orderError || !orderData?.shopify_order_id) {
@@ -165,6 +171,13 @@ Deno.serve(async (req) => {
             // Update tags in a separate call if status changed
             if (changes.status && tagsToUpdate.length > 0) {
               try {
+                console.log('Invoking update-shopify-order (tags) from process-sync-queue:', {
+                  queue_id: item.id,
+                  order_id: item.entity_id,
+                  action: 'update_tags',
+                  data: { tags: tagsToUpdate }
+                });
+
                 await supabase.functions.invoke('update-shopify-order', {
                   body: { 
                     order_id: item.entity_id,
@@ -192,6 +205,13 @@ Deno.serve(async (req) => {
             // Update tags separately if status changed
             if (changes.status && tagsToUpdate.length > 0) {
               try {
+                console.log('Invoking update-shopify-order (tags for address) from process-sync-queue:', {
+                  queue_id: item.id,
+                  order_id: item.entity_id,
+                  action: 'update_tags',
+                  data: { tags: tagsToUpdate }
+                });
+
                 await supabase.functions.invoke('update-shopify-order', {
                   body: { 
                     order_id: item.entity_id,
@@ -211,6 +231,13 @@ Deno.serve(async (req) => {
             // Update tags separately if status changed
             if (changes.status && tagsToUpdate.length > 0) {
               try {
+                console.log('Invoking update-shopify-order (tags for notes) from process-sync-queue:', {
+                  queue_id: item.id,
+                  order_id: item.entity_id,
+                  action: 'update_tags',
+                  data: { tags: tagsToUpdate }
+                });
+
                 await supabase.functions.invoke('update-shopify-order', {
                   body: { 
                     order_id: item.entity_id,
@@ -228,6 +255,13 @@ Deno.serve(async (req) => {
           // Execute main update (if not tags-only)
           if (updateAction !== 'update_tags' || tagsToUpdate.length === 0) {
             try {
+              console.log('Invoking update-shopify-order (main) from process-sync-queue:', {
+                queue_id: item.id,
+                order_id: item.entity_id,
+                action: updateAction,
+                data: updateData
+              });
+
               result = await supabase.functions.invoke('update-shopify-order', {
                 body: { 
                   order_id: item.entity_id,
@@ -242,8 +276,15 @@ Deno.serve(async (req) => {
           } else {
             // For tags-only updates
             try {
+              console.log('Invoking update-shopify-order (tags-only) from process-sync-queue:', {
+                queue_id: item.id,
+                order_id: item.entity_id,
+                action: 'update_tags',
+                data: { tags: tagsToUpdate }
+              });
+
               result = await supabase.functions.invoke('update-shopify-order', {
-                body: { 
+                body: {
                   order_id: item.entity_id,
                   action: 'update_tags',
                   data: { tags: tagsToUpdate }
