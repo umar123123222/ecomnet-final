@@ -912,7 +912,7 @@ const DispatchDashboard = () => {
 
   // Scanner Mode: Register scan callback
   useEffect(() => {
-    if (scannerModeActive && scanner.isConnected) {
+    if (scannerModeActive) {
       console.log('Scanner mode active, registering callback');
       const cleanup = scanner.onScan((data) => {
         console.log('Scanner input received:', data);
