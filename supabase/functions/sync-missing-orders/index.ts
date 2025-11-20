@@ -6,6 +6,38 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function generateShopifyTags(order: any, existingTags: string[] = []): string[] {
+  // Remove all existing "Shopify - *" tags
+  const nonShopifyTags = existingTags.filter(tag => !tag.startsWith('Shopify - '));
+  const shopifyTags: string[] = [];
+  
+  // Add fulfillment status tag
+  if (order.fulfillment_status === 'fulfilled') {
+    shopifyTags.push('Shopify - Fulfilled');
+  } else if (order.fulfillment_status === 'partial') {
+    shopifyTags.push('Shopify - Partially Fulfilled');
+  }
+  
+  // Add financial status tag
+  if (order.financial_status === 'paid') {
+    shopifyTags.push('Shopify - Paid');
+  } else if (order.financial_status === 'pending') {
+    shopifyTags.push('Shopify - Pending Payment');
+  } else if (order.financial_status === 'refunded') {
+    shopifyTags.push('Shopify - Refunded');
+  } else if (order.financial_status === 'voided') {
+    shopifyTags.push('Shopify - Voided');
+  }
+  
+  // Add cancellation tag
+  if (order.cancelled_at) {
+    shopifyTags.push('Shopify - Cancelled');
+  }
+  
+  // Combine non-Shopify tags with new Shopify tags
+  return [...nonShopifyTags, ...shopifyTags];
+}
+
 interface ShopifyOrder {
   id: number;
   order_number: number;
@@ -164,16 +196,12 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Map Shopify status to internal status
-        let internalStatus = 'pending';
-        if (order.cancelled_at || order.financial_status === 'refunded' || order.financial_status === 'voided') {
-          internalStatus = 'cancelled';
-        } else if (order.fulfillment_status === 'fulfilled' || order.fulfillment_status === 'partial') {
-          // Fulfilled or partially fulfilled = confirmed and ready for dispatch
-          internalStatus = 'booked';
-        } else if (order.financial_status === 'paid') {
-          internalStatus = 'pending';
-        }
+        // Generate Shopify tags based on order state
+        const baseShopifyTags = order.tags ? order.tags.split(',').map((t: string) => t.trim()) : [];
+        const shopifyStateTags = generateShopifyTags(order, baseShopifyTags);
+
+        // Set initial status (pending unless cancelled)
+        const internalStatus = order.cancelled_at ? 'cancelled' : 'pending';
 
         // Create order
         const { error: orderError } = await supabaseClient
@@ -187,14 +215,14 @@ Deno.serve(async (req) => {
               : 'Unknown Customer',
             customer_phone: order.customer?.phone || order.shipping_address?.phone || '',
             customer_email: order.customer?.email || '',
-            customer_address: order.shipping_address ? 
+            customer_address: order.shipping_address ?
               `${order.shipping_address.address1 || ''} ${order.shipping_address.address2 || ''}`.trim() 
               : '',
             city: order.shipping_address?.city || '',
             outlet_id: outlet.id,
             total_amount: parseFloat(order.total_price),
             status: internalStatus,
-            tags: order.tags ? order.tags.split(',').map((t: string) => t.trim()) : [],
+            tags: shopifyStateTags,
             notes: order.note || '',
             confirmation_required: false, // Shopify orders don't need confirmation
           });

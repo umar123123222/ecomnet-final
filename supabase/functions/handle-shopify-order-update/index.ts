@@ -13,6 +13,38 @@ function verifyWebhook(body: string, hmacHeader: string, secret: string): boolea
   return hash === hmacHeader;
 }
 
+function generateShopifyTags(order: any, existingTags: string[] = []): string[] {
+  // Remove all existing "Shopify - *" tags
+  const nonShopifyTags = existingTags.filter(tag => !tag.startsWith('Shopify - '));
+  const shopifyTags: string[] = [];
+  
+  // Add fulfillment status tag
+  if (order.fulfillment_status === 'fulfilled') {
+    shopifyTags.push('Shopify - Fulfilled');
+  } else if (order.fulfillment_status === 'partial') {
+    shopifyTags.push('Shopify - Partially Fulfilled');
+  }
+  
+  // Add financial status tag
+  if (order.financial_status === 'paid') {
+    shopifyTags.push('Shopify - Paid');
+  } else if (order.financial_status === 'pending') {
+    shopifyTags.push('Shopify - Pending Payment');
+  } else if (order.financial_status === 'refunded') {
+    shopifyTags.push('Shopify - Refunded');
+  } else if (order.financial_status === 'voided') {
+    shopifyTags.push('Shopify - Voided');
+  }
+  
+  // Add cancellation tag
+  if (order.cancelled_at) {
+    shopifyTags.push('Shopify - Cancelled');
+  }
+  
+  // Combine non-Shopify tags with new Shopify tags
+  return [...nonShopifyTags, ...shopifyTags];
+}
+
 async function fetchShopifyCustomerPhone(customerId: number, supabase: any): Promise<string> {
   try {
     // Get Shopify credentials from api_settings
@@ -107,7 +139,7 @@ Deno.serve(async (req) => {
     // Find the order in our database by Shopify order ID
     const { data: existingOrder, error: findError } = await supabase
       .from('orders')
-      .select('id')
+      .select('id, tags')
       .eq('shopify_order_id', order.id.toString())
       .single();
 
@@ -119,16 +151,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Map Shopify status to our status
-    let newStatus = 'pending';
-    if (order.cancelled_at) {
-      newStatus = 'cancelled';
-    } else if (order.fulfillment_status === 'fulfilled' || order.fulfillment_status === 'partial') {
-      // Fulfilled or partially fulfilled = confirmed and ready for dispatch
-      newStatus = 'booked';
-    } else if (order.financial_status === 'paid') {
-      newStatus = 'pending';
-    }
+    // Generate Shopify tags based on order state
+    const updatedTags = generateShopifyTags(order, existingOrder.tags || []);
 
     // Extract tracking info
     let trackingId = null;
@@ -144,9 +168,14 @@ Deno.serve(async (req) => {
     
     // Update order in our database
     const updateData: any = {
-      status: newStatus,
+      tags: updatedTags,
       last_shopify_sync: new Date().toISOString(),
     };
+
+    // Exception: Set status to cancelled if order is cancelled in Shopify
+    if (order.cancelled_at) {
+      updateData.status = 'cancelled';
+    }
 
     if (trackingId) {
       updateData.tracking_id = trackingId;
