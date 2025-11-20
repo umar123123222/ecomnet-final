@@ -161,6 +161,22 @@ const App = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Clear old cached routes on mount to ensure users see latest version
+  useEffect(() => {
+    const clearOldCaches = async () => {
+      if ('caches' in window) {
+        const cacheKeys = await caches.keys();
+        // Keep only the latest cache versions
+        const oldCaches = cacheKeys.filter(key => 
+          key.includes('workbox') || 
+          key.includes('runtime')
+        );
+        await Promise.all(oldCaches.map(key => caches.delete(key)));
+      }
+    };
+    clearOldCaches();
+  }, []);
+
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
