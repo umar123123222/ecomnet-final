@@ -4580,6 +4580,7 @@ export type Database = {
         | "returned"
       order_status:
         | "pending"
+        | "confirmed"
         | "booked"
         | "dispatched"
         | "delivered"
@@ -4735,6 +4736,7 @@ export const Constants = {
       ],
       order_status: [
         "pending",
+        "confirmed",
         "booked",
         "dispatched",
         "delivered",
