@@ -184,6 +184,280 @@ const ReturnsDashboard = () => {
     });
   };
 
+  const activateScannerMode = () => {
+    setScannerModeActive(true);
+    setScannerStats({ success: 0, errors: 0 });
+    setRecentScans([]);
+    setScanHistoryForExport([]);
+    setLastScanTime(Date.now());
+    toast({
+      title: "Scanner Mode Activated",
+      description: "Ready to scan returns. Press ESC to stop.",
+    });
+  };
+
+  const deactivateScannerMode = () => {
+    setScannerModeActive(false);
+    toast({
+      title: "Scanner Mode Stopped",
+      description: `Processed ${scannerStats.success + scannerStats.errors} scans (${scannerStats.success} successful, ${scannerStats.errors} errors)`,
+    });
+  };
+
+  const processScannerInput = async (entry: string) => {
+    if (!user?.id || !entry || entry.trim().length === 0) return;
+
+    const startTime = Date.now();
+    setLastScanTime(startTime);
+    entry = entry.trim();
+
+    try {
+      // Search for return record by tracking ID or order number
+      let returnRecord;
+      let orderData;
+      
+      // Try tracking ID first
+      const { data: returnByTracking } = await supabase
+        .from('returns')
+        .select('*, orders!returns_order_id_fkey(id, order_number, customer_name)')
+        .eq('tracking_id', entry)
+        .maybeSingle();
+
+      if (returnByTracking) {
+        returnRecord = returnByTracking;
+        orderData = returnByTracking.orders;
+      } else {
+        // Try order number
+        let order;
+        const { data: exactMatch } = await supabase
+          .from('orders')
+          .select('id, order_number, customer_name')
+          .eq('order_number', entry)
+          .maybeSingle();
+        
+        if (exactMatch) {
+          order = exactMatch;
+        } else {
+          const { data: partialMatch } = await supabase
+            .from('orders')
+            .select('id, order_number, customer_name')
+            .or(`order_number.eq.SHOP-${entry},order_number.ilike.%${entry}%,shopify_order_number.eq.${entry}`)
+            .limit(1)
+            .maybeSingle();
+          order = partialMatch;
+        }
+        
+        if (order) {
+          const { data } = await supabase
+            .from('returns')
+            .select('*, orders!returns_order_id_fkey(id, order_number, customer_name)')
+            .eq('order_id', order.id)
+            .maybeSingle();
+          returnRecord = data;
+          orderData = order;
+        }
+      }
+
+      if (!returnRecord) {
+        errorSound.play();
+        setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
+        setRecentScans(prev => [{
+          entry,
+          type: 'unknown',
+          status: 'error',
+          message: 'Return not found',
+          timestamp: new Date()
+        }, ...prev.slice(0, 5)]);
+        
+        setScanHistoryForExport(prev => [...prev, {
+          timestamp: new Date().toISOString(),
+          entry,
+          orderNumber: '',
+          customer: '',
+          trackingId: '',
+          status: 'error',
+          reason: 'Return not found',
+          processingTime: Date.now() - startTime
+        }]);
+        
+        toast({
+          title: "Return Not Found",
+          description: `No return found for: ${entry}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Check if already received
+      if (returnRecord.return_status === 'received') {
+        errorSound.play();
+        setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
+        setRecentScans(prev => [{
+          entry,
+          type: entry === returnRecord.tracking_id ? 'tracking_id' : 'order_number',
+          status: 'error',
+          message: 'Already received',
+          timestamp: new Date(),
+          orderId: orderData?.order_number
+        }, ...prev.slice(0, 5)]);
+        
+        setScanHistoryForExport(prev => [...prev, {
+          timestamp: new Date().toISOString(),
+          entry,
+          orderNumber: orderData?.order_number || '',
+          customer: orderData?.customer_name || '',
+          trackingId: returnRecord.tracking_id || '',
+          status: 'error',
+          reason: 'Already received',
+          processingTime: Date.now() - startTime
+        }]);
+        
+        toast({
+          title: "Already Received",
+          description: `Return ${orderData?.order_number || entry} was already received`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Update return status
+      const { error: updateReturnError } = await supabase
+        .from('returns')
+        .update({
+          return_status: 'received',
+          received_at: new Date().toISOString(),
+          received_by: user.id
+        })
+        .eq('id', returnRecord.id);
+
+      if (updateReturnError) throw updateReturnError;
+
+      // Update order status
+      const { error: updateOrderError } = await supabase
+        .from('orders')
+        .update({ status: 'returned' })
+        .eq('id', returnRecord.order_id);
+
+      if (updateOrderError) throw updateOrderError;
+
+      // Success
+      successSound.play();
+      setScannerStats(prev => ({ ...prev, success: prev.success + 1 }));
+      setRecentScans(prev => [{
+        entry,
+        type: entry === returnRecord.tracking_id ? 'tracking_id' : 'order_number',
+        status: 'success',
+        message: 'Return received',
+        timestamp: new Date(),
+        orderId: orderData?.order_number
+      }, ...prev.slice(0, 5)]);
+      
+      setScanHistoryForExport(prev => [...prev, {
+        timestamp: new Date().toISOString(),
+        entry,
+        orderNumber: orderData?.order_number || '',
+        customer: orderData?.customer_name || '',
+        trackingId: returnRecord.tracking_id || '',
+        status: 'success',
+        reason: 'Return received',
+        processingTime: Date.now() - startTime
+      }]);
+      
+      toast({
+        title: "Return Received",
+        description: `${orderData?.order_number || entry} marked as received`,
+      });
+
+      // Refresh data
+      queryClient.invalidateQueries({ queryKey: ['returns'] });
+      const { data: refreshedReturns } = await supabase
+        .from('returns')
+        .select(`
+          *,
+          orders!returns_order_id_fkey (
+            order_number,
+            customer_name,
+            customer_phone,
+            customer_email
+          ),
+          received_by_profile:profiles(
+            full_name,
+            email
+          )
+        `)
+        .order('created_at', { ascending: false });
+      
+      if (refreshedReturns) setReturns(refreshedReturns);
+
+    } catch (error) {
+      console.error('Error processing scan:', error);
+      errorSound.play();
+      setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
+      setRecentScans(prev => [{
+        entry,
+        type: 'unknown',
+        status: 'error',
+        message: 'Processing error',
+        timestamp: new Date()
+      }, ...prev.slice(0, 5)]);
+      
+      setScanHistoryForExport(prev => [...prev, {
+        timestamp: new Date().toISOString(),
+        entry,
+        orderNumber: '',
+        customer: '',
+        trackingId: '',
+        status: 'error',
+        reason: error instanceof Error ? error.message : 'Processing error',
+        processingTime: Date.now() - startTime
+      }]);
+      
+      toast({
+        title: "Error",
+        description: "Failed to process return",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const exportScanHistory = () => {
+    if (scanHistoryForExport.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No scan history to export",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const csvContent = [
+      ['Timestamp', 'Entry', 'Order Number', 'Customer', 'Tracking ID', 'Status', 'Reason', 'Processing Time (ms)'],
+      ...scanHistoryForExport.map(scan => [
+        scan.timestamp,
+        scan.entry,
+        scan.orderNumber,
+        scan.customer,
+        scan.trackingId,
+        scan.status,
+        scan.reason,
+        scan.processingTime
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `returns-scan-history-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+
+    toast({
+      title: "Export Complete",
+      description: `Exported ${scanHistoryForExport.length} scan records`,
+    });
+  };
+
   const handleManualEntry = async (formData: { bulkEntries: string }) => {
     if (!user?.id) {
       toast({
@@ -339,20 +613,93 @@ const ReturnsDashboard = () => {
     }
   };
 
-  return <div className="p-6 space-y-6">
+  // Scanner Mode: Register scan callback
+  useEffect(() => {
+    if (scannerModeActive) {
+      console.log('Scanner mode active, registering callback');
+      const cleanup = scanner.onScan((data) => {
+        console.log('Scanner input received:', data);
+        processScannerInput(data);
+      });
+      return cleanup;
+    }
+  }, [scannerModeActive, scanner]);
+
+  // Scanner Mode: Auto-timeout after 5 minutes
+  useEffect(() => {
+    if (!scannerModeActive) return;
+
+    const timeout = setTimeout(() => {
+      const timeSinceLastScan = Date.now() - lastScanTime;
+      if (timeSinceLastScan >= 300000) { // 5 minutes
+        deactivateScannerMode();
+        toast({
+          title: "Scanner Mode Timeout",
+          description: "Scanner mode automatically stopped after 5 minutes of inactivity",
+        });
+      }
+    }, 300000);
+
+    return () => clearTimeout(timeout);
+  }, [scannerModeActive, lastScanTime]);
+
+  // Scanner Mode: Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // ESC to stop scanner mode
+      if (e.key === 'Escape' && scannerModeActive) {
+        e.preventDefault();
+        deactivateScannerMode();
+      }
+
+      // Ctrl+Shift+S to toggle scanner mode
+      if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+        e.preventDefault();
+        if (scannerModeActive) {
+          deactivateScannerMode();
+        } else {
+          activateScannerMode();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [scannerModeActive]);
+
+  // Scanner Mode: Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (scannerModeActive) {
+        setScannerModeActive(false);
+      }
+    };
+  }, []);
+
+  return (
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Returns Management</h1>
           <p className="text-gray-600 mt-1">Track and manage returned orders</p>
         </div>
-        <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline">
-              <Edit className="h-4 w-4 mr-2" />
-              Mark Returns Received
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button 
+            onClick={activateScannerMode}
+            disabled={scannerModeActive}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <ScanBarcode className="h-4 w-4 mr-2" />
+            Scan to Return
+          </Button>
+          <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Edit className="h-4 w-4 mr-2" />
+                Mark Returns Received
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Bulk Return Receipt Entry</DialogTitle>
@@ -449,6 +796,7 @@ const ReturnsDashboard = () => {
             </Form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Metrics Cards */}
@@ -553,6 +901,108 @@ const ReturnsDashboard = () => {
           </Table>
         </CardContent>
       </Card>
-    </div>;
+
+      {/* Scanner Mode Floating Panel */}
+      {scannerModeActive && (
+        <div className="fixed bottom-6 right-6 w-96 bg-white rounded-lg shadow-2xl border-2 border-blue-500 animate-in slide-in-from-bottom-5 z-50">
+          <div className="p-4 space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" />
+                <span className="font-semibold text-gray-900">Scanner Active</span>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={deactivateScannerMode}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                Stop
+              </Button>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                <div className="text-2xl font-bold text-green-700">{scannerStats.success}</div>
+                <div className="text-xs text-green-600">Success</div>
+              </div>
+              <div className="p-3 bg-red-50 rounded-lg border border-red-200">
+                <div className="text-2xl font-bold text-red-700">{scannerStats.errors}</div>
+                <div className="text-xs text-red-600">Errors</div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={exportScanHistory}
+                disabled={scanHistoryForExport.length === 0}
+                className="flex-1"
+              >
+                <Download className="h-3 w-3 mr-1" />
+                Export
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setRecentScans([]);
+                  setScanHistoryForExport([]);
+                }}
+                disabled={recentScans.length === 0}
+                className="flex-1"
+              >
+                Clear
+              </Button>
+            </div>
+
+            {/* Recent Scans */}
+            {recentScans.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-gray-500 uppercase">Recent Scans</div>
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {recentScans.slice(0, 6).map((scan, idx) => (
+                    <div 
+                      key={idx}
+                      className={`p-2 rounded text-xs ${
+                        scan.status === 'success' 
+                          ? 'bg-green-50 border border-green-200' 
+                          : 'bg-red-50 border border-red-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-mono truncate">{scan.entry}</div>
+                          {scan.orderId && (
+                            <div className="text-gray-600 truncate">{scan.orderId}</div>
+                          )}
+                        </div>
+                        <Badge 
+                          variant={scan.status === 'success' ? 'default' : 'destructive'}
+                          className="text-xs shrink-0"
+                        >
+                          {scan.message}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Keyboard Shortcuts */}
+            <div className="pt-3 border-t text-xs text-gray-500">
+              <div>Press <kbd className="px-1.5 py-0.5 bg-gray-100 border rounded">ESC</kbd> to stop</div>
+              <div><kbd className="px-1.5 py-0.5 bg-gray-100 border rounded">Ctrl+Shift+S</kbd> to toggle</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 export default ReturnsDashboard;
