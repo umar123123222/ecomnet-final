@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { 
@@ -11,8 +13,13 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  History,
+  FileText
 } from "lucide-react";
+import { ConfirmOrderDialog } from "./ConfirmOrderDialog";
+import { BookCourierDialog } from "./BookCourierDialog";
+import { OrderActivityLog } from "./OrderActivityLog";
 
 interface Order {
   id: string;
@@ -59,6 +66,9 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
   const [trackingHistory, setTrackingHistory] = useState<TrackingEvent[]>([]);
   const [dispatchInfo, setDispatchInfo] = useState<DispatchInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showBookDialog, setShowBookDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState("tracking");
 
   useEffect(() => {
     if (open && order?.id) {
@@ -127,22 +137,69 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
 
   if (!order) return null;
 
+  const handleRefresh = () => {
+    fetchTrackingDetails();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>Tracking Details - #{order.order_number}</span>
-            <Badge variant={
-              order.status === 'delivered' ? 'success' :
-              order.status === 'pending' ? 'warning' :
-              order.status === 'dispatched' ? 'secondary' :
-              order.status === 'returned' ? 'destructive' : 'outline'
-            }>
-              {order.status}
-            </Badge>
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="flex items-center gap-3">
+                <span>Order #{order.order_number}</span>
+                <Badge variant={
+                  order.status === 'delivered' ? 'success' :
+                  order.status === 'confirmed' ? 'default' :
+                  order.status === 'booked' ? 'secondary' :
+                  order.status === 'pending' ? 'warning' :
+                  order.status === 'dispatched' ? 'secondary' :
+                  order.status === 'returned' ? 'destructive' : 'outline'
+                }>
+                  {order.status}
+                </Badge>
+              </DialogTitle>
+              
+              {/* Quick Actions */}
+              <div className="flex items-center gap-2">
+                {order.status === 'pending' && (
+                  <Button
+                    size="sm"
+                    onClick={() => setShowConfirmDialog(true)}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Confirm Order
+                  </Button>
+                )}
+                {order.status === 'confirmed' && (
+                  <Button
+                    size="sm"
+                    onClick={() => setShowBookDialog(true)}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Truck className="mr-2 h-4 w-4" />
+                    Book Courier
+                  </Button>
+                )}
+              </div>
+            </div>
+          </DialogHeader>
+
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="tracking">
+                <Package className="mr-2 h-4 w-4" />
+                Tracking
+              </TabsTrigger>
+              <TabsTrigger value="activity">
+                <History className="mr-2 h-4 w-4" />
+                Activity Log
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="tracking" className="mt-4">
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -254,7 +311,35 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
             )}
           </div>
         )}
+          </TabsContent>
+
+          <TabsContent value="activity" className="mt-4">
+            <OrderActivityLog 
+              orderId={order.id} 
+              open={activeTab === 'activity'} 
+              onOpenChange={() => {}} 
+            />
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
+
+    {/* Confirmation Dialogs */}
+    <ConfirmOrderDialog
+      orderId={order.id}
+      orderNumber={order.order_number}
+      open={showConfirmDialog}
+      onOpenChange={setShowConfirmDialog}
+      onSuccess={handleRefresh}
+    />
+
+    <BookCourierDialog
+      orderId={order.id}
+      orderNumber={order.order_number}
+      open={showBookDialog}
+      onOpenChange={setShowBookDialog}
+      onSuccess={handleRefresh}
+    />
+    </>
   );
 };
