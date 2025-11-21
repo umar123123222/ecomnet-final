@@ -173,3 +173,6 @@ verify_jwt = true
 
 [functions.sync-missing-ecomnet-tags]
 verify_jwt = true
+
+[functions.reset-user-password]
+verify_jwt = false
