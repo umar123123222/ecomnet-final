@@ -373,14 +373,28 @@ const DispatchDashboard = () => {
           }
         }
 
+        // Fetch existing order to check current courier
+        const { data: existingOrderData } = await supabase
+          .from('orders')
+          .select('courier')
+          .eq('id', order.id)
+          .single();
+
+        // Build update object conditionally
+        const orderUpdate: any = {
+          status: 'dispatched',
+          dispatched_at: new Date().toISOString()
+        };
+
+        // Only update courier if order doesn't have one AND a courier is selected
+        if (!existingOrderData?.courier && courierCode) {
+          orderUpdate.courier = courierCode;
+        }
+
         // Update order status to dispatched
         const {
           error: updateError
-        } = await supabase.from('orders').update({
-          status: 'dispatched',
-          courier: courierCode ?? null,
-          dispatched_at: new Date().toISOString()
-        }).eq('id', order.id);
+        } = await supabase.from('orders').update(orderUpdate).eq('id', order.id);
         
         // Log activity
         await logActivity({

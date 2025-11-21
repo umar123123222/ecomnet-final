@@ -224,6 +224,13 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
         throw new Error("Courier is required");
       }
 
+      // Fetch existing order to check current courier
+      const { data: existingOrder } = await supabase
+        .from('orders')
+        .select('courier')
+        .eq('id', data.order_id)
+        .single();
+
       // Create dispatch record
       const { error: dispatchError } = await supabase
         .from("dispatches")
@@ -238,15 +245,22 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
 
       if (dispatchError) throw dispatchError;
 
+      // Build update object conditionally
+      const orderUpdate: any = {
+        status: "dispatched",
+        tracking_id: data.tracking_id,
+        dispatched_at: new Date().toISOString(),
+      };
+
+      // Only update courier if order doesn't have one
+      if (!existingOrder?.courier && data.courier) {
+        orderUpdate.courier = data.courier as "leopard" | "tcs" | "postex" | "other";
+      }
+
       // Update order status to dispatched
       const { error: orderError } = await supabase
         .from("orders")
-        .update({
-          status: "dispatched",
-          courier: data.courier as "leopard" | "tcs" | "postex" | "other",
-          tracking_id: data.tracking_id,
-          dispatched_at: new Date().toISOString(),
-        })
+        .update(orderUpdate)
         .eq("id", data.order_id);
 
       if (orderError) throw orderError;
