@@ -270,17 +270,6 @@ const DispatchDashboard = () => {
       let errorCount = 0;
       const errors: string[] = [];
       
-      // Determine selected courier details
-      const selectedCourierObj = selectedCourier
-        ? couriers.find(c => c.id === selectedCourier)
-        : undefined;
-
-      // Display name (for UI / logs) – safe even if courier enum expects a code
-      const courierName = selectedCourierObj?.name || 'Manual Entry';
-
-      // Enum-safe courier code for orders.courier (enum courier_type)
-      const courierCode = selectedCourierObj?.code as Database["public"]["Enums"]["courier_type"] | undefined;
-      
       for (const entry of uniqueEntries) {
         // Find order by selected entry type
         let order;
@@ -288,7 +277,7 @@ const DispatchDashboard = () => {
         if (entryType === 'tracking_id') {
           const { data, error: orderError } = await supabase
             .from('orders')
-            .select('id, tracking_id, order_number')
+            .select('id, tracking_id, order_number, courier')
             .eq('tracking_id', entry)
             .maybeSingle();
           order = data;
@@ -296,7 +285,7 @@ const DispatchDashboard = () => {
           // For order number, try exact match first, then partial match
           let { data, error: orderError } = await supabase
             .from('orders')
-            .select('id, tracking_id, order_number')
+            .select('id, tracking_id, order_number, courier')
             .eq('order_number', entry)
             .maybeSingle();
           
@@ -304,7 +293,7 @@ const DispatchDashboard = () => {
           if (!data) {
             const { data: partialData } = await supabase
               .from('orders')
-              .select('id, tracking_id, order_number')
+              .select('id, tracking_id, order_number, courier')
               .or(`order_number.eq.SHOP-${entry},order_number.ilike.%${entry}%,shopify_order_number.eq.${entry}`)
               .limit(1)
               .maybeSingle();
@@ -315,6 +304,38 @@ const DispatchDashboard = () => {
         
         if (!order) {
           errors.push(`Order not found for ${entryType === 'tracking_id' ? 'tracking ID' : 'order number'}: ${entry}`);
+          errorCount++;
+          continue;
+        }
+
+        // Determine courier for this specific order
+        let courierNameForOrder = '';
+        let courierCodeForOrder: Database["public"]["Enums"]["courier_type"] | undefined = undefined;
+        let courierIdForOrder = selectedCourier;
+
+        if (order.courier) {
+          // Order already has a courier - use that
+          const orderCourier = couriers.find(c => c.code === order.courier);
+          if (orderCourier) {
+            courierIdForOrder = orderCourier.id;
+            courierNameForOrder = orderCourier.name;
+            courierCodeForOrder = orderCourier.code as Database["public"]["Enums"]["courier_type"];
+          } else {
+            courierNameForOrder = order.courier;
+            courierCodeForOrder = order.courier as Database["public"]["Enums"]["courier_type"];
+          }
+        } else if (selectedCourier) {
+          // No courier on order, use selected courier
+          const selectedCourierObj = couriers.find(c => c.id === selectedCourier);
+          if (selectedCourierObj) {
+            courierNameForOrder = selectedCourierObj.name;
+            courierCodeForOrder = selectedCourierObj.code as Database["public"]["Enums"]["courier_type"];
+          }
+        }
+
+        // Validate that we have a courier
+        if (!courierNameForOrder) {
+          errors.push(`No courier assigned for order ${entry}`);
           errorCount++;
           continue;
         }
@@ -343,8 +364,8 @@ const DispatchDashboard = () => {
           } = await supabase.from('dispatches').update({
             tracking_id: trackingId,
             status: 'dispatched',
-            courier: courierName,
-            courier_id: selectedCourier,
+            courier: courierNameForOrder,
+            courier_id: courierIdForOrder,
             dispatched_by: currentUserId,
             dispatch_date: new Date().toISOString()
           }).eq('id', existingDispatch.id);
@@ -361,8 +382,8 @@ const DispatchDashboard = () => {
             order_id: order.id,
             tracking_id: trackingId,
             status: 'dispatched',
-            courier: courierName,
-            courier_id: selectedCourier,
+            courier: courierNameForOrder,
+            courier_id: courierIdForOrder,
             dispatched_by: currentUserId,
             dispatch_date: new Date().toISOString()
           });
@@ -373,13 +394,6 @@ const DispatchDashboard = () => {
           }
         }
 
-        // Fetch existing order to check current courier
-        const { data: existingOrderData } = await supabase
-          .from('orders')
-          .select('courier')
-          .eq('id', order.id)
-          .single();
-
         // Build update object conditionally
         const orderUpdate: any = {
           status: 'dispatched',
@@ -387,8 +401,8 @@ const DispatchDashboard = () => {
         };
 
         // Only update courier if order doesn't have one AND a courier is selected
-        if (!existingOrderData?.courier && courierCode) {
-          orderUpdate.courier = courierCode;
+        if (!order.courier && courierCodeForOrder) {
+          orderUpdate.courier = courierCodeForOrder;
         }
 
         // Update order status to dispatched
@@ -404,8 +418,8 @@ const DispatchDashboard = () => {
           details: {
             order_id: order.id,
             tracking_id: trackingId,
-            courier: courierName,
-            courier_id: selectedCourier,
+            courier: courierNameForOrder,
+            courier_id: courierIdForOrder,
             entry_type: entryType,
             search_value: entry
           }

@@ -231,13 +231,16 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
         .eq('id', data.order_id)
         .single();
 
+      // Determine actual courier to use (prioritize existing order courier)
+      const courierToUse = existingOrder?.courier || data.courier;
+
       // Create dispatch record
       const { error: dispatchError } = await supabase
         .from("dispatches")
         .insert({
           order_id: data.order_id,
           tracking_id: data.tracking_id,
-          courier: data.courier as "leopard" | "tcs" | "postex" | "other",
+          courier: courierToUse as "leopard" | "tcs" | "postex" | "other",
           notes: data.notes,
           dispatch_date: data.dispatch_date,
           status: "pending",
