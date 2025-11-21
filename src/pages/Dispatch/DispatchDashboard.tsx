@@ -31,6 +31,7 @@ const DispatchDashboard = () => {
   const [dispatches, setDispatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [courierFilter, setCourierFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: addDays(new Date(), -7),
     to: new Date()
@@ -188,9 +189,10 @@ const DispatchDashboard = () => {
     return filteredByDate.filter(dispatch => {
       const matchesSearch = (dispatch.tracking_id || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.order_number || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.customer_phone || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.customer_email || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === "all" || dispatch.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      const matchesCourier = courierFilter === "all" || dispatch.courier === courierFilter;
+      return matchesSearch && matchesStatus && matchesCourier;
     });
-  }, [filteredByDate, searchTerm, statusFilter]);
+  }, [filteredByDate, searchTerm, statusFilter, courierFilter]);
   const metrics = useMemo(() => {
     const totalDispatches = filteredByDate.length;
     const worthOfDispatches = filteredByDate.reduce((total, dispatch) => {
@@ -1286,6 +1288,21 @@ const DispatchDashboard = () => {
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="in_transit">Dispatched</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1">
+              <Select value={courierFilter} onValueChange={setCourierFilter}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Courier" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Couriers</SelectItem>
+                  {couriers.map((courier) => (
+                    <SelectItem key={courier.id} value={courier.code}>
+                      {courier.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
