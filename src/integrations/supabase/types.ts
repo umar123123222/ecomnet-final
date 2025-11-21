@@ -1707,6 +1707,41 @@ export type Database = {
           },
         ]
       }
+      order_update_failures: {
+        Row: {
+          attempted_update: Json
+          created_at: string | null
+          error_code: string | null
+          error_message: string | null
+          id: string
+          order_id: string
+        }
+        Insert: {
+          attempted_update: Json
+          created_at?: string | null
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          order_id: string
+        }
+        Update: {
+          attempted_update?: Json
+          created_at?: string | null
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_update_failures_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           assigned_to: string | null
