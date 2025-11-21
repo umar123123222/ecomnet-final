@@ -997,7 +997,7 @@ const ReturnsDashboard = () => {
             {/* Keyboard Shortcuts */}
             <div className="pt-2 border-t text-xs text-gray-500">
               <div>Press <kbd className="px-1.5 py-0.5 bg-gray-100 border rounded text-[10px]">ESC</kbd> to stop</div>
-              <div><kbd className="px-1.5 py-0.5 bg-gray-100 border rounded text-[10px]">Ctrl+Shift+S</kbd> to toggle</div>
+              <div className="mt-1"><kbd className="px-1.5 py-0.5 bg-gray-100 border rounded text-[10px]">Ctrl+Shift+S</kbd> to toggle</div>
             </div>
           </div>
         </div>
