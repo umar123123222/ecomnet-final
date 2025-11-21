@@ -740,7 +740,7 @@ const DispatchDashboard = () => {
 
       const { data: existingDispatch } = await supabase
         .from('dispatches')
-        .select('id, status')
+        .select('id')
         .eq('order_id', order.id)
         .maybeSingle();
 
@@ -790,7 +790,6 @@ const DispatchDashboard = () => {
           tracking_id: trackingId,
           courier: courierNameToUse,
           courier_id: courierToUse,
-          status: 'pending',
           dispatch_date: new Date().toISOString(),
           dispatched_by: user.id
         });
@@ -1301,7 +1300,7 @@ const DispatchDashboard = () => {
                 <SelectContent>
                   <SelectItem value="all">All Couriers</SelectItem>
                   {couriers.map((courier) => (
-                    <SelectItem key={courier.id} value={courier.code}>
+                    <SelectItem key={courier.id} value={courier.name}>
                       {courier.name}
                     </SelectItem>
                   ))}
