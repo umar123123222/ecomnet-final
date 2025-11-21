@@ -24,6 +24,9 @@ verify_jwt = true
 [functions.process-sync-queue]
 verify_jwt = false
 
+[functions.diagnose-shopify-sync]
+verify_jwt = true
+
 [functions.scheduled-sync-processor]
 verify_jwt = false
 

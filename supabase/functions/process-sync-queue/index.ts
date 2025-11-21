@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const batchSize = 100; // Increased batch size for better performance
+    const batchSize = 25; // Reduced to prevent resource exhaustion
     let processed = 0;
     let failed = 0;
     const results: any[] = [];
@@ -59,8 +59,18 @@ Deno.serve(async (req) => {
       created_at: i.created_at,
     })));
 
-    // Process each item
-    for (const item of queueItems) {
+    // Process each item with delay to prevent rate limiting
+    for (let i = 0; i < queueItems.length; i++) {
+      const item = queueItems[i];
+      
+      // Add delay between items (exponential backoff based on retry count)
+      if (i > 0) {
+        const baseDelay = 500; // 500ms base delay
+        const retryMultiplier = Math.pow(2, item.retry_count); // Exponential backoff
+        const delay = Math.min(baseDelay * retryMultiplier, 5000); // Max 5 seconds
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+      
       try {
         // Mark as processing
         await supabase
@@ -172,17 +182,10 @@ Deno.serve(async (req) => {
             // Explicit tags provided
             tagsToUpdate = changes.tags;
           } else if (changes.status) {
-            // Generate status tag from status change
-            const statusTag = `Ecomnet - ${changes.status.charAt(0).toUpperCase() + changes.status.slice(1)}`;
-            
-            // Get existing tags and filter out old Ecomnet status tags
+            // Generate status tag using shared utility
+            const { updateEcomnetStatusTag } = await import('../_shared/ecomnetStatusTags.ts');
             const existingTags = orderData.tags || [];
-            const filteredTags = existingTags.filter((tag: string) => 
-              !tag.startsWith('Ecomnet - ')
-            );
-            
-            // Add new status tag
-            tagsToUpdate = [...filteredTags, statusTag];
+            tagsToUpdate = updateEcomnetStatusTag(existingTags, changes.status);
           }
           
           if (tagsToUpdate) {
