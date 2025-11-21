@@ -3697,7 +3697,7 @@ export type Database = {
       stock_movements: {
         Row: {
           created_at: string
-          created_by: string
+          created_by: string | null
           id: string
           movement_type: string
           notes: string | null
@@ -3708,7 +3708,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          created_by: string
+          created_by?: string | null
           id?: string
           movement_type: string
           notes?: string | null
@@ -3719,7 +3719,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           id?: string
           movement_type?: string
           notes?: string | null
