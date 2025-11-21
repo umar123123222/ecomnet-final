@@ -80,14 +80,17 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
           }),
         });
 
-        if (!createResponse.ok) {
-          const error = await createResponse.json();
-          console.error('Failed to create fulfillment:', error);
-          throw new Error(`Failed to create fulfillment with tracking: ${JSON.stringify(error)}`);
-        }
+      if (!createResponse.ok) {
+        const error = await createResponse.json();
+        console.error('Failed to create fulfillment:', error);
+        throw new Error(`Failed to create fulfillment with tracking: ${JSON.stringify(error)}`);
+      }
 
-        console.log('Successfully created fulfillment with tracking');
-        return await createResponse.json();
+      console.log('Successfully created fulfillment with tracking');
+      
+      // Check if response has content before parsing
+      const text = await createResponse.text();
+      return text ? JSON.parse(text) : { success: true };
       }
 
       // Fulfillment exists, update it
@@ -116,7 +119,10 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
       }
 
       console.log('Successfully updated fulfillment tracking');
-      return await updateResponse.json();
+      
+      // Check if response has content before parsing
+      const text = await updateResponse.text();
+      return text ? JSON.parse(text) : { success: true };
     }
 
     case 'update_tags': {
@@ -168,7 +174,10 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
         throw new Error(`Failed to update tags: ${JSON.stringify(error)}`);
       }
 
-      const result = await response.json();
+      // Check if response has content before parsing
+      const text = await response.text();
+      const result = text ? JSON.parse(text) : { success: true, order: { tags: data.tags?.join(', ') } };
+      
       console.log('Shopify update_tags successful:', {
         shopify_order_id: shopifyOrderId,
         updated_tags: result.order?.tags,
@@ -198,7 +207,9 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
         throw new Error(`Failed to create fulfillment: ${JSON.stringify(error)}`);
       }
 
-      return await response.json();
+      // Check if response has content before parsing
+      const text = await response.text();
+      return text ? JSON.parse(text) : { success: true };
     }
 
     case 'update_customer': {
@@ -217,7 +228,9 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
         throw new Error(`Failed to update customer note: ${JSON.stringify(error)}`);
       }
 
-      return await response.json();
+      // Check if response has content before parsing
+      const text = await response.text();
+      return text ? JSON.parse(text) : { success: true };
     }
 
     case 'update_address': {
@@ -236,7 +249,9 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
         throw new Error(`Failed to update address: ${JSON.stringify(error)}`);
       }
 
-      return await response.json();
+      // Check if response has content before parsing
+      const text = await response.text();
+      return text ? JSON.parse(text) : { success: true };
     }
 
     case 'update_line_items': {
