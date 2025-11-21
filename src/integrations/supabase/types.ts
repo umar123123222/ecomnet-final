@@ -1643,6 +1643,8 @@ export type Database = {
           assigned_to: string | null
           auto_block_reason: string | null
           auto_blocked: boolean | null
+          booked_at: string | null
+          booked_by: string | null
           city: string
           comments: Json | null
           confirmation_deadline: string | null
@@ -1702,6 +1704,8 @@ export type Database = {
           assigned_to?: string | null
           auto_block_reason?: string | null
           auto_blocked?: boolean | null
+          booked_at?: string | null
+          booked_by?: string | null
           city: string
           comments?: Json | null
           confirmation_deadline?: string | null
@@ -1761,6 +1765,8 @@ export type Database = {
           assigned_to?: string | null
           auto_block_reason?: string | null
           auto_blocked?: boolean | null
+          booked_at?: string | null
+          booked_by?: string | null
           city?: string
           comments?: Json | null
           confirmation_deadline?: string | null
@@ -1827,6 +1833,13 @@ export type Database = {
           {
             foreignKeyName: "orders_assigned_to_fkey"
             columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_booked_by_fkey"
+            columns: ["booked_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
