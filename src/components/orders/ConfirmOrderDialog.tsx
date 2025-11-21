@@ -33,14 +33,11 @@ export function ConfirmOrderDialog({
 
       const { data: { user } } = await supabase.auth.getUser();
       
-      // Update confirmation_status directly (not order status)
+      // Update order status to 'confirmed'
       const { error: updateError } = await supabase
         .from('orders')
         .update({
-          confirmation_status: 'confirmed',
-          confirmed_at: new Date().toISOString(),
-          confirmed_by: user?.id || 'customer',
-          notes: notes || undefined,
+          status: 'confirmed',
           updated_at: new Date().toISOString()
         })
         .eq('id', orderId);
@@ -54,7 +51,7 @@ export function ConfirmOrderDialog({
         entity_id: orderId,
         action: 'order_confirmed',
         details: {
-          confirmation_status: 'confirmed',
+          status: 'confirmed',
           notes: notes,
           timestamp: new Date().toISOString()
         }
@@ -71,7 +68,7 @@ export function ConfirmOrderDialog({
           metadata: {
             order_id: orderId,
             order_number: orderNumber,
-            confirmation_status: 'confirmed'
+            status: 'confirmed'
           }
         });
       }

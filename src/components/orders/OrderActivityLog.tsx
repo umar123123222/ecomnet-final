@@ -73,10 +73,10 @@ export function OrderActivityLog({ orderId, open, onOpenChange }: OrderActivityL
 
       if (trackingError) throw trackingError;
 
-      // 3. Get order details for timestamps
+      // 3. Get order details for timestamps (without confirmed_at and confirmed_by which were dropped)
       const { data: order, error: orderError } = await supabase
         .from('orders')
-        .select('created_at, dispatched_at, delivered_at, confirmed_at, confirmed_by, status')
+        .select('created_at, dispatched_at, delivered_at, status')
         .eq('id', orderId)
         .single();
 
@@ -112,14 +112,25 @@ export function OrderActivityLog({ orderId, open, onOpenChange }: OrderActivityL
         });
       }
 
-      // Order confirmed
-      if (order?.confirmed_at) {
+      // Order confirmed - check from activity logs or status
+      const confirmLog = activityLogs?.find(log => log.action === 'order_confirmed');
+      if (confirmLog) {
+        const confirmUser = userMap.get(confirmLog.user_id);
         events.push({
           id: `confirmed-${orderId}`,
           type: 'order_confirmed',
-          timestamp: order.confirmed_at,
+          timestamp: confirmLog.created_at,
           title: 'Order Confirmed',
-          description: `Confirmed by ${order.confirmed_by || 'customer'}`,
+          description: confirmUser ? `Confirmed by ${confirmUser.full_name || confirmUser.email}` : 'Order confirmed',
+        });
+      } else if (order?.status === 'confirmed' || order?.status === 'booked' || order?.status === 'dispatched' || order?.status === 'delivered') {
+        // Fallback if no log but status indicates confirmation
+        events.push({
+          id: `confirmed-${orderId}`,
+          type: 'order_confirmed',
+          timestamp: order.created_at, // Use created_at as fallback
+          title: 'Order Confirmed',
+          description: 'Order was confirmed',
         });
       }
 

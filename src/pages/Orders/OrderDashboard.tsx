@@ -1252,21 +1252,7 @@ const OrderDashboard = () => {
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string, additionalData?: Record<string, any>) => {
     try {
       // Validate status is a valid enum value
-      const validStatuses = ['pending', 'booked', 'dispatched', 'delivered', 'returned', 'cancelled'];
-      
-      // Special check for common mistake: trying to set status to 'confirmed'
-      if (newStatus === 'confirmed') {
-        console.error('[CRITICAL] Attempted to set status to "confirmed"', {
-          orderId,
-          stackTrace: new Error().stack
-        });
-        toast({
-          title: "Invalid Status",
-          description: '"confirmed" is not a valid order status. Use confirmation_status field instead.',
-          variant: "destructive"
-        });
-        return;
-      }
+      const validStatuses = ['pending', 'confirmed', 'booked', 'dispatched', 'delivered', 'returned', 'cancelled'];
       
       if (!validStatuses.includes(newStatus)) {
         console.error('[ORDER UPDATE] Invalid status value:', {
@@ -1274,7 +1260,12 @@ const OrderDashboard = () => {
           attemptedStatus: newStatus,
           validStatuses
         });
-        throw new Error(`Invalid status: ${newStatus}. Must be one of: ${validStatuses.join(', ')}`);
+        toast({
+          title: "Invalid Status",
+          description: `"${newStatus}" is not a valid order status. Valid statuses: ${validStatuses.join(', ')}`,
+          variant: "destructive"
+        });
+        return;
       }
 
       const { data: currentOrder, error: fetchError } = await supabase
