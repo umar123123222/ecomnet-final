@@ -370,21 +370,10 @@ const DispatchDashboard = () => {
           data: existingDispatch
         } = await supabase.from('dispatches').select('id').eq('order_id', order.id).maybeSingle();
         if (existingDispatch) {
-          // Update existing dispatch
-          const {
-            error: updateDispatchError
-          } = await supabase.from('dispatches').update({
-            tracking_id: trackingId,
-            courier: courierNameForOrder,
-            courier_id: courierIdForOrder,
-            dispatched_by: currentUserId,
-            dispatch_date: new Date().toISOString()
-          }).eq('id', existingDispatch.id);
-          if (updateDispatchError) {
-            errors.push(`Failed to update dispatch for ${entry}: ${updateDispatchError.message}`);
-            errorCount++;
-            continue;
-          }
+          // Prevent duplicate dispatch
+          errors.push(`Order ${order.order_number} has already been dispatched`);
+          errorCount++;
+          continue;
         } else {
           // Create new dispatch
           const {

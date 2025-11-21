@@ -224,6 +224,17 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
         throw new Error("Courier is required");
       }
 
+      // Check if dispatch already exists
+      const { data: existingDispatch } = await supabase
+        .from('dispatches')
+        .select('id')
+        .eq('order_id', data.order_id)
+        .maybeSingle();
+
+      if (existingDispatch) {
+        throw new Error('Order has already been dispatched');
+      }
+
       // Fetch existing order to check current courier
       const { data: existingOrder } = await supabase
         .from('orders')
