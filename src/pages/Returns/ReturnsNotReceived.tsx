@@ -55,37 +55,38 @@ const ReturnsNotReceived = () => {
     try {
       setLoading(true);
       
-      // Query orders marked as returned by courier but still dispatched in Ecomnet
-      // and older than 3 days
+      // Query: Orders with dispatch status 'returned' but order status still 'dispatched'
+      // These are returns marked by courier but not yet received at warehouse
       const threeDaysAgo = new Date();
       threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
       const { data, error } = await supabase
-        .from('orders')
+        .from('dispatches')
         .select(`
-          id,
-          order_number,
-          customer_name,
-          customer_phone,
-          notes,
-          total_amount,
+          order_id,
+          courier,
+          tracking_id,
+          last_tracking_update,
           status,
-          updated_at,
-          dispatches!inner (
-            courier,
-            tracking_id,
-            last_tracking_update,
+          orders!inner (
+            id,
+            order_number,
+            customer_name,
+            customer_phone,
+            notes,
+            total_amount,
             status
           )
         `)
         .eq('status', 'returned')
-        .lt('updated_at', threeDaysAgo.toISOString())
-        .order('updated_at', { ascending: true });
+        .eq('orders.status', 'dispatched')
+        .lt('last_tracking_update', threeDaysAgo.toISOString())
+        .order('last_tracking_update', { ascending: true });
 
       if (error) throw error;
 
-      const formattedReturns: ReturnNotReceived[] = (data || []).map((order: any) => {
-        const dispatch = order.dispatches;
+      const formattedReturns: ReturnNotReceived[] = (data || []).map((dispatch: any) => {
+        const order = dispatch.orders;
         const markedDate = new Date(dispatch.last_tracking_update);
         const daysSince = Math.floor((Date.now() - markedDate.getTime()) / (1000 * 60 * 60 * 24));
 

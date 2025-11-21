@@ -15,6 +15,8 @@ import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import { InventorySummaryWidget } from "@/components/inventory/InventorySummaryWidget";
 import { RecentActivityFeed } from "@/components/dashboard/RecentActivityFeed";
 import { AlertsSummary } from "@/components/dashboard/AlertsSummary";
+import { SyncStatusWidget } from "@/components/dashboard/SyncStatusWidget";
+import { AlertsWidget } from "@/components/dashboard/AlertsWidget";
 import { TopPerformers } from "@/components/dashboard/TopPerformers";
 import { PerformanceMetrics } from "@/components/dashboard/PerformanceMetrics";
 import { useToast } from "@/hooks/use-toast";
@@ -411,10 +413,11 @@ const Dashboard = () => {
         {/* Inventory Summary Widget */}
         <InventorySummaryWidget />
 
-        {/* Real-time Activity and Alerts */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* Real-time Activity, Alerts, and Sync Status */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           <RecentActivityFeed />
-          <AlertsSummary />
+          <SyncStatusWidget />
+          <AlertsWidget />
         </div>
 
         {/* Top Performers and System Metrics */}
