@@ -16,18 +16,19 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const batchSize = 50; // Process up to 50 items at a time for faster catch-up
+    const batchSize = 100; // Increased batch size for better performance
     let processed = 0;
     let failed = 0;
     const results: any[] = [];
 
-    // SIMPLIFIED: Only process pending items for now (removed failed item retry logic)
+    // Priority-based processing: fetch items ordered by priority
     const { data: queueItems, error: queueError } = await supabase
       .from('sync_queue')
       .select('*')
       .eq('status', 'pending')
       .lt('retry_count', 5)
-      // Process newest items first so recent status updates are prioritized
+      // Process by priority (critical > high > normal > low), then by created_at
+      .order('priority', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(batchSize);
 

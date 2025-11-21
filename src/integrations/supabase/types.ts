@@ -231,6 +231,75 @@ export type Database = {
           },
         ]
       }
+      automated_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          alert_type: string
+          created_at: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          message: string
+          metadata: Json | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string | null
+          status: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_type: string
+          created_at?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          message: string
+          metadata?: Json | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string | null
+          status?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_type?: string
+          created_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          message?: string
+          metadata?: Json | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string | null
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automated_alerts_acknowledged_by_fkey"
+            columns: ["acknowledged_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automated_alerts_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bill_of_materials: {
         Row: {
           created_at: string
@@ -4064,6 +4133,56 @@ export type Database = {
           },
         ]
       }
+      sync_conflicts: {
+        Row: {
+          conflict_type: string
+          created_at: string | null
+          ecomnet_data: Json
+          entity_id: string
+          entity_type: string
+          id: string
+          resolution_notes: string | null
+          resolution_status: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          shopify_data: Json
+        }
+        Insert: {
+          conflict_type: string
+          created_at?: string | null
+          ecomnet_data: Json
+          entity_id: string
+          entity_type: string
+          id?: string
+          resolution_notes?: string | null
+          resolution_status?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          shopify_data: Json
+        }
+        Update: {
+          conflict_type?: string
+          created_at?: string | null
+          ecomnet_data?: Json
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          resolution_notes?: string | null
+          resolution_status?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          shopify_data?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_conflicts_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sync_queue: {
         Row: {
           action: string
@@ -4074,6 +4193,7 @@ export type Database = {
           error_message: string | null
           id: string
           payload: Json | null
+          priority: string | null
           processed_at: string | null
           retry_count: number
           status: string
@@ -4087,6 +4207,7 @@ export type Database = {
           error_message?: string | null
           id?: string
           payload?: Json | null
+          priority?: string | null
           processed_at?: string | null
           retry_count?: number
           status?: string
@@ -4100,6 +4221,7 @@ export type Database = {
           error_message?: string | null
           id?: string
           payload?: Json | null
+          priority?: string | null
           processed_at?: string | null
           retry_count?: number
           status?: string

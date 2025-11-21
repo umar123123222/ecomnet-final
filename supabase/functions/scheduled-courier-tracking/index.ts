@@ -119,7 +119,7 @@ serve(async (req) => {
             }
           });
 
-          // Update order status if delivered or returned
+          // Update order status if delivered (but NOT for returned - keep dispatched)
           if (tracking.status === 'delivered') {
             await supabase
               .from('orders')
@@ -128,14 +128,9 @@ serve(async (req) => {
                 delivered_at: new Date().toISOString()
               })
               .eq('id', dispatch.order_id);
-          } else if (tracking.status === 'returned') {
-            await supabase
-              .from('orders')
-              .update({
-                status: 'returned'
-              })
-              .eq('id', dispatch.order_id);
           }
+          // For returned status, only update dispatch status, NOT order status
+          // Order status stays 'dispatched' until warehouse physically receives it
 
           // Log tracking history
           await supabase
