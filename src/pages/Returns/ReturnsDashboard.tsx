@@ -190,6 +190,12 @@ const ReturnsDashboard = () => {
     setRecentScans([]);
     setScanHistoryForExport([]);
     setLastScanTime(Date.now());
+    
+    // Play activation sound
+    successSound.volume = 0.3;
+    successSound.currentTime = 0;
+    successSound.play().catch(e => console.log('Audio play failed:', e));
+    
     toast({
       title: "Scanner Mode Activated",
       description: "Ready to scan returns. Press ESC to stop.",
@@ -259,7 +265,11 @@ const ReturnsDashboard = () => {
       }
 
       if (!returnRecord) {
-        errorSound.play();
+        // Play error sound
+        errorSound.volume = 0.5;
+        errorSound.currentTime = 0;
+        errorSound.play().catch(e => console.log('Audio play failed:', e));
+        
         setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
         setRecentScans(prev => [{
           entry,
@@ -290,7 +300,11 @@ const ReturnsDashboard = () => {
 
       // Check if already received
       if (returnRecord.return_status === 'received') {
-        errorSound.play();
+        // Play error sound
+        errorSound.volume = 0.5;
+        errorSound.currentTime = 0;
+        errorSound.play().catch(e => console.log('Audio play failed:', e));
+        
         setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
         setRecentScans(prev => [{
           entry,
@@ -340,8 +354,11 @@ const ReturnsDashboard = () => {
 
       if (updateOrderError) throw updateOrderError;
 
-      // Success
-      successSound.play();
+      // Success - play success sound
+      successSound.volume = 0.5;
+      successSound.currentTime = 0;
+      successSound.play().catch(e => console.log('Audio play failed:', e));
+      
       setScannerStats(prev => ({ ...prev, success: prev.success + 1 }));
       setRecentScans(prev => [{
         entry,
@@ -391,7 +408,12 @@ const ReturnsDashboard = () => {
 
     } catch (error) {
       console.error('Error processing scan:', error);
-      errorSound.play();
+      
+      // Play error sound
+      errorSound.volume = 0.5;
+      errorSound.currentTime = 0;
+      errorSound.play().catch(e => console.log('Audio play failed:', e));
+      
       setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
       setRecentScans(prev => [{
         entry,
