@@ -30,7 +30,6 @@ const DispatchDashboard = () => {
   const [selectedDispatches, setSelectedDispatches] = useState<string[]>([]);
   const [dispatches, setDispatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [courierFilter, setCourierFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -202,26 +201,30 @@ const DispatchDashboard = () => {
   const filteredDispatches = useMemo(() => {
     return filteredByDate.filter(dispatch => {
       const matchesSearch = (dispatch.tracking_id || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.order_number || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.customer_phone || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.customer_email || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = statusFilter === "all" || dispatch.status === statusFilter;
       const matchesCourier = courierFilter === "all" || dispatch.courier === courierFilter;
       const matchesUser = userFilter === "all" || dispatch.dispatched_by === userFilter;
-      return matchesSearch && matchesStatus && matchesCourier && matchesUser;
+      return matchesSearch && matchesCourier && matchesUser;
     });
-  }, [filteredByDate, searchTerm, statusFilter, courierFilter, userFilter]);
+  }, [filteredByDate, searchTerm, courierFilter, userFilter]);
   const metrics = useMemo(() => {
     const totalDispatches = filteredByDate.length;
     const worthOfDispatches = filteredByDate.reduce((total, dispatch) => {
       return total + (dispatch.orders?.total_amount || 2500);
     }, 0);
-    const pending = filteredByDate.filter(d => d.status === "pending").length;
-    const inTransit = filteredByDate.filter(d => d.status === "in_transit").length;
-    const delivered = filteredByDate.filter(d => d.status === "completed" || d.status === "delivered").length;
+    const uniqueOrders = new Set(filteredByDate.map(d => d.order_id)).size;
+    const courierCounts = filteredByDate.reduce((acc, d) => {
+      acc[d.courier] = (acc[d.courier] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    const entries = Object.entries(courierCounts);
+    const mostUsedCourier = entries.length > 0 
+      ? entries.sort((a, b) => (b[1] as number) - (a[1] as number))[0][0] 
+      : 'N/A';
     return {
       totalDispatches,
       worthOfDispatches,
-      pending,
-      inTransit,
-      delivered
+      uniqueOrders,
+      mostUsedCourier
     };
   }, [filteredByDate]);
   const handleSelectDispatch = (dispatchId: string) => {
@@ -229,18 +232,6 @@ const DispatchDashboard = () => {
   };
   const handleSelectAll = () => {
     setSelectedDispatches(selectedDispatches.length === filteredDispatches.length ? [] : filteredDispatches.map(d => d.id));
-  };
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'in-transit':
-        return 'bg-blue-100 text-blue-800';
-      case 'delivered':
-        return 'bg-green-100 text-green-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
   };
   const handleManualEntry = async (data: {
     bulkEntries: string;
@@ -380,7 +371,6 @@ const DispatchDashboard = () => {
             error: updateDispatchError
           } = await supabase.from('dispatches').update({
             tracking_id: trackingId,
-            status: 'dispatched',
             courier: courierNameForOrder,
             courier_id: courierIdForOrder,
             dispatched_by: currentUserId,
@@ -398,7 +388,6 @@ const DispatchDashboard = () => {
           } = await supabase.from('dispatches').insert({
             order_id: order.id,
             tracking_id: trackingId,
-            status: 'dispatched',
             courier: courierNameForOrder,
             courier_id: courierIdForOrder,
             dispatched_by: currentUserId,
@@ -1253,11 +1242,21 @@ const DispatchDashboard = () => {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Pending
+              Unique Orders
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{metrics.pending}</div>
+            <div className="text-2xl font-bold text-blue-600">{metrics.uniqueOrders}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">
+              Most Used Courier
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600">{metrics.mostUsedCourier}</div>
           </CardContent>
         </Card>
         <Card>
@@ -1293,18 +1292,6 @@ const DispatchDashboard = () => {
             </div>
             <div className="flex-1">
               <DatePickerWithRange date={dateRange} setDate={setDateRange} className="w-full" />
-            </div>
-            <div className="flex-1">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="in_transit">Dispatched</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
             <div className="flex-1">
               <Select value={courierFilter} onValueChange={setCourierFilter}>

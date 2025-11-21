@@ -55,39 +55,54 @@ const ReturnsNotReceived = () => {
     try {
       setLoading(true);
       
-      // Query: Orders with dispatch status 'returned' but order status still 'dispatched'
+      // Query: Orders where tracking shows 'returned' but order status still 'dispatched'
       // These are returns marked by courier but not yet received at warehouse
       const threeDaysAgo = new Date();
       threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
-      const { data, error } = await supabase
-        .from('dispatches')
+      // First get all tracking history entries with status 'returned'
+      const { data: returnedTracking, error: trackingError } = await supabase
+        .from('courier_tracking_history')
         .select(`
           order_id,
-          courier,
           tracking_id,
-          last_tracking_update,
           status,
-          orders!inner (
-            id,
-            order_number,
-            customer_name,
-            customer_phone,
-            notes,
-            total_amount,
-            status
+          checked_at,
+          current_location,
+          dispatch_id,
+          dispatches!inner (
+            courier,
+            orders!inner (
+              id,
+              order_number,
+              customer_name,
+              customer_phone,
+              notes,
+              total_amount,
+              status
+            )
           )
         `)
         .eq('status', 'returned')
-        .eq('orders.status', 'dispatched')
-        .lt('last_tracking_update', threeDaysAgo.toISOString())
-        .order('last_tracking_update', { ascending: true });
+        .eq('dispatches.orders.status', 'dispatched')
+        .lt('checked_at', threeDaysAgo.toISOString())
+        .order('checked_at', { ascending: true });
 
-      if (error) throw error;
+      if (trackingError) throw trackingError;
 
-      const formattedReturns: ReturnNotReceived[] = (data || []).map((dispatch: any) => {
-        const order = dispatch.orders;
-        const markedDate = new Date(dispatch.last_tracking_update);
+      // Group by order_id to get latest tracking per order
+      const latestByOrder = new Map();
+      (returnedTracking || []).forEach((tracking: any) => {
+        const order = tracking.dispatches?.orders;
+        if (!order || !order.id) return;
+        
+        if (!latestByOrder.has(order.id)) {
+          latestByOrder.set(order.id, { tracking, order, dispatch: tracking.dispatches });
+        }
+      });
+
+      const formattedReturns: ReturnNotReceived[] = Array.from(latestByOrder.values()).map(({ tracking, order, dispatch }: any) => {
+        const markedDate = new Date(tracking.checked_at);
         const daysSince = Math.floor((Date.now() - markedDate.getTime()) / (1000 * 60 * 60 * 24));
 
         return {
@@ -99,7 +114,7 @@ const ReturnsNotReceived = () => {
           markedReturnedDate: markedDate.toISOString().split('T')[0],
           daysSinceMarked: daysSince,
           courier: dispatch.courier,
-          trackingId: dispatch.tracking_id,
+          trackingId: tracking.tracking_id,
           returnValue: order.total_amount
         };
       });

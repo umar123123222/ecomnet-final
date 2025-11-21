@@ -243,7 +243,6 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
           courier: courierToUse as "leopard" | "tcs" | "postex" | "other",
           notes: data.notes,
           dispatch_date: data.dispatch_date,
-          status: "pending",
         });
 
       if (dispatchError) throw dispatchError;

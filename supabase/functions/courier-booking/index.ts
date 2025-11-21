@@ -389,7 +389,6 @@ serve(async (req) => {
         courier_id: bookingRequest.courierId,
         courier: courier.code,
         tracking_id: trackingId,
-        status: 'booked',
         courier_booking_id: bookingResponse.booking_id || trackingId,
         courier_response: bookingResponse,
         label_url: labelUrl,

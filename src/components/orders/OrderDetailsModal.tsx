@@ -55,7 +55,6 @@ interface DispatchInfo {
   tracking_id: string | null;
   courier: string;
   dispatch_date: string | null;
-  status: string;
   estimated_delivery: string | null;
   couriers: {
     name: string;
@@ -229,9 +228,6 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
                     </div>
                   )}
                 </div>
-                <Badge className={getStatusColor(dispatchInfo.status)}>
-                  {formatTrackingStatus(dispatchInfo.status)}
-                </Badge>
               </div>
 
               <div className="grid grid-cols-2 gap-4 pt-2">

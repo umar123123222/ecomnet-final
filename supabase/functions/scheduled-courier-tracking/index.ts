@@ -28,10 +28,8 @@ serve(async (req) => {
         tracking_id,
         courier,
         courier_id,
-        status,
         last_tracking_update
       `)
-      .not('status', 'in', '("delivered","returned","cancelled")')
       .not('tracking_id', 'is', null);
 
     if (fetchError) {
@@ -78,11 +76,10 @@ serve(async (req) => {
         if (trackingData?.success && trackingData?.tracking) {
           const tracking = trackingData.tracking;
           
-          // Update dispatch status
+          // Update dispatch's last tracking update timestamp
           await supabase
             .from('dispatches')
             .update({
-              status: tracking.status,
               last_tracking_update: new Date().toISOString(),
               courier_response: tracking.raw
             })
