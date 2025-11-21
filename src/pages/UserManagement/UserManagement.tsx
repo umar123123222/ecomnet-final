@@ -367,6 +367,7 @@ const UserManagement = () => {
       action: async (selectedIds: string[]) => {
         let success = 0;
         let failed = 0;
+        let skipped = 0;
         const errors: string[] = [];
 
         for (const userId of selectedIds) {
@@ -381,13 +382,28 @@ const UserManagement = () => {
             });
             success++;
           } catch (error: any) {
-            failed++;
-            errors.push(`Failed to delete user: ${error.message}`);
+            // If user not found, treat as already deleted (not an error)
+            if (error.message?.includes('User not found')) {
+              skipped++;
+            } else {
+              failed++;
+              errors.push(`Failed to delete user: ${error.message}`);
+            }
           }
         }
 
         queryClient.invalidateQueries({ queryKey: ['users'] });
         setSelectedUsers([]);
+        
+        // Show appropriate message
+        if (skipped > 0 && success === 0 && failed === 0) {
+          toast({
+            title: 'Already Deleted',
+            description: `${skipped} user(s) were already deleted`,
+            variant: 'default',
+          });
+        }
+        
         return { success, failed, errors };
       },
     },
