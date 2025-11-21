@@ -1251,19 +1251,58 @@ const OrderDashboard = () => {
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string, additionalData?: Record<string, any>) => {
     try {
-      const { data: currentOrder } = await supabase
+      // Validate status is a valid enum value
+      const validStatuses = ['pending', 'booked', 'dispatched', 'delivered', 'returned', 'cancelled'];
+      if (!validStatuses.includes(newStatus)) {
+        throw new Error(`Invalid status: ${newStatus}. Must be one of: ${validStatuses.join(', ')}`);
+      }
+
+      const { data: currentOrder, error: fetchError } = await supabase
         .from('orders')
-        .select('status')
+        .select('status, order_number')
         .eq('id', orderId)
         .single();
 
-      const updateData: Record<string, any> = { status: newStatus, ...additionalData };
+      if (fetchError) throw fetchError;
+
+      const updateData: Record<string, any> = { 
+        status: newStatus,
+        ...additionalData 
+      };
+
+      console.log('[ORDER UPDATE] Attempting update:', {
+        orderId,
+        orderNumber: currentOrder?.order_number,
+        oldStatus: currentOrder?.status,
+        newStatus,
+        additionalData
+      });
+
       const { error } = await supabase
         .from('orders')
         .update(updateData)
         .eq('id', orderId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('[ORDER UPDATE] Failed:', {
+          orderId,
+          orderNumber: currentOrder?.order_number,
+          error,
+          errorCode: error.code,
+          errorMessage: error.message,
+          errorDetails: error.details,
+          errorHint: error.hint,
+          updateData
+        });
+        throw error;
+      }
+
+      console.log('[ORDER UPDATE] Success:', {
+        orderId,
+        orderNumber: currentOrder?.order_number,
+        oldStatus: currentOrder?.status,
+        newStatus
+      });
 
       // Log the activity
       await logActivity({
@@ -1304,11 +1343,16 @@ const OrderDashboard = () => {
         .catch(err => {
           console.error('Unexpected error invoking process-sync-queue:', err);
         });
-    } catch (error) {
-      console.error('Error updating order:', error);
+    } catch (error: any) {
+      console.error('[ORDER UPDATE] Exception:', {
+        error: error.message,
+        stack: error.stack,
+        orderId,
+        newStatus
+      });
       toast({
         title: "Error",
-        description: "Failed to update order status",
+        description: error.message || "Failed to update order status",
         variant: "destructive",
       });
     }
