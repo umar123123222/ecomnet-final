@@ -862,6 +862,7 @@ const OrderDashboard = () => {
   const getStatusBadge = (status: string, orderId: string, courierStatus?: string) => {
     const statusMap: Record<string, { variant: any; label: string; icon?: any }> = {
       'pending': { variant: 'warning', label: 'Pending', icon: Clock },
+      'confirmed': { variant: 'default', label: 'Confirmed', icon: CheckCircle },
       'booked': { variant: 'info', label: 'Booked', icon: Package },
       'dispatched': { variant: 'processing', label: 'Dispatched', icon: Truck },
       'delivered': { variant: 'success', label: 'Delivered', icon: CheckCircle },
@@ -874,6 +875,7 @@ const OrderDashboard = () => {
     
     const allStatuses = [
       { value: 'pending', label: 'Pending' },
+      { value: 'confirmed', label: 'Confirmed' },
       { value: 'booked', label: 'Booked' },
       { value: 'dispatched', label: 'Dispatched' },
       { value: 'delivered', label: 'Delivered' },
