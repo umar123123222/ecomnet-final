@@ -904,8 +904,8 @@ const ReturnsDashboard = () => {
 
       {/* Scanner Mode Floating Panel */}
       {scannerModeActive && (
-        <div className="fixed bottom-6 right-6 w-96 bg-white rounded-lg shadow-2xl border-2 border-blue-500 animate-in slide-in-from-bottom-5 z-50">
-          <div className="px-4 py-6 space-y-4">
+        <div className="fixed bottom-6 right-6 w-96 bg-white rounded-lg shadow-2xl border-2 border-blue-500 animate-in slide-in-from-bottom-5 z-50 p-4">
+          <div className="space-y-3">
             {/* Header */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -913,24 +913,24 @@ const ReturnsDashboard = () => {
                 <span className="font-semibold text-gray-900">Scanner Active</span>
               </div>
               <Button 
-                variant="ghost" 
+                variant="destructive" 
                 size="sm"
                 onClick={deactivateScannerMode}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                className="h-7"
               >
                 Stop
               </Button>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                <div className="text-2xl font-bold text-green-700">{scannerStats.success}</div>
-                <div className="text-xs text-green-600">Success</div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="p-2 bg-green-50 rounded border border-green-200">
+                <div className="text-gray-500 text-xs">Success</div>
+                <div className="text-lg font-bold text-green-600">{scannerStats.success}</div>
               </div>
-              <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                <div className="text-2xl font-bold text-red-700">{scannerStats.errors}</div>
-                <div className="text-xs text-red-600">Errors</div>
+              <div className="p-2 bg-red-50 rounded border border-red-200">
+                <div className="text-gray-500 text-xs">Errors</div>
+                <div className="text-lg font-bold text-red-600">{scannerStats.errors}</div>
               </div>
             </div>
 
@@ -963,8 +963,8 @@ const ReturnsDashboard = () => {
             {/* Recent Scans */}
             {recentScans.length > 0 && (
               <div className="space-y-2">
-                <div className="text-xs font-medium text-gray-500 uppercase">Recent Scans</div>
-                <div className="space-y-1 max-h-48 overflow-y-auto">
+                <div className="text-xs font-medium text-gray-500">Recent Scans</div>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {recentScans.slice(0, 6).map((scan, idx) => (
                     <div 
                       key={idx}
@@ -995,9 +995,9 @@ const ReturnsDashboard = () => {
             )}
 
             {/* Keyboard Shortcuts */}
-            <div className="pt-3 border-t text-xs text-gray-500">
-              <div>Press <kbd className="px-1.5 py-0.5 bg-gray-100 border rounded">ESC</kbd> to stop</div>
-              <div><kbd className="px-1.5 py-0.5 bg-gray-100 border rounded">Ctrl+Shift+S</kbd> to toggle</div>
+            <div className="pt-2 border-t text-xs text-gray-500">
+              <div>Press <kbd className="px-1.5 py-0.5 bg-gray-100 border rounded text-[10px]">ESC</kbd> to stop</div>
+              <div><kbd className="px-1.5 py-0.5 bg-gray-100 border rounded text-[10px]">Ctrl+Shift+S</kbd> to toggle</div>
             </div>
           </div>
         </div>
