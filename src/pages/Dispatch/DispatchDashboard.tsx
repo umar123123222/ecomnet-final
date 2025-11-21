@@ -215,7 +215,6 @@ const DispatchDashboard = () => {
     const worthOfDispatches = filteredByDate.reduce((total, dispatch) => {
       return total + (dispatch.orders?.total_amount || 2500);
     }, 0);
-    const uniqueOrders = new Set(filteredByDate.map(d => d.order_id)).size;
     const courierCounts = filteredByDate.reduce((acc, d) => {
       acc[d.courier] = (acc[d.courier] || 0) + 1;
       return acc;
@@ -227,7 +226,6 @@ const DispatchDashboard = () => {
     return {
       totalDispatches,
       worthOfDispatches,
-      uniqueOrders,
       mostUsedCourier
     };
   }, [filteredByDate]);
@@ -1229,16 +1227,6 @@ const DispatchDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{metrics.totalDispatches}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Unique Orders
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{metrics.uniqueOrders}</div>
           </CardContent>
         </Card>
         <Card>
