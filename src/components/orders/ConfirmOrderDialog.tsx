@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { updateOrderStatus } from "@/utils/orderStatusManager";
+
 import { CheckCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -33,25 +33,56 @@ export function ConfirmOrderDialog({
 
       const { data: { user } } = await supabase.auth.getUser();
       
-      const result = await updateOrderStatus({
-        orderId,
-        newStatus: 'confirmed',
-        userId: user?.id,
-        notes: notes || undefined,
-        sendNotification: true
+      // Update confirmation_status directly (not order status)
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({
+          confirmation_status: 'confirmed',
+          confirmed_at: new Date().toISOString(),
+          confirmed_by: user?.id || 'customer',
+          notes: notes || undefined,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId);
+
+      if (updateError) throw updateError;
+
+      // Log activity
+      await supabase.from('activity_logs').insert({
+        user_id: user?.id || '00000000-0000-0000-0000-000000000000',
+        entity_type: 'order',
+        entity_id: orderId,
+        action: 'order_confirmed',
+        details: {
+          confirmation_status: 'confirmed',
+          notes: notes,
+          timestamp: new Date().toISOString()
+        }
       });
 
-      if (result.success) {
-        toast({
-          title: "Order Confirmed",
-          description: `Order #${orderNumber} has been confirmed and synced to Shopify`,
+      // Send notification
+      if (user?.id) {
+        await supabase.from('notifications').insert({
+          user_id: user.id,
+          type: 'order_status',
+          title: `Order #${orderNumber} confirmed`,
+          message: 'Order confirmed and ready for processing',
+          priority: 'high',
+          metadata: {
+            order_id: orderId,
+            order_number: orderNumber,
+            confirmation_status: 'confirmed'
+          }
         });
-        
-        onOpenChange(false);
-        onSuccess?.();
-      } else {
-        throw new Error(result.error);
       }
+
+      toast({
+        title: "Order Confirmed",
+        description: `Order #${orderNumber} has been confirmed and ready for processing`,
+      });
+      
+      onOpenChange(false);
+      onSuccess?.();
     } catch (error: any) {
       console.error('Error confirming order:', error);
       toast({
