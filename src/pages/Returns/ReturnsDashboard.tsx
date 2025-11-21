@@ -905,7 +905,7 @@ const ReturnsDashboard = () => {
       {/* Scanner Mode Floating Panel */}
       {scannerModeActive && (
         <div className="fixed bottom-6 right-6 w-96 bg-white rounded-lg shadow-2xl border-2 border-blue-500 animate-in slide-in-from-bottom-5 z-50">
-          <div className="px-4 py-[368px] space-y-4">
+          <div className="px-4 py-6 space-y-4">
             {/* Header */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
