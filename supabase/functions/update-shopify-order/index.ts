@@ -59,7 +59,11 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
         throw new Error('Failed to fetch order from Shopify');
       }
       
-      const orderData = await orderResponse.json();
+      const orderText = await orderResponse.text();
+      if (!orderText) {
+        throw new Error('Empty response from Shopify when fetching order');
+      }
+      const orderData = JSON.parse(orderText);
       
       // Check if fulfillment exists
       if (!orderData.order.fulfillments || orderData.order.fulfillments.length === 0) {
@@ -80,17 +84,18 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
           }),
         });
 
-      if (!createResponse.ok) {
-        const error = await createResponse.json();
-        console.error('Failed to create fulfillment:', error);
-        throw new Error(`Failed to create fulfillment with tracking: ${JSON.stringify(error)}`);
-      }
+        if (!createResponse.ok) {
+          const errorText = await createResponse.text();
+          const error = errorText ? JSON.parse(errorText) : { message: 'Unknown error' };
+          console.error('Failed to create fulfillment:', error);
+          throw new Error(`Failed to create fulfillment with tracking: ${JSON.stringify(error)}`);
+        }
 
-      console.log('Successfully created fulfillment with tracking');
-      
-      // Check if response has content before parsing
-      const text = await createResponse.text();
-      return text ? JSON.parse(text) : { success: true };
+        console.log('Successfully created fulfillment with tracking');
+        
+        // Check if response has content before parsing
+        const text = await createResponse.text();
+        return text ? JSON.parse(text) : { success: true };
       }
 
       // Fulfillment exists, update it
@@ -113,7 +118,8 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
       });
 
       if (!updateResponse.ok) {
-        const error = await updateResponse.json();
+        const errorText = await updateResponse.text();
+        const error = errorText ? JSON.parse(errorText) : { message: 'Unknown error' };
         console.error('Failed to update fulfillment tracking:', error);
         throw new Error(`Failed to update tracking: ${JSON.stringify(error)}`);
       }
@@ -133,7 +139,11 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
         throw new Error('Failed to fetch existing order tags');
       }
       
-      const orderData = await getResponse.json();
+      const getResponseText = await getResponse.text();
+      if (!getResponseText) {
+        throw new Error('Empty response from Shopify when fetching order tags');
+      }
+      const orderData = JSON.parse(getResponseText);
       const existingTagsString = orderData.order.tags || '';
       const existingTags = existingTagsString.split(',').map((t: string) => t.trim()).filter(Boolean);
       
@@ -165,7 +175,8 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const errorText = await response.text();
+        const error = errorText ? JSON.parse(errorText) : { message: 'Unknown error' };
         console.error('Shopify API error response for update_tags:', {
           status: response.status,
           statusText: response.statusText,
@@ -203,7 +214,8 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const errorText = await response.text();
+        const error = errorText ? JSON.parse(errorText) : { message: 'Unknown error' };
         throw new Error(`Failed to create fulfillment: ${JSON.stringify(error)}`);
       }
 
@@ -224,7 +236,8 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const errorText = await response.text();
+        const error = errorText ? JSON.parse(errorText) : { message: 'Unknown error' };
         throw new Error(`Failed to update customer note: ${JSON.stringify(error)}`);
       }
 
@@ -245,7 +258,8 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const errorText = await response.text();
+        const error = errorText ? JSON.parse(errorText) : { message: 'Unknown error' };
         throw new Error(`Failed to update address: ${JSON.stringify(error)}`);
       }
 
