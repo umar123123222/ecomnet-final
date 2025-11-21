@@ -190,9 +190,13 @@ const DispatchDashboard = () => {
     return dispatches.filter(dispatch => {
       const dispatchDate = parseISO(dispatch.dispatch_date || dispatch.created_at);
       if (dateRange.to) {
+        // Adjust the end date to include the full day (23:59:59.999)
+        const endOfDay = new Date(dateRange.to);
+        endOfDay.setHours(23, 59, 59, 999);
+        
         return isWithinInterval(dispatchDate, {
           start: dateRange.from,
-          end: dateRange.to
+          end: endOfDay
         });
       }
       return dispatchDate >= dateRange.from;
