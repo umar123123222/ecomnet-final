@@ -7,6 +7,51 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper function to retry critical order updates
+async function updateOrderWithRetry(
+  supabase: any,
+  orderId: string,
+  updateData: any,
+  maxRetries: number = 3
+): Promise<{ success: boolean; error?: any }> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    console.log(`[BOOKING] Order update attempt ${attempt}/${maxRetries}`, {
+      orderId,
+      updateData
+    });
+    
+    const { error } = await supabase
+      .from('orders')
+      .update(updateData)
+      .eq('id', orderId);
+
+    if (!error) {
+      console.log(`[BOOKING] Order updated successfully on attempt ${attempt}`);
+      return { success: true };
+    }
+
+    console.error(`[BOOKING] Order update failed on attempt ${attempt}:`, {
+      error,
+      errorCode: error.code,
+      errorMessage: error.message,
+      errorDetails: error.details,
+      errorHint: error.hint
+    });
+
+    if (attempt < maxRetries) {
+      // Exponential backoff: 1s, 2s, 4s
+      const delayMs = Math.pow(2, attempt - 1) * 1000;
+      console.log(`[BOOKING] Retrying in ${delayMs}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+
+  return { 
+    success: false, 
+    error: `Max retries (${maxRetries}) exceeded for order update`
+  };
+}
+
 interface BookingRequest {
   orderId: string;
   orderNumber?: string; // Human-readable order number for courier reference
@@ -269,19 +314,42 @@ serve(async (req) => {
     });
 
     // Update order with tracking information and tags (only if label is available)
-    const { error: orderError } = await supabase
-      .from('orders')
-      .update({
+    // Use retry logic for critical order update
+    const orderUpdateResult = await updateOrderWithRetry(
+      supabase,
+      bookingRequest.orderId,
+      {
         tracking_id: trackingId,
         status: 'booked',
         courier: courier.code.toLowerCase(),
-        tags: updatedTags
-      })
-      .eq('id', bookingRequest.orderId);
+        tags: updatedTags,
+        booked_at: new Date().toISOString(),
+        booked_by: userId
+      },
+      3 // max retries
+    );
 
-    if (orderError) {
-      console.error('Error updating order:', orderError);
+    if (!orderUpdateResult.success) {
+      const errorMsg = `Failed to update order after courier booking: ${orderUpdateResult.error}`;
+      console.error('[BOOKING] CRITICAL:', errorMsg);
+      
+      // Log the failure for monitoring
+      await supabase.from('order_update_failures').insert({
+        order_id: bookingRequest.orderId,
+        attempted_update: {
+          tracking_id: trackingId,
+          status: 'booked',
+          courier: courier.code.toLowerCase(),
+          tags: updatedTags
+        },
+        error_message: errorMsg,
+        error_code: 'ORDER_UPDATE_FAILED'
+      }).catch(logErr => console.error('[BOOKING] Failed to log update failure:', logErr));
+      
+      throw new Error(errorMsg);
     }
+    
+    console.log('[BOOKING] Order updated successfully');
 
     // If order has shopify_order_id, queue sync to Shopify
     if (existingOrder?.shopify_order_id) {
