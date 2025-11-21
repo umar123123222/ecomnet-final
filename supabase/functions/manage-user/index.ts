@@ -621,7 +621,70 @@ serve(async (req) => {
           )
         }
         
-        // Step 1: Delete from user_roles first
+        // Get a system user ID to reassign records (use the first super_admin or a default)
+        const { data: systemUser } = await supabaseAdmin
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'super_admin')
+          .eq('is_active', true)
+          .neq('user_id', userId)
+          .limit(1)
+          .single();
+        
+        const systemUserId = systemUser?.user_id || '00000000-0000-0000-0000-000000000000';
+        console.log('Using system user for reassignment:', systemUserId);
+        
+        // Step 1: Reassign records that should be preserved
+        console.log('Reassigning stock_movements...');
+        await supabaseAdmin
+          .from('stock_movements')
+          .update({ created_by: systemUserId })
+          .eq('created_by', userId);
+        
+        console.log('Reassigning activity_logs...');
+        await supabaseAdmin
+          .from('activity_logs')
+          .update({ user_id: systemUserId })
+          .eq('user_id', userId);
+        
+        console.log('Reassigning cash_drawer_events...');
+        await supabaseAdmin
+          .from('cash_drawer_events')
+          .update({ created_by: systemUserId })
+          .eq('created_by', userId);
+        
+        console.log('Reassigning goods_received_notes...');
+        await supabaseAdmin
+          .from('goods_received_notes')
+          .update({ received_by: systemUserId })
+          .eq('received_by', userId);
+        
+        // Step 2: Delete user-specific records
+        console.log('Deleting notifications...');
+        await supabaseAdmin
+          .from('notifications')
+          .delete()
+          .eq('user_id', userId);
+        
+        console.log('Deleting outlet_staff...');
+        await supabaseAdmin
+          .from('outlet_staff')
+          .delete()
+          .eq('user_id', userId);
+        
+        console.log('Deleting supplier_profiles...');
+        await supabaseAdmin
+          .from('supplier_profiles')
+          .delete()
+          .eq('user_id', userId);
+        
+        console.log('Deleting user_performance...');
+        await supabaseAdmin
+          .from('user_performance')
+          .delete()
+          .eq('user_id', userId);
+        
+        // Step 3: Delete from user_roles
         console.log('Deleting user_roles for user:', userId);
         const { error: rolesError } = await supabaseAdmin
           .from('user_roles')
@@ -636,7 +699,7 @@ serve(async (req) => {
           )
         }
         
-        // Step 2: Delete from profiles
+        // Step 4: Delete from profiles
         console.log('Deleting profile for user:', userId);
         const { error: profileError } = await supabaseAdmin
           .from('profiles')
@@ -651,7 +714,7 @@ serve(async (req) => {
           )
         }
         
-        // Step 3: Delete the auth user
+        // Step 5: Delete the auth user
         console.log('Deleting auth user:', userId);
         const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
         if (error) {
