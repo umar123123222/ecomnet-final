@@ -989,7 +989,6 @@ export type Database = {
           last_tracking_update: string | null
           notes: string | null
           order_id: string
-          status: Database["public"]["Enums"]["dispatch_status"] | null
           tracking_id: string | null
           updated_at: string
         }
@@ -1009,7 +1008,6 @@ export type Database = {
           last_tracking_update?: string | null
           notes?: string | null
           order_id: string
-          status?: Database["public"]["Enums"]["dispatch_status"] | null
           tracking_id?: string | null
           updated_at?: string
         }
@@ -1029,7 +1027,6 @@ export type Database = {
           last_tracking_update?: string | null
           notes?: string | null
           order_id?: string
-          status?: Database["public"]["Enums"]["dispatch_status"] | null
           tracking_id?: string | null
           updated_at?: string
         }
@@ -4558,14 +4555,6 @@ export type Database = {
     }
     Enums: {
       courier_type: "postex" | "leopard" | "tcs" | "other"
-      dispatch_status:
-        | "pending"
-        | "booked"
-        | "dispatched"
-        | "delivered"
-        | "failed"
-        | "cancelled"
-        | "returned"
       order_status:
         | "pending"
         | "confirmed"
@@ -4713,15 +4702,6 @@ export const Constants = {
   public: {
     Enums: {
       courier_type: ["postex", "leopard", "tcs", "other"],
-      dispatch_status: [
-        "pending",
-        "booked",
-        "dispatched",
-        "delivered",
-        "failed",
-        "cancelled",
-        "returned",
-      ],
       order_status: [
         "pending",
         "confirmed",
