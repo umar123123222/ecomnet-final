@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export interface StatusUpdateParams {
   orderId: string;
-  newStatus: 'pending' | 'confirmed' | 'booked' | 'dispatched' | 'delivered' | 'returned' | 'cancelled';
+  newStatus: 'pending' | 'booked' | 'dispatched' | 'delivered' | 'returned' | 'cancelled';
   userId?: string;
   courier?: string;
   trackingId?: string;
@@ -33,11 +33,7 @@ export async function updateOrderStatus(params: StatusUpdateParams) {
     };
 
     // Add status-specific timestamps and user tracking
-    if (newStatus === 'confirmed') {
-      updateData.confirmed_at = new Date().toISOString();
-      updateData.confirmed_by = userId;
-      updateData.confirmation_status = 'confirmed';
-    } else if (newStatus === 'booked') {
+    if (newStatus === 'booked') {
       updateData.booked_at = new Date().toISOString();
       updateData.booked_by = userId;
       if (courier) updateData.courier = courier;
@@ -86,7 +82,6 @@ export async function updateOrderStatus(params: StatusUpdateParams) {
     // 4. Send notifications if requested
     if (sendNotification && userId) {
       const notificationMessages: Record<string, string> = {
-        confirmed: 'Order confirmed and ready for processing',
         booked: `Order booked with ${courier || 'courier'}`,
         dispatched: 'Order has been dispatched',
         delivered: 'Order successfully delivered',
