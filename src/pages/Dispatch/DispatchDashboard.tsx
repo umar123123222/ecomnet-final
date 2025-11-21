@@ -32,6 +32,7 @@ const DispatchDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [courierFilter, setCourierFilter] = useState<string>("all");
+  const [userFilter, setUserFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: addDays(new Date(), -7),
     to: new Date()
@@ -81,6 +82,19 @@ const DispatchDashboard = () => {
         .select('id, name, code, is_active')
         .order('is_active', { ascending: false })
         .order('name');
+      if (error) throw error;
+      return data;
+    }
+  });
+  
+  // Fetch all users for dispatcher filter
+  const { data: users = [] } = useQuery({
+    queryKey: ['dispatch-users'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .order('full_name');
       if (error) throw error;
       return data;
     }
@@ -190,9 +204,10 @@ const DispatchDashboard = () => {
       const matchesSearch = (dispatch.tracking_id || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.order_number || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.customer_phone || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.customer_email || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === "all" || dispatch.status === statusFilter;
       const matchesCourier = courierFilter === "all" || dispatch.courier === courierFilter;
-      return matchesSearch && matchesStatus && matchesCourier;
+      const matchesUser = userFilter === "all" || dispatch.dispatched_by === userFilter;
+      return matchesSearch && matchesStatus && matchesCourier && matchesUser;
     });
-  }, [filteredByDate, searchTerm, statusFilter, courierFilter]);
+  }, [filteredByDate, searchTerm, statusFilter, courierFilter, userFilter]);
   const metrics = useMemo(() => {
     const totalDispatches = filteredByDate.length;
     const worthOfDispatches = filteredByDate.reduce((total, dispatch) => {
@@ -1301,6 +1316,21 @@ const DispatchDashboard = () => {
                   {couriers.map((courier) => (
                     <SelectItem key={courier.id} value={courier.code}>
                       {courier.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1">
+              <Select value={userFilter} onValueChange={setUserFilter}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="User" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Users</SelectItem>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.full_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
