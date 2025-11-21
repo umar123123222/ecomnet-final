@@ -1253,7 +1253,27 @@ const OrderDashboard = () => {
     try {
       // Validate status is a valid enum value
       const validStatuses = ['pending', 'booked', 'dispatched', 'delivered', 'returned', 'cancelled'];
+      
+      // Special check for common mistake: trying to set status to 'confirmed'
+      if (newStatus === 'confirmed') {
+        console.error('[CRITICAL] Attempted to set status to "confirmed"', {
+          orderId,
+          stackTrace: new Error().stack
+        });
+        toast({
+          title: "Invalid Status",
+          description: '"confirmed" is not a valid order status. Use confirmation_status field instead.',
+          variant: "destructive"
+        });
+        return;
+      }
+      
       if (!validStatuses.includes(newStatus)) {
+        console.error('[ORDER UPDATE] Invalid status value:', {
+          orderId,
+          attemptedStatus: newStatus,
+          validStatuses
+        });
         throw new Error(`Invalid status: ${newStatus}. Must be one of: ${validStatuses.join(', ')}`);
       }
 
