@@ -1751,11 +1751,7 @@ export type Database = {
           booked_by: string | null
           city: string
           comments: Json | null
-          confirmation_deadline: string | null
           confirmation_required: boolean | null
-          confirmation_status: string | null
-          confirmed_at: string | null
-          confirmed_by: string | null
           courier: Database["public"]["Enums"]["courier_type"] | null
           created_at: string | null
           customer_address: string
@@ -1812,11 +1808,7 @@ export type Database = {
           booked_by?: string | null
           city: string
           comments?: Json | null
-          confirmation_deadline?: string | null
           confirmation_required?: boolean | null
-          confirmation_status?: string | null
-          confirmed_at?: string | null
-          confirmed_by?: string | null
           courier?: Database["public"]["Enums"]["courier_type"] | null
           created_at?: string | null
           customer_address: string
@@ -1873,11 +1865,7 @@ export type Database = {
           booked_by?: string | null
           city?: string
           comments?: Json | null
-          confirmation_deadline?: string | null
           confirmation_required?: boolean | null
-          confirmation_status?: string | null
-          confirmed_at?: string | null
-          confirmed_by?: string | null
           courier?: Database["public"]["Enums"]["courier_type"] | null
           created_at?: string | null
           customer_address?: string

@@ -31,7 +31,6 @@ interface Order {
   city: string;
   total_amount: number;
   status: string;
-  confirmation_status?: string | null;
   courier?: string | null;
   items: any;
   created_at: string;
@@ -150,27 +149,21 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
             <div className="flex items-center justify-between">
               <DialogTitle className="flex items-center gap-3">
                 <span>Order #{order.order_number}</span>
-                <div className="flex items-center gap-2">
-                  <Badge variant={
-                    order.status === 'delivered' ? 'success' :
-                    order.status === 'booked' ? 'secondary' :
-                    order.status === 'pending' ? 'warning' :
-                    order.status === 'dispatched' ? 'secondary' :
-                    order.status === 'returned' ? 'destructive' : 'outline'
-                  }>
-                    {order.status}
-                  </Badge>
-                  {order.confirmation_status === 'confirmed' && (
-                    <Badge variant="default" className="bg-green-600">
-                      Confirmed
-                    </Badge>
-                  )}
-                </div>
+                <Badge variant={
+                  order.status === 'delivered' ? 'success' :
+                  order.status === 'confirmed' ? 'default' :
+                  order.status === 'booked' ? 'secondary' :
+                  order.status === 'pending' ? 'warning' :
+                  order.status === 'dispatched' ? 'secondary' :
+                  order.status === 'returned' ? 'destructive' : 'outline'
+                }>
+                  {order.status}
+                </Badge>
               </DialogTitle>
               
               {/* Quick Actions */}
               <div className="flex items-center gap-2">
-                {order.status === 'pending' && order.confirmation_status !== 'confirmed' && (
+                {order.status === 'pending' && (
                   <Button
                     size="sm"
                     onClick={() => setShowConfirmDialog(true)}
@@ -180,7 +173,7 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
                     Confirm Order
                   </Button>
                 )}
-                {order.confirmation_status === 'confirmed' && order.status === 'pending' && !order.courier && (
+                {order.status === 'confirmed' && !order.courier && (
                   <Button
                     size="sm"
                     onClick={() => setShowBookDialog(true)}
