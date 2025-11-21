@@ -88,6 +88,37 @@ serve(async (req) => {
             })
             .eq('id', dispatch.id);
 
+          // Log ALL tracking status changes to activity logs (not just delivered/returned)
+          const statusDescriptions: Record<string, string> = {
+            'booked': `Order booked with ${dispatch.courier}`,
+            'picked_up': `Package picked up by ${dispatch.courier}`,
+            'in_transit': `Order in transit${tracking.currentLocation ? ` at ${tracking.currentLocation}` : ''}`,
+            'out_for_delivery': `Out for delivery${tracking.currentLocation ? ` in ${tracking.currentLocation}` : ''}`,
+            'delivered': 'Order successfully delivered',
+            'returned': `Order returned by ${dispatch.courier}`,
+            'failed_delivery': 'Delivery attempt failed',
+            'on_hold': 'Shipment on hold'
+          };
+
+          const statusAction = tracking.status.replace(/-/g, '_');
+          const actionDescription = statusDescriptions[tracking.status] || `Status updated: ${tracking.status}`;
+
+          // Log to activity logs for ALL statuses
+          await supabase.from('activity_logs').insert({
+            user_id: '00000000-0000-0000-0000-000000000000',
+            entity_type: 'order',
+            entity_id: dispatch.order_id,
+            action: `tracking_${statusAction}`,
+            details: {
+              description: actionDescription,
+              courier: dispatch.courier,
+              tracking_id: dispatch.tracking_id,
+              status: tracking.status,
+              location: tracking.currentLocation,
+              timestamp: new Date().toISOString()
+            }
+          });
+
           // Update order status if delivered or returned
           if (tracking.status === 'delivered') {
             await supabase
@@ -97,19 +128,6 @@ serve(async (req) => {
                 delivered_at: new Date().toISOString()
               })
               .eq('id', dispatch.order_id);
-            
-            // Log delivery activity
-            await supabase.from('activity_logs').insert({
-              user_id: '00000000-0000-0000-0000-000000000000',
-              entity_type: 'order',
-              entity_id: dispatch.order_id,
-              action: 'order_delivered',
-              details: {
-                courier: dispatch.courier,
-                tracking_id: dispatch.tracking_id,
-                location: tracking.currentLocation
-              }
-            });
           } else if (tracking.status === 'returned') {
             await supabase
               .from('orders')
@@ -117,19 +135,6 @@ serve(async (req) => {
                 status: 'returned'
               })
               .eq('id', dispatch.order_id);
-            
-            // Log return activity
-            await supabase.from('activity_logs').insert({
-              user_id: '00000000-0000-0000-0000-000000000000',
-              entity_type: 'order',
-              entity_id: dispatch.order_id,
-              action: 'order_returned',
-              details: {
-                courier: dispatch.courier,
-                tracking_id: dispatch.tracking_id,
-                location: tracking.currentLocation
-              }
-            });
           }
 
           // Log tracking history

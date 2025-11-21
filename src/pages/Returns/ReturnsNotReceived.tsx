@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -6,71 +6,124 @@ import { Badge } from "@/components/ui/badge";
 import { Search, Download, Eye, Phone, AlertTriangle, Clock } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
-// Mock data for demonstration
-const mockReturns = [{
-  id: '1',
-  orderNumber: 'ORD-2024-001',
-  customerName: 'John Doe',
-  customerPhone: '+92 300 1234567',
-  returnReason: 'Size issue',
-  returnStatus: 'returned',
-  markedReturnedDate: '2024-01-10',
-  daysSinceMarked: 8,
-  expectedReceiptDate: '2024-01-12',
-  courier: 'TCS',
-  trackingId: 'TCS123456',
-  returnValue: 2500,
-  isOverdue: true
-}, {
-  id: '2',
-  orderNumber: 'ORD-2024-002',
-  customerName: 'Sarah Khan',
-  customerPhone: '+92 301 9876543',
-  returnReason: 'Wrong item',
-  returnStatus: 'returned',
-  markedReturnedDate: '2024-01-08',
-  daysSinceMarked: 10,
-  expectedReceiptDate: '2024-01-10',
-  courier: 'Leopard',
-  trackingId: 'LEO789012',
-  returnValue: 1800,
-  isOverdue: true
-}, {
-  id: '3',
-  orderNumber: 'ORD-2024-003',
-  customerName: 'Ahmed Ali',
-  customerPhone: '+92 302 5555555',
-  returnReason: 'Defective product',
-  returnStatus: 'returned',
-  markedReturnedDate: '2024-01-12',
-  daysSinceMarked: 6,
-  expectedReceiptDate: '2024-01-14',
-  courier: 'Postex',
-  trackingId: 'POST345678',
-  returnValue: 3200,
-  isOverdue: true
-}, {
-  id: '4',
-  orderNumber: 'ORD-2024-004',
-  customerName: 'Fatima Sheikh',
-  customerPhone: '+92 303 7777777',
-  returnReason: 'Not as described',
-  returnStatus: 'returned',
-  markedReturnedDate: '2024-01-14',
-  daysSinceMarked: 4,
-  expectedReceiptDate: '2024-01-16',
-  courier: 'TCS',
-  trackingId: 'TCS901234',
-  returnValue: 1500,
-  isOverdue: true
-}];
+interface ReturnNotReceived {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  customerPhone: string | null;
+  returnReason: string | null;
+  markedReturnedDate: string;
+  daysSinceMarked: number;
+  courier: string;
+  trackingId: string | null;
+  returnValue: number;
+}
+
 const ReturnsNotReceived = () => {
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedReturns, setSelectedReturns] = useState<string[]>([]);
+  const [returns, setReturns] = useState<ReturnNotReceived[]>([]);
+  const [loading, setLoading] = useState(true);
+  // Fetch returns not received from database
+  useEffect(() => {
+    fetchReturnsNotReceived();
+    
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('returns-not-received-changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'orders' }, 
+        () => fetchReturnsNotReceived()
+      )
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'dispatches' }, 
+        () => fetchReturnsNotReceived()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const fetchReturnsNotReceived = async () => {
+    try {
+      setLoading(true);
+      
+      // Query orders marked as returned by courier but still dispatched in Ecomnet
+      // and older than 3 days
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          order_number,
+          customer_name,
+          customer_phone,
+          notes,
+          total_amount,
+          status,
+          updated_at,
+          dispatches!inner (
+            courier,
+            tracking_id,
+            last_tracking_update,
+            status
+          )
+        `)
+        .eq('status', 'returned')
+        .lt('updated_at', threeDaysAgo.toISOString())
+        .order('updated_at', { ascending: true });
+
+      if (error) throw error;
+
+      const formattedReturns: ReturnNotReceived[] = (data || []).map((order: any) => {
+        const dispatch = order.dispatches;
+        const markedDate = new Date(dispatch.last_tracking_update);
+        const daysSince = Math.floor((Date.now() - markedDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        return {
+          id: order.id,
+          orderNumber: order.order_number,
+          customerName: order.customer_name,
+          customerPhone: order.customer_phone,
+          returnReason: order.notes || 'Not specified',
+          markedReturnedDate: markedDate.toISOString().split('T')[0],
+          daysSinceMarked: daysSince,
+          courier: dispatch.courier,
+          trackingId: dispatch.tracking_id,
+          returnValue: order.total_amount
+        };
+      });
+
+      setReturns(formattedReturns);
+    } catch (error: any) {
+      console.error('Error fetching returns:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load returns not received",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredReturns = useMemo(() => {
-    return mockReturns.filter(returnItem => returnItem.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) || returnItem.customerName.toLowerCase().includes(searchTerm.toLowerCase()) || returnItem.customerPhone.includes(searchTerm) || returnItem.trackingId.toLowerCase().includes(searchTerm.toLowerCase()));
-  }, [searchTerm]);
+    return returns.filter(returnItem => 
+      returnItem.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      returnItem.customerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (returnItem.customerPhone && returnItem.customerPhone.includes(searchTerm)) ||
+      (returnItem.trackingId && returnItem.trackingId.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  }, [returns, searchTerm]);
   const handleSelectReturn = (returnId: string, checked: boolean) => {
     if (checked) {
       setSelectedReturns([...selectedReturns, returnId]);
@@ -126,8 +179,16 @@ const ReturnsNotReceived = () => {
         
       </div>
 
+      {/* Loading State */}
+      {loading && (
+        <div className="flex justify-center items-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      )}
+
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {!loading && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -189,9 +250,11 @@ const ReturnsNotReceived = () => {
             </div>
           </CardContent>
         </Card>
-      </div>
+        </div>
+      )}
 
       {/* Main Content */}
+      {!loading && (
       <Card>
         <CardHeader>
           <CardTitle>Returns Awaiting Receipt</CardTitle>
@@ -275,6 +338,7 @@ const ReturnsNotReceived = () => {
             </div>}
         </CardContent>
       </Card>
+      )}
     </div>;
 };
 export default ReturnsNotReceived;
