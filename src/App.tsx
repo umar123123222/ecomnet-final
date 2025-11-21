@@ -93,7 +93,6 @@ const PackagingManagement = lazy(() =>
 const SupplierPortal = lazy(() => 
   import("@/pages/Suppliers/SupplierPortal").then(module => ({ default: module.default }))
 );
-const NotFound = lazy(() => import("./pages/NotFound"));
 const ActivityLogs = lazy(() => 
   import("@/pages/ActivityLogs/ActivityLogs").then(module => ({ default: module.default }))
 );
@@ -124,6 +123,13 @@ const AutomationHistory = lazy(() =>
 const StockMovementHistory = lazy(() => 
   import("@/pages/Inventory/StockMovementHistory").then(module => ({ default: module.default }))
 );
+const SystemValidation = lazy(() =>
+  import("@/pages/Testing/SystemValidation").then(module => ({ default: module.default }))
+);
+const SystemDocs = lazy(() =>
+  import("@/pages/Documentation/SystemDocs").then(module => ({ default: module.default }))
+);
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Optimized QueryClient configuration for performance
 const queryClient = new QueryClient({
@@ -376,6 +382,16 @@ const App = () => {
                   <Route path="stock-movement-history" element={
                     <Suspense fallback={<PageLoader />}>
                       <StockMovementHistory />
+                    </Suspense>
+                  } />
+                  <Route path="system-validation" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <SystemValidation />
+                    </Suspense>
+                  } />
+                  <Route path="documentation" element={
+                    <Suspense fallback={<PageLoader />}>
+                      <SystemDocs />
                     </Suspense>
                   } />
                   <Route path="*" element={
