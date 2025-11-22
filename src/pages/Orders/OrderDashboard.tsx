@@ -98,6 +98,7 @@ const OrderDashboard = () => {
     orderType: 'all',
     verificationStatus: 'all',
     dateRange: null as { from: Date; to?: Date } | null,
+    dispatchDateRange: null as { from: Date; to?: Date } | null,
     amountMin: undefined as number | undefined,
     amountMax: undefined as number | undefined,
   });
@@ -115,33 +116,79 @@ const OrderDashboard = () => {
       const offset = page * effectivePageSize;
       
       // Build dynamic query with filters
-      let query = supabase
-        .from('orders')
-        .select(`
-          id,
-          order_number,
-          shopify_order_number,
-          shopify_order_id,
-          customer_id,
-          customer_name,
-          customer_email,
-          customer_phone,
-          customer_address,
-          city,
-          total_amount,
-          status,
-          courier,
-          tracking_id,
-          order_type,
-          verification_status,
-          assigned_to,
-          created_at,
-          dispatched_at,
-          delivered_at,
-          notes,
-          comments,
-          gpt_score
-        `, { count: 'exact' });
+      let query;
+      
+      // If filtering by dispatch date, join with dispatches table
+      if (filters.dispatchDateRange?.from) {
+        query = supabase
+          .from('orders')
+          .select(`
+            id,
+            order_number,
+            shopify_order_number,
+            shopify_order_id,
+            customer_id,
+            customer_name,
+            customer_email,
+            customer_phone,
+            customer_address,
+            city,
+            total_amount,
+            status,
+            courier,
+            tracking_id,
+            order_type,
+            verification_status,
+            assigned_to,
+            created_at,
+            dispatched_at,
+            delivered_at,
+            notes,
+            comments,
+            gpt_score,
+            dispatches!inner(dispatch_date)
+          `, { count: 'exact' });
+        
+        // Apply dispatch date filter
+        const startOfDay = new Date(filters.dispatchDateRange.from);
+        startOfDay.setHours(0, 0, 0, 0);
+        query = query.gte('dispatches.dispatch_date', startOfDay.toISOString());
+        
+        if (filters.dispatchDateRange.to) {
+          const endOfDay = new Date(filters.dispatchDateRange.to);
+          endOfDay.setHours(23, 59, 59, 999);
+          query = query.lte('dispatches.dispatch_date', endOfDay.toISOString());
+        }
+      } else {
+        // Standard query without join
+        query = supabase
+          .from('orders')
+          .select(`
+            id,
+            order_number,
+            shopify_order_number,
+            shopify_order_id,
+            customer_id,
+            customer_name,
+            customer_email,
+            customer_phone,
+            customer_address,
+            city,
+            total_amount,
+            status,
+            courier,
+            tracking_id,
+            order_type,
+            verification_status,
+            assigned_to,
+            created_at,
+            dispatched_at,
+            delivered_at,
+            notes,
+            comments,
+            gpt_score
+          `, { count: 'exact' });
+      }
       
       // Apply search filter
       if (filters.search) {
@@ -168,7 +215,7 @@ const OrderDashboard = () => {
         query = query.eq('verification_status', filters.verificationStatus as any);
       }
       
-      // Apply date range filter
+      // Apply order date range filter
       if (filters.dateRange?.from) {
         query = query.gte('created_at', filters.dateRange.from.toISOString());
         if (filters.dateRange.to) {
@@ -1506,6 +1553,7 @@ const OrderDashboard = () => {
       orderType: 'all',
       verificationStatus: 'all',
       dateRange: null,
+      dispatchDateRange: null,
       amountMin: undefined,
       amountMax: undefined,
     });
@@ -1521,6 +1569,7 @@ const OrderDashboard = () => {
     if (filters.orderType !== 'all') count++;
     if (filters.verificationStatus !== 'all') count++;
     if (filters.dateRange) count++;
+    if (filters.dispatchDateRange) count++;
     if (filters.amountMin !== undefined || filters.amountMax !== undefined) count++;
     return count;
   }, [filters]);
@@ -1801,12 +1850,27 @@ const OrderDashboard = () => {
                     </Select>
                   </div>
                   
-                  {/* Date Range */}
+                  {/* Order Date Range */}
                   <div className="space-y-3">
-                    <Label className="text-base font-semibold">Date Range</Label>
+                    <Label className="text-base font-semibold">Order Date Range</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Filter orders by when they were created
+                    </p>
                     <DatePickerWithRange
                       date={filters.dateRange}
                       setDate={(date) => updateFilter('dateRange', date)}
+                    />
+                  </div>
+                  
+                  {/* Dispatch Date Range */}
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">Dispatch Date Range</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Filter orders by when they were dispatched
+                    </p>
+                    <DatePickerWithRange
+                      date={filters.dispatchDateRange}
+                      setDate={(date) => updateFilter('dispatchDateRange', date)}
                     />
                   </div>
                   
