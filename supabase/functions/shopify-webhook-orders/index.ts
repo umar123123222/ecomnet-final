@@ -63,6 +63,28 @@ async function verifyShopifyWebhook(body: string, hmacHeader: string): Promise<b
   return computedHmac === hmacHeader;
 }
 
+/**
+ * Determines if we should preserve the existing status or use the new one from Shopify
+ * Priority order: delivered > returned > dispatched > booked > cancelled > pending
+ */
+function shouldPreserveStatus(currentStatus: string, shopifyStatus: string): boolean {
+  const statusPriority: Record<string, number> = {
+    'delivered': 5,
+    'returned': 4,
+    'dispatched': 3,
+    'booked': 3,
+    'cancelled': 2,
+    'pending': 1,
+    'confirmed': 2,
+  };
+  
+  const currentPriority = statusPriority[currentStatus] || 0;
+  const shopifyPriority = statusPriority[shopifyStatus] || 0;
+  
+  // Preserve current status if it's more advanced than Shopify's
+  return currentPriority > shopifyPriority;
+}
+
 async function fetchShopifyCustomerPhone(customerId: number, supabase: any): Promise<string> {
   try {
     // Get Shopify credentials from api_settings
@@ -252,10 +274,60 @@ Deno.serve(async (req) => {
     };
 
     if (existingOrder) {
-      // Update existing order
+      // Fetch current order state to preserve advanced statuses
+      const { data: currentOrderState } = await supabase
+        .from('orders')
+        .select('status, courier, tracking_id, booked_at, dispatched_at, delivered_at')
+        .eq('id', existingOrder.id)
+        .single();
+      
+      // Determine final status based on priority
+      let finalStatus = initialStatus;
+      
+      // Check if order is cancelled in Shopify
+      if ((order as any).cancelled_at) {
+        finalStatus = 'cancelled';
+        console.log(`Order ${order.order_number} cancelled in Shopify, updating to cancelled`);
+      } 
+      // If Shopify marks as fulfilled, always update to delivered
+      else if (order.fulfillment_status === 'fulfilled') {
+        finalStatus = 'delivered';
+        console.log(`Order ${order.order_number} fulfilled in Shopify, updating to delivered`);
+      }
+      // Otherwise, preserve more advanced status
+      else if (currentOrderState && shouldPreserveStatus(currentOrderState.status, initialStatus)) {
+        finalStatus = currentOrderState.status;
+        console.log(`Preserving existing status for order ${order.order_number}:`, {
+          currentStatus: currentOrderState.status,
+          shopifyStatus: initialStatus,
+          preserved: true,
+          hasCourier: !!currentOrderState.courier,
+          hasTracking: !!currentOrderState.tracking_id
+        });
+      } else {
+        console.log(`Updating status for order ${order.order_number}:`, {
+          currentStatus: currentOrderState?.status,
+          newStatus: finalStatus,
+          preserved: false
+        });
+      }
+      
+      // Prepare final order data with preserved fields
+      const finalOrderData = {
+        ...orderData,
+        status: finalStatus,
+        // Preserve courier booking data if it exists
+        courier: currentOrderState?.courier || orderData.courier,
+        tracking_id: currentOrderState?.tracking_id || orderData.tracking_id,
+        booked_at: currentOrderState?.booked_at || orderData.booked_at,
+        dispatched_at: currentOrderState?.dispatched_at || orderData.dispatched_at,
+        delivered_at: currentOrderState?.delivered_at || (finalStatus === 'delivered' ? new Date().toISOString() : orderData.delivered_at),
+      };
+      
+      // Update existing order with preserved data
       await supabase
         .from('orders')
-        .update(orderData)
+        .update(finalOrderData)
         .eq('id', existingOrder.id);
       
       console.log('Updated existing order:', existingOrder.id);
