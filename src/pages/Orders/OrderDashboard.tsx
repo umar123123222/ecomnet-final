@@ -97,8 +97,7 @@ const OrderDashboard = () => {
     courier: 'all',
     orderType: 'all',
     verificationStatus: 'all',
-    dateRange: null as { from: Date; to?: Date } | null,
-    dispatchDateRange: null as { from: Date; to?: Date } | null,
+    statusDateRange: null as { from: Date; to?: Date } | null,
     amountMin: undefined as number | undefined,
     amountMax: undefined as number | undefined,
   });
@@ -109,6 +108,30 @@ const OrderDashboard = () => {
   const { user } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
   const { toast } = useToast();
+
+  /**
+   * Maps order status to the corresponding timestamp field
+   * Used for status-based date filtering
+   */
+  const getStatusDateField = (status: string): string => {
+    switch (status) {
+      case 'pending':
+        return 'created_at';
+      case 'booked':
+        return 'booked_at';
+      case 'dispatched':
+        return 'dispatched_at';
+      case 'delivered':
+        return 'delivered_at';
+      case 'returned':
+      case 'cancelled':
+        return 'updated_at';
+      case 'all':
+      default:
+        return 'created_at';
+    }
+  };
+
   const fetchOrders = async () => {
     setLoading(true);
     try {
@@ -116,79 +139,36 @@ const OrderDashboard = () => {
       const offset = page * effectivePageSize;
       
       // Build dynamic query with filters
-      let query;
-      
-      // If filtering by dispatch date, join with dispatches table
-      if (filters.dispatchDateRange?.from) {
-        query = supabase
-          .from('orders')
-          .select(`
-            id,
-            order_number,
-            shopify_order_number,
-            shopify_order_id,
-            customer_id,
-            customer_name,
-            customer_email,
-            customer_phone,
-            customer_address,
-            city,
-            total_amount,
-            status,
-            courier,
-            tracking_id,
-            order_type,
-            verification_status,
-            assigned_to,
-            created_at,
-            dispatched_at,
-            delivered_at,
-            notes,
-            comments,
-            gpt_score,
-            dispatches!inner(dispatch_date)
-          `, { count: 'exact' });
-        
-        // Apply dispatch date filter
-        const startOfDay = new Date(filters.dispatchDateRange.from);
-        startOfDay.setHours(0, 0, 0, 0);
-        query = query.gte('dispatches.dispatch_date', startOfDay.toISOString());
-        
-        if (filters.dispatchDateRange.to) {
-          const endOfDay = new Date(filters.dispatchDateRange.to);
-          endOfDay.setHours(23, 59, 59, 999);
-          query = query.lte('dispatches.dispatch_date', endOfDay.toISOString());
-        }
-      } else {
-        // Standard query without join
-        query = supabase
-          .from('orders')
-          .select(`
-            id,
-            order_number,
-            shopify_order_number,
-            shopify_order_id,
-            customer_id,
-            customer_name,
-            customer_email,
-            customer_phone,
-            customer_address,
-            city,
-            total_amount,
-            status,
-            courier,
-            tracking_id,
-            order_type,
-            verification_status,
-            assigned_to,
-            created_at,
-            dispatched_at,
-            delivered_at,
-            notes,
-            comments,
-            gpt_score
-          `, { count: 'exact' });
-      }
+      // Standard query
+      let query = supabase
+        .from('orders')
+        .select(`
+          id,
+          order_number,
+          shopify_order_number,
+          shopify_order_id,
+          customer_id,
+          customer_name,
+          customer_email,
+          customer_phone,
+          customer_address,
+          city,
+          total_amount,
+          status,
+          courier,
+          tracking_id,
+          order_type,
+          verification_status,
+          assigned_to,
+          created_at,
+          booked_at,
+          dispatched_at,
+          delivered_at,
+          updated_at,
+          notes,
+          comments,
+          gpt_score
+        `, { count: 'exact' });
       
       // Apply search filter
       if (filters.search) {
@@ -215,11 +195,18 @@ const OrderDashboard = () => {
         query = query.eq('verification_status', filters.verificationStatus as any);
       }
       
-      // Apply order date range filter
-      if (filters.dateRange?.from) {
-        query = query.gte('created_at', filters.dateRange.from.toISOString());
-        if (filters.dateRange.to) {
-          query = query.lte('created_at', filters.dateRange.to.toISOString());
+      // Apply status-based date range filter
+      if (filters.statusDateRange?.from) {
+        const statusDateField = getStatusDateField(filters.status);
+        
+        const startOfDay = new Date(filters.statusDateRange.from);
+        startOfDay.setHours(0, 0, 0, 0);
+        query = query.gte(statusDateField, startOfDay.toISOString());
+        
+        if (filters.statusDateRange.to) {
+          const endOfDay = new Date(filters.statusDateRange.to);
+          endOfDay.setHours(23, 59, 59, 999);
+          query = query.lte(statusDateField, endOfDay.toISOString());
         }
       }
       
@@ -1042,12 +1029,22 @@ const OrderDashboard = () => {
       if (filters.verificationStatus !== 'all') {
         query = query.eq('verification_status', filters.verificationStatus as any);
       }
-      if (filters.dateRange?.from) {
-        query = query.gte('created_at', filters.dateRange.from.toISOString());
-        if (filters.dateRange.to) {
-          query = query.lte('created_at', filters.dateRange.to.toISOString());
+      
+      // Apply status-based date range filter
+      if (filters.statusDateRange?.from) {
+        const statusDateField = getStatusDateField(filters.status);
+        
+        const startOfDay = new Date(filters.statusDateRange.from);
+        startOfDay.setHours(0, 0, 0, 0);
+        query = query.gte(statusDateField, startOfDay.toISOString());
+        
+        if (filters.statusDateRange.to) {
+          const endOfDay = new Date(filters.statusDateRange.to);
+          endOfDay.setHours(23, 59, 59, 999);
+          query = query.lte(statusDateField, endOfDay.toISOString());
         }
       }
+      
       if (filters.amountMin !== undefined) {
         query = query.gte('total_amount', filters.amountMin);
       }
@@ -1512,7 +1509,7 @@ const OrderDashboard = () => {
       updateFilter('status', preset.filters.status);
     }
     if (preset.filters.dateRange) {
-      updateFilter('dateRange', preset.filters.dateRange);
+      updateFilter('statusDateRange', preset.filters.dateRange);
     }
     if (preset.filters.minAmount) {
       updateFilter('amountMin', preset.filters.minAmount);
@@ -1552,8 +1549,7 @@ const OrderDashboard = () => {
       courier: 'all',
       orderType: 'all',
       verificationStatus: 'all',
-      dateRange: null,
-      dispatchDateRange: null,
+      statusDateRange: null,
       amountMin: undefined,
       amountMax: undefined,
     });
@@ -1568,8 +1564,7 @@ const OrderDashboard = () => {
     if (filters.courier !== 'all') count++;
     if (filters.orderType !== 'all') count++;
     if (filters.verificationStatus !== 'all') count++;
-    if (filters.dateRange) count++;
-    if (filters.dispatchDateRange) count++;
+    if (filters.statusDateRange) count++;
     if (filters.amountMin !== undefined || filters.amountMax !== undefined) count++;
     return count;
   }, [filters]);
@@ -1850,27 +1845,35 @@ const OrderDashboard = () => {
                     </Select>
                   </div>
                   
-                  {/* Order Date Range */}
+                  {/* Status-Based Date Range */}
                   <div className="space-y-3">
-                    <Label className="text-base font-semibold">Order Date Range</Label>
+                    <Label className="text-base font-semibold">Date Range</Label>
+                    
+                    {/* Dynamic description based on selected status */}
                     <p className="text-xs text-muted-foreground">
-                      Filter orders by when they were created
+                      {filters.status === 'all' && 'Filter by when orders were created'}
+                      {filters.status === 'pending' && 'Filter by when orders were created (pending start date)'}
+                      {filters.status === 'booked' && 'Filter by when courier was booked'}
+                      {filters.status === 'dispatched' && 'Filter by when orders were dispatched'}
+                      {filters.status === 'delivered' && 'Filter by when orders were delivered'}
+                      {filters.status === 'returned' && 'Filter by when orders were marked as returned'}
+                      {filters.status === 'cancelled' && 'Filter by when orders were cancelled'}
                     </p>
+                    
+                    {/* Show helpful hint when a specific status is selected */}
+                    {filters.status !== 'all' && (
+                      <div className="flex items-start gap-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded-md">
+                        <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <span className="text-xs text-foreground/80">
+                          Shows all orders that reached "{filters.status}" status during the selected date range, 
+                          regardless of their current status.
+                        </span>
+                      </div>
+                    )}
+                    
                     <DatePickerWithRange
-                      date={filters.dateRange}
-                      setDate={(date) => updateFilter('dateRange', date)}
-                    />
-                  </div>
-                  
-                  {/* Dispatch Date Range */}
-                  <div className="space-y-3">
-                    <Label className="text-base font-semibold">Dispatch Date Range</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Filter orders by when they were dispatched
-                    </p>
-                    <DatePickerWithRange
-                      date={filters.dispatchDateRange}
-                      setDate={(date) => updateFilter('dispatchDateRange', date)}
+                      date={filters.statusDateRange}
+                      setDate={(date) => updateFilter('statusDateRange', date)}
                     />
                   </div>
                   
