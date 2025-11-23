@@ -63,6 +63,21 @@ const DispatchDashboard = () => {
   const [scanHistoryForExport, setScanHistoryForExport] = useState<any[]>([]);
   const [lastScanTime, setLastScanTime] = useState<number>(Date.now());
   
+  // Focus Management States
+  const [hasFocus, setHasFocus] = useState(true);
+  const [focusLostTime, setFocusLostTime] = useState<number | null>(null);
+  const [scanBuffer, setScanBuffer] = useState('');
+  const scannerInputRef = React.useRef<HTMLInputElement>(null);
+  
+  // Performance Metrics
+  const [performanceMetrics, setPerformanceMetrics] = useState({
+    avgProcessingTime: 0,
+    totalScans: 0,
+    scansPerMinute: 0,
+    queueLength: 0
+  });
+  const [processingQueue, setProcessingQueue] = useState<string[]>([]);
+  
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -605,7 +620,7 @@ const DispatchDashboard = () => {
     }
   };
 
-  // Scanner Mode: Process scanned input
+  // Scanner Mode: Process scanned input with OPTIMISTIC UPDATE
   const processScannerInput = async (scannedValue: string) => {
     if (!scannerModeActive || !scannerModeAction || !user?.id) return;
 
@@ -613,6 +628,10 @@ const DispatchDashboard = () => {
     const trimmedValue = scannedValue.trim();
 
     if (!trimmedValue) {
+      errorSound.volume = 0.5;
+      errorSound.currentTime = 0;
+      errorSound.play().catch(e => console.log('Audio play failed:', e));
+      
       toast({
         title: "⚠️ Empty Scan",
         description: "Scanned value is empty",
@@ -622,221 +641,134 @@ const DispatchDashboard = () => {
       return;
     }
 
-    // IMMEDIATE UI UPDATE - Add processing entry and play sound instantly
+    // Add to processing queue
+    setProcessingQueue(prev => [...prev, trimmedValue]);
+
+    // OPTIMISTIC UI UPDATE - Show as processing immediately
     const processingId = Date.now().toString();
     setRecentScans(prev => [{
       entry: trimmedValue,
       type: 'unknown',
       status: 'success' as const,
-      message: '⏳ Processing...',
+      message: '⚙️ Processing...',
       timestamp: new Date(),
       orderId: processingId
     }, ...prev.slice(0, 9)]);
     setLastScanTime(Date.now());
-    
-    // Don't play sound yet - wait for actual result
 
-    // NOW DO DATABASE WORK
+    // Get courier info for edge function
+    let courierIdForCall = selectedCourier;
+    let courierNameForCall = '';
+    let courierCodeForCall = '';
+
+    if (selectedCourier) {
+      const selectedCourierObj = couriers.find(c => c.id === selectedCourier);
+      if (selectedCourierObj) {
+        courierNameForCall = selectedCourierObj.name;
+        courierCodeForCall = selectedCourierObj.code;
+      }
+    }
+
+    // Call optimized edge function
     try {
-      const result = await findOrderByEntry(trimmedValue);
+      const { data, error } = await supabase.functions.invoke('rapid-dispatch', {
+        body: {
+          entry: trimmedValue,
+          courierId: courierIdForCall,
+          courierName: courierNameForCall,
+          courierCode: courierCodeForCall,
+          userId: user.id
+        }
+      });
 
-      if (!result) {
-        // Play error sound immediately
+      // Remove from queue
+      setProcessingQueue(prev => prev.filter(e => e !== trimmedValue));
+
+      const processingTime = Date.now() - scanStartTime;
+
+      // Update performance metrics
+      setPerformanceMetrics(prev => {
+        const newTotal = prev.totalScans + 1;
+        const newAvg = ((prev.avgProcessingTime * prev.totalScans) + processingTime) / newTotal;
+        return {
+          avgProcessingTime: Math.round(newAvg),
+          totalScans: newTotal,
+          scansPerMinute: Math.round((newTotal / ((Date.now() - (lastScanTime - (prev.totalScans * 3000))) / 60000)) * 10) / 10,
+          queueLength: processingQueue.length
+        };
+      });
+
+      if (error || !data?.success) {
+        // FAILURE - Play error sound immediately
         errorSound.volume = 0.5;
         errorSound.currentTime = 0;
         errorSound.play().catch(e => console.log('Audio play failed:', e));
 
-        const errorMsg = `No order record found`;
+        const errorMsg = data?.error || error?.message || 'Failed';
         setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
         setRecentScans(prev => prev.map(scan => 
           scan.orderId === processingId 
-            ? { ...scan, type: 'unknown' as const, status: 'error' as const, message: errorMsg }
+            ? { 
+                ...scan, 
+                type: data?.matchType || 'unknown' as const, 
+                status: 'error' as const, 
+                message: errorMsg,
+                orderId: data?.order?.order_number || processingId
+              }
             : scan
         ));
 
         setScanHistoryForExport(prev => [...prev, {
           timestamp: new Date().toISOString(),
           entry: trimmedValue,
-          status: 'error',
-          reason: 'Order not found',
-          matchType: 'none'
-        }]);
-
-        toast({
-          title: "❌ Order Not Found",
-          description: errorMsg,
-          variant: "destructive",
-          duration: 2000,
-        });
-        return;
-      }
-
-      const { order, matchType } = result;
-
-      let courierToUse = selectedCourier;
-      let courierNameToUse = '';
-      let courierCodeToUse: Database["public"]["Enums"]["courier_type"] | undefined = undefined;
-
-      if (order.courier) {
-        const orderCourier = couriers.find(c => c.code === order.courier);
-        if (orderCourier) {
-          courierToUse = orderCourier.id;
-          courierNameToUse = orderCourier.name;
-          courierCodeToUse = orderCourier.code as Database["public"]["Enums"]["courier_type"];
-        } else {
-          courierNameToUse = order.courier;
-          courierCodeToUse = order.courier as Database["public"]["Enums"]["courier_type"];
-        }
-      } else if (selectedCourier) {
-        const selectedCourierObj = couriers.find(c => c.id === selectedCourier);
-        if (selectedCourierObj) {
-          courierNameToUse = selectedCourierObj.name;
-          courierCodeToUse = selectedCourierObj.code as Database["public"]["Enums"]["courier_type"];
-        }
-      }
-
-      if (!courierToUse && !courierNameToUse) {
-        // Play error sound immediately
-        errorSound.volume = 0.5;
-        errorSound.currentTime = 0;
-        errorSound.play().catch(e => console.log('Audio play failed:', e));
-
-        const errorMsg = 'No courier assigned';
-        setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
-        setRecentScans(prev => prev.map(scan => 
-          scan.orderId === processingId 
-            ? { ...scan, type: matchType, status: 'error' as const, message: errorMsg, orderId: order.order_number }
-            : scan
-        ));
-
-        setScanHistoryForExport(prev => [...prev, {
-          timestamp: new Date().toISOString(),
-          entry: trimmedValue,
-          orderNumber: order.order_number,
+          orderNumber: data?.order?.order_number || '',
           status: 'error',
           reason: errorMsg,
-          matchType
+          matchType: data?.matchType || 'unknown',
+          processingTime: `${processingTime}ms`
         }]);
 
         toast({
-          title: "❌ No Courier",
-          description: order.order_number,
+          title: "❌ " + errorMsg,
+          description: data?.order?.order_number || trimmedValue,
           variant: "destructive",
           duration: 2000,
         });
         return;
       }
 
-      const trackingId = matchType === 'tracking_id' ? trimmedValue : (order.tracking_id || null);
-
-      const { data: existingDispatch } = await supabase
-        .from('dispatches')
-        .select('id')
-        .eq('order_id', order.id)
-        .maybeSingle();
-
-      if (existingDispatch) {
-        // Play error sound immediately
-        errorSound.volume = 0.3;
-        errorSound.currentTime = 0;
-        errorSound.play().catch(e => console.log('Audio play failed:', e));
-
-        const errorMsg = `Already dispatched`;
-        setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
-        setRecentScans(prev => prev.map(scan => 
-          scan.orderId === processingId 
-            ? { ...scan, type: matchType, status: 'error' as const, message: errorMsg, orderId: order.order_number }
-            : scan
-        ));
-
-        setScanHistoryForExport(prev => [...prev, {
-          timestamp: new Date().toISOString(),
-          entry: trimmedValue,
-          orderNumber: order.order_number,
-          status: 'error',
-          reason: errorMsg,
-          matchType
-        }]);
-
-        toast({
-          title: "⚠️ Already Dispatched",
-          description: order.order_number,
-          variant: "destructive",
-          duration: 2000,
-        });
-        return;
-      }
-
-      if (matchType === 'tracking_id' && trimmedValue !== order.tracking_id) {
-        await supabase
-          .from('orders')
-          .update({ tracking_id: trimmedValue })
-          .eq('id', order.id);
-      }
-
-      const { error: dispatchError } = await supabase
-        .from('dispatches')
-        .insert({
-          order_id: order.id,
-          tracking_id: trackingId,
-          courier: courierNameToUse,
-          courier_id: courierToUse,
-          dispatch_date: new Date().toISOString(),
-          dispatched_by: user.id
-        });
-
-      if (dispatchError) throw dispatchError;
-
-      const { error: orderError } = await supabase
-        .from('orders')
-        .update({
-          status: 'dispatched',
-          courier: courierCodeToUse,
-          dispatched_at: new Date().toISOString()
-        })
-        .eq('id', order.id);
-
-      if (orderError) throw orderError;
-
-      // Log activity asynchronously (non-blocking - fire and forget)
-      logActivity({
-        entityType: 'dispatch',
-        entityId: order.id,
-        action: 'order_dispatched',
-        details: { 
-          order_number: order.order_number,
-          courier: courierNameToUse,
-          tracking_id: trackingId,
-          scan_mode: 'live_scanner'
-        }
-      }).catch(console.error);
-
-      // UI UPDATE AND SOUND < 100ms - Play success sound immediately
+      // SUCCESS - Play success sound immediately
       successSound.volume = 0.4;
       successSound.currentTime = 0;
       successSound.play().catch(e => console.log('Audio play failed:', e));
 
-      const processingTime = Date.now() - scanStartTime;
-      const successMsg = `${order.order_number} via ${courierNameToUse}`;
+      const successMsg = `${data.order.order_number} via ${data.courier}`;
 
       setScannerStats(prev => ({ ...prev, success: prev.success + 1 }));
       setRecentScans(prev => prev.map(scan => 
         scan.orderId === processingId 
-          ? { ...scan, type: matchType, status: 'success' as const, message: successMsg, orderId: order.order_number, courier: courierNameToUse }
+          ? { 
+              ...scan, 
+              type: data.matchType, 
+              status: 'success' as const, 
+              message: successMsg, 
+              orderId: data.order.order_number, 
+              courier: data.courier 
+            }
           : scan
       ));
 
       setScanHistoryForExport(prev => [...prev, {
         timestamp: new Date().toISOString(),
         entry: trimmedValue,
-        orderNumber: order.order_number,
-        customerName: order.customer_name,
-        amount: order.total_amount,
-        courier: courierNameToUse,
-        trackingId: trackingId,
+        orderNumber: data.order.order_number,
+        customerName: data.order.customer_name,
+        amount: data.order.total_amount,
+        courier: data.courier,
+        trackingId: data.tracking_id,
         status: 'success',
         processingTime: `${processingTime}ms`,
-        matchType
+        matchType: data.matchType
       }]);
 
       toast({
@@ -849,6 +781,10 @@ const DispatchDashboard = () => {
 
     } catch (error: any) {
       console.error('Error processing scan:', error);
+
+      
+      // Remove from queue
+      setProcessingQueue(prev => prev.filter(e => e !== trimmedValue));
       
       // Play error sound immediately
       errorSound.volume = 0.5;
@@ -934,15 +870,74 @@ const DispatchDashboard = () => {
     });
   };
 
-  // Scanner Mode: Register scan callback
+  // Focus Management: Handle scanner input focus trap
+  const handleScannerFocusLost = () => {
+    if (scannerModeActive) {
+      setHasFocus(false);
+      setFocusLostTime(Date.now());
+      
+      // Play warning sound
+      errorSound.volume = 0.3;
+      errorSound.currentTime = 0;
+      errorSound.play().catch(e => console.log('Audio play failed:', e));
+      
+      console.warn('⚠️ Scanner focus lost!');
+    }
+  };
+
+  const handleScannerFocusGained = () => {
+    setHasFocus(true);
+    setFocusLostTime(null);
+  };
+
+  const restoreScannerFocus = () => {
+    scannerInputRef.current?.focus();
+    setHasFocus(true);
+    setFocusLostTime(null);
+  };
+
+  // Scanner Mode: Hidden input change handler
+  const handleScanBufferChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setScanBuffer(value);
+    
+    // Check for Enter key (scanner sends it)
+    if (value.includes('\n') || value.includes('\r')) {
+      const cleanValue = value.replace(/[\n\r]/g, '').trim();
+      if (cleanValue) {
+        processScannerInput(cleanValue);
+      }
+      setScanBuffer(''); // Clear buffer
+      e.target.value = ''; // Clear input
+    }
+  };
+
+  // Scanner Mode: Register scan callback and focus management
   useEffect(() => {
     if (scannerModeActive) {
-      console.log('Scanner mode active, registering callback');
+      console.log('Scanner mode active, setting up focus trap');
+      
+      // Focus the hidden input
+      scannerInputRef.current?.focus();
+      
+      // Register HID scanner callback as backup
       const cleanup = scanner.onScan((data) => {
-        console.log('Scanner input received:', data);
+        console.log('HID Scanner input received:', data);
         processScannerInput(data);
       });
-      return cleanup;
+      
+      // Monitor focus every 200ms
+      const focusMonitor = setInterval(() => {
+        if (document.activeElement !== scannerInputRef.current) {
+          console.warn('Focus lost, attempting to restore...');
+          scannerInputRef.current?.focus();
+        }
+      }, 200);
+      
+      return () => {
+        cleanup();
+        clearInterval(focusMonitor);
+      };
     }
   }, [scannerModeActive, scanner.isConnected]);
 
@@ -1001,7 +996,51 @@ const DispatchDashboard = () => {
     };
   }, []);
 
-  return <div className="p-6 space-y-6">
+  return <div className="p-6 space-y-6 relative">
+      {/* Hidden Focus Trap Input for Scanner */}
+      {scannerModeActive && (
+        <input
+          ref={scannerInputRef}
+          type="text"
+          className="absolute -left-[9999px] w-1 h-1 opacity-0"
+          onBlur={handleScannerFocusLost}
+          onFocus={handleScannerFocusGained}
+          autoFocus
+          value={scanBuffer}
+          onChange={handleScanBufferChange}
+          aria-label="Scanner input capture"
+        />
+      )}
+
+      {/* Semi-transparent Overlay during Scanner Mode */}
+      {scannerModeActive && (
+        <div 
+          className="fixed inset-0 bg-blue-500/5 pointer-events-none z-40 transition-all duration-300"
+          style={{
+            animation: hasFocus ? 'pulse 3s ease-in-out infinite' : 'none',
+            borderWidth: hasFocus ? '4px' : '8px',
+            borderStyle: 'solid',
+            borderColor: hasFocus ? 'rgba(59, 130, 246, 0.3)' : 'rgba(239, 68, 68, 0.6)',
+          }}
+        />
+      )}
+
+      {/* Focus Lost Warning Banner */}
+      {scannerModeActive && !hasFocus && (
+        <div 
+          className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-600 text-white px-6 py-4 rounded-lg shadow-2xl cursor-pointer hover:bg-red-700 transition-all animate-pulse"
+          onClick={restoreScannerFocus}
+        >
+          <div className="flex items-center gap-3">
+            <div className="text-2xl">⚠️</div>
+            <div>
+              <div className="font-bold text-lg">SCANNER INPUT LOST!</div>
+              <div className="text-sm">Click here or press any key to restore scanner mode</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -1365,11 +1404,17 @@ const DispatchDashboard = () => {
 
       {/* Scanner Mode Floating Panel */}
       {scannerModeActive && (
-        <div className="fixed bottom-4 right-4 bg-white border-2 border-blue-500 rounded-lg shadow-2xl p-4 w-96 z-50 animate-in slide-in-from-bottom-4">
+        <div className="fixed bottom-4 right-4 bg-white border-2 border-blue-500 rounded-lg shadow-2xl p-4 w-96 z-50 animate-in slide-in-from-bottom-4 max-h-[80vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" />
-              <h3 className="font-semibold text-gray-900">Scanner Mode Active</h3>
+              <div 
+                className={`w-3 h-3 rounded-full ${
+                  hasFocus ? 'bg-green-500 animate-pulse' : 'bg-red-500 animate-ping'
+                }`} 
+              />
+              <h3 className="font-semibold text-gray-900">
+                {hasFocus ? 'Scanner Active' : '⚠️ Focus Lost!'}
+              </h3>
             </div>
             <Button
               size="sm"
@@ -1380,6 +1425,38 @@ const DispatchDashboard = () => {
               Stop
             </Button>
           </div>
+
+          {/* Performance Metrics */}
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="bg-blue-50 p-2 rounded-lg border border-blue-200">
+              <div className="text-blue-600 text-xs font-medium">Avg Time</div>
+              <div className={`text-2xl font-bold ${
+                performanceMetrics.avgProcessingTime < 500 ? 'text-green-600' : 
+                performanceMetrics.avgProcessingTime < 1000 ? 'text-yellow-600' : 
+                'text-red-600'
+              }`}>
+                {performanceMetrics.avgProcessingTime}ms
+              </div>
+            </div>
+            <div className="bg-green-50 p-2 rounded-lg border border-green-200">
+              <div className="text-green-600 text-xs font-medium">Scans/Min</div>
+              <div className="text-2xl font-bold text-green-700">
+                {performanceMetrics.scansPerMinute}
+              </div>
+            </div>
+          </div>
+
+          {/* Processing Queue Indicator */}
+          {processingQueue.length > 0 && (
+            <div className="mb-3 p-2 bg-yellow-50 border border-yellow-300 rounded-lg">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+                <div className="text-sm font-semibold text-yellow-800">
+                  ⏳ Queue: {processingQueue.length} items processing...
+                </div>
+              </div>
+            </div>
+          )}
           
           <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
             <div className="bg-gray-50 p-2 rounded">

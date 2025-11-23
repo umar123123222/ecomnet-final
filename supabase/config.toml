@@ -1,5 +1,8 @@
 project_id = "lzitfcigdjbpymvebipp"
 
+[functions.rapid-dispatch]
+verify_jwt = false
+
 [functions.update-shopify-credentials]
 verify_jwt = true
 
