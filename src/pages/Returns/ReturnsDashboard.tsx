@@ -667,11 +667,17 @@ const ReturnsDashboard = () => {
         processScannerInput(data);
       });
       
-      // Monitor focus every 200ms
+      // Focus monitoring - check and update state
       const focusMonitor = setInterval(() => {
-        if (document.activeElement !== scannerInputRef.current) {
-          console.warn('Focus lost, attempting to restore...');
+        if (document.activeElement !== scannerInputRef.current && scannerModeActive) {
+          console.warn('⚠️ Focus lost! Attempting to restore...');
           scannerInputRef.current?.focus();
+          setHasFocus(false);
+          setFocusLostTime(Date.now());
+        } else if (document.activeElement === scannerInputRef.current && !hasFocus) {
+          console.log('✅ Focus restored');
+          setHasFocus(true);
+          setFocusLostTime(null);
         }
       }, 200);
       
@@ -680,7 +686,7 @@ const ReturnsDashboard = () => {
         clearInterval(focusMonitor);
       };
     }
-  }, [scannerModeActive, scanner]);
+  }, [scannerModeActive, scanner, hasFocus]);
 
   // Scanner Mode: Auto-timeout after 5 minutes
   useEffect(() => {
