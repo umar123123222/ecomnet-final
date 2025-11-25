@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -72,13 +72,7 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
   const [showBookDialog, setShowBookDialog] = useState(false);
   const [activeTab, setActiveTab] = useState("tracking");
 
-  useEffect(() => {
-    if (open && order?.id) {
-      fetchTrackingDetails();
-    }
-  }, [open, order?.id]);
-
-  const fetchTrackingDetails = async () => {
+  const fetchTrackingDetails = useCallback(async () => {
     if (!order?.id) {
       setLoading(false);
       return;
@@ -147,8 +141,13 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
       console.log('Fetch complete, setting loading to false');
       setLoading(false);
     }
-  };
+  }, [order?.id, order?.courier, order?.tracking_id, order?.created_at]);
 
+  useEffect(() => {
+    if (open && order?.id) {
+      fetchTrackingDetails();
+    }
+  }, [open, order?.id, fetchTrackingDetails]);
   const formatTrackingStatus = (status: string) => {
     const statusMap: Record<string, string> = {
       booked: 'Shipment Booked',
@@ -163,7 +162,6 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
     };
     return statusMap[status] || status;
   };
-
   const getStatusIcon = (status: string) => {
     if (status === 'delivered') return <CheckCircle className="h-5 w-5 text-green-500" />;
     if (status === 'returned' || status === 'cancelled') return <XCircle className="h-5 w-5 text-red-500" />;
