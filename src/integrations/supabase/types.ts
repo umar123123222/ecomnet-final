@@ -853,6 +853,7 @@ export type Database = {
           auth_type: string | null
           auto_download_label: boolean | null
           booking_endpoint: string | null
+          cancellation_endpoint: string | null
           code: string
           config: Json | null
           created_at: string | null
@@ -863,8 +864,10 @@ export type Database = {
           label_format: string | null
           name: string
           pricing_config: Json | null
+          rates_endpoint: string | null
           supported_cities: Json | null
           tracking_endpoint: string | null
+          update_endpoint: string | null
           updated_at: string | null
         }
         Insert: {
@@ -873,6 +876,7 @@ export type Database = {
           auth_type?: string | null
           auto_download_label?: boolean | null
           booking_endpoint?: string | null
+          cancellation_endpoint?: string | null
           code: string
           config?: Json | null
           created_at?: string | null
@@ -883,8 +887,10 @@ export type Database = {
           label_format?: string | null
           name: string
           pricing_config?: Json | null
+          rates_endpoint?: string | null
           supported_cities?: Json | null
           tracking_endpoint?: string | null
+          update_endpoint?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -893,6 +899,7 @@ export type Database = {
           auth_type?: string | null
           auto_download_label?: boolean | null
           booking_endpoint?: string | null
+          cancellation_endpoint?: string | null
           code?: string
           config?: Json | null
           created_at?: string | null
@@ -903,8 +910,10 @@ export type Database = {
           label_format?: string | null
           name?: string
           pricing_config?: Json | null
+          rates_endpoint?: string | null
           supported_cities?: Json | null
           tracking_endpoint?: string | null
+          update_endpoint?: string | null
           updated_at?: string | null
         }
         Relationships: []

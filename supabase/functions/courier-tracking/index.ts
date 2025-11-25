@@ -43,23 +43,7 @@ serve(async (req) => {
     if (courier.tracking_endpoint) {
       trackingData = await trackWithCustomEndpoint(trackingId, courier, supabase);
     } else {
-      // Fallback to hardcoded implementations
-      switch (courierCode.toUpperCase()) {
-        case 'TCS':
-          trackingData = await trackTCS(trackingId, supabase);
-          break;
-        
-        case 'LEOPARD':
-          trackingData = await trackLeopard(trackingId, supabase);
-          break;
-        
-        case 'POSTEX':
-          trackingData = await trackPostEx(trackingId, supabase);
-          break;
-        
-        default:
-          throw new Error(`Unsupported courier: ${courierCode}`);
-      }
+      throw new Error(`Tracking endpoint not configured for courier: ${courierCode}. Please add the tracking_endpoint in Business Settings > Couriers.`);
     }
 
     // Update dispatch record with latest tracking info
@@ -140,81 +124,7 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
   };
 }
 
-async function trackTCS(trackingId: string, supabaseClient: any) {
-  const apiKey = await getAPISetting('TCS_API_KEY', supabaseClient);
-  
-  const response = await fetch(`https://api.tcs.com.pk/api/v1/tracking/${trackingId}`, {
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error('TCS tracking failed');
-  }
-
-  const data = await response.json();
-  
-  return {
-    status: mapTCSStatus(data.status),
-    currentLocation: data.current_location,
-    statusHistory: data.tracking_history,
-    estimatedDelivery: data.estimated_delivery,
-    raw: data
-  };
-}
-
-async function trackLeopard(trackingId: string, supabaseClient: any) {
-  const apiKey = await getAPISetting('LEOPARD_API_KEY', supabaseClient);
-  
-  const response = await fetch(`https://api.leopardscourier.com/api/packet/track`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      track_numbers: [trackingId]
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error('Leopard tracking failed');
-  }
-
-  const data = await response.json();
-  const shipment = data.packet_list[0];
-  
-  return {
-    status: mapLeopardStatus(shipment.packet_status),
-    currentLocation: shipment.location_name,
-    statusHistory: shipment.packet_history,
-    raw: data
-  };
-}
-
-async function trackPostEx(trackingId: string, supabaseClient: any) {
-  const apiKey = await getAPISetting('POSTEX_API_KEY', supabaseClient);
-  
-  const response = await fetch(`https://api.postex.pk/services/integration/api/order/v1/track-order/${trackingId}`, {
-    headers: {
-      'token': apiKey,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error('PostEx tracking failed');
-  }
-
-  const data = await response.json();
-  
-  return {
-    status: mapPostExStatus(data.orderStatus),
-    currentLocation: data.currentLocation,
-    statusHistory: data.trackingHistory,
-    raw: data
-  };
-}
+// Legacy hardcoded functions removed - all couriers must now use configured tracking_endpoint
 
 function mapTCSStatus(status: string): string {
   const statusMap: Record<string, string> = {
