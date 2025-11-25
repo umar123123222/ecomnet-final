@@ -53,6 +53,7 @@ export function OrderActivityLog({ orderId, open, onOpenChange }: OrderActivityL
   const fetchTimeline = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('Fetching timeline for order:', orderId);
       
       // 1. Get activity logs
       const { data: activityLogs, error: activityError } = await supabase
@@ -63,6 +64,7 @@ export function OrderActivityLog({ orderId, open, onOpenChange }: OrderActivityL
         .order('created_at', { ascending: false });
 
       if (activityError) throw activityError;
+      console.log('Activity logs:', activityLogs);
 
       // 2. Get courier tracking history
       const { data: trackingHistory, error: trackingError } = await supabase
@@ -72,15 +74,17 @@ export function OrderActivityLog({ orderId, open, onOpenChange }: OrderActivityL
         .order('checked_at', { ascending: false });
 
       if (trackingError) throw trackingError;
+      console.log('Tracking history:', trackingHistory);
 
       // 3. Get order details for timestamps (without confirmed_at and confirmed_by which were dropped)
       const { data: order, error: orderError } = await supabase
         .from('orders')
-        .select('created_at, dispatched_at, delivered_at, status')
+        .select('created_at, dispatched_at, delivered_at, status, booked_at, booked_by')
         .eq('id', orderId)
         .single();
 
       if (orderError) throw orderError;
+      console.log('Order details:', order);
 
       // 4. Get dispatch info
       const { data: dispatch } = await supabase
@@ -190,10 +194,12 @@ export function OrderActivityLog({ orderId, open, onOpenChange }: OrderActivityL
       // Sort by timestamp descending
       events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
+      console.log('Final timeline events:', events);
       setTimeline(events);
     } catch (error) {
       console.error('Error fetching timeline:', error);
     } finally {
+      console.log('Timeline fetch complete');
       setLoading(false);
     }
   }, [orderId]);
@@ -206,27 +212,44 @@ export function OrderActivityLog({ orderId, open, onOpenChange }: OrderActivityL
 
   const getActionLabel = (action: string) => {
     const labels: Record<string, string> = {
-      order_created: 'Created',
-      order_updated: 'Updated',
+      order_created: 'Order Created',
+      order_updated: 'Order Updated',
       order_dispatched: 'Dispatched',
       order_delivered: 'Delivered',
       order_returned: 'Returned',
       order_cancelled: 'Cancelled',
-      order_assigned: 'Assigned',
-      order_confirmed: 'Confirmed',
+      order_assigned: 'Courier Assigned',
+      order_confirmed: 'Order Confirmed',
+      order_booked: 'Courier Booked',
       status_changed: 'Status Changed',
       verification_updated: 'Verification Updated',
       address_updated: 'Address Updated',
       tracking_update: 'Tracking Update',
     };
-    return labels[action] || action;
+    return labels[action] || action.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   };
 
   const getActionDescription = (action: string, details: any) => {
     if (!details) return undefined;
     
     if (action === 'status_changed' && details.old_status && details.new_status) {
-      return `Changed from ${details.old_status} to ${details.new_status}`;
+      return `Status changed from "${details.old_status}" to "${details.new_status}"`;
+    }
+    
+    if (action === 'order_assigned' && details.courier) {
+      return `Assigned to courier: ${details.courier}`;
+    }
+    
+    if (action === 'order_booked' && details.courier) {
+      return `Booked with ${details.courier}${details.tracking_id ? ` (Tracking: ${details.tracking_id})` : ''}`;
+    }
+    
+    if (action === 'address_updated') {
+      return 'Customer address was updated';
+    }
+    
+    if (action === 'verification_updated' && details.verified !== undefined) {
+      return details.verified ? 'Address verified' : 'Address verification failed';
     }
     
     return undefined;
@@ -332,11 +355,15 @@ export function OrderActivityLog({ orderId, open, onOpenChange }: OrderActivityL
 
                     <div className="border rounded-lg p-4 bg-card space-y-3">
                       <div className="flex items-start justify-between gap-4">
-                        <div className="space-y-1 flex-1">
-                          <div className="flex items-center gap-2">
+                      <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <Badge className={getEventColor(event.type, event.status)}>
                               {event.title}
                             </Badge>
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              {format(new Date(event.timestamp), 'MMM d, yyyy')} at {format(new Date(event.timestamp), 'HH:mm')}
+                            </div>
                             {event.location && (
                               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                 <MapPin className="h-3 w-3" />
@@ -345,12 +372,8 @@ export function OrderActivityLog({ orderId, open, onOpenChange }: OrderActivityL
                             )}
                           </div>
                           {event.description && (
-                            <p className="text-sm text-foreground">{event.description}</p>
+                            <p className="text-sm text-foreground font-medium">{event.description}</p>
                           )}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
-                          <Clock className="h-3 w-3" />
-                          {format(new Date(event.timestamp), 'MMM d, yyyy HH:mm')}
                         </div>
                       </div>
 
