@@ -82,59 +82,73 @@ serve(async (req) => {
 
     const startTime = Date.now();
 
-    // OPTIMIZED: Single query with OR to find order by tracking_id OR order_number
+    // OPTIMIZATION 1 & 2: Combined query - order + dispatch check + courier in single query
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('id, tracking_id, order_number, customer_name, total_amount, courier, status')
+      .select(`
+        id, tracking_id, order_number, customer_name, total_amount, courier, status,
+        dispatches!left(id),
+        couriers!orders_courier_fkey(id, name, code)
+      `)
       .or(`tracking_id.eq.${entry},order_number.eq.${entry},order_number.eq.SHOP-${entry},order_number.ilike.%${entry}%,shopify_order_number.eq.${entry}`)
       .limit(1)
       .maybeSingle();
 
-    // Order not found, search for similar tracking IDs
-    const { data: similar } = await supabase
-      .from('orders')
-      .select('tracking_id, order_number')
-      .ilike('tracking_id', `${entry.slice(0, -2)}%`)
-      .limit(3);
+    // OPTIMIZATION 4: Bug fix - only search for similar and return NOT_FOUND if order not found
+    if (!order) {
+      const { data: similar } = await supabase
+        .from('orders')
+        .select('tracking_id, order_number')
+        .ilike('tracking_id', `${entry.slice(0, -2)}%`)
+        .limit(3);
 
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: 'Order not found in database',
-        errorCode: 'NOT_FOUND',
-        searchedEntry: entry,
-        suggestion: similar?.length 
-          ? `Did you mean: ${similar.map(s => s.tracking_id || s.order_number).filter(Boolean).join(', ')}?`
-          : 'Verify the tracking ID or order number. May need to sync from Shopify.',
-        processingTime: Date.now() - startTime
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Order not found in database',
+          errorCode: 'NOT_FOUND',
+          searchedEntry: entry,
+          suggestion: similar?.length 
+            ? `Did you mean: ${similar.map(s => s.tracking_id || s.order_number).filter(Boolean).join(', ')}?`
+            : 'Verify the tracking ID or order number. May need to sync from Shopify.',
+          processingTime: Date.now() - startTime
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check if already dispatched (from joined data)
+    if (order.dispatches && order.dispatches.length > 0) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Order already dispatched',
+          errorCode: 'ALREADY_DISPATCHED',
+          order: { order_number: order.order_number, customer_name: order.customer_name },
+          suggestion: 'This order was already dispatched. Check dispatch records.',
+          processingTime: Date.now() - startTime
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Determine match type
     const matchType = order.tracking_id === entry ? 'tracking_id' : 'order_number';
 
-    // Determine courier
+    // Determine courier (use pre-fetched courier data from join)
     let finalCourierId = courierId;
     let finalCourierName = courierName;
     let finalCourierCode = courierCode;
 
-    if (order.courier) {
-      // Order already has courier - use that
-      const { data: existingCourier } = await supabase
-        .from('couriers')
-        .select('id, name, code')
-        .eq('code', order.courier)
-        .maybeSingle();
-
-      if (existingCourier) {
-        finalCourierId = existingCourier.id;
-        finalCourierName = existingCourier.name;
-        finalCourierCode = existingCourier.code;
-      } else {
-        finalCourierName = order.courier;
-        finalCourierCode = order.courier;
-      }
+    if (order.courier && order.couriers) {
+      // Use pre-fetched courier data
+      finalCourierId = order.couriers.id;
+      finalCourierName = order.couriers.name;
+      finalCourierCode = order.couriers.code;
+    } else if (order.courier) {
+      // Fallback if join didn't work
+      finalCourierName = order.courier;
+      finalCourierCode = order.courier;
     }
 
     if (!finalCourierName) {
@@ -145,27 +159,6 @@ serve(async (req) => {
           errorCode: 'NO_COURIER',
           order: { order_number: order.order_number, customer_name: order.customer_name },
           suggestion: 'Select a courier before dispatching or assign one to the order first.',
-          processingTime: Date.now() - startTime
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Check if already dispatched
-    const { data: existingDispatch } = await supabase
-      .from('dispatches')
-      .select('id')
-      .eq('order_id', order.id)
-      .maybeSingle();
-
-    if (existingDispatch) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Order already dispatched',
-          errorCode: 'ALREADY_DISPATCHED',
-          order: { order_number: order.order_number, customer_name: order.customer_name },
-          suggestion: 'This order was already dispatched. Check dispatch records.',
           processingTime: Date.now() - startTime
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -183,32 +176,7 @@ serve(async (req) => {
         .eq('id', order.id);
     }
 
-    // ATOMIC: Insert dispatch
-    const { error: dispatchError } = await supabase
-      .from('dispatches')
-      .insert({
-        order_id: order.id,
-        tracking_id: trackingId,
-        courier: finalCourierName,
-        courier_id: finalCourierId,
-        dispatch_date: now,
-        dispatched_by: userId
-      });
-
-    if (dispatchError) {
-      console.error('Dispatch insert error:', dispatchError);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Database error: ${dispatchError.message}`,
-          errorCode: 'DATABASE_ERROR',
-          processingTime: Date.now() - startTime
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Update order status
+    // Prepare order update
     const orderUpdate: any = {
       status: 'dispatched',
       dispatched_at: now
@@ -218,13 +186,39 @@ serve(async (req) => {
       orderUpdate.courier = finalCourierCode;
     }
 
-    const { error: orderUpdateError } = await supabase
-      .from('orders')
-      .update(orderUpdate)
-      .eq('id', order.id);
+    // OPTIMIZATION 3: Run dispatch insert and order update in parallel
+    const [dispatchResult, orderUpdateResult] = await Promise.all([
+      supabase
+        .from('dispatches')
+        .insert({
+          order_id: order.id,
+          tracking_id: trackingId,
+          courier: finalCourierName,
+          courier_id: finalCourierId,
+          dispatch_date: now,
+          dispatched_by: userId
+        }),
+      supabase
+        .from('orders')
+        .update(orderUpdate)
+        .eq('id', order.id)
+    ]);
 
-    if (orderUpdateError) {
-      console.error('Order update error:', orderUpdateError);
+    if (dispatchResult.error) {
+      console.error('Dispatch insert error:', dispatchResult.error);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Database error: ${dispatchResult.error.message}`,
+          errorCode: 'DATABASE_ERROR',
+          processingTime: Date.now() - startTime
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (orderUpdateResult.error) {
+      console.error('Order update error:', orderUpdateResult.error);
     }
 
     const processingTime = Date.now() - startTime;
