@@ -79,49 +79,72 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
   }, [open, order?.id]);
 
   const fetchTrackingDetails = async () => {
-    if (!order?.id) return;
+    if (!order?.id) {
+      setLoading(false);
+      return;
+    }
     
     try {
       setLoading(true);
+      console.log('Fetching tracking for order:', order.id, 'courier:', order.courier, 'tracking_id:', order.tracking_id);
 
       // Check if order has direct booking info (courier + tracking_id in orders table)
       const hasDirectBooking = order.courier && order.tracking_id;
+      console.log('Has direct booking:', hasDirectBooking);
 
       // Fetch dispatch info from dispatches table
-      const { data: dispatch } = await supabase
+      const { data: dispatch, error: dispatchError } = await supabase
         .from('dispatches')
         .select('*, couriers(name)')
         .eq('order_id', order.id)
         .maybeSingle();
 
+      if (dispatchError) {
+        console.error('Error fetching dispatch:', dispatchError);
+      }
+      console.log('Dispatch data:', dispatch);
+
       // Combine data from both sources
       if (hasDirectBooking || dispatch) {
-        setDispatchInfo({
+        const combinedInfo = {
           tracking_id: dispatch?.tracking_id || order.tracking_id || null,
           courier: dispatch?.courier || order.courier || '',
           dispatch_date: dispatch?.dispatch_date || order.created_at,
           estimated_delivery: dispatch?.estimated_delivery || null,
           couriers: dispatch?.couriers || null
-        });
+        };
+        console.log('Setting dispatch info:', combinedInfo);
+        setDispatchInfo(combinedInfo);
 
         // Fetch tracking history using tracking_id from either source
         const trackingId = dispatch?.tracking_id || order.tracking_id;
         if (trackingId) {
-          const { data: tracking } = await supabase
+          const { data: tracking, error: trackingError } = await supabase
             .from('courier_tracking_history')
             .select('*')
             .eq('tracking_id', trackingId)
             .order('checked_at', { ascending: false });
 
+          if (trackingError) {
+            console.error('Error fetching tracking history:', trackingError);
+          }
+          console.log('Tracking history:', tracking);
           setTrackingHistory(tracking || []);
+        } else {
+          console.log('No tracking ID available');
+          setTrackingHistory([]);
         }
       } else {
+        console.log('No booking info found - order not booked');
         setDispatchInfo(null);
         setTrackingHistory([]);
       }
     } catch (error) {
       console.error('Error fetching tracking details:', error);
+      setDispatchInfo(null);
+      setTrackingHistory([]);
     } finally {
+      console.log('Fetch complete, setting loading to false');
       setLoading(false);
     }
   };
