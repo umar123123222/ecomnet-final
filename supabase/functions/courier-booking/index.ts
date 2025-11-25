@@ -175,32 +175,32 @@ serve(async (req) => {
       } else {
         throw new Error(`Booking endpoint not configured for courier: ${courier.code}. Please add the booking_endpoint in Business Settings > Couriers.`);
       }
-        
-        // Extract label from standard response (check multiple possible fields)
-        labelUrl = bookingResponse.label_url || 
-                   bookingResponse.labelUrl || 
-                   bookingResponse.dist?.label_url ||
-                   bookingResponse.dist?.labelUrl ||
-                   bookingResponse.dist?.pdfUrl ||
-                   bookingResponse.data?.label_url ||
-                   bookingResponse.data?.labelUrl;
-                   
-        labelData = bookingResponse.label_data || 
-                    bookingResponse.labelData ||
-                    bookingResponse.dist?.pdfData ||
-                    bookingResponse.dist?.label_data ||
-                    bookingResponse.dist?.labelData ||
-                    bookingResponse.data?.label_data ||
-                    bookingResponse.data?.labelData;
-        
-        // Log what we found for debugging
-        console.log('[BOOKING] Label extraction:', {
-          hasLabelUrl: !!labelUrl,
-          hasLabelData: !!labelData,
-          labelFormat,
-          checkedFields: ['label_url', 'labelUrl', 'dist.pdfUrl', 'dist.pdfData', 'dist.label_url', 'dist.labelData']
-        });
-      }
+      
+      // Extract label from standard response (check multiple possible fields)
+      labelUrl = bookingResponse.label_url || 
+                 bookingResponse.labelUrl || 
+                 bookingResponse.dist?.label_url ||
+                 bookingResponse.dist?.labelUrl ||
+                 bookingResponse.dist?.pdfUrl ||
+                 bookingResponse.data?.label_url ||
+                 bookingResponse.data?.labelUrl;
+                 
+      labelData = bookingResponse.label_data || 
+                  bookingResponse.labelData ||
+                  bookingResponse.dist?.pdfData ||
+                  bookingResponse.dist?.label_data ||
+                  bookingResponse.dist?.labelData ||
+                  bookingResponse.data?.label_data ||
+                  bookingResponse.data?.labelData;
+      
+      // Log what we found for debugging
+      console.log('[BOOKING] Label extraction:', {
+        hasLabelUrl: !!labelUrl,
+        hasLabelData: !!labelData,
+        labelFormat,
+        checkedFields: ['label_url', 'labelUrl', 'dist.pdfUrl', 'dist.pdfData', 'dist.label_url', 'dist.labelData']
+      });
+    }
       
       // Log response structure for debugging
       console.log('[BOOKING] Response keys:', Object.keys(bookingResponse || {}));
