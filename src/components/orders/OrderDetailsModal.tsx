@@ -411,7 +411,8 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
             <OrderActivityLog 
               orderId={order.id} 
               open={activeTab === 'activity'} 
-              onOpenChange={() => {}} 
+              onOpenChange={() => {}}
+              embedded={true}
             />
           </TabsContent>
         </Tabs>
