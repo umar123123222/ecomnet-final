@@ -90,19 +90,26 @@ serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
-    if (!order) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Order not found in database',
-          errorCode: 'NOT_FOUND',
-          searchedEntry: entry,
-          suggestion: 'Verify the tracking ID or order number. May need to sync from Shopify.',
-          processingTime: Date.now() - startTime
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Order not found, search for similar tracking IDs
+    const { data: similar } = await supabase
+      .from('orders')
+      .select('tracking_id, order_number')
+      .ilike('tracking_id', `${entry.slice(0, -2)}%`)
+      .limit(3);
+
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: 'Order not found in database',
+        errorCode: 'NOT_FOUND',
+        searchedEntry: entry,
+        suggestion: similar?.length 
+          ? `Did you mean: ${similar.map(s => s.tracking_id || s.order_number).filter(Boolean).join(', ')}?`
+          : 'Verify the tracking ID or order number. May need to sync from Shopify.',
+        processingTime: Date.now() - startTime
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
     // Determine match type
     const matchType = order.tracking_id === entry ? 'tracking_id' : 'order_number';

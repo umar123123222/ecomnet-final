@@ -46,6 +46,7 @@ const DispatchDashboard = () => {
     return (saved === 'order_number' ? 'order_number' : 'tracking_id') as 'tracking_id' | 'order_number';
   });
   const [isProcessing, setIsProcessing] = useState(false);
+  const [bulkErrors, setBulkErrors] = useState<Array<{ entry: string; error: string; errorCode?: string }>>([]);
   
   // Scanner Mode States
   const [scannerModeActive, setScannerModeActive] = useState(false);
@@ -294,8 +295,18 @@ const DispatchDashboard = () => {
       let successCount = 0;
       let errorCount = 0;
       const errors: string[] = [];
+      const bulkErrorsList: Array<{ entry: string; error: string; errorCode?: string }> = [];
       
       for (const entry of uniqueEntries) {
+        // Validate entry format before processing
+        const validation = validateTrackingEntry(entry);
+        if (!validation.valid) {
+          errors.push(`${validation.error}: ${entry}`);
+          bulkErrorsList.push({ entry, error: validation.error!, errorCode: validation.errorCode });
+          errorCount++;
+          continue;
+        }
+        
         // Find order by selected entry type
         let order;
         
@@ -329,6 +340,7 @@ const DispatchDashboard = () => {
         
         if (!order) {
           errors.push(`Order not found for ${entryType === 'tracking_id' ? 'tracking ID' : 'order number'}: ${entry}`);
+          bulkErrorsList.push({ entry, error: 'Order not found in database', errorCode: 'NOT_FOUND' });
           errorCount++;
           continue;
         }
@@ -361,6 +373,7 @@ const DispatchDashboard = () => {
         // Validate that we have a courier
         if (!courierNameForOrder) {
           errors.push(`No courier assigned for order ${entry}`);
+          bulkErrorsList.push({ entry, error: 'No courier assigned to this order', errorCode: 'NO_COURIER' });
           errorCount++;
           continue;
         }
@@ -385,6 +398,7 @@ const DispatchDashboard = () => {
         if (existingDispatch) {
           // Prevent duplicate dispatch
           errors.push(`Order ${order.order_number} has already been dispatched`);
+          bulkErrorsList.push({ entry, error: 'Order already dispatched', errorCode: 'ALREADY_DISPATCHED' });
           errorCount++;
           continue;
         } else {
@@ -507,15 +521,17 @@ const DispatchDashboard = () => {
       }
       if (errors.length > 0) {
         console.error('Bulk entry errors:', errors);
+        setBulkErrors(bulkErrorsList); // Store errors for UI display
         toast({
           title: "Some Entries Failed",
-          description: `${errorCount} entries failed. Check console for details.`,
+          description: `${errorCount} entries failed. See details below.`,
           variant: "destructive"
         });
       }
       
-      if (successCount > 0) {
+      if (successCount > 0 && errorCount === 0) {
         setIsManualEntryOpen(false);
+        setBulkErrors([]); // Clear errors on full success
       }
     } catch (error) {
       console.error('Bulk entry error:', error);
@@ -1301,6 +1317,49 @@ const DispatchDashboard = () => {
                           </p>
                           <FormMessage />
                         </FormItem>} />
+                        
+                        {/* Bulk Errors Display */}
+                        {bulkErrors.length > 0 && (
+                          <div className="mt-4 border rounded-lg p-4 bg-destructive/5 max-h-64 overflow-y-auto">
+                            <p className="font-semibold text-destructive mb-3 flex items-center gap-2">
+                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-destructive/20 text-destructive text-xs font-bold">
+                                {bulkErrors.length}
+                              </span>
+                              Failed Entries
+                            </p>
+                            <div className="space-y-2">
+                              {bulkErrors.map((e, i) => {
+                                const getErrorIcon = (code?: string) => {
+                                  if (code === 'NOT_FOUND') return '🔍';
+                                  if (code === 'ALREADY_DISPATCHED') return '🔄';
+                                  if (code === 'NO_COURIER') return '📦';
+                                  if (code === 'INVALID_FORMAT') return '⚠️';
+                                  return '❌';
+                                };
+                                
+                                const getErrorBg = (code?: string) => {
+                                  if (code === 'NOT_FOUND') return 'bg-amber-50 border-amber-200 text-amber-900';
+                                  if (code === 'ALREADY_DISPATCHED') return 'bg-blue-50 border-blue-200 text-blue-900';
+                                  if (code === 'NO_COURIER') return 'bg-orange-50 border-orange-200 text-orange-900';
+                                  if (code === 'INVALID_FORMAT') return 'bg-yellow-50 border-yellow-200 text-yellow-900';
+                                  return 'bg-red-50 border-red-200 text-red-900';
+                                };
+                                
+                                return (
+                                  <div key={i} className={`text-sm p-3 border rounded ${getErrorBg(e.errorCode)}`}>
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-base">{getErrorIcon(e.errorCode)}</span>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-mono font-semibold break-all">{e.entry}</p>
+                                        <p className="text-xs mt-1 opacity-90">{e.error}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button 
