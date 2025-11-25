@@ -15,7 +15,9 @@ import {
   XCircle,
   AlertCircle,
   History,
-  FileText
+  FileText,
+  RefreshCw,
+  RotateCcw
 } from "lucide-react";
 import { ConfirmOrderDialog } from "./ConfirmOrderDialog";
 import { BookCourierDialog } from "./BookCourierDialog";
@@ -32,6 +34,7 @@ interface Order {
   total_amount: number;
   status: string;
   courier?: string | null;
+  tracking_id?: string | null;
   items: any;
   created_at: string;
   customer_id?: string | null;
@@ -81,23 +84,41 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
     try {
       setLoading(true);
 
-      // Fetch dispatch info
+      // Check if order has direct booking info (courier + tracking_id in orders table)
+      const hasDirectBooking = order.courier && order.tracking_id;
+
+      // Fetch dispatch info from dispatches table
       const { data: dispatch } = await supabase
         .from('dispatches')
         .select('*, couriers(name)')
         .eq('order_id', order.id)
         .maybeSingle();
 
-      setDispatchInfo(dispatch);
+      // Combine data from both sources
+      if (hasDirectBooking || dispatch) {
+        setDispatchInfo({
+          tracking_id: dispatch?.tracking_id || order.tracking_id || null,
+          courier: dispatch?.courier || order.courier || '',
+          dispatch_date: dispatch?.dispatch_date || order.created_at,
+          estimated_delivery: dispatch?.estimated_delivery || null,
+          couriers: dispatch?.couriers || null
+        });
 
-      // Fetch tracking history
-      const { data: tracking } = await supabase
-        .from('courier_tracking_history')
-        .select('*')
-        .eq('order_id', order.id)
-        .order('checked_at', { ascending: false });
+        // Fetch tracking history using tracking_id from either source
+        const trackingId = dispatch?.tracking_id || order.tracking_id;
+        if (trackingId) {
+          const { data: tracking } = await supabase
+            .from('courier_tracking_history')
+            .select('*')
+            .eq('tracking_id', trackingId)
+            .order('checked_at', { ascending: false });
 
-      setTrackingHistory(tracking || []);
+          setTrackingHistory(tracking || []);
+        }
+      } else {
+        setDispatchInfo(null);
+        setTrackingHistory([]);
+      }
     } catch (error) {
       console.error('Error fetching tracking details:', error);
     } finally {
@@ -205,17 +226,30 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
             <div className="text-muted-foreground">Loading tracking details...</div>
           </div>
         ) : !dispatchInfo ? (
-          <div className="flex flex-col items-center justify-center py-12 space-y-2">
-            <Package className="h-12 w-12 text-muted-foreground/50" />
-            <div className="text-muted-foreground">Order not yet dispatched</div>
-            <div className="text-sm text-muted-foreground">Tracking information will appear once the order is shipped</div>
+          <div className="flex flex-col items-center justify-center py-12 space-y-4">
+            <Package className="h-16 w-16 text-muted-foreground/30" />
+            <div className="text-center space-y-2">
+              <h3 className="font-semibold text-lg">Not Booked Yet</h3>
+              <p className="text-sm text-muted-foreground max-w-md">
+                This order hasn't been booked with a courier yet. Book a courier to start tracking.
+              </p>
+            </div>
+            {order.status === 'confirmed' && (
+              <Button
+                onClick={() => setShowBookDialog(true)}
+                className="mt-4"
+              >
+                <Truck className="mr-2 h-4 w-4" />
+                Book Courier Now
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-6 mt-4">
             {/* Dispatch Information */}
             <div className="border rounded-lg p-4 bg-card space-y-3">
               <div className="flex items-center justify-between">
-                <div className="space-y-1">
+                <div className="space-y-1 flex-1">
                   <div className="flex items-center gap-2">
                     <Truck className="h-5 w-5 text-primary" />
                     <span className="font-semibold text-lg">
@@ -228,6 +262,14 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
                     </div>
                   )}
                 </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleRefresh}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
               </div>
 
               <div className="grid grid-cols-2 gap-4 pt-2">
@@ -251,6 +293,39 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
                 )}
               </div>
             </div>
+
+            {/* Action Buttons based on latest tracking status */}
+            {trackingHistory.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {trackingHistory[0].status === 'delivered' && order.status !== 'delivered' && (
+                  <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700">
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Confirm Delivery
+                  </Button>
+                )}
+                
+                {trackingHistory[0].status === 'returned' && order.status !== 'returned' && (
+                  <Button variant="destructive" size="sm">
+                    <Package className="mr-2 h-4 w-4" />
+                    Process Return
+                  </Button>
+                )}
+                
+                {trackingHistory[0].status === 'failed_delivery' && (
+                  <Button variant="outline" size="sm">
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Reattempt Delivery
+                  </Button>
+                )}
+                
+                {dispatchInfo?.tracking_id && (
+                  <Button variant="outline" size="sm">
+                    <FileText className="mr-2 h-4 w-4" />
+                    Shipper Advice
+                  </Button>
+                )}
+              </div>
+            )}
 
             {/* Tracking History Timeline */}
             {trackingHistory.length > 0 ? (
