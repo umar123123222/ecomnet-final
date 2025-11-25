@@ -22,6 +22,13 @@ interface CourierConfig {
   cancellation_endpoint?: string;
   update_endpoint?: string;
   rates_endpoint?: string;
+  bulk_booking_endpoint?: string;
+  bulk_tracking_endpoint?: string;
+  load_sheet_endpoint?: string;
+  awb_endpoint?: string;
+  shipper_advice_list_endpoint?: string;
+  shipper_advice_save_endpoint?: string;
+  tariff_endpoint?: string;
   label_format: 'pdf' | 'html' | 'png' | 'url';
   auto_download_label: boolean;
   auth_config?: any;
@@ -78,7 +85,14 @@ export function CourierConfigCard({ courier, onSave, onDelete, onTest }: Props) 
         label_endpoint: config.label_endpoint ? cleanEndpointUrl(config.label_endpoint) : config.label_endpoint,
         cancellation_endpoint: config.cancellation_endpoint ? cleanEndpointUrl(config.cancellation_endpoint) : config.cancellation_endpoint,
         update_endpoint: config.update_endpoint ? cleanEndpointUrl(config.update_endpoint) : config.update_endpoint,
-        rates_endpoint: config.rates_endpoint ? cleanEndpointUrl(config.rates_endpoint) : config.rates_endpoint
+        rates_endpoint: config.rates_endpoint ? cleanEndpointUrl(config.rates_endpoint) : config.rates_endpoint,
+        bulk_booking_endpoint: config.bulk_booking_endpoint ? cleanEndpointUrl(config.bulk_booking_endpoint) : config.bulk_booking_endpoint,
+        bulk_tracking_endpoint: config.bulk_tracking_endpoint ? cleanEndpointUrl(config.bulk_tracking_endpoint) : config.bulk_tracking_endpoint,
+        load_sheet_endpoint: config.load_sheet_endpoint ? cleanEndpointUrl(config.load_sheet_endpoint) : config.load_sheet_endpoint,
+        awb_endpoint: config.awb_endpoint ? cleanEndpointUrl(config.awb_endpoint) : config.awb_endpoint,
+        shipper_advice_list_endpoint: config.shipper_advice_list_endpoint ? cleanEndpointUrl(config.shipper_advice_list_endpoint) : config.shipper_advice_list_endpoint,
+        shipper_advice_save_endpoint: config.shipper_advice_save_endpoint ? cleanEndpointUrl(config.shipper_advice_save_endpoint) : config.shipper_advice_save_endpoint,
+        tariff_endpoint: config.tariff_endpoint ? cleanEndpointUrl(config.tariff_endpoint) : config.tariff_endpoint
       };
       
       await onSave(cleanedConfig);
@@ -283,6 +297,76 @@ export function CourierConfigCard({ courier, onSave, onDelete, onTest }: Props) 
             value={config.rates_endpoint || ''}
             onChange={(e) => setConfig({ ...config, rates_endpoint: e.target.value })}
             placeholder="https://api.courier.com/rates"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Bulk Booking Endpoint (Optional)</Label>
+          <p className="text-xs text-muted-foreground">For booking multiple orders at once</p>
+          <Input
+            value={config.bulk_booking_endpoint || ''}
+            onChange={(e) => setConfig({ ...config, bulk_booking_endpoint: e.target.value })}
+            placeholder="https://api.courier.com/bulk-booking"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Bulk Tracking Endpoint (Optional)</Label>
+          <p className="text-xs text-muted-foreground">For tracking multiple orders at once</p>
+          <Input
+            value={config.bulk_tracking_endpoint || ''}
+            onChange={(e) => setConfig({ ...config, bulk_tracking_endpoint: e.target.value })}
+            placeholder="https://api.courier.com/bulk-tracking"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Load Sheet/Manifest Endpoint (Optional)</Label>
+          <p className="text-xs text-muted-foreground">For generating courier load sheets</p>
+          <Input
+            value={config.load_sheet_endpoint || ''}
+            onChange={(e) => setConfig({ ...config, load_sheet_endpoint: e.target.value })}
+            placeholder="https://api.courier.com/load-sheet"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>AWB/Invoice Endpoint (Optional)</Label>
+          <p className="text-xs text-muted-foreground">For fetching airway bills and invoices</p>
+          <Input
+            value={config.awb_endpoint || ''}
+            onChange={(e) => setConfig({ ...config, awb_endpoint: e.target.value })}
+            placeholder="https://api.courier.com/awb"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Shipper Advice List Endpoint (Optional)</Label>
+          <p className="text-xs text-muted-foreground">For fetching shipper advice history</p>
+          <Input
+            value={config.shipper_advice_list_endpoint || ''}
+            onChange={(e) => setConfig({ ...config, shipper_advice_list_endpoint: e.target.value })}
+            placeholder="https://api.courier.com/shipper-advice-list"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Shipper Advice Save Endpoint (Optional)</Label>
+          <p className="text-xs text-muted-foreground">For saving shipper advice (reattempt/return)</p>
+          <Input
+            value={config.shipper_advice_save_endpoint || ''}
+            onChange={(e) => setConfig({ ...config, shipper_advice_save_endpoint: e.target.value })}
+            placeholder="https://api.courier.com/shipper-advice"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Tariff/Pricing Endpoint (Optional)</Label>
+          <p className="text-xs text-muted-foreground">Alternative rates endpoint for pricing calculations</p>
+          <Input
+            value={config.tariff_endpoint || ''}
+            onChange={(e) => setConfig({ ...config, tariff_endpoint: e.target.value })}
+            placeholder="https://api.courier.com/tariff"
           />
         </div>
 

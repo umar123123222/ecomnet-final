@@ -735,6 +735,63 @@ export type Database = {
           },
         ]
       }
+      courier_load_sheets: {
+        Row: {
+          courier_id: string
+          created_at: string
+          error_message: string | null
+          generated_at: string
+          generated_by: string | null
+          id: string
+          load_sheet_data: string | null
+          load_sheet_url: string | null
+          order_ids: string[]
+          status: string
+          tracking_ids: string[]
+        }
+        Insert: {
+          courier_id: string
+          created_at?: string
+          error_message?: string | null
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          load_sheet_data?: string | null
+          load_sheet_url?: string | null
+          order_ids?: string[]
+          status?: string
+          tracking_ids?: string[]
+        }
+        Update: {
+          courier_id?: string
+          created_at?: string
+          error_message?: string | null
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          load_sheet_data?: string | null
+          load_sheet_url?: string | null
+          order_ids?: string[]
+          status?: string
+          tracking_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courier_load_sheets_courier_id_fkey"
+            columns: ["courier_id"]
+            isOneToOne: false
+            referencedRelation: "couriers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_load_sheets_generated_by_fkey"
+            columns: ["generated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courier_rate_cards: {
         Row: {
           courier_id: string
@@ -852,7 +909,10 @@ export type Database = {
           auth_config: Json | null
           auth_type: string | null
           auto_download_label: boolean | null
+          awb_endpoint: string | null
           booking_endpoint: string | null
+          bulk_booking_endpoint: string | null
+          bulk_tracking_endpoint: string | null
           cancellation_endpoint: string | null
           code: string
           config: Json | null
@@ -862,10 +922,14 @@ export type Database = {
           label_config: Json | null
           label_endpoint: string | null
           label_format: string | null
+          load_sheet_endpoint: string | null
           name: string
           pricing_config: Json | null
           rates_endpoint: string | null
+          shipper_advice_list_endpoint: string | null
+          shipper_advice_save_endpoint: string | null
           supported_cities: Json | null
+          tariff_endpoint: string | null
           tracking_endpoint: string | null
           update_endpoint: string | null
           updated_at: string | null
@@ -875,7 +939,10 @@ export type Database = {
           auth_config?: Json | null
           auth_type?: string | null
           auto_download_label?: boolean | null
+          awb_endpoint?: string | null
           booking_endpoint?: string | null
+          bulk_booking_endpoint?: string | null
+          bulk_tracking_endpoint?: string | null
           cancellation_endpoint?: string | null
           code: string
           config?: Json | null
@@ -885,10 +952,14 @@ export type Database = {
           label_config?: Json | null
           label_endpoint?: string | null
           label_format?: string | null
+          load_sheet_endpoint?: string | null
           name: string
           pricing_config?: Json | null
           rates_endpoint?: string | null
+          shipper_advice_list_endpoint?: string | null
+          shipper_advice_save_endpoint?: string | null
           supported_cities?: Json | null
+          tariff_endpoint?: string | null
           tracking_endpoint?: string | null
           update_endpoint?: string | null
           updated_at?: string | null
@@ -898,7 +969,10 @@ export type Database = {
           auth_config?: Json | null
           auth_type?: string | null
           auto_download_label?: boolean | null
+          awb_endpoint?: string | null
           booking_endpoint?: string | null
+          bulk_booking_endpoint?: string | null
+          bulk_tracking_endpoint?: string | null
           cancellation_endpoint?: string | null
           code?: string
           config?: Json | null
@@ -908,10 +982,14 @@ export type Database = {
           label_config?: Json | null
           label_endpoint?: string | null
           label_format?: string | null
+          load_sheet_endpoint?: string | null
           name?: string
           pricing_config?: Json | null
           rates_endpoint?: string | null
+          shipper_advice_list_endpoint?: string | null
+          shipper_advice_save_endpoint?: string | null
           supported_cities?: Json | null
+          tariff_endpoint?: string | null
           tracking_endpoint?: string | null
           update_endpoint?: string | null
           updated_at?: string | null
@@ -3399,6 +3477,73 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shipper_advice_logs: {
+        Row: {
+          advice_type: string
+          courier_id: string
+          courier_response: Json | null
+          created_at: string
+          error_message: string | null
+          id: string
+          order_id: string | null
+          remarks: string | null
+          requested_at: string
+          requested_by: string | null
+          status: string
+          tracking_id: string
+        }
+        Insert: {
+          advice_type: string
+          courier_id: string
+          courier_response?: Json | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          order_id?: string | null
+          remarks?: string | null
+          requested_at?: string
+          requested_by?: string | null
+          status?: string
+          tracking_id: string
+        }
+        Update: {
+          advice_type?: string
+          courier_id?: string
+          courier_response?: Json | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          order_id?: string | null
+          remarks?: string | null
+          requested_at?: string
+          requested_by?: string | null
+          status?: string
+          tracking_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipper_advice_logs_courier_id_fkey"
+            columns: ["courier_id"]
+            isOneToOne: false
+            referencedRelation: "couriers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipper_advice_logs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipper_advice_logs_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
