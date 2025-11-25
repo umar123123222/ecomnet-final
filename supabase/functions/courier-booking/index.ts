@@ -200,7 +200,6 @@ serve(async (req) => {
         labelFormat,
         checkedFields: ['label_url', 'labelUrl', 'dist.pdfUrl', 'dist.pdfData', 'dist.label_url', 'dist.labelData']
       });
-    }
       
       // Log response structure for debugging
       console.log('[BOOKING] Response keys:', Object.keys(bookingResponse || {}));
