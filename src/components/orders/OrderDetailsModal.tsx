@@ -191,7 +191,7 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
           <DialogHeader>
             <div className="flex items-center justify-between">
               <DialogTitle className="flex items-center gap-3">
-                <span>Order #{order.order_number}</span>
+                <span>Order #{order.order_number || 'N/A'}</span>
                 <Badge variant={
                   order.status === 'delivered' ? 'success' :
                   order.status === 'confirmed' ? 'default' :
@@ -200,7 +200,7 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
                   order.status === 'dispatched' ? 'secondary' :
                   order.status === 'returned' ? 'destructive' : 'outline'
                 }>
-                  {order.status}
+                  {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Unknown'}
                 </Badge>
               </DialogTitle>
               
