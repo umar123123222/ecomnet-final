@@ -137,9 +137,12 @@ async function cancelWithCourier(
   };
   let payload: any;
 
-  // Configure cancellation based on courier type
-  if (courierCode === 'POSTEX') {
-    // Postex-specific configuration - use v1 API for cancellation with PUT method
+  // Use configured cancellation endpoint if available
+  if (courier.cancellation_endpoint) {
+    cancelEndpoint = courier.cancellation_endpoint;
+    console.log('[CANCEL] Using configured cancellation endpoint:', cancelEndpoint);
+  } else if (courierCode === 'POSTEX') {
+    // Postex-specific fallback - use v1 API for cancellation with PUT method
     cancelEndpoint = 'https://api.postex.pk/services/integration/api/order/v1/cancel-order';
     
     headers['token'] = apiKey;

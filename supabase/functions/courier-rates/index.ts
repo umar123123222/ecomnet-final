@@ -71,16 +71,14 @@ serve(async (req) => {
       for (const courier of couriers) {
         try {
           let apiRate;
-          switch (courier.code) {
-            case 'TCS':
-              apiRate = await getTCSRate(rateRequest);
-              break;
-            case 'LEOPARD':
-              apiRate = await getLeopardRate(rateRequest);
-              break;
-            case 'POSTEX':
-              apiRate = await getPostExRate(rateRequest);
-              break;
+          
+          // Use configured rates_endpoint if available
+          if (courier.rates_endpoint) {
+            apiRate = await getRateWithCustomEndpoint(rateRequest, courier, supabase);
+          } else {
+            // Log warning - courier should have rates_endpoint configured
+            console.warn(`Courier ${courier.code} has no rates_endpoint configured. Please add it in Business Settings > Couriers.`);
+            continue;
           }
           
           if (apiRate) {
@@ -129,97 +127,60 @@ serve(async (req) => {
   }
 });
 
-async function getTCSRate(request: RateRequest) {
-  const apiKey = getAPISetting('TCS_API_KEY');
+async function getRateWithCustomEndpoint(request: RateRequest, courier: any, supabaseClient: any) {
+  const apiKey = await getAPISetting(`${courier.code.toUpperCase()}_API_KEY`, supabaseClient);
   
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  // Apply authentication based on auth_type
+  if (courier.auth_type === 'bearer_token') {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  } else if (courier.auth_type === 'api_key_header') {
+    const headerName = courier.auth_config?.header_name || 'X-API-Key';
+    headers[headerName] = apiKey || '';
+  } else if (courier.auth_type === 'basic_auth') {
+    const username = courier.auth_config?.username || '';
+    const encoded = btoa(`${username}:${apiKey}`);
+    headers['Authorization'] = `Basic ${encoded}`;
+  }
+
+  // Add custom headers if configured
+  if (courier.auth_config?.custom_headers) {
+    Object.assign(headers, courier.auth_config.custom_headers);
+  }
+
   try {
-    const response = await fetch('https://api.tcs.com.pk/api/v1/rates/calculate', {
+    const response = await fetch(courier.rates_endpoint, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         origin_city: request.originCity,
         destination_city: request.destinationCity,
         weight: request.weight,
-        service_type: request.codAmount ? 'COD' : 'overnight'
-      }),
+        cod_amount: request.codAmount || 0
+      })
     });
 
     if (response.ok) {
       const data = await response.json();
+      
+      // Try to extract rate and estimated days from common field names
+      const rate = data.rate || data.charges || data.total_charges || data.operationalCharges || data.amount;
+      const estimatedDays = data.estimated_days || data.estimatedDays || data.estimated_delivery_days || data.eta || 3;
+      
       return {
-        rate: data.total_charges,
-        estimatedDays: data.estimated_delivery_days
+        rate: parseFloat(rate),
+        estimatedDays: parseInt(estimatedDays)
       };
     }
   } catch (error) {
-    console.error('TCS rate error:', error);
+    console.error(`${courier.name} rate error:`, error);
   }
   
   return null;
 }
 
-async function getLeopardRate(request: RateRequest) {
-  const apiKey = getAPISetting('LEOPARD_API_KEY');
-  
-  try {
-    const response = await fetch('https://api.leopardscourier.com/api/rate/calculate', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        origin_city: request.originCity,
-        destination_city: request.destinationCity,
-        weight: request.weight,
-        amount: request.codAmount || 0
-      }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return {
-        rate: data.charges,
-        estimatedDays: data.estimated_days
-      };
-    }
-  } catch (error) {
-    console.error('Leopard rate error:', error);
-  }
-  
-  return null;
-}
-
-async function getPostExRate(request: RateRequest) {
-  const apiKey = getAPISetting('POSTEX_API_KEY');
-  
-  try {
-    const response = await fetch('https://api.postex.pk/services/integration/api/shipment/v1/calculate-charges', {
-      method: 'POST',
-      headers: {
-        'token': apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        pickupCityName: request.originCity,
-        cityName: request.destinationCity,
-        invoicePayment: request.codAmount || 0
-      }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return {
-        rate: data.operationalCharges,
-        estimatedDays: 3 // PostEx doesn't provide ETA
-      };
-    }
-  } catch (error) {
-    console.error('PostEx rate error:', error);
-  }
-  
-  return null;
-}
+// Legacy hardcoded rate functions removed - all couriers must now use configured rates_endpoint
+// Configure courier endpoints in Business Settings > Couriers section

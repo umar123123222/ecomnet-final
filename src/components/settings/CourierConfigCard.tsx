@@ -19,6 +19,9 @@ interface CourierConfig {
   booking_endpoint: string;
   tracking_endpoint: string;
   label_endpoint?: string;
+  cancellation_endpoint?: string;
+  update_endpoint?: string;
+  rates_endpoint?: string;
   label_format: 'pdf' | 'html' | 'png' | 'url';
   auto_download_label: boolean;
   auth_config?: any;
@@ -72,7 +75,10 @@ export function CourierConfigCard({ courier, onSave, onDelete, onTest }: Props) 
         ...config,
         booking_endpoint: cleanEndpointUrl(config.booking_endpoint),
         tracking_endpoint: cleanEndpointUrl(config.tracking_endpoint),
-        label_endpoint: config.label_endpoint ? cleanEndpointUrl(config.label_endpoint) : config.label_endpoint
+        label_endpoint: config.label_endpoint ? cleanEndpointUrl(config.label_endpoint) : config.label_endpoint,
+        cancellation_endpoint: config.cancellation_endpoint ? cleanEndpointUrl(config.cancellation_endpoint) : config.cancellation_endpoint,
+        update_endpoint: config.update_endpoint ? cleanEndpointUrl(config.update_endpoint) : config.update_endpoint,
+        rates_endpoint: config.rates_endpoint ? cleanEndpointUrl(config.rates_endpoint) : config.rates_endpoint
       };
       
       await onSave(cleanedConfig);
@@ -250,6 +256,33 @@ export function CourierConfigCard({ courier, onSave, onDelete, onTest }: Props) 
             value={config.label_endpoint || ''}
             onChange={(e) => setConfig({ ...config, label_endpoint: e.target.value })}
             placeholder="https://api.courier.com/label/{tracking_id}"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Cancellation Endpoint URL (Optional)</Label>
+          <Input
+            value={config.cancellation_endpoint || ''}
+            onChange={(e) => setConfig({ ...config, cancellation_endpoint: e.target.value })}
+            placeholder="https://api.courier.com/cancel"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Update Endpoint URL (Optional)</Label>
+          <Input
+            value={config.update_endpoint || ''}
+            onChange={(e) => setConfig({ ...config, update_endpoint: e.target.value })}
+            placeholder="https://api.courier.com/update"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Rates Endpoint URL (Optional)</Label>
+          <Input
+            value={config.rates_endpoint || ''}
+            onChange={(e) => setConfig({ ...config, rates_endpoint: e.target.value })}
+            placeholder="https://api.courier.com/rates"
           />
         </div>
 
