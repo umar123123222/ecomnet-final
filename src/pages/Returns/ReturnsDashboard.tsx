@@ -33,6 +33,7 @@ const ReturnsDashboard = () => {
   const [allowManualEntry, setAllowManualEntry] = useState(false);
   const [lastKeyTime, setLastKeyTime] = useState<number>(0);
   const [fastKeyCount, setFastKeyCount] = useState<number>(0);
+  const [bulkErrors, setBulkErrors] = useState<Array<{ entry: string; error: string; errorCode?: string }>>([]);
   const [entryType, setEntryType] = useState<'tracking_id' | 'order_number'>(() => {
     const saved = localStorage.getItem('returns_entry_type');
     return (saved === 'order_number' ? 'order_number' : 'tracking_id') as 'tracking_id' | 'order_number';
@@ -57,6 +58,7 @@ const ReturnsDashboard = () => {
   const [focusLostTime, setFocusLostTime] = useState<number | null>(null);
   const [scanBuffer, setScanBuffer] = useState('');
   const scannerInputRef = React.useRef<HTMLInputElement>(null);
+  const [isLoading, setIsLoading] = useState(false);
   
   // Performance Metrics
   const [performanceMetrics, setPerformanceMetrics] = useState({
@@ -599,8 +601,24 @@ const ReturnsDashboard = () => {
       let successCount = 0;
       let errorCount = 0;
       const errors: string[] = [];
+      const bulkErrorsList: Array<{ entry: string; error: string; errorCode?: string }> = [];
 
-      for (const entry of entries) {
+      setIsLoading(true);
+      setBulkErrors([]); // Clear previous errors
+
+      // Get unique entries
+      const uniqueEntries = Array.from(new Set(entries));
+
+      for (const entry of uniqueEntries) {
+        // Validate entry format
+        const validation = validateTrackingEntry(entry);
+        if (!validation.valid) {
+          errors.push(`${validation.error}: ${entry}`);
+          bulkErrorsList.push({ entry, error: validation.error!, errorCode: validation.errorCode });
+          errorCount++;
+          continue;
+        }
+        
         let returnRecord;
         
         if (entryType === 'tracking_id') {
@@ -614,6 +632,7 @@ const ReturnsDashboard = () => {
           
           if (!returnRecord) {
             errors.push(`Return not found for tracking ID: ${entry}`);
+            bulkErrorsList.push({ entry, error: 'Return not found in database', errorCode: 'NOT_FOUND' });
             errorCount++;
             continue;
           }
@@ -650,6 +669,7 @@ const ReturnsDashboard = () => {
           
           if (!returnRecord) {
             errors.push(`Return not found for order number: ${entry}`);
+            bulkErrorsList.push({ entry, error: 'Return not found in database', errorCode: 'NOT_FOUND' });
             errorCount++;
             continue;
           }
@@ -667,6 +687,7 @@ const ReturnsDashboard = () => {
 
         if (updateReturnError) {
           errors.push(`Failed to update return for ${entryType === 'tracking_id' ? 'tracking ID' : 'order number'}: ${entry}: ${updateReturnError.message}`);
+          bulkErrorsList.push({ entry, error: 'Database error occurred', errorCode: 'DATABASE_ERROR' });
           errorCount++;
           continue;
         }
@@ -681,6 +702,7 @@ const ReturnsDashboard = () => {
 
         if (updateOrderError) {
           errors.push(`Failed to update order status for ${entryType === 'tracking_id' ? 'tracking ID' : 'order number'}: ${entry}: ${updateOrderError.message}`);
+          bulkErrorsList.push({ entry, error: 'Failed to update order status', errorCode: 'DATABASE_ERROR' });
           errorCount++;
           continue;
         }
@@ -689,25 +711,20 @@ const ReturnsDashboard = () => {
       }
 
       // Show results
-      if (successCount > 0) {
-        toast({
-          title: "Bulk Entry Complete",
-          description: `Successfully processed ${successCount} tracking ID(s)${errorCount > 0 ? `, ${errorCount} failed` : ''}`
-        });
-      }
-
+      setIsLoading(false);
+      
       if (errors.length > 0) {
-        console.error('Bulk entry errors:', errors);
-        toast({
-          title: "Some Entries Failed",
-          description: `${errorCount} tracking ID(s) could not be processed. Check console for details.`,
-          variant: "destructive"
-        });
+        setBulkErrors(bulkErrorsList);
+      } else {
+        setIsManualEntryOpen(false);
+        form.reset();
       }
 
-      // Reset form and close dialog
-      form.reset();
-      setIsManualEntryOpen(false);
+      toast({
+        title: successCount > 0 ? "Returns Marked Received" : "Processing Failed",
+        description: `${successCount} successful, ${errorCount} failed${errors.length > 0 ? '. See details below.' : ''}`,
+        variant: successCount > 0 ? "default" : "destructive",
+      });
 
       // Refresh the returns list
       const { data: refreshedReturns } = await supabase
@@ -977,10 +994,64 @@ const ReturnsDashboard = () => {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit">Process Entries</Button>
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? "Processing..." : "Process Entries"}
+                  </Button>
                 </div>
               </form>
             </Form>
+
+            {/* Bulk Errors Display */}
+            {bulkErrors.length > 0 && (
+              <div className="mt-4 border rounded-lg p-4 bg-destructive/5 max-h-64 overflow-y-auto">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-semibold text-destructive flex items-center gap-2">
+                    <span>❌</span>
+                    Failed Entries ({bulkErrors.length})
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setBulkErrors([]);
+                      setIsManualEntryOpen(false);
+                      form.reset();
+                    }}
+                  >
+                    Close
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {bulkErrors.map((e, i) => {
+                    const getErrorStyle = () => {
+                      switch (e.errorCode) {
+                        case 'NOT_FOUND':
+                          return { icon: '🔍', color: 'text-amber-700', bg: 'bg-amber-50' };
+                        case 'ALREADY_RECEIVED':
+                          return { icon: '🔄', color: 'text-blue-700', bg: 'bg-blue-50' };
+                        case 'INVALID_FORMAT':
+                          return { icon: '⚠️', color: 'text-orange-700', bg: 'bg-orange-50' };
+                        default:
+                          return { icon: '❌', color: 'text-red-700', bg: 'bg-red-50' };
+                      }
+                    };
+                    const style = getErrorStyle();
+                    
+                    return (
+                      <div key={i} className={`text-sm p-2 rounded ${style.bg}`}>
+                        <div className="flex items-start gap-2">
+                          <span className="text-base">{style.icon}</span>
+                          <div className="flex-1">
+                            <div className="font-mono font-medium">{e.entry}</div>
+                            <div className={`${style.color} text-xs mt-1`}>{e.error}</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
         </div>
