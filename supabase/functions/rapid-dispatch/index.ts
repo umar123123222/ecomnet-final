@@ -6,6 +6,42 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Validation helper
+const validateEntry = (entry: string): { valid: boolean; error?: string; errorCode?: string; suggestion?: string } => {
+  // Too short (less than 5 characters)
+  if (entry.length < 5) {
+    return { 
+      valid: false, 
+      error: 'Entry too short', 
+      errorCode: 'INVALID_FORMAT',
+      suggestion: 'Enter complete tracking ID or order number (minimum 5 characters)' 
+    };
+  }
+  
+  // Scientific notation from Excel (e.g., "2.11295E+13")
+  if (/^\d+\.?\d*[eE][+\-]?\d+$/.test(entry)) {
+    return { 
+      valid: false, 
+      error: 'Invalid format - Excel scientific notation detected', 
+      errorCode: 'INVALID_FORMAT',
+      suggestion: 'Format the Excel column as Text before copying' 
+    };
+  }
+  
+  // Courier name entered instead of tracking ID
+  const courierNames = ['postex', 'leopard', 'tcs', 'callcourier', 'call courier', 'dhl', 'fedex', 'm&p', 'swyft', 'trax'];
+  if (courierNames.includes(entry.toLowerCase())) {
+    return { 
+      valid: false, 
+      error: 'Courier name entered instead of tracking ID', 
+      errorCode: 'INVALID_FORMAT',
+      suggestion: 'Enter tracking ID or order number, not courier name' 
+    };
+  }
+  
+  return { valid: true };
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -20,8 +56,27 @@ serve(async (req) => {
 
     if (!entry || !userId) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          success: false,
+          error: 'Missing required fields',
+          errorCode: 'MISSING_FIELDS'
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate entry format
+    const validation = validateEntry(entry);
+    if (!validation.valid) {
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: validation.error!,
+          errorCode: validation.errorCode!,
+          suggestion: validation.suggestion,
+          searchedEntry: entry
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -39,10 +94,13 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Order not found',
+          error: 'Order not found in database',
+          errorCode: 'NOT_FOUND',
+          searchedEntry: entry,
+          suggestion: 'Verify the tracking ID or order number. May need to sync from Shopify.',
           processingTime: Date.now() - startTime
         }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -76,11 +134,13 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'No courier assigned',
+          error: 'No courier assigned to this order',
+          errorCode: 'NO_COURIER',
           order: { order_number: order.order_number, customer_name: order.customer_name },
+          suggestion: 'Select a courier before dispatching or assign one to the order first.',
           processingTime: Date.now() - startTime
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -95,11 +155,13 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Already dispatched',
+          error: 'Order already dispatched',
+          errorCode: 'ALREADY_DISPATCHED',
           order: { order_number: order.order_number, customer_name: order.customer_name },
+          suggestion: 'This order was already dispatched. Check dispatch records.',
           processingTime: Date.now() - startTime
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -131,10 +193,11 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: dispatchError.message,
+          error: `Database error: ${dispatchError.message}`,
+          errorCode: 'DATABASE_ERROR',
           processingTime: Date.now() - startTime
         }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -181,9 +244,10 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: error.message || 'Unknown error occurred',
+        errorCode: 'UNKNOWN_ERROR'
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

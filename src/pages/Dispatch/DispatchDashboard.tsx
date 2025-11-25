@@ -620,6 +620,36 @@ const DispatchDashboard = () => {
     }
   };
 
+  // Validation helper
+  const validateTrackingEntry = (entry: string): { valid: boolean; error?: string; errorCode?: string } => {
+    if (entry.length < 5) {
+      return { 
+        valid: false, 
+        error: 'Entry too short - enter complete tracking ID or order number (minimum 5 characters)',
+        errorCode: 'INVALID_FORMAT'
+      };
+    }
+    
+    if (/^\d+\.?\d*[eE][+\-]?\d+$/.test(entry)) {
+      return { 
+        valid: false, 
+        error: 'Invalid format - Excel scientific notation detected. Format column as Text first.',
+        errorCode: 'INVALID_FORMAT'
+      };
+    }
+    
+    const courierNames = ['postex', 'leopard', 'tcs', 'callcourier', 'call courier', 'dhl', 'fedex', 'm&p', 'swyft', 'trax'];
+    if (courierNames.includes(entry.toLowerCase())) {
+      return { 
+        valid: false, 
+        error: 'Enter tracking ID or order number, not courier name',
+        errorCode: 'INVALID_FORMAT'
+      };
+    }
+    
+    return { valid: true };
+  };
+
   // Scanner Mode: Process scanned input with OPTIMISTIC UPDATE
   const processScannerInput = async (scannedValue: string) => {
     if (!scannerModeActive || !scannerModeAction || !user?.id) return;
@@ -637,6 +667,39 @@ const DispatchDashboard = () => {
         description: "Scanned value is empty",
         variant: "destructive",
         duration: 2000,
+      });
+      return;
+    }
+
+    // Frontend validation before calling edge function
+    const validation = validateTrackingEntry(trimmedValue);
+    if (!validation.valid) {
+      errorSound.volume = 0.5;
+      errorSound.currentTime = 0;
+      errorSound.play().catch(e => console.log('Audio play failed:', e));
+      
+      setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
+      setRecentScans(prev => [{
+        entry: trimmedValue,
+        type: 'unknown',
+        status: 'error',
+        message: validation.error!,
+        timestamp: new Date()
+      }, ...prev.slice(0, 9)]);
+
+      setScanHistoryForExport(prev => [...prev, {
+        timestamp: new Date().toISOString(),
+        entry: trimmedValue,
+        status: 'error',
+        reason: validation.error,
+        matchType: 'unknown'
+      }]);
+      
+      toast({
+        title: "❌ Invalid Entry",
+        description: validation.error,
+        variant: "destructive",
+        duration: 3000,
       });
       return;
     }
@@ -704,7 +767,21 @@ const DispatchDashboard = () => {
         errorSound.currentTime = 0;
         errorSound.play().catch(e => console.log('Audio play failed:', e));
 
+        // Map error codes to icons and colors
+        const getErrorIcon = (code: string) => {
+          switch (code) {
+            case 'NOT_FOUND': return '🔍';
+            case 'ALREADY_DISPATCHED': return '🔄';
+            case 'NO_COURIER': return '📦';
+            case 'INVALID_FORMAT': return '⚠️';
+            default: return '❌';
+          }
+        };
+
         const errorMsg = data?.error || error?.message || 'Failed';
+        const errorCode = data?.errorCode || 'UNKNOWN_ERROR';
+        const errorIcon = getErrorIcon(errorCode);
+        
         setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
         setRecentScans(prev => prev.map(scan => 
           scan.orderId === processingId 
@@ -712,7 +789,7 @@ const DispatchDashboard = () => {
                 ...scan, 
                 type: data?.matchType || 'unknown' as const, 
                 status: 'error' as const, 
-                message: errorMsg,
+                message: `${errorIcon} ${errorMsg}${data?.suggestion ? ` (${data.suggestion})` : ''}`,
                 orderId: data?.order?.order_number || processingId
               }
             : scan
@@ -724,15 +801,17 @@ const DispatchDashboard = () => {
           orderNumber: data?.order?.order_number || '',
           status: 'error',
           reason: errorMsg,
+          errorCode: errorCode,
+          suggestion: data?.suggestion || '',
           matchType: data?.matchType || 'unknown',
           processingTime: `${processingTime}ms`
         }]);
 
         toast({
-          title: "❌ " + errorMsg,
-          description: data?.order?.order_number || trimmedValue,
+          title: `${errorIcon} ${errorMsg}`,
+          description: data?.suggestion || data?.order?.order_number || trimmedValue,
           variant: "destructive",
-          duration: 2000,
+          duration: 3000,
         });
         return;
       }
@@ -1508,37 +1587,66 @@ const DispatchDashboard = () => {
             <div className="border-t pt-3">
               <p className="text-xs text-gray-500 mb-2 font-medium">Recent Scans:</p>
               <div className="space-y-1 max-h-40 overflow-y-auto">
-                {recentScans.slice(0, 6).map((scan, idx) => (
-                  <div
-                    key={idx}
-                    className={`text-xs p-2 rounded border ${
-                      scan.status === 'success' 
-                        ? 'bg-green-50 border-green-200' 
-                        : 'bg-red-50 border-red-200'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-mono text-[10px] text-gray-500 truncate">
-                          {scan.entry}
-                        </div>
-                        <div className={`font-medium mt-0.5 ${
-                          scan.status === 'success' ? 'text-green-700' : 'text-red-700'
-                        }`}>
-                          {scan.message}
-                        </div>
-                        {scan.orderId && (
-                          <div className="text-[10px] text-gray-500 mt-0.5">
-                            {scan.orderId} {scan.courier && `• ${scan.courier}`}
+                {recentScans.slice(0, 6).map((scan, idx) => {
+                  // Determine error type from message for better color coding
+                  const isNotFound = scan.message.includes('🔍') || scan.message.includes('not found');
+                  const isAlreadyDispatched = scan.message.includes('🔄') || scan.message.includes('already');
+                  const isNoCourier = scan.message.includes('📦') || scan.message.includes('courier');
+                  const isInvalidFormat = scan.message.includes('⚠️') || scan.message.includes('Invalid');
+                  
+                  // Color scheme based on error type
+                  let bgColor = 'bg-red-50';
+                  let borderColor = 'border-red-200';
+                  let textColor = 'text-red-700';
+                  
+                  if (scan.status === 'success') {
+                    bgColor = 'bg-green-50';
+                    borderColor = 'border-green-200';
+                    textColor = 'text-green-700';
+                  } else if (isNotFound) {
+                    bgColor = 'bg-amber-50';
+                    borderColor = 'border-amber-200';
+                    textColor = 'text-amber-700';
+                  } else if (isAlreadyDispatched) {
+                    bgColor = 'bg-blue-50';
+                    borderColor = 'border-blue-200';
+                    textColor = 'text-blue-700';
+                  } else if (isNoCourier) {
+                    bgColor = 'bg-purple-50';
+                    borderColor = 'border-purple-200';
+                    textColor = 'text-purple-700';
+                  } else if (isInvalidFormat) {
+                    bgColor = 'bg-orange-50';
+                    borderColor = 'border-orange-200';
+                    textColor = 'text-orange-700';
+                  }
+                  
+                  return (
+                    <div
+                      key={idx}
+                      className={`text-xs p-2 rounded border ${bgColor} ${borderColor}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-mono text-[10px] text-gray-500 truncate">
+                            {scan.entry}
                           </div>
-                        )}
+                          <div className={`font-medium mt-0.5 ${textColor}`}>
+                            {scan.message}
+                          </div>
+                          {scan.orderId && (
+                            <div className="text-[10px] text-gray-500 mt-0.5">
+                              {scan.orderId} {scan.courier && `• ${scan.courier}`}
+                            </div>
+                          )}
+                        </div>
+                        <span className={`text-lg ${
+                          scan.status === 'success' ? '✅' : '❌'
+                        }`} />
                       </div>
-                      <span className={`text-lg ${
-                        scan.status === 'success' ? '✅' : '❌'
-                      }`} />
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
