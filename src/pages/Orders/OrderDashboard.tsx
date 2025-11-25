@@ -43,7 +43,7 @@ import { InlineCourierAssign } from '@/components/orders/InlineCourierAssign';
 import { OrderKPIPanel } from '@/components/orders/OrderKPIPanel';
 import { FilterPresets } from '@/components/orders/FilterPresets';
 import { OrderDetailsModal } from '@/components/orders/OrderDetailsModal';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Bell } from 'lucide-react';
 import { AWBDownloadButton } from '@/components/orders/AWBDownloadButton';
 
 const OrderDashboard = () => {
@@ -89,6 +89,10 @@ const OrderDashboard = () => {
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  
+  // New orders notification
+  const [newOrdersCount, setNewOrdersCount] = useState(0);
+  const [showNewOrdersNotification, setShowNewOrdersNotification] = useState(false);
   
   // Filter state (replacing useAdvancedFilters)
   const [filters, setFilters] = useState({
@@ -386,8 +390,15 @@ const OrderDashboard = () => {
           table: 'orders'
         },
         (payload) => {
+          const eventType = (payload as any).eventType;
           const changedId = (payload as any)?.new?.id || (payload as any)?.old?.id;
-          if (changedId && orders.some(o => o.id === changedId)) {
+          
+          if (eventType === 'INSERT') {
+            // New order inserted - show notification
+            setNewOrdersCount(prev => prev + 1);
+            setShowNewOrdersNotification(true);
+          } else if (changedId && orders.some(o => o.id === changedId)) {
+            // Existing order updated - auto-refresh
             fetchOrders();
           }
         }
@@ -435,6 +446,12 @@ const OrderDashboard = () => {
   const handleNewOrderCreated = async () => {
     setPage(0);
     await fetchOrders();
+  };
+
+  const handleRefreshNewOrders = () => {
+    setNewOrdersCount(0);
+    setShowNewOrdersNotification(false);
+    fetchOrders();
   };
 
   // Bulk status update handler
@@ -2699,6 +2716,35 @@ const OrderDashboard = () => {
         open={detailsModalOpen}
         onOpenChange={setDetailsModalOpen}
       />
+
+      {/* New Orders Notification */}
+      {showNewOrdersNotification && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-5 duration-300">
+          <Card className="shadow-lg border-primary/20">
+            <CardContent className="flex items-center gap-4 p-4">
+              <Bell className="h-5 w-5 text-primary" />
+              <span className="font-medium text-foreground">
+                {newOrdersCount} New Order{newOrdersCount !== 1 ? 's' : ''}
+              </span>
+              <Button 
+                onClick={handleRefreshNewOrders}
+                variant="default"
+                size="sm"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+              <Button
+                onClick={() => setShowNewOrdersNotification(false)}
+                variant="ghost"
+                size="sm"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>;
 };
 export default OrderDashboard;
