@@ -69,8 +69,8 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
       const { data: activityLogs, error: activityError } = await supabase
         .from('activity_logs')
         .select('*')
-        .in('entity_type', ['order', 'dispatch'])
-        .in('entity_id', dispatchIds.length > 0 ? [orderId, ...dispatchIds] : [orderId])
+        .or(`entity_type.eq.order,entity_type.eq.dispatch`)
+        .or(`entity_id.eq.${orderId}${dispatchIds.length > 0 ? `,entity_id.in.(${dispatchIds.join(',')})` : ''}`)
         .order('created_at', { ascending: false });
 
       if (activityError) throw activityError;
