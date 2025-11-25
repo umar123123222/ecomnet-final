@@ -123,13 +123,22 @@ serve(async (req) => {
     }
 
     if (!returnRecord) {
+      // Search for similar tracking IDs to suggest possible matches
+      const { data: similar } = await supabase
+        .from('returns')
+        .select('tracking_id, orders!returns_order_id_fkey(order_number)')
+        .ilike('tracking_id', `${entry.slice(0, -2)}%`)
+        .limit(3);
+
       return new Response(
         JSON.stringify({ 
           success: false, 
           error: 'Return not found in database',
           errorCode: 'NOT_FOUND',
           searchedEntry: entry,
-          suggestion: 'Verify the tracking ID or order number. Check if return exists.',
+          suggestion: similar?.length 
+            ? `Did you mean: ${similar.map(s => s.tracking_id || s.orders?.order_number).filter(Boolean).join(', ')}?`
+            : 'Verify the tracking ID or order number. Check if return exists.',
           processingTime: Date.now() - startTime
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
