@@ -667,11 +667,16 @@ const ReturnsDashboard = () => {
         processScannerInput(data);
       });
       
-      // Monitor focus every 200ms
+      // Monitor focus every 200ms - wait 1 second before auto-restoring to allow warning banner to show
       const focusMonitor = setInterval(() => {
-        if (document.activeElement !== scannerInputRef.current) {
-          console.warn('Focus lost, attempting to restore...');
-          scannerInputRef.current?.focus();
+        if (document.activeElement !== scannerInputRef.current && scannerModeActive) {
+          const focusLostDuration = focusLostTime ? Date.now() - focusLostTime : 0;
+          
+          // Only auto-restore after 1 second - gives user time to see the warning banner
+          if (focusLostDuration > 1000) {
+            console.warn('⚠️ Focus lost! Auto-restoring after 1 second...');
+            scannerInputRef.current?.focus();
+          }
         }
       }, 200);
       
