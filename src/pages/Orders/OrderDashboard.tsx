@@ -2709,6 +2709,7 @@ const OrderDashboard = () => {
           total_amount: selectedOrder.totalPrice || 0,
           status: selectedOrder.status || 'pending',
           courier: selectedOrder.courier !== 'N/A' ? selectedOrder.courier : null,
+          tracking_id: selectedOrder.trackingId !== 'N/A' ? selectedOrder.trackingId : null,
           items: selectedOrder.items || [],
           created_at: selectedOrder.createdAtISO || selectedOrder.date,
           customer_id: selectedOrder.customerId !== 'N/A' ? selectedOrder.customerId : null
