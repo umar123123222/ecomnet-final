@@ -2735,10 +2735,13 @@ const OrderDashboard = () => {
                 Refresh
               </Button>
               <Button
-                onClick={() => setShowNewOrdersNotification(false)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowNewOrdersNotification(false);
+                }}
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0"
+                className="h-8 w-8 p-0 flex-shrink-0"
                 aria-label="Close notification"
               >
                 <X className="h-4 w-4" />
