@@ -48,6 +48,13 @@ export function CourierConfigCard({ courier, onSave, onDelete, onTest }: Props) 
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
 
+  const cleanEndpointUrl = (url: string): string => {
+    if (!url) return url;
+    // Strip 'mock' prefix if it appears before http/https
+    let cleaned = url.trim().replace(/^mock(https?:\/\/.*)$/i, '$1');
+    return cleaned;
+  };
+
   const handleSave = async () => {
     if (!config.name || !config.code) {
       toast({
@@ -60,7 +67,15 @@ export function CourierConfigCard({ courier, onSave, onDelete, onTest }: Props) 
 
     setLoading(true);
     try {
-      await onSave(config);
+      // Clean all endpoint URLs before saving
+      const cleanedConfig = {
+        ...config,
+        booking_endpoint: cleanEndpointUrl(config.booking_endpoint),
+        tracking_endpoint: cleanEndpointUrl(config.tracking_endpoint),
+        label_endpoint: config.label_endpoint ? cleanEndpointUrl(config.label_endpoint) : config.label_endpoint
+      };
+      
+      await onSave(cleanedConfig);
       toast({
         title: "Success",
         description: "Courier configuration saved"
