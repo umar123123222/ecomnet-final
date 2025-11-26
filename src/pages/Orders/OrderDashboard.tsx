@@ -261,17 +261,51 @@ const OrderDashboard = () => {
         .map(o => o.assigned_to)
         .filter((id): id is string => id != null);
 
-      // 3. Fetch assigned staff profiles only (lazy-load items on demand)
-      const profilesResult = assignedIds.length > 0
+      // 3. Fetch all user profiles (for both assigned staff and comment authors)
+      // Collect unique emails from comments
+      const commentEmails = new Set<string>();
+      baseOrders.forEach(order => {
+        if (order.comments) {
+          try {
+            let comments = [];
+            if (typeof order.comments === 'string') {
+              comments = JSON.parse(order.comments);
+            } else if (Array.isArray(order.comments)) {
+              comments = order.comments;
+            }
+            comments.forEach(comment => {
+              if (comment.addedBy && comment.addedBy.includes('@')) {
+                commentEmails.add(comment.addedBy);
+              }
+            });
+          } catch (e) {
+            // Ignore parsing errors
+          }
+        }
+      });
+
+      // Fetch profiles for assigned staff
+      const assignedProfilesResult = assignedIds.length > 0
         ? await supabase
             .from('profiles')
             .select('id, full_name, email')
             .in('id', assignedIds)
         : ({ data: [], error: null } as any);
 
+      // Fetch profiles for comment authors by email
+      const commentProfilesResult = commentEmails.size > 0
+        ? await supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .in('email', Array.from(commentEmails))
+        : ({ data: [], error: null } as any);
+
       // Build profile lookup map
       const profilesById = new Map<string, any>();
-      (profilesResult.data || []).forEach(profile => {
+      (assignedProfilesResult.data || []).forEach(profile => {
+        profilesById.set(profile.id, profile);
+      });
+      (commentProfilesResult.data || []).forEach(profile => {
         profilesById.set(profile.id, profile);
       });
 
@@ -295,6 +329,19 @@ const OrderDashboard = () => {
             userComments = [];
           }
         }
+        
+        // Transform userComments to use full names instead of emails
+        userComments = userComments.map(comment => {
+          // If addedBy looks like an email, try to find the profile
+          const addedByProfile = Array.from(profilesById.values()).find(
+            profile => profile.email === comment.addedBy
+          );
+          
+          return {
+            ...comment,
+            addedBy: addedByProfile?.full_name || comment.addedBy
+          };
+        });
         
         return {
           id: order.id,
