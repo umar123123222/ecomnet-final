@@ -2701,6 +2701,7 @@ const OrderDashboard = () => {
         order={selectedOrder ? {
           id: selectedOrder.id,
           order_number: selectedOrder.orderNumber,
+          shopify_order_number: selectedOrder.shopifyOrderNumber,
           customer_name: selectedOrder.customer || '',
           customer_phone: selectedOrder.phone || '',
           customer_address: selectedOrder.address || '',
