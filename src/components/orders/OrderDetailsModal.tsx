@@ -26,6 +26,7 @@ import { OrderActivityLog } from "./OrderActivityLog";
 interface Order {
   id: string;
   order_number: string;
+  shopify_order_number?: string;
   customer_name: string;
   customer_phone: string;
   customer_address: string;
@@ -199,7 +200,7 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
           <DialogHeader>
             <div className="flex items-center justify-between">
               <DialogTitle className="flex items-center gap-3">
-                <span>Order #{order.order_number || 'N/A'}</span>
+                <span>Order #{order.order_number || order.shopify_order_number || order.id.slice(0, 8)}</span>
                 <Badge variant={
                   order.status === 'delivered' ? 'success' :
                   order.status === 'confirmed' ? 'default' :
