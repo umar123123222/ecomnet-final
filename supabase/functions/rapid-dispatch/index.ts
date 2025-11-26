@@ -81,21 +81,28 @@ serve(async (req) => {
     }
 
     const startTime = Date.now();
+    
+    console.log(`[Rapid Dispatch] Searching for entry: "${entry}"`);
 
-    // OPTIMIZATION 1 & 2: Combined query - order + dispatch check + courier in single query
+    // OPTIMIZATION 1 & 2: Combined query - order + dispatch check (removed broken courier join)
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select(`
         id, tracking_id, order_number, customer_name, total_amount, courier, status,
-        dispatches!left(id),
-        couriers!orders_courier_fkey(id, name, code)
+        dispatches!left(id)
       `)
       .or(`tracking_id.eq.${entry},order_number.eq.${entry},order_number.eq.SHOP-${entry},order_number.ilike.%${entry}%,shopify_order_number.eq.${entry}`)
       .limit(1)
       .maybeSingle();
 
+    if (orderError) {
+      console.error('[Rapid Dispatch] Order query error:', orderError);
+    }
+
     // OPTIMIZATION 4: Bug fix - only search for similar and return NOT_FOUND if order not found
     if (!order) {
+      console.log(`[Rapid Dispatch] Order not found for entry: "${entry}"`);
+      
       const { data: similar } = await supabase
         .from('orders')
         .select('tracking_id, order_number')
@@ -117,8 +124,11 @@ serve(async (req) => {
       );
     }
 
+    console.log(`[Rapid Dispatch] Order found: ${order.order_number}, Status: ${order.status}, Courier: ${order.courier || 'none'}`);
+
     // Check if already dispatched (from joined data)
     if (order.dispatches && order.dispatches.length > 0) {
+      console.log(`[Rapid Dispatch] Order already dispatched: ${order.order_number}`);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -135,23 +145,38 @@ serve(async (req) => {
     // Determine match type
     const matchType = order.tracking_id === entry ? 'tracking_id' : 'order_number';
 
-    // Determine courier (use pre-fetched courier data from join)
+    // Determine courier - fetch courier details if order has a courier enum value
     let finalCourierId = courierId;
     let finalCourierName = courierName;
     let finalCourierCode = courierCode;
 
-    if (order.courier && order.couriers) {
-      // Use pre-fetched courier data
-      finalCourierId = order.couriers.id;
-      finalCourierName = order.couriers.name;
-      finalCourierCode = order.couriers.code;
-    } else if (order.courier) {
-      // Fallback if join didn't work
-      finalCourierName = order.courier;
-      finalCourierCode = order.courier;
+    if (order.courier) {
+      // Fetch courier details separately based on the enum value
+      const { data: courierDetails, error: courierError } = await supabase
+        .from('couriers')
+        .select('id, name, code')
+        .eq('code', order.courier)
+        .maybeSingle();
+      
+      if (courierError) {
+        console.error('[Rapid Dispatch] Courier lookup error:', courierError);
+      }
+      
+      if (courierDetails) {
+        finalCourierId = courierDetails.id;
+        finalCourierName = courierDetails.name;
+        finalCourierCode = courierDetails.code;
+        console.log(`[Rapid Dispatch] Courier resolved: ${finalCourierName} (${finalCourierCode})`);
+      } else {
+        // Fallback to enum value
+        finalCourierName = order.courier;
+        finalCourierCode = order.courier;
+        console.log(`[Rapid Dispatch] Courier fallback to enum: ${order.courier}`);
+      }
     }
 
     if (!finalCourierName) {
+      console.log(`[Rapid Dispatch] No courier assigned to order: ${order.order_number}`);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -222,6 +247,8 @@ serve(async (req) => {
     }
 
     const processingTime = Date.now() - startTime;
+    
+    console.log(`[Rapid Dispatch] Successfully dispatched order ${order.order_number} in ${processingTime}ms`);
 
     // Return success with minimal data
     return new Response(
