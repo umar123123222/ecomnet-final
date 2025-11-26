@@ -319,13 +319,22 @@ const OrderDashboard = () => {
           deliveredAt: order.delivered_at ? new Date(order.delivered_at).toLocaleString() : 'N/A',
           orderNotes: orderNotes,
           userComments: userComments,
-          tags: (order.tags || []).map((tag: string, index: number) => ({
-            id: `tag-${index}`,
-            text: tag,
-            addedBy: 'Shopify',
-            addedAt: order.created_at || new Date().toISOString(),
-            canDelete: false
-          })),
+          tags: (order.tags || []).map((tag: string, index: number) => {
+            // System tags from Shopify (e.g., Ecomnet, Shopify, Simple Bundles) cannot be deleted
+            const isSystemTag = tag.startsWith('Ecomnet - ') || 
+                               tag.startsWith('Shopify - ') || 
+                               tag.includes('Simple Bundles') ||
+                               tag === 'cancelled' ||
+                               tag === 'abdullah'; // Add other system tags as needed
+            
+            return {
+              id: `tag-${index}`,
+              text: tag,
+              addedBy: isSystemTag ? 'Shopify' : 'System',
+              addedAt: order.created_at || new Date().toISOString(),
+              canDelete: !isSystemTag // Only non-system tags can be deleted
+            };
+          }),
           shopify_order_id: order.shopify_order_id
         };
       });
@@ -1119,18 +1128,100 @@ const OrderDashboard = () => {
   const handleBulkAction = (action: string) => {
     // Bulk action implementation would go here
   };
-  const handleAddTag = (orderId: string, tag: string) => {
-    // Add tag to order implementation
-    setOrders(prevOrders => prevOrders.map(order => order.id === orderId ? {
-      ...order,
-      tags: [...order.tags, {
-        id: `tag_${Date.now()}`,
-        text: tag,
-        addedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
-        addedAt: new Date().toLocaleString(),
-        canDelete: true
-      }]
-    } : order));
+  const handleAddTag = async (orderId: string, tag: string) => {
+    try {
+      const order = orders.find(o => o.id === orderId);
+      if (!order) {
+        toast({
+          title: "Error",
+          description: "Order not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Get current tags as string array from database
+      const currentTagStrings = order.tags.map(t => t.text);
+      
+      // Check if tag already exists
+      if (currentTagStrings.includes(tag)) {
+        toast({
+          title: "Tag already exists",
+          description: "This tag is already added to the order",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Add new tag to array
+      const updatedTagStrings = [...currentTagStrings, tag];
+
+      // Update database
+      const { error: dbError } = await supabase
+        .from('orders')
+        .update({ tags: updatedTagStrings })
+        .eq('id', orderId);
+
+      if (dbError) throw dbError;
+
+      // Sync with Shopify if order has shopify_order_id
+      if (order.shopify_order_id) {
+        try {
+          const { data, error: shopifyError } = await supabase.functions.invoke('update-shopify-order', {
+            body: {
+              order_id: orderId,
+              action: 'update_tags',
+              data: { tags: updatedTagStrings }
+            }
+          });
+
+          if (shopifyError) {
+            console.error('Shopify sync error:', shopifyError);
+            toast({
+              title: "Tag added locally",
+              description: "Tag added but failed to sync with Shopify. It will sync on next update.",
+              variant: "default",
+            });
+          }
+        } catch (shopifyError) {
+          console.error('Shopify sync error:', shopifyError);
+        }
+      }
+
+      // Update local state with new tag object
+      setOrders(prevOrders => prevOrders.map(o => 
+        o.id === orderId ? {
+          ...o,
+          tags: [...o.tags, {
+            id: `tag_${Date.now()}`,
+            text: tag,
+            addedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
+            addedAt: new Date().toISOString(),
+            canDelete: true
+          }]
+        } : o
+      ));
+
+      toast({
+        title: "Tag added",
+        description: "Tag has been added and synced with Shopify",
+      });
+
+      // Log activity
+      await logActivity({
+        action: 'order_updated',
+        entityType: 'order',
+        entityId: orderId,
+        details: { tag_added: tag },
+      });
+    } catch (error) {
+      console.error('Error adding tag:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add tag",
+        variant: "destructive",
+      });
+    }
   };
   const handleAddNote = async (orderId: string, note: string) => {
     try {
@@ -1175,12 +1266,104 @@ const OrderDashboard = () => {
     }
   };
   
-  const handleDeleteTag = (orderId: string, tagId: string) => {
-    // Delete tag from order implementation
-    setOrders(prevOrders => prevOrders.map(order => order.id === orderId ? {
-      ...order,
-      tags: order.tags.filter(tag => tag.id !== tagId)
-    } : order));
+  const handleDeleteTag = async (orderId: string, tagId: string) => {
+    try {
+      const order = orders.find(o => o.id === orderId);
+      if (!order) {
+        toast({
+          title: "Error",
+          description: "Order not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Find the tag being deleted
+      const tagToDelete = order.tags.find(t => t.id === tagId);
+      if (!tagToDelete) {
+        toast({
+          title: "Error",
+          description: "Tag not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Check if tag can be deleted (Shopify tags can't be deleted from UI)
+      if (!tagToDelete.canDelete) {
+        toast({
+          title: "Cannot delete tag",
+          description: "This tag is synced from Shopify and cannot be deleted here",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Remove tag from array
+      const updatedTagStrings = order.tags
+        .filter(t => t.id !== tagId)
+        .map(t => t.text);
+
+      // Update database
+      const { error: dbError } = await supabase
+        .from('orders')
+        .update({ tags: updatedTagStrings })
+        .eq('id', orderId);
+
+      if (dbError) throw dbError;
+
+      // Sync with Shopify if order has shopify_order_id
+      if (order.shopify_order_id) {
+        try {
+          const { data, error: shopifyError } = await supabase.functions.invoke('update-shopify-order', {
+            body: {
+              order_id: orderId,
+              action: 'update_tags',
+              data: { tags: updatedTagStrings }
+            }
+          });
+
+          if (shopifyError) {
+            console.error('Shopify sync error:', shopifyError);
+            toast({
+              title: "Tag deleted locally",
+              description: "Tag deleted but failed to sync with Shopify. It will sync on next update.",
+              variant: "default",
+            });
+          }
+        } catch (shopifyError) {
+          console.error('Shopify sync error:', shopifyError);
+        }
+      }
+
+      // Update local state
+      setOrders(prevOrders => prevOrders.map(o => 
+        o.id === orderId ? {
+          ...o,
+          tags: o.tags.filter(t => t.id !== tagId)
+        } : o
+      ));
+
+      toast({
+        title: "Tag deleted",
+        description: "Tag has been deleted and synced with Shopify",
+      });
+
+      // Log activity
+      await logActivity({
+        action: 'order_updated',
+        entityType: 'order',
+        entityId: orderId,
+        details: { tag_deleted: tagToDelete.text },
+      });
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete tag",
+        variant: "destructive",
+      });
+    }
   };
   
   const handleDeleteNote = async (orderId: string, noteId: string) => {
@@ -2588,6 +2771,8 @@ const OrderDashboard = () => {
                                       orderNotes={order.orderNotes}
                                       tags={order.tags}
                                       notes={order.userComments}
+                                      onAddTag={(tag) => handleAddTag(order.id, tag)}
+                                      onDeleteTag={(tagId) => handleDeleteTag(order.id, tagId)}
                                       onAddNote={(note) => handleAddNote(order.id, note)}
                                       onDeleteNote={(noteId) => handleDeleteNote(order.id, noteId)}
                                     />
