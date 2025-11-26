@@ -98,36 +98,45 @@ serve(async (req) => {
     
     // Parse barcode to extract potential tracking IDs and order numbers
     const searchCandidates = parseBarcode(entry);
-    console.log(`[Rapid Dispatch] Parsed candidates:`, searchCandidates);
+    console.log(`[Rapid Dispatch] Parsed ${searchCandidates.length} candidate(s)`);
 
-    // Try to find order using each candidate
+    // Try to find order using all candidates in a single optimized query
     let order = null;
     let matchedEntry = '';
     
-    for (const candidate of searchCandidates) {
-      console.log(`[Rapid Dispatch] Trying candidate: "${candidate}"`);
-      
-      // Build flexible search query for each candidate
-      const { data: foundOrder, error: orderError } = await supabase
-        .from('orders')
-        .select(`
-          id, tracking_id, order_number, customer_name, total_amount, courier, status,
-          dispatches!left(id)
-        `)
-        .or(`tracking_id.eq.${candidate},tracking_id.ilike.%${candidate}%,order_number.eq.${candidate},order_number.eq.SHOP-${candidate},shopify_order_number.eq.${candidate},shopify_order_number.eq.#${candidate}`)
-        .limit(1)
-        .maybeSingle();
+    // Build OR conditions for all candidates at once
+    const orConditions = searchCandidates.map(candidate => 
+      `tracking_id.eq.${candidate},tracking_id.ilike.%${candidate}%,order_number.eq.${candidate},order_number.eq.SHOP-${candidate},shopify_order_number.eq.${candidate},shopify_order_number.eq.#${candidate}`
+    ).join(',');
+    
+    const { data: foundOrder, error: orderError } = await supabase
+      .from('orders')
+      .select(`
+        id, tracking_id, order_number, customer_name, total_amount, courier, status,
+        dispatches!left(id)
+      `)
+      .or(orConditions)
+      .limit(1)
+      .maybeSingle();
 
-      if (orderError) {
-        console.error('[Rapid Dispatch] Order query error:', orderError);
+    if (orderError) {
+      console.error('[Rapid Dispatch] Query error:', orderError);
+    }
+    
+    if (foundOrder) {
+      order = foundOrder;
+      // Determine which candidate matched
+      for (const candidate of searchCandidates) {
+        if (foundOrder.tracking_id === candidate || 
+            foundOrder.tracking_id?.includes(candidate) ||
+            foundOrder.order_number === candidate ||
+            foundOrder.order_number === `SHOP-${candidate}` ||
+            foundOrder.shopify_order_number === candidate) {
+          matchedEntry = candidate;
+          break;
+        }
       }
-      
-      if (foundOrder) {
-        order = foundOrder;
-        matchedEntry = candidate;
-        console.log(`[Rapid Dispatch] Order found with candidate: "${candidate}"`);
-        break;
-      }
+      matchedEntry = matchedEntry || searchCandidates[0];
     }
 
     // If still not found, return error with suggestions
@@ -180,8 +189,6 @@ serve(async (req) => {
     const matchType = order.tracking_id && (order.tracking_id === matchedEntry || order.tracking_id.includes(matchedEntry)) 
       ? 'tracking_id' 
       : 'order_number';
-    
-    console.log(`[Rapid Dispatch] Match type: ${matchType}, Matched with: "${matchedEntry}"`);
 
     // Determine courier - fetch courier details if order has a courier enum value
     let finalCourierId = courierId;
@@ -190,31 +197,24 @@ serve(async (req) => {
 
     if (order.courier) {
       // Fetch courier details separately based on the enum value
-      const { data: courierDetails, error: courierError } = await supabase
+      const { data: courierDetails } = await supabase
         .from('couriers')
         .select('id, name, code')
         .eq('code', order.courier)
         .maybeSingle();
       
-      if (courierError) {
-        console.error('[Rapid Dispatch] Courier lookup error:', courierError);
-      }
-      
       if (courierDetails) {
         finalCourierId = courierDetails.id;
         finalCourierName = courierDetails.name;
         finalCourierCode = courierDetails.code;
-        console.log(`[Rapid Dispatch] Courier resolved: ${finalCourierName} (${finalCourierCode})`);
       } else {
         // Fallback to enum value
         finalCourierName = order.courier;
         finalCourierCode = order.courier;
-        console.log(`[Rapid Dispatch] Courier fallback to enum: ${order.courier}`);
       }
     }
 
     if (!finalCourierName) {
-      console.log(`[Rapid Dispatch] No courier assigned to order: ${order.order_number}`);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -232,13 +232,17 @@ serve(async (req) => {
     const trackingId = matchType === 'tracking_id' ? matchedEntry : order.tracking_id;
     const now = new Date().toISOString();
 
+    // Prepare all operations to run in parallel
+    const operations = [];
+
     // Update tracking ID if matched by tracking ID and it's different from stored value
     if (matchType === 'tracking_id' && matchedEntry !== order.tracking_id) {
-      console.log(`[Rapid Dispatch] Updating tracking ID from "${order.tracking_id}" to "${matchedEntry}"`);
-      await supabase
-        .from('orders')
-        .update({ tracking_id: matchedEntry })
-        .eq('id', order.id);
+      operations.push(
+        supabase
+          .from('orders')
+          .update({ tracking_id: matchedEntry })
+          .eq('id', order.id)
+      );
     }
 
     // Prepare order update
@@ -251,8 +255,8 @@ serve(async (req) => {
       orderUpdate.courier = finalCourierCode;
     }
 
-    // OPTIMIZATION 3: Run dispatch insert and order update in parallel
-    const [dispatchResult, orderUpdateResult] = await Promise.all([
+    // Add dispatch insert and order update to operations
+    operations.push(
       supabase
         .from('dispatches')
         .insert({
@@ -267,7 +271,14 @@ serve(async (req) => {
         .from('orders')
         .update(orderUpdate)
         .eq('id', order.id)
-    ]);
+    );
+
+    // Run all operations in parallel
+    const results = await Promise.all(operations);
+
+    // Check for errors in parallel operations
+    const dispatchResult = operations.length === 3 ? results[1] : results[0];
+    const orderUpdateResult = operations.length === 3 ? results[2] : results[1];
 
     if (dispatchResult.error) {
       console.error('Dispatch insert error:', dispatchResult.error);
@@ -282,13 +293,7 @@ serve(async (req) => {
       );
     }
 
-    if (orderUpdateResult.error) {
-      console.error('Order update error:', orderUpdateResult.error);
-    }
-
     const processingTime = Date.now() - startTime;
-    
-    console.log(`[Rapid Dispatch] Successfully dispatched order ${order.order_number} in ${processingTime}ms`);
 
     // Return success with minimal data
     return new Response(

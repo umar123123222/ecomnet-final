@@ -78,6 +78,9 @@ const DispatchDashboard = () => {
     queueLength: 0
   });
   const [processingQueue, setProcessingQueue] = useState<string[]>([]);
+  const [activeProcessing, setActiveProcessing] = useState<Set<string>>(new Set());
+  const processingRef = React.useRef<Set<string>>(new Set());
+  const MAX_CONCURRENT = 5; // Process up to 5 scans in parallel
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -666,11 +669,10 @@ const DispatchDashboard = () => {
     return { valid: true };
   };
 
-  // Scanner Mode: Process scanned input with OPTIMISTIC UPDATE
+  // Scanner Mode: Process scanned input with OPTIMISTIC UPDATE AND PARALLEL PROCESSING
   const processScannerInput = async (scannedValue: string) => {
     if (!scannerModeActive || !scannerModeAction || !user?.id) return;
 
-    const scanStartTime = Date.now();
     const trimmedValue = scannedValue.trim();
 
     if (!trimmedValue) {
@@ -720,11 +722,23 @@ const DispatchDashboard = () => {
       return;
     }
 
+    // Check if already processing
+    if (processingRef.current.has(trimmedValue)) {
+      toast({
+        title: "⚠️ Duplicate Scan",
+        description: "Already processing this entry",
+        duration: 1000,
+      });
+      return;
+    }
+
     // Add to processing queue
     setProcessingQueue(prev => [...prev, trimmedValue]);
+    processingRef.current.add(trimmedValue);
+    setActiveProcessing(new Set(processingRef.current));
 
     // OPTIMISTIC UI UPDATE - Show as processing immediately
-    const processingId = Date.now().toString();
+    const processingId = `${trimmedValue}-${Date.now()}`;
     setRecentScans(prev => [{
       entry: trimmedValue,
       type: 'unknown',
@@ -735,49 +749,55 @@ const DispatchDashboard = () => {
     }, ...prev.slice(0, 9)]);
     setLastScanTime(Date.now());
 
-    // Get courier info for edge function
-    let courierIdForCall = selectedCourier;
-    let courierNameForCall = '';
-    let courierCodeForCall = '';
+    // Process asynchronously without blocking
+    (async () => {
+      const scanStartTime = Date.now();
+      
+      try {
+        // Get courier info for edge function
+        let courierIdForCall = selectedCourier;
+        let courierNameForCall = '';
+        let courierCodeForCall = '';
 
-    if (selectedCourier) {
-      const selectedCourierObj = couriers.find(c => c.id === selectedCourier);
-      if (selectedCourierObj) {
-        courierNameForCall = selectedCourierObj.name;
-        courierCodeForCall = selectedCourierObj.code;
-      }
-    }
-
-    // Call optimized edge function
-    try {
-      const { data, error } = await supabase.functions.invoke('rapid-dispatch', {
-        body: {
-          entry: trimmedValue,
-          courierId: courierIdForCall,
-          courierName: courierNameForCall,
-          courierCode: courierCodeForCall,
-          userId: user.id
+        if (selectedCourier) {
+          const selectedCourierObj = couriers.find(c => c.id === selectedCourier);
+          if (selectedCourierObj) {
+            courierNameForCall = selectedCourierObj.name;
+            courierCodeForCall = selectedCourierObj.code;
+          }
         }
-      });
 
-      // Remove from queue
-      setProcessingQueue(prev => prev.filter(e => e !== trimmedValue));
+        // Call optimized edge function
+        const { data, error } = await supabase.functions.invoke('rapid-dispatch', {
+          body: {
+            entry: trimmedValue,
+            courierId: courierIdForCall,
+            courierName: courierNameForCall,
+            courierCode: courierCodeForCall,
+            userId: user.id
+          }
+        });
 
-      const processingTime = Date.now() - scanStartTime;
+        const processingTime = Date.now() - scanStartTime;
 
-      // Update performance metrics
-      setPerformanceMetrics(prev => {
-        const newTotal = prev.totalScans + 1;
-        const newAvg = ((prev.avgProcessingTime * prev.totalScans) + processingTime) / newTotal;
-        return {
-          avgProcessingTime: Math.round(newAvg),
-          totalScans: newTotal,
-          scansPerMinute: Math.round((newTotal / ((Date.now() - (lastScanTime - (prev.totalScans * 3000))) / 60000)) * 10) / 10,
-          queueLength: processingQueue.length
-        };
-      });
+        // Remove from queue and processing set
+        setProcessingQueue(prev => prev.filter(e => e !== trimmedValue));
+        processingRef.current.delete(trimmedValue);
+        setActiveProcessing(new Set(processingRef.current));
 
-      if (error || !data?.success) {
+        // Update performance metrics
+        setPerformanceMetrics(prev => {
+          const newTotal = prev.totalScans + 1;
+          const newAvg = ((prev.avgProcessingTime * prev.totalScans) + processingTime) / newTotal;
+          return {
+            avgProcessingTime: Math.round(newAvg),
+            totalScans: newTotal,
+            scansPerMinute: Math.round((newTotal / ((Date.now() - (lastScanTime - (prev.totalScans * 3000))) / 60000)) * 10) / 10,
+            queueLength: processingQueue.length
+          };
+        });
+
+        if (error || !data?.success) {
         // FAILURE - Play error sound immediately
         errorSound.volume = 0.5;
         errorSound.currentTime = 0;
@@ -872,43 +892,45 @@ const DispatchDashboard = () => {
         duration: 1500,
       });
 
-      queryClient.invalidateQueries({ queryKey: ['dispatches'] });
+        queryClient.invalidateQueries({ queryKey: ['dispatches'] });
 
-    } catch (error: any) {
-      console.error('Error processing scan:', error);
+      } catch (error: any) {
+        console.error('Error processing scan:', error);
 
-      
-      // Remove from queue
-      setProcessingQueue(prev => prev.filter(e => e !== trimmedValue));
-      
-      // Play error sound immediately
-      errorSound.volume = 0.5;
-      errorSound.currentTime = 0;
-      errorSound.play().catch(e => console.log('Audio play failed:', e));
+        // Remove from queue and processing set
+        setProcessingQueue(prev => prev.filter(e => e !== trimmedValue));
+        processingRef.current.delete(trimmedValue);
+        setActiveProcessing(new Set(processingRef.current));
+        
+        // Play error sound immediately
+        errorSound.volume = 0.5;
+        errorSound.currentTime = 0;
+        errorSound.play().catch(e => console.log('Audio play failed:', e));
 
-      const errorMsg = error.message || 'Failed';
-      setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
-      setRecentScans(prev => prev.map(scan => 
-        scan.orderId === processingId 
-          ? { ...scan, type: 'unknown' as const, status: 'error' as const, message: errorMsg }
-          : scan
-      ));
+        const errorMsg = error.message || 'Failed';
+        setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
+        setRecentScans(prev => prev.map(scan => 
+          scan.orderId === processingId 
+            ? { ...scan, type: 'unknown' as const, status: 'error' as const, message: errorMsg }
+            : scan
+        ));
 
-      setScanHistoryForExport(prev => [...prev, {
-        timestamp: new Date().toISOString(),
-        entry: trimmedValue,
-        status: 'error',
-        reason: errorMsg,
-        matchType: 'unknown'
-      }]);
+        setScanHistoryForExport(prev => [...prev, {
+          timestamp: new Date().toISOString(),
+          entry: trimmedValue,
+          status: 'error',
+          reason: errorMsg,
+          matchType: 'unknown'
+        }]);
 
-      toast({
-        title: "❌ Failed",
-        description: errorMsg,
-        variant: "destructive",
-        duration: 2000,
-      });
-    }
+        toast({
+          title: "❌ Failed",
+          description: errorMsg,
+          variant: "destructive",
+          duration: 2000,
+        });
+      }
+    })(); // Execute async immediately without blocking
   };
 
   // Scanner Mode: Deactivate scanner mode
