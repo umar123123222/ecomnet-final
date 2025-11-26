@@ -4701,6 +4701,16 @@ export type Database = {
       mark_expired_confirmations: { Args: never; Returns: number }
       match_barcode_to_product: { Args: { p_barcode: string }; Returns: string }
       normalize_phone: { Args: { p_phone: string }; Returns: string }
+      rapid_dispatch_order: {
+        Args: {
+          p_courier_code?: string
+          p_courier_id?: string
+          p_courier_name?: string
+          p_entry: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       trigger_smart_reorder_now: { Args: never; Returns: Json }
       user_has_role: {
         Args: {
