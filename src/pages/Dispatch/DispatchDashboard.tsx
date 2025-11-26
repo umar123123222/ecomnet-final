@@ -798,11 +798,9 @@ const DispatchDashboard = () => {
         });
 
         if (error || !data?.success) {
-        // FAILURE - Play error sound immediately
-        errorSound.volume = 0.5;
-        errorSound.currentTime = 0;
-        errorSound.play().catch(e => console.log('Audio play failed:', e));
-
+        const errorMsg = data?.error || error?.message || 'Failed';
+        const errorCode = data?.errorCode || 'UNKNOWN_ERROR';
+        
         // Map error codes to icons and colors
         const getErrorIcon = (code: string) => {
           switch (code) {
@@ -813,10 +811,18 @@ const DispatchDashboard = () => {
             default: return '❌';
           }
         };
-
-        const errorMsg = data?.error || error?.message || 'Failed';
-        const errorCode = data?.errorCode || 'UNKNOWN_ERROR';
+        
         const errorIcon = getErrorIcon(errorCode);
+        
+        // Silent notification for already dispatched orders (no error sound)
+        const isAlreadyDispatched = errorCode === 'ALREADY_DISPATCHED';
+        
+        if (!isAlreadyDispatched) {
+          // Play error sound for actual errors only
+          errorSound.volume = 0.5;
+          errorSound.currentTime = 0;
+          errorSound.play().catch(e => console.log('Audio play failed:', e));
+        }
         
         setScannerStats(prev => ({ ...prev, errors: prev.errors + 1 }));
         setRecentScans(prev => prev.map(scan => 
@@ -835,7 +841,7 @@ const DispatchDashboard = () => {
           timestamp: new Date().toISOString(),
           entry: trimmedValue,
           orderNumber: data?.order?.order_number || '',
-          status: 'error',
+          status: isAlreadyDispatched ? 'already_dispatched' : 'error',
           reason: errorMsg,
           errorCode: errorCode,
           suggestion: data?.suggestion || '',
@@ -846,8 +852,8 @@ const DispatchDashboard = () => {
         toast({
           title: `${errorIcon} ${errorMsg}`,
           description: data?.suggestion || data?.order?.order_number || trimmedValue,
-          variant: "destructive",
-          duration: 3000,
+          variant: isAlreadyDispatched ? "default" : "destructive",
+          duration: isAlreadyDispatched ? 2000 : 3000,
         });
         return;
       }
