@@ -114,7 +114,7 @@ const OrderDashboard = () => {
   // Local search input state for debouncing
   const [searchInput, setSearchInput] = useState('');
 
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
   const { toast } = useToast();
 
@@ -1200,7 +1200,7 @@ const OrderDashboard = () => {
           tags: [...o.tags, {
             id: `tag_${Date.now()}`,
             text: tag,
-            addedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
+            addedBy: profile?.full_name || user?.email || 'Current User',
             addedAt: new Date().toISOString(),
             canDelete: true
           }]
@@ -1236,7 +1236,7 @@ const OrderDashboard = () => {
       const newComment = {
         id: `comment_${Date.now()}`,
         text: note,
-        addedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
+        addedBy: profile?.full_name || user?.email || 'Current User',
         addedAt: new Date().toISOString(),
         canDelete: true
       };
