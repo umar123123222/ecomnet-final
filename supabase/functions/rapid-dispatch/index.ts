@@ -6,6 +6,29 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Parse complex barcode formats (e.g., "PostEx,21129530173989,327738,5211")
+const parseBarcode = (entry: string): string[] => {
+  const courierNames = ['postex', 'leopard', 'tcs', 'callcourier', 'call courier', 'dhl', 'fedex', 'm&p', 'swyft', 'trax'];
+  
+  // Split by comma, semicolon, pipe, or multiple spaces
+  const parts = entry.split(/[,;|\s]{2,}|\s*[,;|]\s*/).map(p => p.trim()).filter(p => p.length > 0);
+  
+  // Filter out courier names and keep only potential tracking IDs/order numbers
+  const candidates = parts.filter(part => {
+    const lowerPart = part.toLowerCase();
+    // Skip if it's a courier name
+    if (courierNames.includes(lowerPart)) return false;
+    // Skip if it's too short (less than 4 characters)
+    if (part.length < 4) return false;
+    // Skip if it looks like Excel scientific notation
+    if (/^\d+\.?\d*[eE][+\-]?\d+$/.test(part)) return false;
+    return true;
+  });
+  
+  // If no candidates found after filtering, return original entry
+  return candidates.length > 0 ? candidates : [entry];
+};
+
 // Validation helper
 const validateEntry = (entry: string): { valid: boolean; error?: string; errorCode?: string; suggestion?: string } => {
   // Too short (less than 5 characters)
@@ -14,7 +37,7 @@ const validateEntry = (entry: string): { valid: boolean; error?: string; errorCo
       valid: false, 
       error: 'Entry too short', 
       errorCode: 'INVALID_FORMAT',
-      suggestion: 'Enter complete tracking ID or order number (minimum 5 characters)' 
+      suggestion: 'Scan barcode or enter tracking ID/order number (minimum 5 characters)' 
     };
   }
   
@@ -25,17 +48,6 @@ const validateEntry = (entry: string): { valid: boolean; error?: string; errorCo
       error: 'Invalid format - Excel scientific notation detected', 
       errorCode: 'INVALID_FORMAT',
       suggestion: 'Format the Excel column as Text before copying' 
-    };
-  }
-  
-  // Courier name entered instead of tracking ID
-  const courierNames = ['postex', 'leopard', 'tcs', 'callcourier', 'call courier', 'dhl', 'fedex', 'm&p', 'swyft', 'trax'];
-  if (courierNames.includes(entry.toLowerCase())) {
-    return { 
-      valid: false, 
-      error: 'Courier name entered instead of tracking ID', 
-      errorCode: 'INVALID_FORMAT',
-      suggestion: 'Enter tracking ID or order number, not courier name' 
     };
   }
   
@@ -82,31 +94,52 @@ serve(async (req) => {
 
     const startTime = Date.now();
     
-    console.log(`[Rapid Dispatch] Searching for entry: "${entry}"`);
+    console.log(`[Rapid Dispatch] Raw entry received: "${entry}"`);
+    
+    // Parse barcode to extract potential tracking IDs and order numbers
+    const searchCandidates = parseBarcode(entry);
+    console.log(`[Rapid Dispatch] Parsed candidates:`, searchCandidates);
 
-    // OPTIMIZATION 1 & 2: Combined query - order + dispatch check (removed broken courier join)
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select(`
-        id, tracking_id, order_number, customer_name, total_amount, courier, status,
-        dispatches!left(id)
-      `)
-      .or(`tracking_id.eq.${entry},order_number.eq.${entry},order_number.eq.SHOP-${entry},order_number.ilike.%${entry}%,shopify_order_number.eq.${entry}`)
-      .limit(1)
-      .maybeSingle();
+    // Try to find order using each candidate
+    let order = null;
+    let matchedEntry = '';
+    
+    for (const candidate of searchCandidates) {
+      console.log(`[Rapid Dispatch] Trying candidate: "${candidate}"`);
+      
+      // Build flexible search query for each candidate
+      const { data: foundOrder, error: orderError } = await supabase
+        .from('orders')
+        .select(`
+          id, tracking_id, order_number, customer_name, total_amount, courier, status,
+          dispatches!left(id)
+        `)
+        .or(`tracking_id.eq.${candidate},tracking_id.ilike.%${candidate}%,order_number.eq.${candidate},order_number.eq.SHOP-${candidate},shopify_order_number.eq.${candidate},shopify_order_number.eq.#${candidate}`)
+        .limit(1)
+        .maybeSingle();
 
-    if (orderError) {
-      console.error('[Rapid Dispatch] Order query error:', orderError);
+      if (orderError) {
+        console.error('[Rapid Dispatch] Order query error:', orderError);
+      }
+      
+      if (foundOrder) {
+        order = foundOrder;
+        matchedEntry = candidate;
+        console.log(`[Rapid Dispatch] Order found with candidate: "${candidate}"`);
+        break;
+      }
     }
 
-    // OPTIMIZATION 4: Bug fix - only search for similar and return NOT_FOUND if order not found
+    // If still not found, return error with suggestions
     if (!order) {
-      console.log(`[Rapid Dispatch] Order not found for entry: "${entry}"`);
+      console.log(`[Rapid Dispatch] Order not found for any candidate from: "${entry}"`);
       
+      // Try to find similar orders based on the first candidate
+      const firstCandidate = searchCandidates[0];
       const { data: similar } = await supabase
         .from('orders')
         .select('tracking_id, order_number')
-        .ilike('tracking_id', `${entry.slice(0, -2)}%`)
+        .or(`tracking_id.ilike.%${firstCandidate.slice(0, Math.max(5, firstCandidate.length - 2))}%,order_number.ilike.%${firstCandidate}%`)
         .limit(3);
 
       return new Response(
@@ -115,9 +148,10 @@ serve(async (req) => {
           error: 'Order not found in database',
           errorCode: 'NOT_FOUND',
           searchedEntry: entry,
+          parsedCandidates: searchCandidates,
           suggestion: similar?.length 
             ? `Did you mean: ${similar.map(s => s.tracking_id || s.order_number).filter(Boolean).join(', ')}?`
-            : 'Verify the tracking ID or order number. May need to sync from Shopify.',
+            : 'Verify the tracking ID or order number is correct. May need to sync from Shopify if it\'s a new order.',
           processingTime: Date.now() - startTime
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -142,8 +176,12 @@ serve(async (req) => {
       );
     }
 
-    // Determine match type
-    const matchType = order.tracking_id === entry ? 'tracking_id' : 'order_number';
+    // Determine match type based on what was actually matched
+    const matchType = order.tracking_id && (order.tracking_id === matchedEntry || order.tracking_id.includes(matchedEntry)) 
+      ? 'tracking_id' 
+      : 'order_number';
+    
+    console.log(`[Rapid Dispatch] Match type: ${matchType}, Matched with: "${matchedEntry}"`);
 
     // Determine courier - fetch courier details if order has a courier enum value
     let finalCourierId = courierId;
@@ -190,14 +228,16 @@ serve(async (req) => {
       );
     }
 
-    const trackingId = matchType === 'tracking_id' ? entry : order.tracking_id;
+    // Use the matched entry as tracking ID if it was matched by tracking_id
+    const trackingId = matchType === 'tracking_id' ? matchedEntry : order.tracking_id;
     const now = new Date().toISOString();
 
-    // Update tracking ID if needed
-    if (matchType === 'tracking_id' && entry !== order.tracking_id) {
+    // Update tracking ID if matched by tracking ID and it's different from stored value
+    if (matchType === 'tracking_id' && matchedEntry !== order.tracking_id) {
+      console.log(`[Rapid Dispatch] Updating tracking ID from "${order.tracking_id}" to "${matchedEntry}"`);
       await supabase
         .from('orders')
-        .update({ tracking_id: entry })
+        .update({ tracking_id: matchedEntry })
         .eq('id', order.id);
     }
 
