@@ -241,7 +241,8 @@ const DispatchDashboard = () => {
   const filteredDispatches = useMemo(() => {
     return filteredByDate.filter(dispatch => {
       const matchesSearch = (dispatch.tracking_id || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.order_number || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.customer_phone || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.customer_email || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCourier = courierFilter === "all" || dispatch.courier === courierFilter;
+      const matchesCourier = courierFilter === "all" || 
+        dispatch.courier?.toLowerCase() === courierFilter?.toLowerCase();
       const matchesUser = userFilter === "all" || dispatch.dispatched_by === userFilter;
       return matchesSearch && matchesCourier && matchesUser;
     });
