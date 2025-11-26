@@ -1833,6 +1833,7 @@ export type Database = {
           auto_blocked: boolean | null
           booked_at: string | null
           booked_by: string | null
+          cancellation_reason: string | null
           city: string
           comments: Json | null
           confirmation_required: boolean | null
@@ -1890,6 +1891,7 @@ export type Database = {
           auto_blocked?: boolean | null
           booked_at?: string | null
           booked_by?: string | null
+          cancellation_reason?: string | null
           city: string
           comments?: Json | null
           confirmation_required?: boolean | null
@@ -1947,6 +1949,7 @@ export type Database = {
           auto_blocked?: boolean | null
           booked_at?: string | null
           booked_by?: string | null
+          cancellation_reason?: string | null
           city?: string
           comments?: Json | null
           confirmation_required?: boolean | null

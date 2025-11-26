@@ -8,7 +8,7 @@ const corsHeaders = {
 
 interface UpdateOrderRequest {
   order_id: string;
-  action: 'update_tracking' | 'update_tags' | 'update_fulfillment' | 'update_customer' | 'update_address' | 'update_line_items';
+  action: 'update_tracking' | 'update_tags' | 'update_fulfillment' | 'update_customer' | 'update_address' | 'update_line_items' | 'cancel_order';
   data: {
     tracking_number?: string;
     tracking_company?: string;
@@ -17,6 +17,8 @@ interface UpdateOrderRequest {
     fulfillment_status?: 'fulfilled' | 'partial' | 'unfulfilled';
     customer_note?: string;
     notify_customer?: boolean;
+    reason?: 'customer' | 'fraud' | 'inventory' | 'declined' | 'other';
+    restock?: boolean;
     address?: {
       first_name?: string;
       last_name?: string;
@@ -337,6 +339,43 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
       // Note: Shopify doesn't allow editing line items on existing orders
       // This would require canceling and recreating the order
       throw new Error('Line item updates are not supported on existing Shopify orders');
+    }
+
+    case 'cancel_order': {
+      console.log('Cancelling order in Shopify:', {
+        orderId: shopifyOrderId,
+        reason: data.reason,
+        restock: data.restock,
+        endpoint: `${baseUrl}/orders/${shopifyOrderId}/cancel.json`,
+      });
+
+      const response = await fetch(`${baseUrl}/orders/${shopifyOrderId}/cancel.json`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          reason: data.reason || 'other',
+          email: data.notify_customer || false,
+          restock: data.restock || false,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        const error = errorText ? JSON.parse(errorText) : { message: 'Unknown error' };
+        console.error('Failed to cancel order in Shopify:', {
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries()),
+          error,
+          orderId: shopifyOrderId,
+        });
+        throw new Error(`Failed to cancel order (${response.status}): ${JSON.stringify(error)}`);
+      }
+
+      console.log('Successfully cancelled order in Shopify');
+      
+      const text = await response.text();
+      return text ? JSON.parse(text) : { success: true };
     }
 
     default:

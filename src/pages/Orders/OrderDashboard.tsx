@@ -43,6 +43,7 @@ import { InlineCourierAssign } from '@/components/orders/InlineCourierAssign';
 import { OrderKPIPanel } from '@/components/orders/OrderKPIPanel';
 import { FilterPresets } from '@/components/orders/FilterPresets';
 import { OrderDetailsModal } from '@/components/orders/OrderDetailsModal';
+import { CancelOrderDialog } from '@/components/orders/CancelOrderDialog';
 import { Eye, EyeOff, Bell } from 'lucide-react';
 import { AWBDownloadButton } from '@/components/orders/AWBDownloadButton';
 
@@ -89,6 +90,10 @@ const OrderDashboard = () => {
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  
+  // Cancellation dialog state
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState<{ id: string; orderNumber: string } | null>(null);
   
   // New orders notification
   const [newOrdersCount, setNewOrdersCount] = useState(0);
@@ -1504,6 +1509,14 @@ const OrderDashboard = () => {
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string, additionalData?: Record<string, any>) => {
     try {
+      // Special handling for cancellation - show confirmation dialog
+      if (newStatus === 'cancelled') {
+        const order = orders.find(o => o.id === orderId);
+        setOrderToCancel({ id: orderId, orderNumber: order?.order_number || '' });
+        setCancelDialogOpen(true);
+        return;
+      }
+
       // Validate status is a valid enum value
       const validStatuses = ['pending', 'confirmed', 'booked', 'dispatched', 'delivered', 'returned', 'cancelled'];
       
@@ -1617,6 +1630,91 @@ const OrderDashboard = () => {
       toast({
         title: "Error",
         description: error.message || "Failed to update order status",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle confirmed order cancellation with reason
+  const handleConfirmCancellation = async (reason: string) => {
+    if (!orderToCancel) return;
+
+    try {
+      const { data: currentOrder, error: fetchError } = await supabase
+        .from('orders')
+        .select('status, order_number')
+        .eq('id', orderToCancel.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const updateData = {
+        status: 'cancelled' as const,
+        cancellation_reason: reason,
+      };
+
+      console.log('[ORDER CANCELLATION] Attempting cancellation:', {
+        orderId: orderToCancel.id,
+        orderNumber: currentOrder?.order_number,
+        reason,
+      });
+
+      const { error } = await supabase
+        .from('orders')
+        .update(updateData)
+        .eq('id', orderToCancel.id);
+
+      if (error) {
+        console.error('[ORDER CANCELLATION] Failed:', error);
+        throw error;
+      }
+
+      console.log('[ORDER CANCELLATION] Success');
+
+      // Log the activity
+      await logActivity({
+        action: 'order_updated',
+        entityType: 'order',
+        entityId: orderToCancel.id,
+        details: {
+          field: 'status',
+          old_value: currentOrder?.status,
+          new_value: 'cancelled',
+          cancellation_reason: reason,
+        },
+      });
+
+      // Update local state
+      setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order.id === orderToCancel.id
+            ? { ...order, status: 'cancelled', cancellation_reason: reason }
+            : order
+        )
+      );
+
+      toast({
+        title: "Order Cancelled",
+        description: `Order ${orderToCancel.orderNumber} has been cancelled`,
+      });
+
+      fetchOrders();
+
+      // Trigger sync queue processing to update Shopify immediately
+      supabase.functions.invoke('process-sync-queue')
+        .then(({ error }) => {
+          if (error) {
+            console.error('Error processing Shopify sync queue:', error);
+          }
+        })
+        .catch(err => {
+          console.error('Unexpected error invoking process-sync-queue:', err);
+        });
+    } catch (error: any) {
+      console.error('[ORDER CANCELLATION] Exception:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to cancel order",
         variant: "destructive",
       });
     }
@@ -2910,6 +3008,14 @@ const OrderDashboard = () => {
         } : null}
         open={detailsModalOpen}
         onOpenChange={setDetailsModalOpen}
+      />
+
+      {/* Cancel Order Dialog */}
+      <CancelOrderDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        onConfirm={handleConfirmCancellation}
+        orderNumber={orderToCancel?.orderNumber}
       />
 
       {/* New Orders Notification */}
