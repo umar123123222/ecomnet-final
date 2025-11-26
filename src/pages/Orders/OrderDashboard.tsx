@@ -393,14 +393,72 @@ const OrderDashboard = () => {
 
       setOrders(formattedOrders);
 
-      // Calculate summary data from current page
+      // Calculate summary data across ALL filtered orders (not just current page)
+      // Build a count query with same filters but no pagination
+      let countQuery = supabase
+        .from('orders')
+        .select('status', { count: 'exact', head: false });
+      
+      // Apply same filters as main query
+      if (filters.search) {
+        countQuery = countQuery.or(`order_number.ilike.%${filters.search}%,shopify_order_number.ilike.%${filters.search}%,customer_name.ilike.%${filters.search}%,customer_phone.ilike.%${filters.search}%,customer_email.ilike.%${filters.search}%,tracking_id.ilike.%${filters.search}%,city.ilike.%${filters.search}%`);
+      }
+      if (filters.status !== 'all') {
+        countQuery = countQuery.eq('status', filters.status as any);
+      }
+      if (filters.courier !== 'all') {
+        countQuery = countQuery.eq('courier', filters.courier as any);
+      }
+      if (filters.orderType !== 'all') {
+        countQuery = countQuery.eq('order_type', filters.orderType);
+      }
+      if (filters.verificationStatus !== 'all') {
+        countQuery = countQuery.eq('verification_status', filters.verificationStatus as any);
+      }
+      if (filters.statusDateRange?.from) {
+        const statusDateField = getStatusDateField(filters.status);
+        const startOfDay = new Date(filters.statusDateRange.from);
+        startOfDay.setHours(0, 0, 0, 0);
+        countQuery = countQuery.gte(statusDateField, startOfDay.toISOString());
+        if (filters.statusDateRange.to) {
+          const endOfDay = new Date(filters.statusDateRange.to);
+          endOfDay.setHours(23, 59, 59, 999);
+          countQuery = countQuery.lte(statusDateField, endOfDay.toISOString());
+        }
+      }
+      if (filters.amountMin !== undefined) {
+        countQuery = countQuery.gte('total_amount', filters.amountMin);
+      }
+      if (filters.amountMax !== undefined) {
+        countQuery = countQuery.lte('total_amount', filters.amountMax);
+      }
+
+      const { data: statusData } = await countQuery;
+      
+      // Count orders by status from the complete filtered dataset
+      const statusCounts = {
+        booked: 0,
+        dispatched: 0,
+        delivered: 0,
+        cancelled: 0,
+        returned: 0
+      };
+      
+      (statusData || []).forEach((order: any) => {
+        if (order.status === 'booked') statusCounts.booked++;
+        else if (order.status === 'dispatched') statusCounts.dispatched++;
+        else if (order.status === 'delivered') statusCounts.delivered++;
+        else if (order.status === 'cancelled') statusCounts.cancelled++;
+        else if (order.status === 'returned') statusCounts.returned++;
+      });
+
       setSummaryData({
         totalOrders: count || 0,
-        booked: formattedOrders.filter(o => o.status === 'booked').length,
-        dispatched: formattedOrders.filter(o => o.status === 'dispatched').length,
-        delivered: formattedOrders.filter(o => o.status === 'delivered').length,
-        cancelled: formattedOrders.filter(o => o.status === 'cancelled').length,
-        returns: formattedOrders.filter(o => o.status === 'returned').length
+        booked: statusCounts.booked,
+        dispatched: statusCounts.dispatched,
+        delivered: statusCounts.delivered,
+        cancelled: statusCounts.cancelled,
+        returns: statusCounts.returned
       });
     } catch (error) {
       console.error('Unexpected error:', error);
