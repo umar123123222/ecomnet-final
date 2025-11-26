@@ -59,7 +59,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false,
-          error: 'Missing required fields',
+          error: 'Missing fields',
           errorCode: 'MISSING_FIELDS'
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -97,9 +97,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Database error',
+          error: 'DB error',
           errorCode: 'DB_ERROR',
-          details: rpcError.message,
           processingTime: Date.now() - startTime
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

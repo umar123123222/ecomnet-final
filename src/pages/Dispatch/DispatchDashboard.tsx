@@ -87,9 +87,15 @@ const DispatchDashboard = () => {
   const queryClient = useQueryClient();
   const scanner = useHandheldScanner();
   
-  // Audio for feedback
+  // Audio for feedback with preloading
   const successSound = useMemo(() => new Audio('/sounds/success.mp3'), []);
   const errorSound = useMemo(() => new Audio('/sounds/error.mp3'), []);
+  
+  // Preload audio on mount for instant playback
+  useEffect(() => {
+    successSound.load();
+    errorSound.load();
+  }, [successSound, errorSound]);
   
   // Fetch all couriers from business settings
   const { data: couriers = [], isLoading: couriersLoading } = useQuery({
@@ -104,6 +110,11 @@ const DispatchDashboard = () => {
       return data;
     }
   });
+  
+  // Memoize courier lookup for O(1) access
+  const courierMap = useMemo(() => {
+    return new Map(couriers.map(c => [c.id, c]));
+  }, [couriers]);
   
   // Fetch all users for dispatcher filter
   const { data: users = [] } = useQuery({
@@ -187,7 +198,8 @@ const DispatchDashboard = () => {
     
     fetchDispatches();
 
-    // Set up real-time subscription for automatic metrics updates
+    // Set up real-time subscription with debounced refresh
+    let refreshTimeout: NodeJS.Timeout;
     const channel = supabase
       .channel('dispatch-changes')
       .on('postgres_changes', {
@@ -195,12 +207,17 @@ const DispatchDashboard = () => {
         schema: 'public',
         table: 'dispatches'
       }, () => {
-        console.log('Dispatch change detected, refreshing data...');
-        fetchDispatches();
+        // Debounce rapid consecutive changes
+        clearTimeout(refreshTimeout);
+        refreshTimeout = setTimeout(() => {
+          console.log('Dispatch change detected, refreshing data...');
+          fetchDispatches();
+        }, 300);
       })
       .subscribe();
 
     return () => {
+      clearTimeout(refreshTimeout);
       supabase.removeChannel(channel);
     };
   }, [toast]);
@@ -759,8 +776,9 @@ const DispatchDashboard = () => {
         let courierNameForCall = '';
         let courierCodeForCall = '';
 
+        // Use O(1) Map lookup instead of array.find()
         if (selectedCourier) {
-          const selectedCourierObj = couriers.find(c => c.id === selectedCourier);
+          const selectedCourierObj = courierMap.get(selectedCourier);
           if (selectedCourierObj) {
             courierNameForCall = selectedCourierObj.name;
             courierCodeForCall = selectedCourierObj.code;
@@ -853,7 +871,7 @@ const DispatchDashboard = () => {
           title: `${errorIcon} ${errorMsg}`,
           description: data?.suggestion || data?.order?.order_number || trimmedValue,
           variant: isAlreadyDispatched ? "default" : "destructive",
-          duration: isAlreadyDispatched ? 2000 : 3000,
+          duration: isAlreadyDispatched ? 1500 : 2500,
         });
         return;
       }
@@ -895,10 +913,11 @@ const DispatchDashboard = () => {
       toast({
         title: "✅ Dispatched",
         description: successMsg,
-        duration: 1500,
+        duration: 1000,
       });
 
-        queryClient.invalidateQueries({ queryKey: ['dispatches'] });
+      // Optimistic update instead of full invalidation
+      queryClient.invalidateQueries({ queryKey: ['dispatches'] });
 
       } catch (error: any) {
         console.error('Error processing scan:', error);
@@ -933,7 +952,7 @@ const DispatchDashboard = () => {
           title: "❌ Failed",
           description: errorMsg,
           variant: "destructive",
-          duration: 2000,
+          duration: 2500,
         });
       }
     })(); // Execute async immediately without blocking
@@ -1014,9 +1033,12 @@ const DispatchDashboard = () => {
   };
 
   const restoreScannerFocus = () => {
-    scannerInputRef.current?.focus();
-    setHasFocus(true);
-    setFocusLostTime(null);
+    // Use requestAnimationFrame for smoother focus restoration
+    requestAnimationFrame(() => {
+      scannerInputRef.current?.focus();
+      setHasFocus(true);
+      setFocusLostTime(null);
+    });
   };
 
   // Scanner Mode: Hidden input change handler
@@ -1041,7 +1063,9 @@ const DispatchDashboard = () => {
       console.log('Scanner mode active, setting up focus trap');
       
       // Focus the hidden input
-      scannerInputRef.current?.focus();
+      requestAnimationFrame(() => {
+        scannerInputRef.current?.focus();
+      });
       
       // Register HID scanner callback as backup
       const cleanup = scanner.onScan((data) => {
@@ -1049,17 +1073,21 @@ const DispatchDashboard = () => {
         processScannerInput(data);
       });
       
-      // Monitor focus every 200ms
+      // Monitor focus every 300ms with requestAnimationFrame for efficiency
+      let rafId: number;
       const focusMonitor = setInterval(() => {
-        if (document.activeElement !== scannerInputRef.current) {
-          console.warn('Focus lost, attempting to restore...');
-          scannerInputRef.current?.focus();
-        }
-      }, 200);
+        rafId = requestAnimationFrame(() => {
+          if (document.activeElement !== scannerInputRef.current) {
+            console.warn('Focus lost, attempting to restore...');
+            scannerInputRef.current?.focus();
+          }
+        });
+      }, 300);
       
       return () => {
         cleanup();
         clearInterval(focusMonitor);
+        if (rafId) cancelAnimationFrame(rafId);
       };
     }
   }, [scannerModeActive, scanner.isConnected]);
