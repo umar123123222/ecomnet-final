@@ -104,9 +104,9 @@ serve(async (req) => {
     let order = null;
     let matchedEntry = '';
     
-    // Build OR conditions for all candidates at once
+    // Build exact-match OR conditions (no ILIKE for speed - uses indexes)
     const orConditions = searchCandidates.map(candidate => 
-      `tracking_id.eq.${candidate},tracking_id.ilike.%${candidate}%,order_number.eq.${candidate},order_number.eq.SHOP-${candidate},shopify_order_number.eq.${candidate},shopify_order_number.eq.#${candidate}`
+      `tracking_id.eq.${candidate},order_number.eq.${candidate},order_number.eq.SHOP-${candidate},shopify_order_number.eq.${candidate},shopify_order_number.eq.#${candidate}`
     ).join(',');
     
     const { data: foundOrder, error: orderError } = await supabase
@@ -139,28 +139,15 @@ serve(async (req) => {
       matchedEntry = matchedEntry || searchCandidates[0];
     }
 
-    // If still not found, return error with suggestions
+    // If still not found, return error immediately (no similar search for speed)
     if (!order) {
-      console.log(`[Rapid Dispatch] Order not found for any candidate from: "${entry}"`);
-      
-      // Try to find similar orders based on the first candidate
-      const firstCandidate = searchCandidates[0];
-      const { data: similar } = await supabase
-        .from('orders')
-        .select('tracking_id, order_number')
-        .or(`tracking_id.ilike.%${firstCandidate.slice(0, Math.max(5, firstCandidate.length - 2))}%,order_number.ilike.%${firstCandidate}%`)
-        .limit(3);
-
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Order not found in database',
+          error: 'Order not found',
           errorCode: 'NOT_FOUND',
           searchedEntry: entry,
-          parsedCandidates: searchCandidates,
-          suggestion: similar?.length 
-            ? `Did you mean: ${similar.map(s => s.tracking_id || s.order_number).filter(Boolean).join(', ')}?`
-            : 'Verify the tracking ID or order number is correct. May need to sync from Shopify if it\'s a new order.',
+          suggestion: 'Verify the tracking ID or order number. It may need to be synced from Shopify.',
           processingTime: Date.now() - startTime
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -190,29 +177,10 @@ serve(async (req) => {
       ? 'tracking_id' 
       : 'order_number';
 
-    // Determine courier - fetch courier details if order has a courier enum value
-    let finalCourierId = courierId;
-    let finalCourierName = courierName;
-    let finalCourierCode = courierCode;
-
-    if (order.courier) {
-      // Fetch courier details separately based on the enum value
-      const { data: courierDetails } = await supabase
-        .from('couriers')
-        .select('id, name, code')
-        .eq('code', order.courier)
-        .maybeSingle();
-      
-      if (courierDetails) {
-        finalCourierId = courierDetails.id;
-        finalCourierName = courierDetails.name;
-        finalCourierCode = courierDetails.code;
-      } else {
-        // Fallback to enum value
-        finalCourierName = order.courier;
-        finalCourierCode = order.courier;
-      }
-    }
+    // Use order courier directly (no DB lookup for speed)
+    const finalCourierId = courierId;
+    const finalCourierName = courierName || order.courier || 'Unknown';
+    const finalCourierCode = courierCode || order.courier || 'unknown';
 
     if (!finalCourierName) {
       return new Response(
