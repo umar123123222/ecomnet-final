@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,6 +66,14 @@ const TagsNotes: React.FC<TagsNotesProps> = ({
   const canDeleteItem = (addedBy: string) => {
     return user?.user_metadata?.role === 'SuperAdmin' || user?.user_metadata?.role === 'Manager' || (user?.user_metadata?.full_name || user?.email) === addedBy;
   };
+
+  const formatTimestamp = (timestamp: string) => {
+    try {
+      return format(new Date(timestamp), 'PPp');
+    } catch (error) {
+      return timestamp;
+    }
+  };
   return <div className="space-y-4">
       {/* Order Notes Section - Plain text from order creation */}
       {orderNotes && (
@@ -88,7 +97,7 @@ const TagsNotes: React.FC<TagsNotesProps> = ({
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Added by {tag.addedBy} at {tag.addedAt}</p>
+                    <p>Added by {tag.addedBy} at {formatTimestamp(tag.addedAt)}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>)}
@@ -153,7 +162,7 @@ const TagsNotes: React.FC<TagsNotesProps> = ({
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Added by {note.addedBy} at {note.addedAt}</p>
+                  <p>Added by {note.addedBy} at {formatTimestamp(note.addedAt)}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>)}
