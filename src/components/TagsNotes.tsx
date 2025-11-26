@@ -47,7 +47,9 @@ const TagsNotes: React.FC<TagsNotesProps> = ({
   const [newTag, setNewTag] = useState('');
   const [newNote, setNewNote] = useState('');
   const {
-    user
+    user,
+    profile,
+    userRole
   } = useAuth();
   const handleAddTag = () => {
     if (newTag.trim() && onAddTag) {
@@ -64,7 +66,7 @@ const TagsNotes: React.FC<TagsNotesProps> = ({
     }
   };
   const canDeleteItem = (addedBy: string) => {
-    return user?.user_metadata?.role === 'SuperAdmin' || user?.user_metadata?.role === 'Manager' || (user?.user_metadata?.full_name || user?.email) === addedBy;
+    return userRole === 'super_admin' || userRole === 'super_manager' || (profile?.full_name || user?.email) === addedBy;
   };
 
   const formatTimestamp = (timestamp: string) => {

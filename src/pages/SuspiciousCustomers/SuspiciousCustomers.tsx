@@ -62,7 +62,7 @@ const SuspiciousCustomers = () => {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   useEffect(() => {
     const fetchSuspiciousCustomers = async () => {
@@ -189,7 +189,7 @@ const SuspiciousCustomers = () => {
               {
                 id: Date.now().toString(),
                 text: tag,
-                addedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
+                addedBy: profile?.full_name || user?.email || 'Current User',
                 addedAt: new Date().toLocaleString(),
                 canDelete: true
               }
@@ -209,7 +209,7 @@ const SuspiciousCustomers = () => {
               {
                 id: Date.now().toString(),
                 text: note,
-                addedBy: user?.user_metadata?.full_name || user?.email || 'Current User',
+                addedBy: profile?.full_name || user?.email || 'Current User',
                 addedAt: new Date().toLocaleString(),
                 canDelete: true
               }

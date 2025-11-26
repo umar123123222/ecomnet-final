@@ -25,6 +25,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, Download, Eye, Edit, MessageCircle, RefreshCw } from 'lucide-react';
 import TagsNotes from '@/components/TagsNotes';
+import { useAuth } from '@/contexts/AuthContext';
 
 const AllCustomers = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,6 +43,7 @@ const AllCustomers = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [pageSize] = useState(50);
   const { toast } = useToast();
+  const { user, profile } = useAuth();
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -239,7 +241,7 @@ const AllCustomers = () => {
         const newTag = {
           id: `tag-${Date.now()}`,
           text: tag,
-          addedBy: 'Current User', // In a real app, this would be the logged-in user
+          addedBy: profile?.full_name || user?.email || 'Current User',
           addedAt: new Date().toLocaleString(),
           canDelete: true
         };
@@ -266,7 +268,7 @@ const AllCustomers = () => {
         const newNote = {
           id: `note-${Date.now()}`,
           text: note,
-          addedBy: 'Current User', // In a real app, this would be the logged-in user
+          addedBy: profile?.full_name || user?.email || 'Current User',
           addedAt: new Date().toLocaleString(),
           canDelete: true
         };
