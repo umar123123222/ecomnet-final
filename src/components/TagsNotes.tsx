@@ -74,12 +74,23 @@ const TagsNotes: React.FC<TagsNotesProps> = ({
       return timestamp;
     }
   };
+
+  const formatOrderNotes = (notes: string) => {
+    // Replace ISO timestamps with formatted dates
+    return notes.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}/g, (match) => {
+      try {
+        return format(new Date(match), 'PPp');
+      } catch {
+        return match;
+      }
+    });
+  };
   return <div className="space-y-4">
       {/* Order Notes Section - Plain text from order creation */}
       {orderNotes && (
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
           <h4 className="font-semibold text-sm text-blue-900 mb-1">Order Notes:</h4>
-          <p className="text-sm text-blue-800">{orderNotes}</p>
+          <p className="text-sm text-blue-800">{formatOrderNotes(orderNotes)}</p>
         </div>
       )}
       
