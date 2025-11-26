@@ -73,8 +73,16 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
   const [activeTab, setActiveTab] = useState("tracking");
 
   useEffect(() => {
-    if (open && order?.id) {
+    if (!open) {
+      // Reset state when modal closes
+      setLoading(true);
+      setDispatchInfo(null);
+      setTrackingHistory([]);
+    } else if (order?.id) {
       fetchTrackingDetails();
+    } else {
+      // Modal open but no valid order ID
+      setLoading(false);
     }
   }, [open, order?.id]);
 
