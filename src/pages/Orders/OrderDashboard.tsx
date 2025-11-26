@@ -171,7 +171,8 @@ const OrderDashboard = () => {
           updated_at,
           notes,
           comments,
-          gpt_score
+          gpt_score,
+          tags
         `, { count: 'exact' });
       
       // Apply search filter
@@ -318,7 +319,13 @@ const OrderDashboard = () => {
           deliveredAt: order.delivered_at ? new Date(order.delivered_at).toLocaleString() : 'N/A',
           orderNotes: orderNotes,
           userComments: userComments,
-          tags: [],
+          tags: (order.tags || []).map((tag: string, index: number) => ({
+            id: `tag-${index}`,
+            text: tag,
+            addedBy: 'Shopify',
+            addedAt: order.created_at || new Date().toISOString(),
+            canDelete: false
+          })),
           shopify_order_id: order.shopify_order_id
         };
       });
@@ -2579,6 +2586,7 @@ const OrderDashboard = () => {
                                     <TagsNotes
                                       itemId={order.id}
                                       orderNotes={order.orderNotes}
+                                      tags={order.tags}
                                       notes={order.userComments}
                                       onAddNote={(note) => handleAddNote(order.id, note)}
                                       onDeleteNote={(noteId) => handleDeleteNote(order.id, noteId)}
