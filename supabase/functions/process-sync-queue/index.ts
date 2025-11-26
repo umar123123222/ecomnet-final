@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
           // Fetch order data first to get current state
           const { data: orderData, error: orderError } = await supabase
             .from('orders')
-            .select('shopify_order_id, status, tags, tracking_id, customer_address, customer_new_address, city, customer_name, customer_phone, notes')
+            .select('shopify_order_id, status, tags, tracking_id, customer_address, customer_new_address, city, customer_name, customer_phone, notes, cancellation_reason')
             .eq('id', item.entity_id)
             .single();
 
@@ -145,8 +145,33 @@ Deno.serve(async (req) => {
             tags: orderData.tags,
             notes: orderData.notes,
             customer_name: orderData.customer_name,
-            customer_phone: orderData.customer_phone
+            customer_phone: orderData.customer_phone,
+            cancellation_reason: orderData.cancellation_reason
           };
+          
+          // Handle order cancellation first if status is cancelled
+          if (changes.status === 'cancelled') {
+            console.log('Processing cancellation for order:', item.entity_id);
+            
+            const cancelResult = await supabase.functions.invoke('update-shopify-order', {
+              body: {
+                order_id: item.entity_id,
+                action: 'cancel_order',
+                data: {
+                  reason: changes.cancellation_reason || 'other',
+                  notify_customer: false,
+                  restock: false
+                }
+              }
+            });
+
+            if (cancelResult.error) {
+              console.error('Failed to cancel order in Shopify:', cancelResult.error);
+              throw cancelResult.error;
+            }
+            
+            console.log('Successfully cancelled order in Shopify');
+          }
           
           // Handle tracking update if tracking_id changed
           if (changes.tracking_id) {
