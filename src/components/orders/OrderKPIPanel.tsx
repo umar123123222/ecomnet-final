@@ -4,7 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { startOfMonth, endOfMonth, subMonths } from "date-fns";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Order {
   id: string;
@@ -16,30 +18,74 @@ interface Order {
 }
 
 interface OrderKPIPanelProps {
-  orders: Order[];
   isVisible: boolean;
 }
 
-export const OrderKPIPanel = ({ orders, isVisible }: OrderKPIPanelProps) => {
+export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
   const [monthFilter, setMonthFilter] = useState<'current' | 'last'>('current');
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
   
-  if (!isVisible || !orders.length) return null;
+  // Fetch orders for the selected month
+  useEffect(() => {
+    const fetchOrders = async () => {
+      setLoading(true);
+      try {
+        const now = new Date();
+        const monthStart = monthFilter === 'current' 
+          ? startOfMonth(now)
+          : startOfMonth(subMonths(now, 1));
+        const monthEnd = monthFilter === 'current'
+          ? endOfMonth(now)
+          : endOfMonth(subMonths(now, 1));
 
-  // Filter orders by selected month
-  const now = new Date();
-  const currentMonthStart = startOfMonth(now);
-  const currentMonthEnd = endOfMonth(now);
-  const lastMonthStart = startOfMonth(subMonths(now, 1));
-  const lastMonthEnd = endOfMonth(subMonths(now, 1));
+        const { data, error } = await supabase
+          .from('orders')
+          .select('id, total_amount, city, courier, status, created_at')
+          .gte('created_at', monthStart.toISOString())
+          .lte('created_at', monthEnd.toISOString());
 
-  const filteredOrders = orders.filter(order => {
-    const orderDate = new Date(order.created_at);
-    if (monthFilter === 'current') {
-      return orderDate >= currentMonthStart && orderDate <= currentMonthEnd;
-    } else {
-      return orderDate >= lastMonthStart && orderDate <= lastMonthEnd;
+        if (error) throw error;
+        setOrders(data || []);
+      } catch (error) {
+        console.error('Error fetching KPI orders:', error);
+        setOrders([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (isVisible) {
+      fetchOrders();
     }
-  });
+  }, [monthFilter, isVisible]);
+  
+  if (!isVisible) return null;
+
+  if (loading) {
+    return (
+      <div className="space-y-4 mb-6">
+        <div className="flex justify-end">
+          <Skeleton className="h-10 w-64" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          {[...Array(5)].map((_, i) => (
+            <Card key={i} className="border-primary/20">
+              <CardHeader className="pb-3">
+                <Skeleton className="h-4 w-32" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-24 mb-2" />
+                <Skeleton className="h-3 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const filteredOrders = orders;
 
   // Calculate AOV
   const totalRevenue = filteredOrders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
