@@ -2059,14 +2059,6 @@ const OrderDashboard = () => {
 
         {/* KPI Panel */}
         <OrderKPIPanel 
-          orders={orders.map(o => ({
-            id: o.id,
-            total_amount: o.totalPrice,
-            city: o.city,
-            courier: o.courier === 'N/A' ? null : o.courier,
-            status: o.status,
-            created_at: o.createdAtISO || o.date
-          }))} 
           isVisible={showKPIPanel} 
         />
 
