@@ -167,7 +167,7 @@ export const OrderKPIPanel = ({ orders, isVisible }: OrderKPIPanelProps) => {
             Courier Distribution
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex items-center justify-center">
+        <CardContent>
           <ResponsiveContainer width="100%" height={80}>
             <PieChart>
               <Pie
@@ -198,6 +198,21 @@ export const OrderKPIPanel = ({ orders, isVisible }: OrderKPIPanelProps) => {
               />
             </PieChart>
           </ResponsiveContainer>
+          {/* Legend */}
+          <div className="mt-3 space-y-1.5">
+            {courierChartData.map((entry, index) => (
+              <div key={`legend-${index}`} className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <div 
+                    className="w-2.5 h-2.5 rounded-full" 
+                    style={{ backgroundColor: entry.color }}
+                  />
+                  <span className="font-medium">{entry.name}</span>
+                </div>
+                <span className="text-muted-foreground">{entry.value}</span>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
