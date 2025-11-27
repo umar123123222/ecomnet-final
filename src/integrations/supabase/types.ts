@@ -4669,6 +4669,20 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      get_order_stats_by_status: {
+        Args: never
+        Returns: {
+          count: number
+          status: Database["public"]["Enums"]["order_status"]
+        }[]
+      }
+      get_order_stats_by_status_range: {
+        Args: { end_date: string; start_date: string }
+        Returns: {
+          count: number
+          status: Database["public"]["Enums"]["order_status"]
+        }[]
+      }
       get_product_lifecycle: {
         Args: { p_barcode: string }
         Returns: {
