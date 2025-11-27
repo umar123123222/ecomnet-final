@@ -116,15 +116,18 @@ export const OrderKPIPanel = ({
   const returnRate = filteredOrders.length > 0 ? returnedOrders / filteredOrders.length * 100 : 0;
   const returnTrend = returnRate < 5 ? 'down' : 'up'; // Mock trend
 
-  // Daily Volume (last 7 days)
-  const last7Days = Array.from({
-    length: 7
-  }, (_, i) => {
-    const date = new Date();
+  // Daily Volume (for the selected month - last 7 days of that month)
+  const now = new Date();
+  const referenceDate = monthFilter === 'current' ? now : subMonths(now, 1);
+  const monthEnd = endOfMonth(referenceDate);
+  
+  const last7DaysOfMonth = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date(monthEnd);
     date.setDate(date.getDate() - (6 - i));
     return date.toISOString().split('T')[0];
   });
-  const dailyVolumeData = last7Days.map(date => {
+  
+  const dailyVolumeData = last7DaysOfMonth.map(date => {
     const count = filteredOrders.filter(o => o.created_at?.split('T')[0] === date).length;
     return {
       date: new Date(date).getDate().toString(),
