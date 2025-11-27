@@ -193,6 +193,36 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
     fetchTrackingDetails();
   };
 
+  const handleFetchTracking = async () => {
+    if (!dispatchInfo?.tracking_id || !order.courier) return;
+    
+    try {
+      setLoading(true);
+      console.log('Manually fetching tracking for:', dispatchInfo.tracking_id, order.courier);
+      
+      const { data, error } = await supabase.functions.invoke('courier-tracking', {
+        body: {
+          trackingId: dispatchInfo.tracking_id,
+          courierCode: order.courier.toLowerCase()
+        }
+      });
+
+      if (error) {
+        console.error('Error fetching tracking:', error);
+        return;
+      }
+
+      console.log('Tracking fetched successfully:', data);
+      
+      // Refresh to show new data
+      await fetchTrackingDetails();
+    } catch (error) {
+      console.error('Failed to fetch tracking:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -285,7 +315,7 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
                   <div className="flex items-center gap-2">
                     <Truck className="h-5 w-5 text-primary" />
                     <span className="font-semibold text-lg">
-                      {dispatchInfo.couriers?.name || dispatchInfo.courier}
+                      {dispatchInfo.couriers?.name || dispatchInfo.courier?.toUpperCase() || 'Unknown'}
                     </span>
                   </div>
                   {dispatchInfo.tracking_id && (
@@ -294,14 +324,25 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
                     </div>
                   )}
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleRefresh}
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Refresh
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleFetchTracking}
+                    disabled={!dispatchInfo.tracking_id}
+                  >
+                    <Package className="h-4 w-4 mr-2" />
+                    Fetch Tracking
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRefresh}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Refresh
+                  </Button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4 pt-2">
@@ -359,7 +400,7 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
               </div>
             )}
 
-            {/* Tracking History Timeline */}
+            {/* Tracking History - Horizontal Table Format */}
             {trackingHistory.length > 0 ? (
               <div className="space-y-4">
                 <h3 className="font-semibold flex items-center gap-2">
@@ -367,49 +408,131 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
                   Tracking History
                 </h3>
                 
-                <ScrollArea className="h-[400px] pr-4">
-                  <div className="relative">
-                    {/* Timeline line */}
-                    <div className="absolute left-6 top-0 bottom-0 w-px bg-border" />
-                    
-                    <div className="space-y-4">
-                      {trackingHistory.map((event) => (
-                        <div key={event.id} className="relative pl-14">
-                          {/* Timeline dot */}
-                          <div className={`absolute left-4 top-1 p-1.5 rounded-full border-2 bg-background ${getStatusColor(event.status)}`}>
-                            {getStatusIcon(event.status)}
-                          </div>
-
-                          <div className="border rounded-lg p-4 bg-card space-y-2">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="space-y-1 flex-1">
-                                <Badge className={getStatusColor(event.status)}>
-                                  {formatTrackingStatus(event.status)}
-                                </Badge>
-                                {event.current_location && (
-                                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                                    <MapPin className="h-4 w-4" />
-                                    {event.current_location}
+                <div className="border rounded-lg overflow-hidden">
+                  <ScrollArea className="w-full">
+                    <div className="min-w-max p-6">
+                      {/* Horizontal tracking stages */}
+                      <div className="flex items-start gap-1">
+                        {trackingHistory.map((event, index) => (
+                          <div key={event.id} className="flex items-start flex-1 min-w-[160px]">
+                            {/* Stage card */}
+                            <div className="flex flex-col items-center text-center flex-1">
+                              {/* Icon with checkmark badge */}
+                              <div className="relative mb-3">
+                                <div className={`p-3 rounded-full ${getStatusColor(event.status).includes('green') || getStatusColor(event.status).includes('blue') ? 'bg-primary/10' : 'bg-muted'}`}>
+                                  <div className={`h-8 w-8 flex items-center justify-center ${getStatusColor(event.status).includes('green') || getStatusColor(event.status).includes('blue') ? 'text-primary' : 'text-muted-foreground'}`}>
+                                    {getStatusIcon(event.status)}
+                                  </div>
+                                </div>
+                                {/* Checkmark badge for completed stages */}
+                                {(getStatusColor(event.status).includes('green') || getStatusColor(event.status).includes('blue')) && (
+                                  <div className="absolute -top-1 -right-1 bg-green-500 rounded-full p-0.5">
+                                    <CheckCircle className="h-4 w-4 text-white" />
                                   </div>
                                 )}
                               </div>
-                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
-                                <Clock className="h-3 w-3" />
-                                {format(new Date(event.checked_at), 'MMM d, yyyy HH:mm')}
+                              
+                              {/* Stage info */}
+                              <div className="space-y-1">
+                                <div className="text-sm font-medium">
+                                  {formatTrackingStatus(event.status)}
+                                </div>
+                                {event.current_location && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {event.current_location}
+                                  </div>
+                                )}
+                                <div className="text-xs text-muted-foreground">
+                                  {format(new Date(event.checked_at), 'MMM d, yyyy')}
+                                </div>
+                                <div className="text-xs text-muted-foreground font-mono">
+                                  {format(new Date(event.checked_at), 'HH:mm')}
+                                </div>
                               </div>
                             </div>
+                            
+                            {/* Connector line - show except for last item */}
+                            {index < trackingHistory.length - 1 && (
+                              <div className="flex items-center pt-6 px-2">
+                                <div className={`h-px flex-1 min-w-[20px] ${getStatusColor(event.status).includes('green') || getStatusColor(event.status).includes('blue') ? 'bg-primary' : 'bg-border'}`} />
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
+                  </ScrollArea>
+                </div>
+
+                {/* Detailed tracking table */}
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="bg-muted/50 px-4 py-2 border-b">
+                    <h4 className="text-sm font-semibold">Detailed History</h4>
                   </div>
-                </ScrollArea>
+                  <ScrollArea className="h-[300px]">
+                    <table className="w-full">
+                      <thead className="bg-muted/30 sticky top-0">
+                        <tr className="text-xs text-muted-foreground border-b">
+                          <th className="text-left p-3 font-medium">Status</th>
+                          <th className="text-left p-3 font-medium">Location</th>
+                          <th className="text-left p-3 font-medium">Date & Time</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {trackingHistory.map((event) => (
+                          <tr key={event.id} className="border-b hover:bg-muted/20 transition-colors">
+                            <td className="p-3">
+                              <div className="flex items-center gap-2">
+                                <div className={`p-1.5 rounded-full ${getStatusColor(event.status)}`}>
+                                  {getStatusIcon(event.status)}
+                                </div>
+                                <span className="text-sm font-medium">
+                                  {formatTrackingStatus(event.status)}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-3">
+                              {event.current_location ? (
+                                <div className="flex items-center gap-1.5 text-sm">
+                                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                                  {event.current_location}
+                                </div>
+                              ) : (
+                                <span className="text-sm text-muted-foreground">-</span>
+                              )}
+                            </td>
+                            <td className="p-3">
+                              <div className="text-sm">
+                                {format(new Date(event.checked_at), 'MMM d, yyyy')}
+                              </div>
+                              <div className="text-xs text-muted-foreground font-mono">
+                                {format(new Date(event.checked_at), 'HH:mm:ss')}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </ScrollArea>
+                </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-8 space-y-2 border rounded-lg bg-muted/20">
-                <MapPin className="h-10 w-10 text-muted-foreground/50" />
-                <div className="text-sm text-muted-foreground">No tracking updates yet</div>
-                <div className="text-xs text-muted-foreground">Updates will appear here as the shipment moves</div>
+              <div className="flex flex-col items-center justify-center py-12 space-y-4 border rounded-lg bg-muted/20">
+                <div className="p-4 rounded-full bg-muted">
+                  <Package className="h-12 w-12 text-muted-foreground" />
+                </div>
+                <div className="space-y-1 text-center">
+                  <div className="text-lg font-semibold">No Tracking Data Available</div>
+                  <div className="text-sm text-muted-foreground max-w-md">
+                    Tracking updates from the courier haven't been fetched yet. Click "Fetch Tracking" to get the latest updates.
+                  </div>
+                </div>
+                {dispatchInfo?.tracking_id && (
+                  <Button variant="default" onClick={handleFetchTracking}>
+                    <Package className="h-4 w-4 mr-2" />
+                    Fetch Tracking Now
+                  </Button>
+                )}
               </div>
             )}
           </div>
