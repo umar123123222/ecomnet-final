@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, X } from 'lucide-react';
 import { downloadCourierLabel } from '@/utils/courierLabelDownload';
+import { getCourierColor } from '@/utils/courierHelpers';
 
 // Helper function to convert error codes to user-friendly messages
 const getErrorMessage = (errorCode: string, fallback: string): string => {
@@ -253,9 +254,13 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
   };
 
   if (currentCourier && currentCourier !== 'N/A') {
+    const courierColors = getCourierColor(currentCourier);
+    
     return (
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">{currentCourier.toUpperCase()}</span>
+        <span className={`text-sm font-medium px-2 py-1 rounded-md border ${courierColors.bg} ${courierColors.text} ${courierColors.border}`}>
+          {currentCourier.toUpperCase()}
+        </span>
         <AlertDialog open={showUnassignDialog} onOpenChange={setShowUnassignDialog}>
           <AlertDialogTrigger asChild>
             <Button

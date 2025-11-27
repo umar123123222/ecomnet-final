@@ -74,6 +74,20 @@ export default {
 				info: {
 					DEFAULT: 'hsl(var(--info))',
 					foreground: 'hsl(var(--info-foreground))'
+				},
+				courier: {
+					postex: {
+						DEFAULT: 'hsl(var(--courier-postex))',
+						foreground: 'hsl(var(--courier-postex-foreground))'
+					},
+					tcs: {
+						DEFAULT: 'hsl(var(--courier-tcs))',
+						foreground: 'hsl(var(--courier-tcs-foreground))'
+					},
+					leopard: {
+						DEFAULT: 'hsl(var(--courier-leopard))',
+						foreground: 'hsl(var(--courier-leopard-foreground))'
+					}
 				}
 			},
 			borderRadius: {

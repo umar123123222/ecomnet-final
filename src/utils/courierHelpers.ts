@@ -181,3 +181,69 @@ export function selectBestCourier(
       return rates[0];
   }
 }
+
+/**
+ * Get courier-specific color class names
+ */
+export const getCourierColor = (courierName: string | null | undefined): {
+  bg: string;
+  text: string;
+  border: string;
+} => {
+  if (!courierName) {
+    return {
+      bg: 'bg-muted',
+      text: 'text-muted-foreground',
+      border: 'border-border'
+    };
+  }
+
+  const courier = courierName.toLowerCase();
+  
+  if (courier.includes('postex')) {
+    return {
+      bg: 'bg-courier-postex',
+      text: 'text-courier-postex-foreground',
+      border: 'border-courier-postex'
+    };
+  }
+  
+  if (courier.includes('tcs')) {
+    return {
+      bg: 'bg-courier-tcs',
+      text: 'text-courier-tcs-foreground',
+      border: 'border-courier-tcs'
+    };
+  }
+  
+  if (courier.includes('leopard')) {
+    return {
+      bg: 'bg-courier-leopard',
+      text: 'text-courier-leopard-foreground',
+      border: 'border-courier-leopard'
+    };
+  }
+
+  // Default for unknown couriers
+  return {
+    bg: 'bg-primary',
+    text: 'text-primary-foreground',
+    border: 'border-primary'
+  };
+};
+
+/**
+ * Get courier display badge with color
+ */
+export const getCourierBadge = (courierName: string | null | undefined): {
+  label: string;
+  colorClasses: string;
+} => {
+  const colors = getCourierColor(courierName);
+  const label = courierName ? courierName.toUpperCase() : 'NO COURIER';
+  
+  return {
+    label,
+    colorClasses: `${colors.bg} ${colors.text} ${colors.border}`
+  };
+};
