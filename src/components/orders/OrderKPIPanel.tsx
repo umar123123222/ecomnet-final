@@ -40,7 +40,7 @@ export const OrderKPIPanel = ({
         const {
           data,
           error
-        } = await supabase.from('orders').select('id, total_amount, city, courier, status, created_at').gte('created_at', monthStart.toISOString()).lte('created_at', monthEnd.toISOString());
+        } = await supabase.from('orders').select('id, total_amount, city, courier, status, created_at').gte('created_at', monthStart.toISOString()).lte('created_at', monthEnd.toISOString()).limit(50000);
         if (error) throw error;
         console.log(`Fetched ${data?.length || 0} orders for ${monthFilter} month`);
         setOrders(data || []);
@@ -163,7 +163,7 @@ export const OrderKPIPanel = ({
             })}
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            From {filteredOrders.length} orders
+            Based on {filteredOrders.length} orders
           </p>
         </CardContent>
       </Card>
