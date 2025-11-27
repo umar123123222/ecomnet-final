@@ -155,64 +155,39 @@ const Dashboard = () => {
 
       // All-time statistics
       const allTimeStats = {
+        totalOrders: allTimeOrders.length,
         bookedOrders: allTimeOrders.filter(o => o.status === 'booked').length,
         dispatchedOrders: allTimeOrders.filter(o => o.status === 'dispatched').length,
         deliveredOrders: allTimeOrders.filter(o => o.status === 'delivered').length,
         cancelledOrders: allTimeOrders.filter(o => o.status === 'cancelled').length,
-        returnsInTransit: allTimeReturns.filter(r => r.return_status === 'in_transit').length,
-        returnedOrders: allTimeReturns.filter(r => r.return_status === 'received').length,
+        returnedOrders: allTimeOrders.filter(o => o.status === 'returned').length,
+        pendingOrders: allTimeOrders.filter(o => o.status === 'pending' || o.status === 'confirmed').length,
         customers: allTimeCustomersRes.count || 0,
-        // Ensure total orders equals the sum of all status buckets
-        totalOrders: 0,
       };
-
-      allTimeStats.totalOrders =
-        allTimeStats.bookedOrders +
-        allTimeStats.dispatchedOrders +
-        allTimeStats.deliveredOrders +
-        allTimeStats.cancelledOrders +
-        allTimeStats.returnsInTransit +
-        allTimeStats.returnedOrders;
 
       // Current period statistics (for trend calculation)
       const currentStats = {
+        totalOrders: currentOrders.length,
         bookedOrders: currentOrders.filter(o => o.status === 'booked').length,
         dispatchedOrders: currentOrders.filter(o => o.status === 'dispatched').length,
         deliveredOrders: currentOrders.filter(o => o.status === 'delivered').length,
-        cancelledOrders: currentReturns.filter(r => r.return_status === 'in_transit').length,
-        returnsInTransit: currentReturns.filter(r => r.return_status === 'in_transit').length,
-        returnedOrders: currentReturns.filter(r => r.return_status === 'received').length,
+        cancelledOrders: currentOrders.filter(o => o.status === 'cancelled').length,
+        returnedOrders: currentOrders.filter(o => o.status === 'returned').length,
+        pendingOrders: currentOrders.filter(o => o.status === 'pending' || o.status === 'confirmed').length,
         customers: currentCustomersRes.count || 0,
-        totalOrders: 0,
       };
-
-      currentStats.totalOrders =
-        currentStats.bookedOrders +
-        currentStats.dispatchedOrders +
-        currentStats.deliveredOrders +
-        currentStats.cancelledOrders +
-        currentStats.returnsInTransit +
-        currentStats.returnedOrders;
 
       // Previous period statistics (for trend calculation)
       const previousStats = {
+        totalOrders: previousOrders.length,
         bookedOrders: previousOrders.filter(o => o.status === 'booked').length,
         dispatchedOrders: previousOrders.filter(o => o.status === 'dispatched').length,
         deliveredOrders: previousOrders.filter(o => o.status === 'delivered').length,
-        cancelledOrders: previousReturns.filter(r => r.return_status === 'in_transit').length,
-        returnsInTransit: previousReturns.filter(r => r.return_status === 'in_transit').length,
-        returnedOrders: previousReturns.filter(r => r.return_status === 'received').length,
+        cancelledOrders: previousOrders.filter(o => o.status === 'cancelled').length,
+        returnedOrders: previousOrders.filter(o => o.status === 'returned').length,
+        pendingOrders: previousOrders.filter(o => o.status === 'pending' || o.status === 'confirmed').length,
         customers: previousCustomersRes.count || 0,
-        totalOrders: 0,
       };
-
-      previousStats.totalOrders =
-        previousStats.bookedOrders +
-        previousStats.dispatchedOrders +
-        previousStats.deliveredOrders +
-        previousStats.cancelledOrders +
-        previousStats.returnsInTransit +
-        previousStats.returnedOrders;
 
       return {
         allTime: allTimeStats,
@@ -220,13 +195,13 @@ const Dashboard = () => {
         previous: previousStats,
         trends: {
           totalOrders: calculateTrend(currentStats.totalOrders, previousStats.totalOrders),
-          bookedOrders: calculateTrend(currentStats.bookedOrders, previousStats.bookedOrders),
-          dispatchedOrders: calculateTrend(currentStats.dispatchedOrders, previousStats.dispatchedOrders),
-          deliveredOrders: calculateTrend(currentStats.deliveredOrders, previousStats.deliveredOrders),
-          cancelledOrders: calculateTrend(currentStats.cancelledOrders, previousStats.cancelledOrders),
-          returnsInTransit: calculateTrend(currentStats.returnsInTransit, previousStats.returnsInTransit),
-          returnedOrders: calculateTrend(currentStats.returnedOrders, previousStats.returnedOrders),
-          customers: calculateTrend(currentStats.customers, previousStats.customers),
+        bookedOrders: calculateTrend(currentStats.bookedOrders, previousStats.bookedOrders),
+        dispatchedOrders: calculateTrend(currentStats.dispatchedOrders, previousStats.dispatchedOrders),
+        deliveredOrders: calculateTrend(currentStats.deliveredOrders, previousStats.deliveredOrders),
+        cancelledOrders: calculateTrend(currentStats.cancelledOrders, previousStats.cancelledOrders),
+        returnedOrders: calculateTrend(currentStats.returnedOrders, previousStats.returnedOrders),
+        pendingOrders: calculateTrend(currentStats.pendingOrders, previousStats.pendingOrders),
+        customers: calculateTrend(currentStats.customers, previousStats.customers),
         },
       };
     },
@@ -279,14 +254,14 @@ const Dashboard = () => {
         icon: XCircle,
         color: "from-red-500 to-pink-500"
       }, {
-        title: "Returns in Transit",
+        title: "Returned Orders",
         value: "...",
         change: "...",
         trend: "up",
         icon: RotateCcw,
         color: "from-indigo-500 to-purple-500"
       }, {
-        title: "Returned Orders",
+        title: "Pending Orders",
         value: "...",
         change: "...",
         trend: "up",
@@ -339,17 +314,17 @@ const Dashboard = () => {
       icon: XCircle,
       color: "from-red-500 to-pink-500"
     }, {
-      title: "Returns in Transit",
-      value: (dashboardData.allTime.returnsInTransit || 0).toLocaleString(),
-      change: formatTrend(dashboardData.trends.returnsInTransit),
-      trend: dashboardData.trends.returnsInTransit >= 0 ? "up" : "down",
-      icon: RotateCcw,
-      color: "from-indigo-500 to-purple-500"
-    }, {
       title: "Returned Orders",
       value: (dashboardData.allTime.returnedOrders || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.returnedOrders),
       trend: dashboardData.trends.returnedOrders >= 0 ? "up" : "down",
+      icon: RotateCcw,
+      color: "from-indigo-500 to-purple-500"
+    }, {
+      title: "Pending Orders",
+      value: (dashboardData.allTime.pendingOrders || 0).toLocaleString(),
+      change: formatTrend(dashboardData.trends.pendingOrders),
+      trend: dashboardData.trends.pendingOrders >= 0 ? "up" : "down",
       icon: Package,
       color: "from-gray-500 to-gray-600"
     }, {
