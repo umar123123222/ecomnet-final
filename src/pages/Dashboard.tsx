@@ -109,29 +109,29 @@ const Dashboard = () => {
         currentCustomersRes,
         previousCustomersRes,
       ] = await Promise.all([
-        // All-time orders
-        supabase.from('orders').select('status', { count: 'exact', head: false }),
+        // All-time orders - fetch actual data to analyze by status
+        supabase.from('orders').select('status').limit(10000),
         // Current period orders
-        supabase.from('orders').select('status, created_at', { count: 'exact', head: false })
+        supabase.from('orders').select('status, created_at').limit(10000)
           .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
         // Previous period orders
-        supabase.from('orders').select('status, created_at', { count: 'exact', head: false })
+        supabase.from('orders').select('status, created_at').limit(10000)
           .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
-        // All-time returns
-        supabase.from('returns').select('return_status', { count: 'exact', head: false }),
+        // All-time returns - fetch actual data to analyze by status
+        supabase.from('returns').select('return_status').limit(10000),
         // Current period returns
-        supabase.from('returns').select('return_status, created_at', { count: 'exact', head: false })
+        supabase.from('returns').select('return_status, created_at').limit(10000)
           .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
         // Previous period returns
-        supabase.from('returns').select('return_status, created_at', { count: 'exact', head: false })
+        supabase.from('returns').select('return_status, created_at').limit(10000)
           .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
-        // All-time customers
+        // All-time customers - use count only
         supabase.from('customers').select('id', { count: 'exact', head: true }),
         // Current period customers
-        supabase.from('customers').select('id, created_at', { count: 'exact', head: true })
+        supabase.from('customers').select('id', { count: 'exact', head: true })
           .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
         // Previous period customers
-        supabase.from('customers').select('id, created_at', { count: 'exact', head: true })
+        supabase.from('customers').select('id', { count: 'exact', head: true })
           .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
       ]);
 
