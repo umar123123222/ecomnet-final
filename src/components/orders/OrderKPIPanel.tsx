@@ -7,7 +7,6 @@ import { startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
-
 interface Order {
   id: string;
   total_amount: number;
@@ -16,42 +15,33 @@ interface Order {
   status: string;
   created_at: string;
 }
-
 interface OrderKPIPanelProps {
   isVisible: boolean;
 }
-
-export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
+export const OrderKPIPanel = ({
+  isVisible
+}: OrderKPIPanelProps) => {
   const [monthFilter, setMonthFilter] = useState<'current' | 'last'>('current');
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Fetch orders for the selected month
   useEffect(() => {
     const fetchOrders = async () => {
       setLoading(true);
       try {
         const now = new Date();
-        const monthStart = monthFilter === 'current' 
-          ? startOfMonth(now)
-          : startOfMonth(subMonths(now, 1));
-        const monthEnd = monthFilter === 'current'
-          ? endOfMonth(now)
-          : endOfMonth(subMonths(now, 1));
-
+        const monthStart = monthFilter === 'current' ? startOfMonth(now) : startOfMonth(subMonths(now, 1));
+        const monthEnd = monthFilter === 'current' ? endOfMonth(now) : endOfMonth(subMonths(now, 1));
         console.log(`Fetching orders for ${monthFilter} month:`, {
           start: monthStart.toISOString(),
           end: monthEnd.toISOString()
         });
-
-        const { data, error } = await supabase
-          .from('orders')
-          .select('id, total_amount, city, courier, status, created_at')
-          .gte('created_at', monthStart.toISOString())
-          .lte('created_at', monthEnd.toISOString());
-
+        const {
+          data,
+          error
+        } = await supabase.from('orders').select('id, total_amount, city, courier, status, created_at').gte('created_at', monthStart.toISOString()).lte('created_at', monthEnd.toISOString());
         if (error) throw error;
-        
         console.log(`Fetched ${data?.length || 0} orders for ${monthFilter} month`);
         setOrders(data || []);
       } catch (error) {
@@ -61,23 +51,18 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
         setLoading(false);
       }
     };
-
     if (isVisible) {
       fetchOrders();
     }
   }, [monthFilter, isVisible]);
-  
   if (!isVisible) return null;
-
   if (loading) {
-    return (
-      <div className="space-y-4 mb-6">
+    return <div className="space-y-4 mb-6">
         <div className="flex justify-end">
           <Skeleton className="h-10 w-64" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {[...Array(5)].map((_, i) => (
-            <Card key={i} className="border-primary/20">
+          {[...Array(5)].map((_, i) => <Card key={i} className="border-primary/20">
               <CardHeader className="pb-3">
                 <Skeleton className="h-4 w-32" />
               </CardHeader>
@@ -85,13 +70,10 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
                 <Skeleton className="h-8 w-24 mb-2" />
                 <Skeleton className="h-3 w-full" />
               </CardContent>
-            </Card>
-          ))}
+            </Card>)}
         </div>
-      </div>
-    );
+      </div>;
   }
-
   const filteredOrders = orders;
 
   // Calculate AOV
@@ -104,11 +86,10 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
     acc[city] = (acc[city] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
-  
-  const topCities = Object.entries(cityData)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5)
-    .map(([city, count]) => ({ city, count }));
+  const topCities = Object.entries(cityData).sort(([, a], [, b]) => b - a).slice(0, 5).map(([city, count]) => ({
+    city,
+    count
+  }));
 
   // Orders by Courier with proper colors
   const courierData = filteredOrders.reduce((acc, order) => {
@@ -116,7 +97,6 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
     acc[courier] = (acc[courier] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
-  
   const getCourierChartColor = (courierName: string): string => {
     const courier = courierName.toLowerCase();
     if (courier.includes('postex')) return 'hsl(var(--courier-postex))';
@@ -125,35 +105,36 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
     if (courier.includes('not assigned')) return 'hsl(var(--muted))';
     return 'hsl(var(--primary))';
   };
-  
   const courierChartData = Object.entries(courierData).map(([name, value]) => ({
-    name, 
+    name,
     value,
     color: getCourierChartColor(name)
   }));
 
   // Return Rate
   const returnedOrders = filteredOrders.filter(o => o.status === 'returned').length;
-  const returnRate = filteredOrders.length > 0 ? (returnedOrders / filteredOrders.length) * 100 : 0;
+  const returnRate = filteredOrders.length > 0 ? returnedOrders / filteredOrders.length * 100 : 0;
   const returnTrend = returnRate < 5 ? 'down' : 'up'; // Mock trend
 
   // Daily Volume (last 7 days)
-  const last7Days = Array.from({ length: 7 }, (_, i) => {
+  const last7Days = Array.from({
+    length: 7
+  }, (_, i) => {
     const date = new Date();
     date.setDate(date.getDate() - (6 - i));
     return date.toISOString().split('T')[0];
   });
-
   const dailyVolumeData = last7Days.map(date => {
     const count = filteredOrders.filter(o => o.created_at?.split('T')[0] === date).length;
-    return { date: new Date(date).getDate().toString(), count };
+    return {
+      date: new Date(date).getDate().toString(),
+      count
+    };
   });
-
-  return (
-    <div className="space-y-4 mb-6 animate-fade-in">
+  return <div className="space-y-4 mb-6 animate-fade-in">
       {/* Month Filter */}
       <div className="flex justify-end">
-        <Tabs value={monthFilter} onValueChange={(v) => setMonthFilter(v as 'current' | 'last')}>
+        <Tabs value={monthFilter} onValueChange={v => setMonthFilter(v as 'current' | 'last')}>
           <TabsList>
             <TabsTrigger value="current">Current Month</TabsTrigger>
             <TabsTrigger value="last">Last Month</TabsTrigger>
@@ -172,7 +153,11 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {aov.toLocaleString('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 })}
+            {aov.toLocaleString('en-PK', {
+              style: 'currency',
+              currency: 'PKR',
+              maximumFractionDigits: 0
+            })}
           </div>
           <p className="text-xs text-muted-foreground mt-1">
             From {filteredOrders.length} orders
@@ -190,22 +175,30 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={80}>
-            <BarChart data={topCities} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-              <XAxis dataKey="city" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip 
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    return (
-                      <div className="bg-popover border border-border rounded-md p-2 shadow-md">
+            <BarChart data={topCities} margin={{
+              top: 0,
+              right: 0,
+              left: -20,
+              bottom: 0
+            }}>
+              <XAxis dataKey="city" tick={{
+                fontSize: 10
+              }} />
+              <YAxis tick={{
+                fontSize: 10
+              }} />
+              <Tooltip content={({
+                active,
+                payload
+              }) => {
+                if (active && payload && payload.length) {
+                  return <div className="bg-popover border border-border rounded-md p-2 shadow-md">
                         <p className="text-xs font-medium">{payload[0].payload.city}</p>
                         <p className="text-xs text-muted-foreground">{payload[0].value} orders</p>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
+                      </div>;
+                }
+                return null;
+              }} />
               <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -223,49 +216,25 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
         <CardContent>
           <ResponsiveContainer width="100%" height={80}>
             <PieChart>
-              <Pie
-                data={courierChartData}
-                cx="50%"
-                cy="50%"
-                innerRadius={20}
-                outerRadius={35}
-                paddingAngle={2}
-                dataKey="value"
-              >
-                {courierChartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
+              <Pie data={courierChartData} cx="50%" cy="50%" innerRadius={20} outerRadius={35} paddingAngle={2} dataKey="value">
+                {courierChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
               </Pie>
-              <Tooltip 
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    return (
-                      <div className="bg-popover border border-border rounded-md p-2 shadow-md">
+              <Tooltip content={({
+                active,
+                payload
+              }) => {
+                if (active && payload && payload.length) {
+                  return <div className="bg-popover border border-border rounded-md p-2 shadow-md">
                         <p className="text-xs font-medium">{payload[0].name}</p>
                         <p className="text-xs text-muted-foreground">{payload[0].value} orders</p>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
+                      </div>;
+                }
+                return null;
+              }} />
             </PieChart>
           </ResponsiveContainer>
           {/* Legend */}
-          <div className="mt-3 space-y-1.5">
-            {courierChartData.map((entry, index) => (
-              <div key={`legend-${index}`} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5">
-                  <div 
-                    className="w-2.5 h-2.5 rounded-full" 
-                    style={{ backgroundColor: entry.color }}
-                  />
-                  <span className="font-medium">{entry.name}</span>
-                </div>
-                <span className="text-muted-foreground">{entry.value}</span>
-              </div>
-            ))}
-          </div>
+          
         </CardContent>
       </Card>
 
@@ -301,8 +270,15 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={60}>
-            <LineChart data={dailyVolumeData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+            <LineChart data={dailyVolumeData} margin={{
+              top: 5,
+              right: 5,
+              left: -20,
+              bottom: 0
+            }}>
+              <XAxis dataKey="date" tick={{
+                fontSize: 10
+              }} />
               <Tooltip />
               <Line type="monotone" dataKey="count" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
             </LineChart>
@@ -311,6 +287,5 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
         </CardContent>
       </Card>
       </div>
-    </div>
-  );
+    </div>;
 };
