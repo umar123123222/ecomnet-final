@@ -221,10 +221,18 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
   }, [orderId]);
 
   useEffect(() => {
-    if (open && orderId) {
-      fetchTimeline();
+    // In embedded mode (e.g. inside tabs), we don't get an `open` prop,
+    // so trigger the fetch whenever the component mounts or orderId changes.
+    if (embedded) {
+      if (orderId) {
+        fetchTimeline();
+      }
+    } else {
+      if (open && orderId) {
+        fetchTimeline();
+      }
     }
-  }, [open, orderId, fetchTimeline]);
+  }, [embedded, open, orderId, fetchTimeline]);
 
   const getActionLabel = (action: string) => {
     const labels: Record<string, string> = {
@@ -241,10 +249,14 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
       verification_updated: 'Verification Updated',
       address_updated: 'Address Updated',
       tracking_update: 'Tracking Update',
+      tag_added: 'Tag Added',
+      tag_removed: 'Tag Removed',
+      comment_added: 'Comment Added',
+      note_added: 'Note Added',
     };
     return labels[action] || action.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   };
-
+ 
   const getActionDescription = (action: string, details: any) => {
     if (!details) return undefined;
     
@@ -266,6 +278,18 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
     
     if (action === 'verification_updated' && details.verified !== undefined) {
       return details.verified ? 'Address verified' : 'Address verification failed';
+    }
+
+    if (action === 'tag_added' && details.tag) {
+      return `Tag added: "${details.tag}"`;
+    }
+
+    if (action === 'tag_removed' && details.tag) {
+      return `Tag removed: "${details.tag}"`;
+    }
+
+    if ((action === 'comment_added' || action === 'note_added') && (details.comment || details.note)) {
+      return details.comment || details.note;
     }
     
     return undefined;
