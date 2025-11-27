@@ -22,6 +22,7 @@ import {
 import { ConfirmOrderDialog } from "./ConfirmOrderDialog";
 import { BookCourierDialog } from "./BookCourierDialog";
 import { OrderActivityLog } from "./OrderActivityLog";
+import { toast } from "@/hooks/use-toast";
 
 interface Order {
   id: string;
@@ -203,11 +204,11 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
     fetchTrackingDetails();
   };
 
-  const fetchTrackingFromCourier = async () => {
+  const fetchTrackingFromCourier = async (showErrors = false) => {
     if (!dispatchInfo?.tracking_id || !order?.courier) return;
     
     try {
-      console.log('Auto-fetching tracking from courier API for:', dispatchInfo.tracking_id, order.courier);
+      console.log('Fetching tracking from courier API for:', dispatchInfo.tracking_id);
       
       const { data, error } = await supabase.functions.invoke('courier-tracking', {
         body: {
@@ -216,16 +217,29 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
         }
       });
 
-      if (error) {
-        console.error('Error fetching tracking from courier:', error);
-      } else {
-        console.log('Tracking fetched successfully from courier:', data);
+      if (error || !data?.success) {
+        console.error('Tracking fetch failed:', error || data?.error);
+        if (showErrors) {
+          toast({
+            variant: "destructive",
+            title: "Tracking Error",
+            description: data?.error || error?.message || 'Service unavailable'
+          });
+        }
+        return;
       }
       
-      // Refresh to show new data
+      console.log('Tracking fetched successfully:', data);
       await fetchTrackingDetails();
     } catch (error) {
-      console.error('Failed to fetch tracking from courier:', error);
+      console.error('Failed to fetch tracking (network/connection error):', error);
+      if (showErrors) {
+        toast({
+          variant: "destructive",
+          title: "Connection Error",
+          description: 'Could not connect to tracking service'
+        });
+      }
     }
   };
 
@@ -234,7 +248,7 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
     
     try {
       setLoading(true);
-      await fetchTrackingFromCourier();
+      await fetchTrackingFromCourier(true); // Show errors for manual fetch
     } finally {
       setLoading(false);
     }

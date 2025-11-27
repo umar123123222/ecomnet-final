@@ -69,13 +69,16 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('Error in courier-tracking:', error);
+    
+    // Return 200 with error details for expected failures (DNS, network issues)
+    // This prevents the client from throwing exceptions
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message
+        error: error.message || 'Tracking service unavailable'
       }),
       {
-        status: 500,
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
