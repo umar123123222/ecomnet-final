@@ -97,35 +97,54 @@ const Dashboard = () => {
     queryFn: async () => {
       const ranges = getDateRanges();
 
+      // Fetch all-time totals and date-ranged data in parallel
       const [
+        allTimeOrdersRes,
         currentOrdersRes,
         previousOrdersRes,
+        allTimeReturnsRes,
         currentReturnsRes,
         previousReturnsRes,
+        allTimeCustomersRes,
         currentCustomersRes,
         previousCustomersRes,
       ] = await Promise.all([
+        // All-time orders
+        supabase.from('orders').select('status', { count: 'exact', head: false }),
+        // Current period orders
         supabase.from('orders').select('status, created_at', { count: 'exact', head: false })
           .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
+        // Previous period orders
         supabase.from('orders').select('status, created_at', { count: 'exact', head: false })
           .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
+        // All-time returns
+        supabase.from('returns').select('return_status', { count: 'exact', head: false }),
+        // Current period returns
         supabase.from('returns').select('return_status, created_at', { count: 'exact', head: false })
           .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
+        // Previous period returns
         supabase.from('returns').select('return_status, created_at', { count: 'exact', head: false })
           .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
+        // All-time customers
+        supabase.from('customers').select('id', { count: 'exact', head: true }),
+        // Current period customers
         supabase.from('customers').select('id, created_at', { count: 'exact', head: true })
           .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
+        // Previous period customers
         supabase.from('customers').select('id, created_at', { count: 'exact', head: true })
           .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
       ]);
 
-      if (currentOrdersRes.error || previousOrdersRes.error || currentReturnsRes.error || 
-          previousReturnsRes.error || currentCustomersRes.error || previousCustomersRes.error) {
+      if (allTimeOrdersRes.error || currentOrdersRes.error || previousOrdersRes.error || 
+          allTimeReturnsRes.error || currentReturnsRes.error || previousReturnsRes.error || 
+          allTimeCustomersRes.error || currentCustomersRes.error || previousCustomersRes.error) {
         throw new Error('Failed to fetch dashboard data');
       }
 
+      const allTimeOrders = allTimeOrdersRes.data || [];
       const currentOrders = currentOrdersRes.data || [];
       const previousOrders = previousOrdersRes.data || [];
+      const allTimeReturns = allTimeReturnsRes.data || [];
       const currentReturns = currentReturnsRes.data || [];
       const previousReturns = previousReturnsRes.data || [];
 
@@ -134,6 +153,19 @@ const Dashboard = () => {
         return ((current - previous) / previous) * 100;
       };
 
+      // All-time statistics
+      const allTimeStats = {
+        totalOrders: allTimeOrders.length,
+        bookedOrders: allTimeOrders.filter(o => o.status === 'booked').length,
+        dispatchedOrders: allTimeOrders.filter(o => o.status === 'dispatched').length,
+        deliveredOrders: allTimeOrders.filter(o => o.status === 'delivered').length,
+        cancelledOrders: allTimeOrders.filter(o => o.status === 'cancelled').length,
+        returnsInTransit: allTimeReturns.filter(r => r.return_status === 'in_transit').length,
+        returnedOrders: allTimeReturns.filter(r => r.return_status === 'received').length,
+        customers: allTimeCustomersRes.count || 0,
+      };
+
+      // Current period statistics (for trend calculation)
       const currentStats = {
         totalOrders: currentOrders.length,
         bookedOrders: currentOrders.filter(o => o.status === 'booked').length,
@@ -145,6 +177,7 @@ const Dashboard = () => {
         customers: currentCustomersRes.count || 0,
       };
 
+      // Previous period statistics (for trend calculation)
       const previousStats = {
         totalOrders: previousOrders.length,
         bookedOrders: previousOrders.filter(o => o.status === 'booked').length,
@@ -157,6 +190,7 @@ const Dashboard = () => {
       };
 
       return {
+        allTime: allTimeStats,
         current: currentStats,
         previous: previousStats,
         trends: {
@@ -181,7 +215,7 @@ const Dashboard = () => {
     return `${sign}${value.toFixed(1)}%`;
   };
 
-  // Memoize summary data with real data and calculated trends
+  // Memoize summary data with real all-time data and calculated trends
   const summaryData = useMemo(() => {
     if (loading || !dashboardData) {
       return [{
@@ -243,58 +277,59 @@ const Dashboard = () => {
       }];
     }
 
+    // Use all-time stats for display, trends from period comparison
     return [{
       title: "Total Orders",
-      value: (dashboardData.current.totalOrders || 0).toLocaleString(),
+      value: (dashboardData.allTime.totalOrders || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.totalOrders),
       trend: dashboardData.trends.totalOrders >= 0 ? "up" : "down",
       icon: Package,
       color: "from-blue-500 to-cyan-500"
     }, {
       title: "Booked Orders",
-      value: (dashboardData.current.bookedOrders || 0).toLocaleString(),
+      value: (dashboardData.allTime.bookedOrders || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.bookedOrders),
       trend: dashboardData.trends.bookedOrders >= 0 ? "up" : "down",
       icon: Calendar,
       color: "from-purple-500 to-pink-500"
     }, {
       title: "Dispatched Orders",
-      value: (dashboardData.current.dispatchedOrders || 0).toLocaleString(),
+      value: (dashboardData.allTime.dispatchedOrders || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.dispatchedOrders),
       trend: dashboardData.trends.dispatchedOrders >= 0 ? "up" : "down",
       icon: Truck,
       color: "from-orange-500 to-yellow-500"
     }, {
       title: "Delivered Orders",
-      value: (dashboardData.current.deliveredOrders || 0).toLocaleString(),
+      value: (dashboardData.allTime.deliveredOrders || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.deliveredOrders),
       trend: dashboardData.trends.deliveredOrders >= 0 ? "up" : "down",
       icon: CheckCircle,
       color: "from-green-500 to-emerald-500"
     }, {
       title: "Cancelled Orders",
-      value: (dashboardData.current.cancelledOrders || 0).toLocaleString(),
+      value: (dashboardData.allTime.cancelledOrders || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.cancelledOrders),
       trend: dashboardData.trends.cancelledOrders >= 0 ? "up" : "down",
       icon: XCircle,
       color: "from-red-500 to-pink-500"
     }, {
       title: "Returns in Transit",
-      value: (dashboardData.current.returnsInTransit || 0).toLocaleString(),
+      value: (dashboardData.allTime.returnsInTransit || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.returnsInTransit),
       trend: dashboardData.trends.returnsInTransit >= 0 ? "up" : "down",
       icon: RotateCcw,
       color: "from-indigo-500 to-purple-500"
     }, {
       title: "Returned Orders",
-      value: (dashboardData.current.returnedOrders || 0).toLocaleString(),
+      value: (dashboardData.allTime.returnedOrders || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.returnedOrders),
       trend: dashboardData.trends.returnedOrders >= 0 ? "up" : "down",
       icon: Package,
       color: "from-gray-500 to-gray-600"
     }, {
       title: "Customers",
-      value: (dashboardData.current.customers || 0).toLocaleString(),
+      value: (dashboardData.allTime.customers || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.customers),
       trend: dashboardData.trends.customers >= 0 ? "up" : "down",
       icon: Users,
