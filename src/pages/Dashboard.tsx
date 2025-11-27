@@ -155,7 +155,6 @@ const Dashboard = () => {
 
       // All-time statistics
       const allTimeStats = {
-        totalOrders: allTimeOrders.length,
         bookedOrders: allTimeOrders.filter(o => o.status === 'booked').length,
         dispatchedOrders: allTimeOrders.filter(o => o.status === 'dispatched').length,
         deliveredOrders: allTimeOrders.filter(o => o.status === 'delivered').length,
@@ -163,31 +162,57 @@ const Dashboard = () => {
         returnsInTransit: allTimeReturns.filter(r => r.return_status === 'in_transit').length,
         returnedOrders: allTimeReturns.filter(r => r.return_status === 'received').length,
         customers: allTimeCustomersRes.count || 0,
+        // Ensure total orders equals the sum of all status buckets
+        totalOrders: 0,
       };
+
+      allTimeStats.totalOrders =
+        allTimeStats.bookedOrders +
+        allTimeStats.dispatchedOrders +
+        allTimeStats.deliveredOrders +
+        allTimeStats.cancelledOrders +
+        allTimeStats.returnsInTransit +
+        allTimeStats.returnedOrders;
 
       // Current period statistics (for trend calculation)
       const currentStats = {
-        totalOrders: currentOrders.length,
         bookedOrders: currentOrders.filter(o => o.status === 'booked').length,
         dispatchedOrders: currentOrders.filter(o => o.status === 'dispatched').length,
         deliveredOrders: currentOrders.filter(o => o.status === 'delivered').length,
-        cancelledOrders: currentOrders.filter(o => o.status === 'cancelled').length,
+        cancelledOrders: currentReturns.filter(r => r.return_status === 'in_transit').length,
         returnsInTransit: currentReturns.filter(r => r.return_status === 'in_transit').length,
         returnedOrders: currentReturns.filter(r => r.return_status === 'received').length,
         customers: currentCustomersRes.count || 0,
+        totalOrders: 0,
       };
+
+      currentStats.totalOrders =
+        currentStats.bookedOrders +
+        currentStats.dispatchedOrders +
+        currentStats.deliveredOrders +
+        currentStats.cancelledOrders +
+        currentStats.returnsInTransit +
+        currentStats.returnedOrders;
 
       // Previous period statistics (for trend calculation)
       const previousStats = {
-        totalOrders: previousOrders.length,
         bookedOrders: previousOrders.filter(o => o.status === 'booked').length,
         dispatchedOrders: previousOrders.filter(o => o.status === 'dispatched').length,
         deliveredOrders: previousOrders.filter(o => o.status === 'delivered').length,
-        cancelledOrders: previousOrders.filter(o => o.status === 'cancelled').length,
+        cancelledOrders: previousReturns.filter(r => r.return_status === 'in_transit').length,
         returnsInTransit: previousReturns.filter(r => r.return_status === 'in_transit').length,
         returnedOrders: previousReturns.filter(r => r.return_status === 'received').length,
         customers: previousCustomersRes.count || 0,
+        totalOrders: 0,
       };
+
+      previousStats.totalOrders =
+        previousStats.bookedOrders +
+        previousStats.dispatchedOrders +
+        previousStats.deliveredOrders +
+        previousStats.cancelledOrders +
+        previousStats.returnsInTransit +
+        previousStats.returnedOrders;
 
       return {
         allTime: allTimeStats,
