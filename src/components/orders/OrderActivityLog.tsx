@@ -65,19 +65,28 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
       
       const dispatchIds = dispatches?.map(d => d.id) || [];
       
-      // Now query activity logs for order OR dispatches
-      let activityQuery = supabase
+      // Query activity logs for this order
+      const { data: orderLogs, error: orderLogsError } = await supabase
         .from('activity_logs')
         .select('*')
+        .eq('entity_type', 'order')
+        .eq('entity_id', orderId)
         .order('created_at', { ascending: false });
-      
+
+      // Query activity logs for dispatches separately if needed
+      let dispatchLogs: any[] = [];
       if (dispatchIds.length > 0) {
-        activityQuery = activityQuery.or(`entity_type.eq.order,entity_type.eq.dispatch`).or(`entity_id.eq.${orderId},entity_id.in.(${dispatchIds.join(',')})`);
-      } else {
-        activityQuery = activityQuery.eq('entity_type', 'order').eq('entity_id', orderId);
+        const { data } = await supabase
+          .from('activity_logs')
+          .select('*')
+          .eq('entity_type', 'dispatch')
+          .in('entity_id', dispatchIds)
+          .order('created_at', { ascending: false });
+        dispatchLogs = data || [];
       }
       
-      const { data: activityLogs, error: activityError } = await activityQuery;
+      const activityLogs = [...(orderLogs || []), ...dispatchLogs];
+      const activityError = orderLogsError;
 
       if (activityError) throw activityError;
       console.log('Activity logs:', activityLogs);
@@ -110,13 +119,25 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
         .maybeSingle();
 
       // 5. Fetch user profiles for activity logs
-      const userIds = [...new Set(activityLogs?.map(log => log.user_id).filter(Boolean) || [])];
+      const userIds = [...new Set(activityLogs.map(log => log.user_id).filter(Boolean))];
       const { data: users } = await supabase
         .from('profiles')
         .select('id, full_name, email')
         .in('id', userIds);
 
       const userMap = new Map(users?.map(u => [u.id, u]) || []);
+
+      // Helper to infer actual action type from details
+      const inferActionType = (action: string, details: any) => {
+        if (action === 'order_updated' && details) {
+          if (details.tag_added) return 'tag_added';
+          if (details.tag_removed) return 'tag_removed';
+          if (details.comment) return 'comment_added';
+          if (details.note) return 'note_added';
+          if (details.field === 'status' || (details.old_status && details.new_status)) return 'status_changed';
+        }
+        return action;
+      };
 
       // Build unified timeline
       const events: TimelineEvent[] = [];
@@ -180,14 +201,15 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
       }
 
       // Add activity logs
-      activityLogs?.forEach(log => {
+      activityLogs.forEach(log => {
         const user = userMap.get(log.user_id);
+        const actualAction = inferActionType(log.action, log.details);
         events.push({
           id: log.id,
           type: 'activity',
           timestamp: log.created_at,
-          title: getActionLabel(log.action),
-          description: getActionDescription(log.action, log.details),
+          title: getActionLabel(actualAction),
+          description: getActionDescription(actualAction, log.details),
           user,
           details: log.details,
         });
@@ -260,8 +282,13 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
   const getActionDescription = (action: string, details: any) => {
     if (!details) return undefined;
     
-    if (action === 'status_changed' && details.old_status && details.new_status) {
-      return `Status changed from "${details.old_status}" to "${details.new_status}"`;
+    if (action === 'status_changed') {
+      if (details.old_status && details.new_status) {
+        return `Status changed from "${details.old_status}" to "${details.new_status}"`;
+      }
+      if (details.from && details.to) {
+        return `Status changed from "${details.from}" to "${details.to}"`;
+      }
     }
     
     if (action === 'order_assigned' && details.courier) {
@@ -280,15 +307,15 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
       return details.verified ? 'Address verified' : 'Address verification failed';
     }
 
-    if (action === 'tag_added' && details.tag) {
-      return `Tag added: "${details.tag}"`;
+    if (action === 'tag_added') {
+      return `Tag added: "${details.tag_added || details.tag}"`;
     }
 
-    if (action === 'tag_removed' && details.tag) {
-      return `Tag removed: "${details.tag}"`;
+    if (action === 'tag_removed') {
+      return `Tag removed: "${details.tag_removed || details.tag}"`;
     }
 
-    if ((action === 'comment_added' || action === 'note_added') && (details.comment || details.note)) {
+    if (action === 'comment_added' || action === 'note_added') {
       return details.comment || details.note;
     }
     
