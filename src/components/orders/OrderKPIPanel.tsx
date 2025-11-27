@@ -39,6 +39,11 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
           ? endOfMonth(now)
           : endOfMonth(subMonths(now, 1));
 
+        console.log(`Fetching orders for ${monthFilter} month:`, {
+          start: monthStart.toISOString(),
+          end: monthEnd.toISOString()
+        });
+
         const { data, error } = await supabase
           .from('orders')
           .select('id, total_amount, city, courier, status, created_at')
@@ -46,6 +51,8 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
           .lte('created_at', monthEnd.toISOString());
 
         if (error) throw error;
+        
+        console.log(`Fetched ${data?.length || 0} orders for ${monthFilter} month`);
         setOrders(data || []);
       } catch (error) {
         console.error('Error fetching KPI orders:', error);
