@@ -97,35 +97,28 @@ const Dashboard = () => {
     queryFn: async () => {
       const ranges = getDateRanges();
 
-      // Fetch all-time totals and date-ranged data in parallel
+      // Fetch order statistics using efficient COUNT queries
       const [
-        allTimeOrdersRes,
-        currentOrdersRes,
-        previousOrdersRes,
-        allTimeReturnsRes,
-        currentReturnsRes,
-        previousReturnsRes,
+        orderStatsByStatus,
+        currentOrderStatsByStatus,
+        previousOrderStatsByStatus,
         allTimeCustomersRes,
         currentCustomersRes,
         previousCustomersRes,
       ] = await Promise.all([
-        // All-time orders - fetch actual data to analyze by status
-        supabase.from('orders').select('status').limit(10000),
-        // Current period orders
-        supabase.from('orders').select('status, created_at').limit(10000)
-          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
-        // Previous period orders
-        supabase.from('orders').select('status, created_at').limit(10000)
-          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
-        // All-time returns - fetch actual data to analyze by status
-        supabase.from('returns').select('return_status').limit(10000),
-        // Current period returns
-        supabase.from('returns').select('return_status, created_at').limit(10000)
-          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
-        // Previous period returns
-        supabase.from('returns').select('return_status, created_at').limit(10000)
-          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
-        // All-time customers - use count only
+        // All-time orders grouped by status
+        supabase.rpc('get_order_stats_by_status'),
+        // Current period orders by status  
+        supabase.rpc('get_order_stats_by_status_range', {
+          start_date: ranges.currentStart,
+          end_date: ranges.currentEnd
+        }),
+        // Previous period orders by status
+        supabase.rpc('get_order_stats_by_status_range', {
+          start_date: ranges.previousStart,
+          end_date: ranges.previousEnd
+        }),
+        // All-time customers
         supabase.from('customers').select('id', { count: 'exact', head: true }),
         // Current period customers
         supabase.from('customers').select('id', { count: 'exact', head: true })
