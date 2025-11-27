@@ -72,6 +72,7 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showBookDialog, setShowBookDialog] = useState(false);
   const [activeTab, setActiveTab] = useState("tracking");
+  const [autoFetchAttempted, setAutoFetchAttempted] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -79,6 +80,7 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
       setLoading(true);
       setDispatchInfo(null);
       setTrackingHistory([]);
+      setAutoFetchAttempted(false);
     } else if (order?.id) {
       fetchTrackingDetails();
     } else {
@@ -86,6 +88,14 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
       setLoading(false);
     }
   }, [open, order?.id]);
+
+  // Auto-fetch tracking from courier API when dispatch info is loaded
+  useEffect(() => {
+    if (dispatchInfo?.tracking_id && order?.courier && !autoFetchAttempted && open) {
+      setAutoFetchAttempted(true);
+      fetchTrackingFromCourier();
+    }
+  }, [dispatchInfo, order?.courier, autoFetchAttempted, open]);
 
   const fetchTrackingDetails = async () => {
     if (!order?.id) {
@@ -193,12 +203,11 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
     fetchTrackingDetails();
   };
 
-  const handleFetchTracking = async () => {
-    if (!dispatchInfo?.tracking_id || !order.courier) return;
+  const fetchTrackingFromCourier = async () => {
+    if (!dispatchInfo?.tracking_id || !order?.courier) return;
     
     try {
-      setLoading(true);
-      console.log('Manually fetching tracking for:', dispatchInfo.tracking_id, order.courier);
+      console.log('Auto-fetching tracking from courier API for:', dispatchInfo.tracking_id, order.courier);
       
       const { data, error } = await supabase.functions.invoke('courier-tracking', {
         body: {
@@ -208,16 +217,24 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
       });
 
       if (error) {
-        console.error('Error fetching tracking:', error);
-        return;
+        console.error('Error fetching tracking from courier:', error);
+      } else {
+        console.log('Tracking fetched successfully from courier:', data);
       }
-
-      console.log('Tracking fetched successfully:', data);
       
       // Refresh to show new data
       await fetchTrackingDetails();
     } catch (error) {
-      console.error('Failed to fetch tracking:', error);
+      console.error('Failed to fetch tracking from courier:', error);
+    }
+  };
+
+  const handleFetchTracking = async () => {
+    if (!dispatchInfo?.tracking_id || !order.courier) return;
+    
+    try {
+      setLoading(true);
+      await fetchTrackingFromCourier();
     } finally {
       setLoading(false);
     }
