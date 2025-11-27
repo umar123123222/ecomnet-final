@@ -85,6 +85,52 @@ serve(async (req) => {
   }
 });
 
+// PostEx status code mapping
+const postexStatusMap: Record<string, { status: string; label: string }> = {
+  '0001': { status: 'at_warehouse', label: 'At Merchant Warehouse' },
+  '0003': { status: 'at_warehouse', label: 'At PostEx Warehouse' },
+  '0004': { status: 'in_transit', label: 'Package on Route' },
+  '0005': { status: 'delivered', label: 'Delivered' },
+  '0008': { status: 'pending', label: 'Delivery Under Review' },
+  '0013': { status: 'out_for_delivery', label: 'Out for Delivery' },
+  '0002': { status: 'returned', label: 'Returned to Merchant' },
+  '0006': { status: 'returned', label: 'Returned' },
+  '0007': { status: 'returned', label: 'Returned' }
+};
+
+function parsePostExResponse(data: any) {
+  console.log('Parsing PostEx response:', JSON.stringify(data, null, 2));
+  
+  const history = data?.dist?.transactionStatusHistory || [];
+  const statusHistory = history.map((event: any) => {
+    const messageCode = event.transactionStatusMessageCode || '';
+    const mapped = postexStatusMap[messageCode] || { status: 'in_transit', label: event.transactionStatusMessage };
+    
+    return {
+      status: mapped.status,
+      message: event.transactionStatusMessage || mapped.label,
+      location: event.location || 'PostEx',
+      timestamp: event.transactionDateTime || new Date().toISOString(),
+      code: messageCode,
+      raw: event
+    };
+  });
+
+  // Get current status from the latest event
+  const latestEvent = statusHistory[statusHistory.length - 1];
+  const currentStatus = latestEvent?.status || 'in_transit';
+  
+  console.log(`Parsed ${statusHistory.length} tracking events. Current status: ${currentStatus}`);
+  
+  return {
+    status: currentStatus,
+    currentLocation: latestEvent?.location || 'In Transit',
+    statusHistory,
+    estimatedDelivery: data?.dist?.estimatedDelivery,
+    raw: data
+  };
+}
+
 async function trackWithCustomEndpoint(trackingId: string, courier: any, supabaseClient: any) {
   const apiKey = await getAPISetting(`${courier.code.toUpperCase()}_API_KEY`, supabaseClient);
   
@@ -123,18 +169,68 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
   const response = await fetch(url, { headers });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`${courier.name} tracking failed:`, response.status, errorText);
     throw new Error(`${courier.name} tracking failed: ${response.statusText}`);
   }
 
   const data = await response.json();
+  console.log('Raw tracking response:', JSON.stringify(data, null, 2));
   
-  return {
-    status: data.status || 'in_transit',
-    currentLocation: data.current_location || data.location,
-    statusHistory: data.tracking_history || data.history || [],
-    estimatedDelivery: data.estimated_delivery,
-    raw: data
-  };
+  // Parse response based on courier type
+  let trackingData;
+  if (courier.code.toLowerCase() === 'postex') {
+    trackingData = parsePostExResponse(data);
+  } else {
+    // Generic parsing for other couriers
+    trackingData = {
+      status: data.status || 'in_transit',
+      currentLocation: data.current_location || data.location,
+      statusHistory: data.tracking_history || data.history || [],
+      estimatedDelivery: data.estimated_delivery,
+      raw: data
+    };
+  }
+
+  // Get dispatch and order info
+  const { data: dispatch, error: dispatchError } = await supabaseClient
+    .from('dispatches')
+    .select('id, order_id')
+    .eq('tracking_id', trackingId)
+    .single();
+
+  if (!dispatchError && dispatch) {
+    console.log(`Found dispatch ${dispatch.id} for order ${dispatch.order_id}`);
+    
+    // Insert tracking events into courier_tracking_history
+    for (const event of trackingData.statusHistory) {
+      const { error: insertError } = await supabaseClient
+        .from('courier_tracking_history')
+        .upsert({
+          dispatch_id: dispatch.id,
+          order_id: dispatch.order_id,
+          courier_id: courier.id,
+          tracking_id: trackingId,
+          status: event.status,
+          current_location: event.location || event.message,
+          checked_at: event.timestamp || new Date().toISOString(),
+          raw_response: event.raw || event
+        }, {
+          onConflict: 'dispatch_id,checked_at,status',
+          ignoreDuplicates: true
+        });
+
+      if (insertError) {
+        console.error('Error inserting tracking event:', insertError);
+      } else {
+        console.log(`Inserted tracking event: ${event.status} at ${event.timestamp}`);
+      }
+    }
+  } else {
+    console.warn('Could not find dispatch for tracking ID:', trackingId, dispatchError);
+  }
+  
+  return trackingData;
 }
 
 // Legacy hardcoded functions removed - all couriers must now use configured tracking_endpoint
