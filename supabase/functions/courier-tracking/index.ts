@@ -85,7 +85,17 @@ serve(async (req) => {
 async function trackWithCustomEndpoint(trackingId: string, courier: any, supabaseClient: any) {
   const apiKey = await getAPISetting(`${courier.code.toUpperCase()}_API_KEY`, supabaseClient);
   
-  const url = courier.tracking_endpoint.replace('{tracking_id}', trackingId);
+  // Support multiple placeholder formats for different courier APIs
+  let url = courier.tracking_endpoint;
+  url = url.replace('{tracking_id}', trackingId);
+  url = url.replace('{trackingId}', trackingId);
+  url = url.replace('{trackingNumber}', trackingId);
+  url = url.replace('{tracking_number}', trackingId);
+  url = url.replace('{awb}', trackingId);
+  url = url.replace('{AWB}', trackingId);
+  
+  console.log('Tracking URL after replacement:', url);
+  
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
