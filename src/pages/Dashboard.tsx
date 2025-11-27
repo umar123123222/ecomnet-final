@@ -97,112 +97,146 @@ const Dashboard = () => {
     queryFn: async () => {
       const ranges = getDateRanges();
 
-      // Fetch order statistics using database COUNT queries
+      // Fetch order counts by status using efficient queries
       const [
-        orderStatsByStatusRes,
-        currentOrderStatsByStatusRes,
-        previousOrderStatsByStatusRes,
+        allTimeBookedRes,
+        allTimeDispatchedRes,
+        allTimeDeliveredRes,
+        allTimeCancelledRes,
+        allTimeReturnedRes,
+        allTimePendingRes,
+        currentBookedRes,
+        currentDispatchedRes,
+        currentDeliveredRes,
+        currentCancelledRes,
+        currentReturnedRes,
+        currentPendingRes,
+        previousBookedRes,
+        previousDispatchedRes,
+        previousDeliveredRes,
+        previousCancelledRes,
+        previousReturnedRes,
+        previousPendingRes,
         allTimeCustomersRes,
         currentCustomersRes,
         previousCustomersRes,
       ] = await Promise.all([
-        // All-time orders grouped by status
-        supabase.from('orders').select('status', { count: 'exact' }),
-        // Current period orders by status  
-        supabase.from('orders').select('status', { count: 'exact' })
+        // All-time counts by status
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'booked'),
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'dispatched'),
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'delivered'),
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'cancelled'),
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'returned'),
+        supabase.from('orders').select('*', { count: 'exact', head: true }).in('status', ['pending', 'confirmed']),
+        // Current period counts
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'booked')
           .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
-        // Previous period orders by status
-        supabase.from('orders').select('status', { count: 'exact' })
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'dispatched')
+          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'delivered')
+          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'cancelled')
+          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'returned')
+          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
+        supabase.from('orders').select('*', { count: 'exact', head: true }).in('status', ['pending', 'confirmed'])
+          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
+        // Previous period counts
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'booked')
           .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
-        // All-time customers
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'dispatched')
+          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'delivered')
+          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'cancelled')
+          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'returned')
+          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
+        supabase.from('orders').select('*', { count: 'exact', head: true }).in('status', ['pending', 'confirmed'])
+          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
+        // Customers
         supabase.from('customers').select('id', { count: 'exact', head: true }),
-        // Current period customers
         supabase.from('customers').select('id', { count: 'exact', head: true })
           .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
-        // Previous period customers
         supabase.from('customers').select('id', { count: 'exact', head: true })
           .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
       ]);
 
-      if (orderStatsByStatusRes.error || currentOrderStatsByStatusRes.error || previousOrderStatsByStatusRes.error || 
-          allTimeCustomersRes.error || currentCustomersRes.error || previousCustomersRes.error) {
-        console.error('Dashboard data fetch errors:', {
-          orderStats: orderStatsByStatusRes.error,
-          currentOrderStats: currentOrderStatsByStatusRes.error,
-          previousOrderStats: previousOrderStatsByStatusRes.error,
-          allTimeCustomers: allTimeCustomersRes.error,
-          currentCustomers: currentCustomersRes.error,
-          previousCustomers: previousCustomersRes.error,
-        });
+
+      // Check for errors - just check a few key ones since we have many queries
+      if (allTimeBookedRes.error || allTimeCustomersRes.error) {
+        console.error('Dashboard data fetch error');
         throw new Error('Failed to fetch dashboard data');
       }
-
-      // Get all orders data for status breakdown - with proper pagination
-      const allOrders = orderStatsByStatusRes.data || [];
-      const currentOrders = currentOrderStatsByStatusRes.data || [];
-      const previousOrders = previousOrderStatsByStatusRes.data || [];
-
-      console.log('Dashboard metrics - fetched counts:', {
-        allOrdersTotal: orderStatsByStatusRes.count,
-        currentOrdersTotal: currentOrderStatsByStatusRes.count,
-        previousOrdersTotal: previousOrderStatsByStatusRes.count,
-      });
-
-
-      // Helper to count orders by status from array
-      const countByStatus = (orders: any[], status: string | string[]) => {
-        if (Array.isArray(status)) {
-          return orders.filter(o => status.includes(o.status)).length;
-        }
-        return orders.filter(o => o.status === status).length;
-      };
 
       const calculateTrend = (current: number, previous: number) => {
         if (previous === 0) return current > 0 ? 100 : 0;
         return ((current - previous) / previous) * 100;
       };
 
+      // Calculate totals
+      const allTimeTotal = 
+        (allTimeBookedRes.count || 0) +
+        (allTimeDispatchedRes.count || 0) +
+        (allTimeDeliveredRes.count || 0) +
+        (allTimeCancelledRes.count || 0) +
+        (allTimeReturnedRes.count || 0) +
+        (allTimePendingRes.count || 0);
+
+      const currentTotal =
+        (currentBookedRes.count || 0) +
+        (currentDispatchedRes.count || 0) +
+        (currentDeliveredRes.count || 0) +
+        (currentCancelledRes.count || 0) +
+        (currentReturnedRes.count || 0) +
+        (currentPendingRes.count || 0);
+
+      const previousTotal =
+        (previousBookedRes.count || 0) +
+        (previousDispatchedRes.count || 0) +
+        (previousDeliveredRes.count || 0) +
+        (previousCancelledRes.count || 0) +
+        (previousReturnedRes.count || 0) +
+        (previousPendingRes.count || 0);
+
       // All-time statistics
       const allTimeStats = {
-        totalOrders: orderStatsByStatusRes.count || 0,
-        bookedOrders: countByStatus(allOrders, 'booked'),
-        dispatchedOrders: countByStatus(allOrders, 'dispatched'),
-        deliveredOrders: countByStatus(allOrders, 'delivered'),
-        cancelledOrders: countByStatus(allOrders, 'cancelled'),
-        returnedOrders: countByStatus(allOrders, 'returned'),
-        pendingOrders: countByStatus(allOrders, ['pending', 'confirmed']),
+        totalOrders: allTimeTotal,
+        bookedOrders: allTimeBookedRes.count || 0,
+        dispatchedOrders: allTimeDispatchedRes.count || 0,
+        deliveredOrders: allTimeDeliveredRes.count || 0,
+        cancelledOrders: allTimeCancelledRes.count || 0,
+        returnedOrders: allTimeReturnedRes.count || 0,
+        pendingOrders: allTimePendingRes.count || 0,
         customers: allTimeCustomersRes.count || 0,
       };
 
-      // Current period statistics (for trend calculation)
+      // Current period statistics
       const currentStats = {
-        totalOrders: currentOrderStatsByStatusRes.count || 0,
-        bookedOrders: countByStatus(currentOrders, 'booked'),
-        dispatchedOrders: countByStatus(currentOrders, 'dispatched'),
-        deliveredOrders: countByStatus(currentOrders, 'delivered'),
-        cancelledOrders: countByStatus(currentOrders, 'cancelled'),
-        returnedOrders: countByStatus(currentOrders, 'returned'),
-        pendingOrders: countByStatus(currentOrders, ['pending', 'confirmed']),
+        totalOrders: currentTotal,
+        bookedOrders: currentBookedRes.count || 0,
+        dispatchedOrders: currentDispatchedRes.count || 0,
+        deliveredOrders: currentDeliveredRes.count || 0,
+        cancelledOrders: currentCancelledRes.count || 0,
+        returnedOrders: currentReturnedRes.count || 0,
+        pendingOrders: currentPendingRes.count || 0,
         customers: currentCustomersRes.count || 0,
       };
 
-      // Previous period statistics (for trend calculation)
+      // Previous period statistics
       const previousStats = {
-        totalOrders: previousOrderStatsByStatusRes.count || 0,
-        bookedOrders: countByStatus(previousOrders, 'booked'),
-        dispatchedOrders: countByStatus(previousOrders, 'dispatched'),
-        deliveredOrders: countByStatus(previousOrders, 'delivered'),
-        cancelledOrders: countByStatus(previousOrders, 'cancelled'),
-        returnedOrders: countByStatus(previousOrders, 'returned'),
-        pendingOrders: countByStatus(previousOrders, ['pending', 'confirmed']),
+        totalOrders: previousTotal,
+        bookedOrders: previousBookedRes.count || 0,
+        dispatchedOrders: previousDispatchedRes.count || 0,
+        deliveredOrders: previousDeliveredRes.count || 0,
+        cancelledOrders: previousCancelledRes.count || 0,
+        returnedOrders: previousReturnedRes.count || 0,
+        pendingOrders: previousPendingRes.count || 0,
         customers: previousCustomersRes.count || 0,
       };
 
-      console.log('Dashboard metrics breakdown:', {
-        allTime: allTimeStats,
-        current: currentStats,
-        previous: previousStats
-      });
+      console.log('Dashboard metrics:', allTimeStats);
+
 
       return {
         allTime: allTimeStats,
