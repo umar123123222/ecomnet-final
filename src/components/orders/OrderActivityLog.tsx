@@ -66,12 +66,18 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
       const dispatchIds = dispatches?.map(d => d.id) || [];
       
       // Now query activity logs for order OR dispatches
-      const { data: activityLogs, error: activityError } = await supabase
+      let activityQuery = supabase
         .from('activity_logs')
         .select('*')
-        .or(`entity_type.eq.order,entity_type.eq.dispatch`)
-        .or(`entity_id.eq.${orderId}${dispatchIds.length > 0 ? `,entity_id.in.(${dispatchIds.join(',')})` : ''}`)
         .order('created_at', { ascending: false });
+      
+      if (dispatchIds.length > 0) {
+        activityQuery = activityQuery.or(`entity_type.eq.order,entity_type.eq.dispatch`).or(`entity_id.eq.${orderId},entity_id.in.(${dispatchIds.join(',')})`);
+      } else {
+        activityQuery = activityQuery.eq('entity_type', 'order').eq('entity_id', orderId);
+      }
+      
+      const { data: activityLogs, error: activityError } = await activityQuery;
 
       if (activityError) throw activityError;
       console.log('Activity logs:', activityLogs);
