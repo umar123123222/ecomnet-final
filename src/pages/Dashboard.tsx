@@ -138,12 +138,37 @@ const Dashboard = () => {
       if (allTimeOrdersRes.error || currentOrdersRes.error || previousOrdersRes.error || 
           allTimeReturnsRes.error || currentReturnsRes.error || previousReturnsRes.error || 
           allTimeCustomersRes.error || currentCustomersRes.error || previousCustomersRes.error) {
+        console.error('Dashboard data fetch errors:', {
+          allTimeOrders: allTimeOrdersRes.error,
+          currentOrders: currentOrdersRes.error,
+          previousOrders: previousOrdersRes.error,
+          allTimeReturns: allTimeReturnsRes.error,
+          currentReturns: currentReturnsRes.error,
+          previousReturns: previousReturnsRes.error,
+          allTimeCustomers: allTimeCustomersRes.error,
+          currentCustomers: currentCustomersRes.error,
+          previousCustomers: previousCustomersRes.error,
+        });
         throw new Error('Failed to fetch dashboard data');
       }
 
       const allTimeOrders = allTimeOrdersRes.data || [];
       const currentOrders = currentOrdersRes.data || [];
       const previousOrders = previousOrdersRes.data || [];
+      
+      console.log('Dashboard metrics debug:', {
+        totalOrdersFetched: allTimeOrders.length,
+        bookedOrders: allTimeOrders.filter(o => o.status === 'booked').length,
+        dispatchedOrders: allTimeOrders.filter(o => o.status === 'dispatched').length,
+        deliveredOrders: allTimeOrders.filter(o => o.status === 'delivered').length,
+        cancelledOrders: allTimeOrders.filter(o => o.status === 'cancelled').length,
+        returnedOrders: allTimeOrders.filter(o => o.status === 'returned').length,
+        pendingOrders: allTimeOrders.filter(o => o.status === 'pending' || o.status === 'confirmed').length,
+        statusBreakdown: allTimeOrders.reduce((acc, o) => {
+          acc[o.status] = (acc[o.status] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>)
+      });
       const allTimeReturns = allTimeReturnsRes.data || [];
       const currentReturns = currentReturnsRes.data || [];
       const previousReturns = previousReturnsRes.data || [];
