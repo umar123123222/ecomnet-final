@@ -1901,9 +1901,13 @@ const OrderDashboard = () => {
     });
   };
 
-  const handleQuickViewActivity = (order: any) => {
-    setSelectedOrder(order);
-    setDetailsModalOpen(true);
+  const handleQuickViewActivity = (orderId: string) => {
+    // Find the full order object from the orders array
+    const order = orders.find(o => o.id === orderId);
+    if (order) {
+      setSelectedOrder(order);
+      setDetailsModalOpen(true);
+    }
   };
 
   const handleQuickViewDetails = (order: any) => {
