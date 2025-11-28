@@ -25,6 +25,7 @@ export const getRolePermissions = (role: UserRole) => {
     canDeleteUsers: false,
     canAccessInventory: false,
     canAccessOutlets: false,
+    canManageOutlets: false,
     canAccessProducts: false,
     canManageProducts: false,
     canAccessStockTransfer: false,
@@ -76,6 +77,7 @@ export const getRolePermissions = (role: UserRole) => {
         canDeleteUsers: true,
         canAccessInventory: true,
         canAccessOutlets: true,
+        canManageOutlets: true,
         canAccessProducts: true,
         canManageProducts: true,
         canAccessStockTransfer: true,
@@ -116,6 +118,7 @@ export const getRolePermissions = (role: UserRole) => {
         canDeleteUsers: true,
         canAccessInventory: true,
         canAccessOutlets: true,
+        canManageOutlets: true,
         canAccessProducts: true,
         canManageProducts: true,
         canAccessStockTransfer: true,
@@ -152,6 +155,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessAddressVerification: true,
         canAccessInventory: true,
         canAccessOutlets: true,
+        canManageOutlets: true,
         canAccessProducts: true,
         canManageProducts: true,
         canAccessStockTransfer: true,
@@ -180,6 +184,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessReturns: true, // Warehouse managers handle returns processing
         canAccessInventory: true,
         canAccessOutlets: true,
+        canManageOutlets: false, // Cannot create/edit outlets
         canAccessProducts: true,
         canManageProducts: true, // Allow add/edit/delete products for warehouse managers
         canAccessStockTransfer: true,

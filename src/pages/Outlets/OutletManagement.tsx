@@ -8,12 +8,16 @@ import { Building2, MapPin, Plus, Loader2, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Outlet, Inventory } from "@/types/inventory";
 import { AddOutletDialog } from "@/components/inventory/AddOutletDialog";
+import { useUserRoles } from "@/hooks/useUserRoles";
+import { getRolePermissions } from "@/utils/rolePermissions";
 
 const OutletManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [outletDialogOpen, setOutletDialogOpen] = useState(false);
   const [selectedOutlet, setSelectedOutlet] = useState<Outlet | null>(null);
+  const { primaryRole } = useUserRoles();
+  const permissions = getRolePermissions(primaryRole);
 
   // Fetch outlets
   const { data: outlets, isLoading } = useQuery<(Outlet & { manager?: { full_name: string } })[]>({
@@ -66,16 +70,18 @@ const OutletManagement = () => {
           </h1>
           <p className="text-muted-foreground">Manage warehouses and retail outlets</p>
         </div>
-        <Button
-          onClick={() => {
-            setSelectedOutlet(null);
-            setOutletDialogOpen(true);
-          }}
-          className="gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Add Outlet/Warehouse
-        </Button>
+        {permissions.canManageOutlets && (
+          <Button
+            onClick={() => {
+              setSelectedOutlet(null);
+              setOutletDialogOpen(true);
+            }}
+            className="gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Add Outlet/Warehouse
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
