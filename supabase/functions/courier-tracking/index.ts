@@ -103,6 +103,8 @@ const postexStatusMap: Record<string, { status: string; label: string }> = {
   '0016': { status: 'delivery_failed', label: 'Consignee Requested Reschedule' },
   '0031': { status: 'in_transit', label: 'Departed to PostEx Warehouse' },
   '0033': { status: 'in_transit', label: 'En-Route to Destination' },
+  '0035': { status: 'in_transit', label: 'Arrived at Transit Hub' },
+  '0038': { status: 'out_for_delivery', label: 'Waiting for Delivery' },
   '0002': { status: 'returned', label: 'Returned to Merchant' },
   '0006': { status: 'returned', label: 'Returned' },
   '0007': { status: 'returned', label: 'Returned' }
