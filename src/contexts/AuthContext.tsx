@@ -23,6 +23,7 @@ interface SupabaseAuthContextType {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   isLoading: boolean;
+  isSuspended: boolean;
 }
 
 const AuthContext = createContext<SupabaseAuthContextType | undefined>(undefined);
@@ -34,6 +35,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
+  const [isSuspended, setIsSuspended] = useState(false);
 
   const fetchUserProfile = async (userId: string) => {
     // Prevent concurrent fetches
@@ -59,6 +61,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       if (profileData) {
+        // Check if user is suspended (is_active = false)
+        if (!profileData.is_active) {
+          console.log('User is suspended:', userId);
+          setIsSuspended(true);
+          setProfile(null);
+          setUserRole(null);
+          setUser(null);
+          setSession(null);
+          // Sign out the user
+          await supabase.auth.signOut();
+          return;
+        }
+        
+        setIsSuspended(false);
         setProfile(profileData);
         // user_roles returns an array, get first element
         const roleData = Array.isArray(profileData.user_roles) ? profileData.user_roles[0] : profileData.user_roles;
@@ -87,6 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
           setProfile(null);
           setUserRole(null);
+          setIsSuspended(false);
           setIsLoading(false); // Only set false when no user
         }
       }
@@ -137,7 +154,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, userRole, signIn, signOut, refreshProfile, isLoading }}>
+    <AuthContext.Provider value={{ user, session, profile, userRole, signIn, signOut, refreshProfile, isLoading, isSuspended }}>
       {children}
     </AuthContext.Provider>
   );

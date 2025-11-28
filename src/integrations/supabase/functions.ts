@@ -5,7 +5,7 @@ import { supabase } from './client';
 // ============================================
 
 export interface ManageUserRequest {
-  action: 'create' | 'update' | 'delete';
+  action: 'create' | 'update' | 'delete' | 'suspend';
   userData: {
     userId?: string;
     email: string;
@@ -13,6 +13,7 @@ export interface ManageUserRequest {
     password?: string;
     roles: string[];
     outlet_id?: string;
+    suspend?: boolean;
   };
 }
 

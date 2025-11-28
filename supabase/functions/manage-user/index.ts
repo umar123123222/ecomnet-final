@@ -732,6 +732,39 @@ serve(async (req) => {
         )
       }
 
+      case 'suspend': {
+        const { userId, suspend } = userData;
+        
+        console.log(`${suspend ? 'Suspending' : 'Unsuspending'} user:`, userId);
+        
+        if (!userId) {
+          return new Response(
+            JSON.stringify({ error: 'userId is required for suspend action' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        // Update the profile's is_active field
+        const { error: updateError } = await supabaseAdmin
+          .from('profiles')
+          .update({ is_active: !suspend })
+          .eq('id', userId);
+        
+        if (updateError) {
+          console.error('Error updating user status:', updateError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to update user status: ' + updateError.message }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        console.log(`User ${suspend ? 'suspended' : 'unsuspended'} successfully`);
+        return new Response(
+          JSON.stringify({ success: true, suspended: suspend }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid action' }),
