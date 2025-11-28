@@ -221,11 +221,9 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessDashboard: true,
         canAccessOrders: true,
         canAccessCustomers: true,
-        canAccessDispatch: true,
-        canAccessReturns: true,
         canAccessAddressVerification: true,
         canAccessSettings: true,
-        // No admin panel and user management access
+        // No dispatch, returns, admin panel, or user management access
       };
     
     default:
