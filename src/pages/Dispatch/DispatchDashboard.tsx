@@ -29,6 +29,7 @@ const DispatchDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDispatches, setSelectedDispatches] = useState<string[]>([]);
   const [dispatches, setDispatches] = useState<any[]>([]);
+  const [totalDispatchCount, setTotalDispatchCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [courierFilter, setCourierFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("all");
@@ -133,114 +134,130 @@ const DispatchDashboard = () => {
       bulkEntries: ''
     }
   });
-  useEffect(() => {
-    const fetchDispatches = async () => {
-      setLoading(true);
-      try {
-        // Step 1: Fetch dispatches with only orders embedded and apply server-side date filtering
-        let query = supabase
-          .from('dispatches')
-          .select(`
-            *,
-            orders:orders!dispatches_order_id_fkey (
-              order_number,
-              customer_name,
-              customer_phone,
-              customer_address,
-              city,
-              total_amount,
-              status
-            )
-          `);
-        
-        // Add server-side date range filtering
-        if (dateRange?.from) {
-          const fromDate = dateRange.from.toISOString();
-          // Handle both dispatch_date and created_at (for null dispatch_date cases)
-          query = query.or(`dispatch_date.gte.${fromDate},and(dispatch_date.is.null,created_at.gte.${fromDate})`);
-        }
-        
-        if (dateRange?.to) {
-          const endOfDay = new Date(dateRange.to);
-          endOfDay.setHours(23, 59, 59, 999);
-          const toDate = endOfDay.toISOString();
-          // Handle both dispatch_date and created_at (for null dispatch_date cases)
-          query = query.or(`dispatch_date.lte.${toDate},and(dispatch_date.is.null,created_at.lte.${toDate})`);
-        }
-        
-        query = query
-          .order('created_at', { ascending: false })
-          .limit(50000); // Set high limit to avoid default 1000-row cap
-        
-        const { data, error } = await query;
-          
-        if (error) {
-          console.error('Error fetching dispatches:', error);
-          toast({
-            title: "Error",
-            description: "Failed to fetch dispatches",
-            variant: "destructive"
-          });
-          return;
-        }
+useEffect(() => {
+  const applyDateFilters = (query: any) => {
+    if (dateRange?.from) {
+      const fromDate = dateRange.from.toISOString();
+      query = query.or(`dispatch_date.gte.${fromDate},and(dispatch_date.is.null,created_at.gte.${fromDate})`);
+    }
 
-        // Step 2: Fetch profiles separately for dispatched_by users
-        const userIds = [...new Set(data?.filter(d => d.dispatched_by).map(d => d.dispatched_by) || [])];
-        let profilesById: Record<string, any> = {};
-        
-        if (userIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, full_name, email')
-            .in('id', userIds);
-          
-          if (profiles) {
-            profilesById = profiles.reduce((acc, profile) => {
-              acc[profile.id] = profile;
-              return acc;
-            }, {} as Record<string, any>);
-          }
-        }
+    if (dateRange?.to) {
+      const endOfDay = new Date(dateRange.to);
+      endOfDay.setHours(23, 59, 59, 999);
+      const toDate = endOfDay.toISOString();
+      query = query.or(`dispatch_date.lte.${toDate},and(dispatch_date.is.null,created_at.lte.${toDate})`);
+    }
 
-        // Step 3: Enrich dispatches with profile data
-        const enrichedDispatches = data?.map(dispatch => ({
-          ...dispatch,
-          dispatched_by_user: dispatch.dispatched_by ? profilesById[dispatch.dispatched_by] : null
-        })) || [];
+    return query;
+  };
 
-        setDispatches(enrichedDispatches);
-      } catch (error) {
-        console.error('Error:', error);
-      } finally {
-        setLoading(false);
+  const fetchDispatches = async () => {
+    setLoading(true);
+    try {
+      // Count query (no row limit) to get accurate total dispatches for the selected range
+      let countQuery = supabase
+        .from('dispatches')
+        .select('*', { count: 'exact', head: true });
+
+      countQuery = applyDateFilters(countQuery);
+
+      // Data query for table view (still subject to 1000-row cap on the backend)
+      let dataQuery = supabase
+        .from('dispatches')
+        .select(`
+          *,
+          orders:orders!dispatches_order_id_fkey (
+            order_number,
+            customer_name,
+            customer_phone,
+            customer_address,
+            city,
+            total_amount,
+            status
+          )
+        `);
+
+      dataQuery = applyDateFilters(dataQuery)
+        .order('created_at', { ascending: false })
+        .limit(50000);
+
+      const [{ count, error: countError }, { data, error }] = await Promise.all([
+        countQuery,
+        dataQuery,
+      ] as const);
+
+      if (countError) {
+        console.error('Error fetching dispatch count:', countError);
+      } else if (typeof count === 'number') {
+        setTotalDispatchCount(count);
       }
-    };
-    
-    fetchDispatches();
 
-    // Set up real-time subscription with debounced refresh
-    let refreshTimeout: NodeJS.Timeout;
-    const channel = supabase
-      .channel('dispatch-changes')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'dispatches'
-      }, () => {
-        // Debounce rapid consecutive changes
-        clearTimeout(refreshTimeout);
-        refreshTimeout = setTimeout(() => {
-          console.log('Dispatch change detected, refreshing data...');
-          fetchDispatches();
-        }, 300);
-      })
-      .subscribe();
+      if (error) {
+        console.error('Error fetching dispatches:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch dispatches",
+          variant: "destructive"
+        });
+        return;
+      }
 
-    return () => {
+      // Fetch profiles separately for dispatched_by users
+      const userIds = [...new Set(data?.filter(d => d.dispatched_by).map(d => d.dispatched_by) || [])];
+      let profilesById: Record<string, any> = {};
+
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+
+        if (profiles) {
+          profilesById = profiles.reduce((acc, profile) => {
+            acc[profile.id] = profile;
+            return acc;
+          }, {} as Record<string, any>);
+        }
+      }
+
+      const enrichedDispatches = data?.map(dispatch => ({
+        ...dispatch,
+        dispatched_by_user: dispatch.dispatched_by ? profilesById[dispatch.dispatched_by] : null,
+      })) || [];
+
+      setDispatches(enrichedDispatches);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  fetchDispatches();
+
+  // Set up real-time subscription with debounced refresh
+  let refreshTimeout: NodeJS.Timeout;
+  const channel = supabase
+    .channel('dispatch-changes')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'dispatches'
+    }, () => {
+      // Debounce rapid consecutive changes
       clearTimeout(refreshTimeout);
-      supabase.removeChannel(channel);
-    };
-  }, [toast, dateRange]);
+      refreshTimeout = setTimeout(() => {
+        console.log('Dispatch change detected, refreshing data...');
+        fetchDispatches();
+      }, 300);
+    })
+    .subscribe();
+
+  return () => {
+    clearTimeout(refreshTimeout);
+    supabase.removeChannel(channel);
+  };
+}, [toast, dateRange]);
   // Date filtering now happens server-side, so filteredByDate just references dispatches
   const filteredByDate = useMemo(() => {
     return dispatches;
@@ -254,25 +271,25 @@ const DispatchDashboard = () => {
       return matchesSearch && matchesCourier && matchesUser;
     });
   }, [filteredByDate, searchTerm, courierFilter, userFilter]);
-  const metrics = useMemo(() => {
-    const totalDispatches = filteredByDate.length;
-    const worthOfDispatches = filteredByDate.reduce((total, dispatch) => {
-      return total + (dispatch.orders?.total_amount || 2500);
-    }, 0);
-    const courierCounts = filteredByDate.reduce((acc, d) => {
-      acc[d.courier] = (acc[d.courier] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    const entries = Object.entries(courierCounts);
-    const mostUsedCourier = entries.length > 0 
-      ? entries.sort((a, b) => (b[1] as number) - (a[1] as number))[0][0] 
-      : 'N/A';
-    return {
-      totalDispatches,
-      worthOfDispatches,
-      mostUsedCourier
-    };
-  }, [filteredByDate]);
+const metrics = useMemo(() => {
+  const totalDispatches = totalDispatchCount ?? filteredByDate.length;
+  const worthOfDispatches = filteredByDate.reduce((total, dispatch) => {
+    return total + (dispatch.orders?.total_amount || 2500);
+  }, 0);
+  const courierCounts = filteredByDate.reduce((acc, d) => {
+    acc[d.courier] = (acc[d.courier] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  const entries = Object.entries(courierCounts);
+  const mostUsedCourier = entries.length > 0 
+    ? entries.sort((a, b) => (b[1] as number) - (a[1] as number))[0][0] 
+    : 'N/A';
+  return {
+    totalDispatches,
+    worthOfDispatches,
+    mostUsedCourier
+  };
+}, [filteredByDate, totalDispatchCount]);
   const handleSelectDispatch = (dispatchId: string) => {
     setSelectedDispatches(prev => prev.includes(dispatchId) ? prev.filter(id => id !== dispatchId) : [...prev, dispatchId]);
   };
@@ -1496,7 +1513,7 @@ const DispatchDashboard = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Dispatches ({filteredDispatches.length})</span>
+            <span>Dispatches ({totalDispatchCount ?? filteredDispatches.length})</span>
             <div className="flex items-center gap-2">
               <Checkbox checked={selectedDispatches.length === filteredDispatches.length && filteredDispatches.length > 0} onCheckedChange={() => {}} // handleSelectAll
             />
