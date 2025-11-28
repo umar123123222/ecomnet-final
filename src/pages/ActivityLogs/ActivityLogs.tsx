@@ -460,6 +460,12 @@ const ActivityLogs = () => {
                   <p className="text-sm font-medium text-muted-foreground">Entity Type</p>
                   <p className="text-sm">{selectedLog.entity_type}</p>
                 </div>
+                {selectedLog.details?.page && (
+                  <div className="col-span-2">
+                    <p className="text-sm font-medium text-muted-foreground">Page</p>
+                    <p className="text-sm font-mono text-primary">{selectedLog.details.page}</p>
+                  </div>
+                )}
                 <div className="col-span-2">
                   <p className="text-sm font-medium text-muted-foreground">Entity ID</p>
                   <p className="text-sm font-mono">{selectedLog.entity_id}</p>
