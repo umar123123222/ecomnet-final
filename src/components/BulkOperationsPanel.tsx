@@ -17,6 +17,7 @@ interface BulkOperationsPanelProps {
   onGenerateAWBs?: () => void;
   progress?: BulkOperationProgress;
   couriers: Array<{ id: string; name: string; code: string }>;
+  userRole?: string;
 }
 
 export const BulkOperationsPanel: React.FC<BulkOperationsPanelProps> = ({
@@ -28,8 +29,14 @@ export const BulkOperationsPanel: React.FC<BulkOperationsPanelProps> = ({
   onGenerateAWBs,
   progress,
   couriers,
+  userRole,
 }) => {
   const [confirmAction, setConfirmAction] = useState<{ type: 'status' | 'courier'; value: string; label: string } | null>(null);
+
+  // Define which statuses staff can access
+  const allowedStatuses = userRole === 'staff' 
+    ? ['pending', 'confirmed', 'cancelled']
+    : ['pending', 'confirmed', 'booked', 'dispatched', 'delivered', 'returned', 'cancelled'];
 
   const handleStatusChange = (status: string) => {
     const statusLabels: Record<string, string> = {
@@ -116,12 +123,13 @@ export const BulkOperationsPanel: React.FC<BulkOperationsPanelProps> = ({
                   <SelectValue placeholder="Update Status" />
                 </SelectTrigger>
                 <SelectContent className="bg-background z-50">
-                  <SelectItem value="pending">Mark as Pending</SelectItem>
-                  <SelectItem value="booked">Mark as Booked</SelectItem>
-                  <SelectItem value="dispatched">Mark as Dispatched</SelectItem>
-                  <SelectItem value="delivered">Mark as Delivered</SelectItem>
-                  <SelectItem value="returned">Mark as Returned</SelectItem>
-                  <SelectItem value="cancelled">Mark as Cancelled</SelectItem>
+                  {allowedStatuses.includes('pending') && <SelectItem value="pending">Mark as Pending</SelectItem>}
+                  {allowedStatuses.includes('confirmed') && <SelectItem value="confirmed">Mark as Confirmed</SelectItem>}
+                  {allowedStatuses.includes('booked') && <SelectItem value="booked">Mark as Booked</SelectItem>}
+                  {allowedStatuses.includes('dispatched') && <SelectItem value="dispatched">Mark as Dispatched</SelectItem>}
+                  {allowedStatuses.includes('delivered') && <SelectItem value="delivered">Mark as Delivered</SelectItem>}
+                  {allowedStatuses.includes('returned') && <SelectItem value="returned">Mark as Returned</SelectItem>}
+                  {allowedStatuses.includes('cancelled') && <SelectItem value="cancelled">Mark as Cancelled</SelectItem>}
                 </SelectContent>
               </Select>
 
