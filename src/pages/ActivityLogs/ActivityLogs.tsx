@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { DatePickerWithRange } from "@/components/DatePickerWithRange";
-import { Search, Download, Activity, Filter, Loader2, Eye, FileText } from "lucide-react";
+import { Search, Download, Activity, Filter, Loader2, Eye, FileText, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { useToast } from "@/hooks/use-toast";
@@ -129,6 +129,13 @@ const ActivityLogs = () => {
       user_created: { variant: "outline", color: "border-indigo-500 text-indigo-500" },
       user_updated: { variant: "outline", color: "border-pink-500 text-pink-500" },
       user_deleted: { variant: "outline", color: "border-gray-500 text-gray-500" },
+      system_error: { variant: "destructive", color: "border-red-600 bg-red-50 text-red-700" },
+      edge_function_error: { variant: "destructive", color: "border-red-600 bg-red-50 text-red-700" },
+      api_error: { variant: "destructive", color: "border-orange-600 bg-orange-50 text-orange-700" },
+      database_error: { variant: "destructive", color: "border-red-700 bg-red-100 text-red-800" },
+      courier_error: { variant: "destructive", color: "border-amber-600 bg-amber-50 text-amber-700" },
+      shopify_sync_error: { variant: "destructive", color: "border-yellow-600 bg-yellow-50 text-yellow-700" },
+      authentication_error: { variant: "destructive", color: "border-rose-600 bg-rose-50 text-rose-700" },
     };
 
     const config = actionConfig[action] || { variant: "outline", color: "border-gray-500 text-gray-500" };
@@ -212,7 +219,7 @@ const ActivityLogs = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Activities</CardTitle>
@@ -237,6 +244,21 @@ const ActivityLogs = () => {
               ).length || 0}
             </div>
             <p className="text-xs text-muted-foreground">Last 24 hours</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-red-200 bg-red-50/50">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-red-700">System Errors</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-700">
+              {activityLogs?.filter(
+                (log) => log.action.includes('error')
+              ).length || 0}
+            </div>
+            <p className="text-xs text-red-600">Requires attention</p>
           </CardContent>
         </Card>
 

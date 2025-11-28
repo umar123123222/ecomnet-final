@@ -12,7 +12,14 @@ export type ActivityAction =
   | 'customer_flagged'
   | 'user_created'
   | 'user_updated'
-  | 'user_deleted';
+  | 'user_deleted'
+  | 'system_error'
+  | 'edge_function_error'
+  | 'api_error'
+  | 'database_error'
+  | 'courier_error'
+  | 'shopify_sync_error'
+  | 'authentication_error';
 
 interface LogActivityParams {
   action: ActivityAction;
@@ -194,5 +201,52 @@ export const getEntityActivities = async (
   } catch (error) {
     console.error('Error fetching entity activities:', error);
     return [];
+  }
+};
+
+/**
+ * Log a system error to activity logs
+ */
+export const logSystemError = async ({
+  errorType,
+  errorMessage,
+  errorStack,
+  entityId,
+  entityType = 'system',
+  additionalDetails = {},
+}: {
+  errorType: 'system_error' | 'edge_function_error' | 'api_error' | 'database_error' | 'courier_error' | 'shopify_sync_error' | 'authentication_error';
+  errorMessage: string;
+  errorStack?: string;
+  entityId: string;
+  entityType?: string;
+  additionalDetails?: Record<string, any>;
+}): Promise<void> => {
+  try {
+    // Try to get current user, but allow logging without user ID for system errors
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // System user ID
+
+    const { error } = await supabase
+      .from('activity_logs')
+      .insert({
+        action: errorType,
+        entity_type: entityType,
+        entity_id: entityId,
+        details: {
+          error: errorMessage,
+          stack: errorStack,
+          timestamp: new Date().toISOString(),
+          ...additionalDetails,
+        },
+        user_id: userId,
+      });
+
+    if (error) {
+      console.error('Failed to log system error:', error);
+    }
+  } catch (error) {
+    // Don't throw - we don't want error logging to break the app
+    console.error('Error logging system error:', error);
   }
 };
