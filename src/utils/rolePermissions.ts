@@ -48,6 +48,7 @@ export const getRolePermissions = (role: UserRole) => {
     canAccessPOS: false,
     canAccessScanHistory: false,
     canAccessBarcode: false,
+    canAssignCouriers: false,
   };
 
   switch (role) {
@@ -96,6 +97,7 @@ export const getRolePermissions = (role: UserRole) => {
         canBulkAdjustStock: true,
         canAccessPOS: true,
         canAccessScanHistory: true,
+        canAssignCouriers: true,
       };
     
     case 'super_manager':
@@ -135,6 +137,7 @@ export const getRolePermissions = (role: UserRole) => {
         canBulkAdjustStock: true,
         canAccessPOS: true,
         canAccessScanHistory: true,
+        canAssignCouriers: true,
         // No admin panel access
       };
     
@@ -165,6 +168,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessFraudReporting: true,
         canAccessPOS: true,
         canAccessScanHistory: true,
+        canAssignCouriers: true,
       };
     
     case 'warehouse_manager':
@@ -194,6 +198,7 @@ export const getRolePermissions = (role: UserRole) => {
         canViewStockMovements: true, // Can view stock movement history
         canBulkAdjustStock: true, // Can perform bulk stock adjustments
         canAccessActivityLogs: true, // Can view activity logs for audit trail
+        canAssignCouriers: true,
         // No POS or Scan History access
       };
     
