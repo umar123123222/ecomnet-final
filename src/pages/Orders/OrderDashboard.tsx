@@ -48,7 +48,7 @@ import { Eye, EyeOff, Bell } from 'lucide-react';
 import { AWBDownloadButton } from '@/components/orders/AWBDownloadButton';
 
 const OrderDashboard = () => {
-  const { isManager, isSeniorStaff, primaryRole, hasAnyRole } = useUserRoles();
+  const { isManager, isSeniorStaff, primaryRole, hasAnyRole, permissions } = useUserRoles();
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [selectAllPages, setSelectAllPages] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -2568,22 +2568,28 @@ const OrderDashboard = () => {
                     </TableCell>
                     
                     <TableCell>
-                      <InlineCourierAssign 
-                        orderId={order.id}
-                        currentCourier={order.courier}
-                        trackingId={order.trackingId}
-                        couriers={couriers}
-                        orderDetails={{
-                          orderNumber: order.orderNumber,
-                          customer: order.customer,
-                          phone: order.phone,
-                          address: order.address,
-                          city: order.city,
-                          items: order.items,
-                          totalPrice: order.totalPrice
-                        }}
-                        onAssigned={fetchOrders}
-                      />
+                      {permissions.canAssignCouriers ? (
+                        <InlineCourierAssign 
+                          orderId={order.id}
+                          currentCourier={order.courier}
+                          trackingId={order.trackingId}
+                          couriers={couriers}
+                          orderDetails={{
+                            orderNumber: order.orderNumber,
+                            customer: order.customer,
+                            phone: order.phone,
+                            address: order.address,
+                            city: order.city,
+                            items: order.items,
+                            totalPrice: order.totalPrice
+                          }}
+                          onAssigned={fetchOrders}
+                        />
+                      ) : (
+                        <span className="text-sm text-muted-foreground">
+                          {order.courier !== 'N/A' ? order.courier : 'Not assigned'}
+                        </span>
+                      )}
                     </TableCell>
                     
                     <TableCell>
