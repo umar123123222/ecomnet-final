@@ -194,16 +194,18 @@ const handler = async (req: Request): Promise<Response> => {
             .button {
               display: inline-block;
               padding: 12px 32px;
-              background: #4F46E5;
-              color: white;
+              background: #4F46E5 !important;
+              color: #ffffff !important;
               text-decoration: none;
               border-radius: 6px;
               font-weight: 500;
               font-size: 15px;
               transition: background 0.2s ease;
+              -webkit-text-fill-color: #ffffff;
+              mso-line-height-rule: exactly;
             }
             .button:hover {
-              background: #4338CA;
+              background: #4338CA !important;
             }
             .warning {
               background: #fffbeb;
@@ -267,7 +269,7 @@ const handler = async (req: Request): Promise<Response> => {
               </div>
               
               <div class="button-container">
-                <a href="${portal_url}" class="button">Access Portal</a>
+                <a href="${portal_url}" class="button" style="color: #ffffff !important; background-color: #4F46E5 !important; text-decoration: none;">Access Portal</a>
               </div>
               
               <p class="help-text">If you have any questions or need assistance, please contact your system administrator.</p>
