@@ -86,13 +86,21 @@ serve(async (req) => {
 });
 
 // PostEx status code mapping
+// Note: Failed delivery attempt codes need verification from PostEx API documentation
 const postexStatusMap: Record<string, { status: string; label: string }> = {
   '0001': { status: 'at_warehouse', label: 'At Merchant Warehouse' },
   '0003': { status: 'at_warehouse', label: 'At PostEx Warehouse' },
   '0004': { status: 'in_transit', label: 'Package on Route' },
   '0005': { status: 'delivered', label: 'Delivered' },
   '0008': { status: 'pending', label: 'Delivery Under Review' },
+  '0009': { status: 'delivery_failed', label: 'Customer Not Available' },
+  '0010': { status: 'delivery_failed', label: 'Wrong Address' },
+  '0011': { status: 'delivery_failed', label: 'Customer Refused' },
+  '0012': { status: 'delivery_failed', label: 'Phone Unreachable' },
   '0013': { status: 'out_for_delivery', label: 'Out for Delivery' },
+  '0014': { status: 'delivery_failed', label: 'Area Not Accessible' },
+  '0015': { status: 'delivery_failed', label: 'COD Amount Disputed' },
+  '0016': { status: 'delivery_failed', label: 'Consignee Requested Reschedule' },
   '0031': { status: 'in_transit', label: 'Departed to PostEx Warehouse' },
   '0033': { status: 'in_transit', label: 'En-Route to Destination' },
   '0002': { status: 'returned', label: 'Returned to Merchant' },

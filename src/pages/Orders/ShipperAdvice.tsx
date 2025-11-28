@@ -31,7 +31,9 @@ const ShipperAdvice = () => {
               *,
               courier_tracking_history (
                 status,
-                checked_at
+                current_location,
+                checked_at,
+                raw_response
               )
             )
           `)
@@ -47,27 +49,61 @@ const ShipperAdvice = () => {
             variant: "destructive",
           });
         } else {
-          // Filter and format orders that need shipper advice
+          // Filter orders that have actually been attempted but failed delivery
+          const needsAdviceStatuses = ['delivery_failed', 'pending', 'out_for_delivery'];
+          
           const formattedOrders = (data || [])
             .filter(order => {
-              // Only include orders that are with courier and waiting for action
-              const hasDispatch = order.dispatches && order.dispatches.length > 0;
-              return hasDispatch && order.tracking_id;
+              const dispatch = order.dispatches?.[0];
+              if (!dispatch || !order.tracking_id) return false;
+              
+              // Get the latest tracking status
+              const trackingHistory = dispatch.courier_tracking_history || [];
+              if (trackingHistory.length === 0) return false;
+              
+              const latestTracking = [...trackingHistory].sort(
+                (a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
+              )[0];
+              
+              // Only show orders with failed delivery attempts or pending actions
+              return needsAdviceStatuses.includes(latestTracking.status);
             })
-            .map((order) => ({
-              id: order.id,
-              orderNumber: order.order_number,
-              customerName: order.customer_name,
-              customerPhone: order.customer_phone,
-              address: order.customer_address,
-              status: 'attempted',
-              courier: order.courier || 'TCS',
-              attemptDate: new Date(order.dispatched_at || order.created_at).toISOString().split('T')[0],
-              attemptCount: order.dispatches?.[0]?.courier_tracking_history?.length || 1,
-              lastAttemptReason: 'Customer not available',
-              totalAmount: order.total_amount || 0,
-              daysStuck: Math.floor((Date.now() - new Date(order.dispatched_at || order.created_at).getTime()) / (1000 * 60 * 60 * 24))
-            }));
+            .map((order) => {
+              const dispatch = order.dispatches[0];
+              const trackingHistory = dispatch.courier_tracking_history || [];
+              
+              // Sort tracking history by date
+              const sortedHistory = [...trackingHistory].sort(
+                (a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
+              );
+              
+              const latestTracking = sortedHistory[0];
+              
+              // Count actual delivery attempts (out_for_delivery or delivery_failed events)
+              const attemptStatuses = ['out_for_delivery', 'delivery_failed'];
+              const attemptCount = trackingHistory.filter(h => 
+                attemptStatuses.includes(h.status)
+              ).length;
+              
+              // Calculate days stuck since last tracking update
+              const lastUpdate = new Date(latestTracking.checked_at);
+              const daysStuck = Math.floor((Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
+              
+              return {
+                id: order.id,
+                orderNumber: order.order_number,
+                customerName: order.customer_name,
+                customerPhone: order.customer_phone,
+                address: order.customer_address,
+                status: latestTracking.status,
+                courier: order.courier || 'TCS',
+                attemptDate: latestTracking.checked_at.split('T')[0],
+                attemptCount: attemptCount || 1,
+                lastAttemptReason: latestTracking.current_location || 'Unknown reason',
+                totalAmount: order.total_amount || 0,
+                daysStuck: daysStuck
+              };
+            });
 
           setOrders(formattedOrders);
         }
@@ -149,10 +185,14 @@ const ShipperAdvice = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'delivery_failed':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'out_for_delivery':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'attempted':
         return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'in-transit':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
