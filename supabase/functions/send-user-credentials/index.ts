@@ -69,6 +69,31 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Missing required fields: email, full_name, or password");
     }
 
+    // Get portal URL from business settings if not provided
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    let finalPortalUrl = portal_url;
+    
+    if (!finalPortalUrl || finalPortalUrl === '') {
+      const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
+      
+      const { data: settingData, error: settingError } = await supabase
+        .from('api_settings')
+        .select('setting_value')
+        .eq('setting_key', 'PORTAL_URL')
+        .single();
+      
+      if (!settingError && settingData) {
+        finalPortalUrl = settingData.setting_value;
+        console.log(`Using portal URL from business settings: ${finalPortalUrl}`);
+      } else {
+        // Fallback to default
+        finalPortalUrl = 'https://your-portal.com';
+        console.warn('No portal URL found in settings, using fallback');
+      }
+    }
+
     // Get SMTP configuration from environment
     const smtpHost = Deno.env.get("SMTP_HOST");
     const smtpPort = parseInt(Deno.env.get("SMTP_PORT") || "587");
@@ -269,7 +294,7 @@ const handler = async (req: Request): Promise<Response> => {
               </div>
               
               <div class="button-container">
-                <a href="${portal_url}" class="button" style="color: #ffffff !important; background-color: #4F46E5 !important; text-decoration: none;">Access Portal</a>
+                <a href="${finalPortalUrl}" class="button" style="color: #ffffff !important; background-color: #4F46E5 !important; text-decoration: none;">Access Portal</a>
               </div>
               
               <p class="help-text">If you have any questions or need assistance, please contact your system administrator.</p>
@@ -299,7 +324,7 @@ YOUR LOGIN CREDENTIALS:
 
 IMPORTANT: Please change your password immediately after your first login for security reasons.
 
-Portal URL: ${portal_url}
+Portal URL: ${finalPortalUrl}
 
 If you have any questions or need assistance, please contact your system administrator.
 
