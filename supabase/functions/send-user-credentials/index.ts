@@ -117,190 +117,165 @@ const handler = async (req: Request): Promise<Response> => {
             body {
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
               line-height: 1.6;
-              color: #1e293b;
-              background: #f8fafc;
+              color: #111827;
+              background: #f9fafb;
               padding: 20px;
             }
             .email-container {
-              max-width: 520px;
+              max-width: 600px;
               margin: 0 auto;
               background: white;
-              border-radius: 12px;
-              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+              border-radius: 8px;
               overflow: hidden;
+              border: 1px solid #e5e7eb;
             }
             .header {
-              background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+              background: #4F46E5;
               color: white;
-              padding: 24px;
-              text-align: center;
+              padding: 32px 32px 28px;
             }
             .header h1 {
               font-size: 24px;
-              font-weight: 700;
-              margin-bottom: 6px;
-              letter-spacing: -0.5px;
-            }
-            .header p {
-              font-size: 14px;
-              opacity: 0.95;
-              font-weight: 400;
+              font-weight: 600;
+              margin: 0;
+              letter-spacing: -0.3px;
             }
             .content {
-              padding: 24px;
-              text-align: center;
+              padding: 32px;
             }
             .greeting {
               font-size: 16px;
-              color: #1e293b;
-              margin-bottom: 12px;
-            }
-            .greeting strong {
-              color: #6366f1;
-              font-weight: 600;
-            }
-            .intro-text {
-              font-size: 14px;
-              color: #64748b;
-              margin-bottom: 24px;
+              color: #111827;
+              margin-bottom: 16px;
               line-height: 1.5;
             }
+            .intro-text {
+              font-size: 15px;
+              color: #6b7280;
+              margin-bottom: 24px;
+              line-height: 1.6;
+            }
             .credentials-box {
-              background: #f8fafc;
-              border-radius: 10px;
-              padding: 16px;
-              margin: 0 auto 20px;
-              max-width: 400px;
-              box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+              background: #f9fafb;
+              border: 1px solid #e5e7eb;
+              border-radius: 6px;
+              padding: 20px 24px;
+              margin-bottom: 24px;
             }
             .credentials-box h3 {
-              font-size: 16px;
-              color: #1e293b;
+              font-size: 14px;
+              color: #111827;
               margin-bottom: 16px;
               font-weight: 600;
+              letter-spacing: -0.2px;
             }
-            .credential-item {
-              margin: 12px 0;
-              text-align: left;
-              display: flex;
-              flex-direction: column;
-              gap: 6px;
-            }
-            .credential-label {
-              font-size: 12px;
-              font-weight: 600;
-              color: #6366f1;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-              display: flex;
-              align-items: center;
-              gap: 6px;
-            }
-            .credential-value {
-              font-family: 'Courier New', monospace;
-              background: white;
-              padding: 10px 12px;
-              border-radius: 6px;
+            .credential-line {
               font-size: 14px;
-              color: #1e293b;
-              border: 1px solid #e2e8f0;
-              word-break: break-all;
+              color: #374151;
+              margin: 10px 0;
+              line-height: 1.6;
+            }
+            .credential-line strong {
+              color: #111827;
+              font-weight: 600;
+            }
+            .credential-line code {
+              font-family: 'SF Mono', 'Courier New', monospace;
+              background: white;
+              padding: 2px 6px;
+              border-radius: 4px;
+              font-size: 13px;
+              color: #111827;
+              border: 1px solid #e5e7eb;
+            }
+            .button-container {
+              margin: 28px 0;
             }
             .button {
               display: inline-block;
-              padding: 14px 40px;
-              background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+              padding: 12px 32px;
+              background: #4F46E5;
               color: white;
               text-decoration: none;
-              border-radius: 8px;
-              margin: 20px 0;
-              font-weight: 600;
+              border-radius: 6px;
+              font-weight: 500;
               font-size: 15px;
-              box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
-              transition: all 0.3s ease;
+              transition: background 0.2s ease;
             }
             .button:hover {
-              box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
-              transform: translateY(-1px);
+              background: #4338CA;
             }
             .warning {
               background: #fffbeb;
-              border: 1px solid #fde68a;
+              border-left: 3px solid #f59e0b;
               padding: 12px 16px;
-              margin: 20px 0;
-              border-radius: 8px;
-              font-size: 13px;
+              margin: 24px 0;
+              border-radius: 4px;
+              font-size: 14px;
               color: #92400e;
-              text-align: left;
-              max-width: 400px;
-              margin-left: auto;
-              margin-right: auto;
             }
             .warning strong {
-              color: #b45309;
+              font-weight: 600;
             }
             .help-text {
-              font-size: 13px;
-              color: #64748b;
-              margin: 16px 0;
+              font-size: 14px;
+              color: #6b7280;
+              margin-top: 24px;
             }
             .footer {
-              text-align: center;
-              color: #94a3b8;
-              font-size: 12px;
-              margin-top: 20px;
-              padding: 16px 24px;
-              border-top: 1px solid #f1f5f9;
+              color: #9ca3af;
+              font-size: 13px;
+              padding: 20px 32px;
+              border-top: 1px solid #f3f4f6;
               background: #fafbfc;
             }
             .footer p {
               margin: 4px 0;
+              line-height: 1.5;
             }
           </style>
         </head>
         <body>
           <div class="email-container">
             <div class="header">
-              <h1>🎉 Welcome to the Portal!</h1>
-              <p>Your account is ready to use</p>
+              <h1>Welcome to ${fromName}</h1>
             </div>
             
             <div class="content">
-              <p class="greeting">Hi <strong>${full_name}</strong>,</p>
+              <p class="greeting">Hi ${full_name},</p>
               
-              <p class="intro-text">Your account has been created successfully! You can now access the portal with the credentials below.</p>
+              <p class="intro-text">Your account has been successfully created. You can now access the portal using the credentials below.</p>
               
               <div class="credentials-box">
-                <h3>Your Login Credentials</h3>
+                <h3>Login Credentials</h3>
                 
-                <div class="credential-item">
-                  <span class="credential-label">📧 Email Address</span>
-                  <div class="credential-value">${email}</div>
-                </div>
+                <p class="credential-line">
+                  <strong>Email:</strong> <code>${email}</code>
+                </p>
                 
-                <div class="credential-item">
-                  <span class="credential-label">🔑 Temporary Password</span>
-                  <div class="credential-value">${password}</div>
-                </div>
+                <p class="credential-line">
+                  <strong>Password:</strong> <code>${password}</code>
+                </p>
                 
-                <div class="credential-item">
-                  <span class="credential-label">👤 Access Level</span>
-                  <div class="credential-value">${rolesDisplay}</div>
-                </div>
+                <p class="credential-line">
+                  <strong>Access Level:</strong> ${rolesDisplay}
+                </p>
               </div>
               
               <div class="warning">
-                <strong>⚠️ Security Notice:</strong> Please change your password after your first login.
+                <strong>Security Notice:</strong> Please change your password after your first login.
               </div>
               
-              <a href="${portal_url}" class="button">Access Portal Dashboard</a>
-              
-              <p class="help-text">Need help? Contact your system administrator.</p>
-              
-              <div class="footer">
-                <p>This is an automated message. Please do not reply.</p>
-                <p>&copy; ${new Date().getFullYear()} ${fromName}. All rights reserved.</p>
+              <div class="button-container">
+                <a href="${portal_url}" class="button">Access Portal</a>
               </div>
+              
+              <p class="help-text">If you have any questions or need assistance, please contact your system administrator.</p>
+            </div>
+            
+            <div class="footer">
+              <p>This is an automated message. Please do not reply.</p>
+              <p>&copy; ${new Date().getFullYear()} ${fromName}. All rights reserved.</p>
             </div>
           </div>
         </body>
