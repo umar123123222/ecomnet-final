@@ -34,6 +34,16 @@ function generateSecurePassword(): string {
   return password.split('').sort(() => Math.random() - 0.5).join('');
 }
 
+async function getPortalUrl(supabase: any): Promise<string> {
+  const { data: portalUrlSetting } = await supabase
+    .from('api_settings')
+    .select('setting_value')
+    .eq('setting_key', 'company_portal_url')
+    .maybeSingle();
+  
+  return portalUrlSetting?.setting_value || `${Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '.lovable.app') || 'https://your-portal.com'}/auth`;
+}
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -125,6 +135,9 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log('Password updated successfully');
 
+    // Fetch portal URL from business settings
+    const portalUrl = await getPortalUrl(supabaseAdmin);
+    
     // Send credentials email using existing function
     const { error: emailError } = await supabaseAdmin.functions.invoke('send-user-credentials', {
       body: {
@@ -132,7 +145,7 @@ const handler = async (req: Request): Promise<Response> => {
         full_name: profile.full_name || user.email,
         password: newPassword,
         roles: [profile.role],
-        portal_url: `${Deno.env.get('SUPABASE_URL')?.replace('supabase.co', 'lovable.app') || ''}`
+        portal_url: portalUrl
       }
     });
 

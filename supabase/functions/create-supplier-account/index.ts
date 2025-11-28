@@ -33,6 +33,16 @@ function generateSecurePassword(): string {
   return password.split('').sort(() => Math.random() - 0.5).join('');
 }
 
+async function getPortalUrl(supabase: any): Promise<string> {
+  const { data: portalUrlSetting } = await supabase
+    .from('api_settings')
+    .select('setting_value')
+    .eq('setting_key', 'company_portal_url')
+    .maybeSingle();
+  
+  return portalUrlSetting?.setting_value || `${Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '.lovable.app') || 'https://your-portal.com'}/auth`;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -82,6 +92,8 @@ serve(async (req) => {
           throw new Error(`Failed to reset password for existing user: ${updateError.message}`);
         }
 
+        const portalUrl = await getPortalUrl(supabase);
+        
         let emailSent = false;
         try {
           const { error: emailError } = await supabase.functions.invoke('send-user-credentials', {
@@ -90,7 +102,7 @@ serve(async (req) => {
               password: newPassword,
               full_name: contact_person,
               roles: ['supplier'],
-              portal_url: `${Deno.env.get('SUPABASE_URL')}/auth/v1/verify`,
+              portal_url: portalUrl,
               supplier_name,
             }
           });
@@ -156,6 +168,8 @@ serve(async (req) => {
         throw new Error(`Failed to set password for existing user: ${updateError2.message}`);
       }
 
+      const portalUrl = await getPortalUrl(supabase);
+      
       let emailSent2 = false;
       try {
         const { error: emailError2 } = await supabase.functions.invoke('send-user-credentials', {
@@ -164,7 +178,7 @@ serve(async (req) => {
             password: newPassword,
             full_name: contact_person,
             roles: ['supplier'],
-            portal_url: `${Deno.env.get('SUPABASE_URL')}/auth/v1/verify`,
+            portal_url: portalUrl,
             supplier_name,
           }
         });
@@ -251,6 +265,8 @@ serve(async (req) => {
     }
 
     // Send credentials email
+    const portalUrl = await getPortalUrl(supabase);
+    
     let emailSent = false;
     try {
       const { error: emailError } = await supabase.functions.invoke('send-user-credentials', {
@@ -259,7 +275,7 @@ serve(async (req) => {
           password,
           full_name: contact_person,
           roles: ['supplier'],
-          portal_url: `${Deno.env.get('SUPABASE_URL')}/auth/v1/verify`,
+          portal_url: portalUrl,
           supplier_name,
         }
       });
