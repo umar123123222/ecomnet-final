@@ -37,9 +37,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isFetching, setIsFetching] = useState(false);
   const [isSuspended, setIsSuspended] = useState(false);
 
-  const fetchUserProfile = async (userId: string) => {
+  const fetchUserProfile = async (userId: string): Promise<boolean> => {
     // Prevent concurrent fetches
-    if (isFetching) return;
+    if (isFetching) return false;
     
     setIsFetching(true);
     try {
@@ -71,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSession(null);
           // Sign out the user
           await supabase.auth.signOut();
-          return;
+          return true; // Return true = user is suspended
         }
         
         setIsSuspended(false);
@@ -88,6 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsFetching(false);
       setIsLoading(false);
     }
+    return false; // Return false = user is NOT suspended
   };
 
   useEffect(() => {
@@ -132,8 +133,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     
     if (!error && data.session) {
-      // Wait for profile to load before setting loading to false
-      await fetchUserProfile(data.session.user.id);
+      // Wait for profile to load and check if user was suspended
+      const wasSuspended = await fetchUserProfile(data.session.user.id);
+      
+      // If user was suspended, return a custom error
+      if (wasSuspended) {
+        return { 
+          error: { 
+            message: 'Your account has been suspended. Please contact your administrator.' 
+          } 
+        };
+      }
     } else {
       setIsLoading(false);
     }
