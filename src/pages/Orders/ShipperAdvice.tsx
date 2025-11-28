@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, Filter, Download, Eye, MessageSquare } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import TagsNotes from "@/components/TagsNotes";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -16,6 +17,8 @@ const ShipperAdvice = () => {
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [courierFilter, setCourierFilter] = useState<string>('all');
+  const [attemptsFilter, setAttemptsFilter] = useState<string>('all');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -118,12 +121,29 @@ const ShipperAdvice = () => {
   }, [toast]);
 
   const filteredOrders = useMemo(() => {
-    return orders.filter(order =>
-      order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customerPhone.includes(searchTerm)
-    );
-  }, [orders, searchTerm]);
+    return orders.filter(order => {
+      const matchesSearch = 
+        order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.customerPhone.includes(searchTerm);
+      
+      const matchesCourier = courierFilter === 'all' || order.courier === courierFilter;
+      
+      const matchesAttempts = 
+        attemptsFilter === 'all' || 
+        (attemptsFilter === '1' && order.attemptCount === 1) ||
+        (attemptsFilter === '2' && order.attemptCount === 2) ||
+        (attemptsFilter === '3+' && order.attemptCount >= 3);
+      
+      return matchesSearch && matchesCourier && matchesAttempts;
+    });
+  }, [orders, searchTerm, courierFilter, attemptsFilter]);
+
+  // Get unique couriers from orders
+  const availableCouriers = useMemo(() => {
+    const uniqueCouriers = [...new Set(orders.map(order => order.courier))];
+    return uniqueCouriers.sort();
+  }, [orders]);
 
   const handleSelectOrder = (orderId: string, checked: boolean) => {
     if (checked) {
@@ -289,7 +309,7 @@ const ShipperAdvice = () => {
           <CardTitle>Orders Requiring Attention</CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Search */}
+          {/* Search and Filters */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -300,6 +320,30 @@ const ShipperAdvice = () => {
                 className="pl-10"
               />
             </div>
+            <Select value={courierFilter} onValueChange={setCourierFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="All Couriers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Couriers</SelectItem>
+                {availableCouriers.map((courier) => (
+                  <SelectItem key={courier} value={courier}>
+                    {courier}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={attemptsFilter} onValueChange={setAttemptsFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="All Attempts" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Attempts</SelectItem>
+                <SelectItem value="1">1 Attempt</SelectItem>
+                <SelectItem value="2">2 Attempts</SelectItem>
+                <SelectItem value="3+">3+ Attempts</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Table */}
