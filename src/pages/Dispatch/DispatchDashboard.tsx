@@ -168,7 +168,9 @@ const DispatchDashboard = () => {
           query = query.or(`dispatch_date.lte.${toDate},and(dispatch_date.is.null,created_at.lte.${toDate})`);
         }
         
-        query = query.order('created_at', { ascending: false });
+        query = query
+          .order('created_at', { ascending: false })
+          .limit(50000); // Set high limit to avoid default 1000-row cap
         
         const { data, error } = await query;
           
