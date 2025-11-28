@@ -2549,7 +2549,14 @@ const OrderDashboard = () => {
                     </TableCell>
                     
                     <TableCell>
-                      <span className="text-sm font-mono">{order.phone}</span>
+                      <a 
+                        href={`https://wa.me/${order.phone?.replace(/[^0-9]/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-mono text-primary hover:underline cursor-pointer"
+                      >
+                        {order.phone}
+                      </a>
                     </TableCell>
                     
                     <TableCell>
