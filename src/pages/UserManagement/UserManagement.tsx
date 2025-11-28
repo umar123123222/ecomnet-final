@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Search, UserPlus, Download, Edit, Trash2, Eye, Check, ChevronsUpDown, X, Loader2 } from 'lucide-react';
+import { Search, UserPlus, Download, Edit, Trash2, Eye, Check, ChevronsUpDown, X, Loader2, Ban, CheckCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { useForm } from 'react-hook-form';
@@ -300,6 +300,36 @@ const UserManagement = () => {
       });
     }
   });
+
+  // Suspend/Unsuspend user mutation
+  const suspendUserMutation = useMutation({
+    mutationFn: async ({ userId, suspend }: { userId: string; suspend: boolean }) => {
+      return await manageUser({
+        action: 'suspend',
+        userData: {
+          userId,
+          email: '',
+          roles: [],
+          suspend
+        }
+      });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({
+        title: 'Success',
+        description: variables.suspend ? 'User suspended successfully' : 'User unsuspended successfully'
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update user status',
+        variant: 'destructive'
+      });
+    }
+  });
+  
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
       const userRole = user.user_roles?.[0]?.role || user.role;
@@ -346,6 +376,18 @@ const UserManagement = () => {
       deleteUserMutation.mutate(userId);
     }
   };
+  
+  const handleSuspendUser = (userId: string, isActive: boolean) => {
+    const action = isActive ? 'suspend' : 'unsuspend';
+    const message = isActive 
+      ? 'Are you sure you want to suspend this user? They will not be able to log in.'
+      : 'Are you sure you want to unsuspend this user? They will be able to log in again.';
+    
+    if (confirm(message)) {
+      suspendUserMutation.mutate({ userId, suspend: isActive });
+    }
+  };
+  
   const openEditDialog = (user: UserWithRoles) => {
     setSelectedUser(user);
     const userRole = user.user_roles?.[0]?.role || user.role;
@@ -727,6 +769,17 @@ const UserManagement = () => {
                         {permissions.canEditUsers && <Button variant="outline" size="sm" onClick={() => openEditDialog(user)}>
                             <Edit className="h-3 w-3" />
                           </Button>}
+                        {permissions.canEditUsers && user.id !== currentUser?.id && (
+                          <Button 
+                            variant={user.is_active ? "outline" : "default"}
+                            size="sm" 
+                            onClick={() => handleSuspendUser(user.id, user.is_active)}
+                            disabled={suspendUserMutation.isPending}
+                            title={user.is_active ? "Suspend User" : "Unsuspend User"}
+                          >
+                            {user.is_active ? <Ban className="h-3 w-3" /> : <CheckCircle className="h-3 w-3" />}
+                          </Button>
+                        )}
                         {permissions.canDeleteUsers && user.id !== currentUser?.id && <Button variant="outline" size="sm" onClick={() => handleDeleteUser(user.id)} disabled={deleteUserMutation.isPending}>
                             <Trash2 className="h-3 w-3" />
                           </Button>}

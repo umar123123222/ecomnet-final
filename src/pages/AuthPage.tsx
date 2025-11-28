@@ -27,7 +27,8 @@ const AuthPage = () => {
     signIn,
     isLoading,
     user,
-    profile
+    profile,
+    isSuspended
   } = useAuth();
   const {
     toast
@@ -147,6 +148,18 @@ const AuthPage = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Suspension Notice */}
+          {isSuspended && (
+            <div className="mb-4 p-4 bg-destructive/10 border border-destructive rounded-lg">
+              <div className="flex items-center gap-2 text-destructive font-semibold mb-1">
+                🚫 Account Suspended
+              </div>
+              <p className="text-sm text-destructive/90">
+                Your account has been suspended. Please contact your administrator for assistance.
+              </p>
+            </div>
+          )}
+          
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
