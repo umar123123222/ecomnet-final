@@ -19,6 +19,7 @@ const ShipperAdvice = () => {
   const [loading, setLoading] = useState(true);
   const [courierFilter, setCourierFilter] = useState<string>('all');
   const [attemptsFilter, setAttemptsFilter] = useState<string>('all');
+  const [availableCouriers, setAvailableCouriers] = useState<string[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -117,7 +118,26 @@ const ShipperAdvice = () => {
       }
     };
 
+    const fetchCouriers = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('couriers')
+          .select('name')
+          .eq('is_active', true)
+          .order('name');
+
+        if (error) throw error;
+        
+        if (data) {
+          setAvailableCouriers(data.map(c => c.name));
+        }
+      } catch (error) {
+        console.error('Error fetching couriers:', error);
+      }
+    };
+
     fetchProblematicOrders();
+    fetchCouriers();
   }, [toast]);
 
   const filteredOrders = useMemo(() => {
@@ -138,12 +158,6 @@ const ShipperAdvice = () => {
       return matchesSearch && matchesCourier && matchesAttempts;
     });
   }, [orders, searchTerm, courierFilter, attemptsFilter]);
-
-  // Get unique couriers from orders
-  const availableCouriers = useMemo(() => {
-    const uniqueCouriers = [...new Set(orders.map(order => order.courier))];
-    return uniqueCouriers.sort();
-  }, [orders]);
 
   const handleSelectOrder = (orderId: string, checked: boolean) => {
     if (checked) {
