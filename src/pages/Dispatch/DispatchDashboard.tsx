@@ -137,8 +137,8 @@ const DispatchDashboard = () => {
     const fetchDispatches = async () => {
       setLoading(true);
       try {
-        // Step 1: Fetch dispatches with only orders embedded
-        const { data, error } = await supabase
+        // Step 1: Fetch dispatches with only orders embedded and apply server-side date filtering
+        let query = supabase
           .from('dispatches')
           .select(`
             *,
@@ -151,8 +151,26 @@ const DispatchDashboard = () => {
               total_amount,
               status
             )
-          `)
-          .order('created_at', { ascending: false });
+          `);
+        
+        // Add server-side date range filtering
+        if (dateRange?.from) {
+          const fromDate = dateRange.from.toISOString();
+          // Handle both dispatch_date and created_at (for null dispatch_date cases)
+          query = query.or(`dispatch_date.gte.${fromDate},and(dispatch_date.is.null,created_at.gte.${fromDate})`);
+        }
+        
+        if (dateRange?.to) {
+          const endOfDay = new Date(dateRange.to);
+          endOfDay.setHours(23, 59, 59, 999);
+          const toDate = endOfDay.toISOString();
+          // Handle both dispatch_date and created_at (for null dispatch_date cases)
+          query = query.or(`dispatch_date.lte.${toDate},and(dispatch_date.is.null,created_at.lte.${toDate})`);
+        }
+        
+        query = query.order('created_at', { ascending: false });
+        
+        const { data, error } = await query;
           
         if (error) {
           console.error('Error fetching dispatches:', error);
@@ -220,24 +238,11 @@ const DispatchDashboard = () => {
       clearTimeout(refreshTimeout);
       supabase.removeChannel(channel);
     };
-  }, [toast]);
+  }, [toast, dateRange]);
+  // Date filtering now happens server-side, so filteredByDate just references dispatches
   const filteredByDate = useMemo(() => {
-    if (!dateRange?.from) return dispatches;
-    return dispatches.filter(dispatch => {
-      const dispatchDate = parseISO(dispatch.dispatch_date || dispatch.created_at);
-      if (dateRange.to) {
-        // Adjust the end date to include the full day (23:59:59.999)
-        const endOfDay = new Date(dateRange.to);
-        endOfDay.setHours(23, 59, 59, 999);
-        
-        return isWithinInterval(dispatchDate, {
-          start: dateRange.from,
-          end: endOfDay
-        });
-      }
-      return dispatchDate >= dateRange.from;
-    });
-  }, [dispatches, dateRange]);
+    return dispatches;
+  }, [dispatches]);
   const filteredDispatches = useMemo(() => {
     return filteredByDate.filter(dispatch => {
       const matchesSearch = (dispatch.tracking_id || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.order_number || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.customer_phone || '').toLowerCase().includes(searchTerm.toLowerCase()) || (dispatch.orders?.customer_email || '').toLowerCase().includes(searchTerm.toLowerCase());
