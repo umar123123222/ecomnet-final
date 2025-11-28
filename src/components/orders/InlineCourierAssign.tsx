@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, X } from 'lucide-react';
 import { downloadCourierLabel } from '@/utils/courierLabelDownload';
 import { getCourierColor } from '@/utils/courierHelpers';
+import { logCourierError } from '@/utils/globalErrorLogger';
 
 // Helper function to convert error codes to user-friendly messages
 const getErrorMessage = (errorCode: string, fallback: string): string => {
@@ -194,6 +195,21 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
     } catch (error: any) {
       console.error('Error assigning courier:', error);
       
+      const courier = couriers.find(c => c.id === orderId);
+      
+      // Log courier error to activity logs
+      await logCourierError(
+        courier?.name || 'Unknown',
+        'booking',
+        error.message || 'Failed to assign courier',
+        orderId,
+        {
+          orderNumber: orderDetails.orderNumber,
+          city: orderDetails.city,
+          response: responseData,
+        }
+      );
+      
       const errorTitle = "Booking Failed";
       const errorDesc = error.message || "Failed to assign courier";
       
@@ -243,6 +259,18 @@ export const InlineCourierAssign: React.FC<InlineCourierAssignProps> = ({
       onAssigned();
     } catch (error: any) {
       console.error('Error unassigning courier:', error);
+      
+      // Log courier cancellation error to activity logs
+      await logCourierError(
+        currentCourier || 'Unknown',
+        'cancellation',
+        error.message || 'Failed to unassign courier',
+        orderId,
+        {
+          trackingId: trackingId,
+        }
+      );
+      
       toast({
         title: "Error",
         description: error.message || "Failed to unassign courier",
