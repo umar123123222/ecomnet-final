@@ -16,6 +16,8 @@ export const initGlobalErrorLogger = () => {
         filename: event.filename,
         lineno: event.lineno,
         colno: event.colno,
+        page: window.location.pathname,
+        url: window.location.href,
       },
     });
   });
@@ -30,6 +32,8 @@ export const initGlobalErrorLogger = () => {
       entityType: 'promise',
       additionalDetails: {
         reason: event.reason,
+        page: window.location.pathname,
+        url: window.location.href,
       },
     });
   });
@@ -52,6 +56,8 @@ export const logApiError = async (
     additionalDetails: {
       statusCode,
       endpoint,
+      page: window.location.pathname,
+      url: window.location.href,
       ...additionalDetails,
     },
   });
@@ -74,6 +80,8 @@ export const logDatabaseError = async (
     additionalDetails: {
       operation,
       table,
+      page: window.location.pathname,
+      url: window.location.href,
       ...additionalDetails,
     },
   });
@@ -97,6 +105,8 @@ export const logCourierError = async (
     additionalDetails: {
       courier,
       operation,
+      page: window.location.pathname,
+      url: window.location.href,
       ...additionalDetails,
     },
   });
@@ -118,6 +128,8 @@ export const logShopifySyncError = async (
     entityType: 'shopify',
     additionalDetails: {
       syncType,
+      page: window.location.pathname,
+      url: window.location.href,
       ...additionalDetails,
     },
   });
@@ -136,6 +148,10 @@ export const logAuthError = async (
     errorMessage: `Auth Error: ${errorMessage}`,
     entityId: userId || 'anonymous',
     entityType: 'auth',
-    additionalDetails,
+    additionalDetails: {
+      page: window.location.pathname,
+      url: window.location.href,
+      ...additionalDetails,
+    },
   });
 };
