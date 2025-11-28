@@ -93,6 +93,8 @@ const postexStatusMap: Record<string, { status: string; label: string }> = {
   '0005': { status: 'delivered', label: 'Delivered' },
   '0008': { status: 'pending', label: 'Delivery Under Review' },
   '0013': { status: 'out_for_delivery', label: 'Out for Delivery' },
+  '0031': { status: 'in_transit', label: 'Departed to PostEx Warehouse' },
+  '0033': { status: 'in_transit', label: 'En-Route to Destination' },
   '0002': { status: 'returned', label: 'Returned to Merchant' },
   '0006': { status: 'returned', label: 'Returned' },
   '0007': { status: 'returned', label: 'Returned' }
@@ -110,7 +112,7 @@ function parsePostExResponse(data: any) {
       status: mapped.status,
       message: event.transactionStatusMessage || mapped.label,
       location: event.location || 'PostEx',
-      timestamp: event.transactionDateTime || new Date().toISOString(),
+      timestamp: event.updatedAt || event.transactionDateTime || new Date().toISOString(),
       code: messageCode,
       raw: event
     };
@@ -212,11 +214,11 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
           courier_id: courier.id,
           tracking_id: trackingId,
           status: event.status,
-          current_location: event.location || event.message,
+          current_location: event.message || event.location,
           checked_at: event.timestamp || new Date().toISOString(),
           raw_response: event.raw || event
         }, {
-          onConflict: 'dispatch_id,checked_at,status',
+          onConflict: 'tracking_id,checked_at,status',
           ignoreDuplicates: true
         });
 
