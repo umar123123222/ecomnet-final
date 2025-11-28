@@ -175,6 +175,7 @@ export const getRolePermissions = (role: UserRole) => {
       return {
         ...permissions,
         canAccessDashboard: true,
+        canAccessOrders: true, // Warehouse managers need orders visibility
         canAccessDispatch: true, // Warehouse managers need dispatch visibility
         canAccessReturns: true, // Warehouse managers handle returns processing
         canAccessInventory: true,
