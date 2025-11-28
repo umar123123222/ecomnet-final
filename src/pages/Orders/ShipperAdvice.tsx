@@ -154,7 +154,7 @@ const ShipperAdvice = () => {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -252,8 +252,8 @@ const ShipperAdvice = () => {
           </div>
 
           {/* Table */}
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="overflow-x-auto -mx-6 px-6">
+            <Table className="min-w-[1200px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12">

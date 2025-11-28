@@ -222,7 +222,7 @@ const App = () => {
                       <BusinessSettings />
                     </Suspense>} />
                   <Route path="shipper-advice" element={<Suspense fallback={<PageLoader />}>
-                      <ShipperAdvice className="px-[10px]" />
+                      <ShipperAdvice />
                     </Suspense>} />
                   <Route path="returns-not-received" element={<Suspense fallback={<PageLoader />}>
                       <ReturnsNotReceived />
