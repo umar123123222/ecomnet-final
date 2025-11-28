@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getAPISetting } from "../_shared/apiSettings.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -84,7 +85,7 @@ serve(async (req) => {
       // Check if courier has bulk tracking endpoint
       if (courierData.bulk_tracking_endpoint) {
         try {
-          const bulkResult = await trackBulkWithEndpoint(courierData, ids);
+          const bulkResult = await trackBulkWithEndpoint(courierData, ids, supabase);
           results.push(...bulkResult);
         } catch (error) {
           console.error(`Bulk tracking failed for ${courier}:`, error);
@@ -123,17 +124,20 @@ serve(async (req) => {
   }
 });
 
-async function trackBulkWithEndpoint(courier: any, trackingIds: string[]): Promise<TrackingResult[]> {
+async function trackBulkWithEndpoint(courier: any, trackingIds: string[], supabaseClient: any): Promise<TrackingResult[]> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
+  // Get API key from api_settings table
+  const apiKey = await getAPISetting(`${courier.code.toUpperCase()}_API_KEY`, supabaseClient);
+
   // Set authentication headers based on courier config
-  if (courier.auth_type === 'bearer_token' && courier.auth_config?.api_key) {
-    headers['Authorization'] = `Bearer ${courier.auth_config.api_key}`;
-  } else if (courier.auth_type === 'api_key_header' && courier.auth_config?.api_key) {
-    const headerName = courier.auth_config.header_name || 'X-API-KEY';
-    headers[headerName] = courier.auth_config.api_key;
+  if (courier.auth_type === 'bearer_token' && apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  } else if (courier.auth_type === 'api_key_header' && apiKey) {
+    const headerName = courier.auth_config?.header_name || 'X-API-KEY';
+    headers[headerName] = apiKey;
   }
 
   console.log(`Calling bulk tracking endpoint: ${courier.bulk_tracking_endpoint}`);
