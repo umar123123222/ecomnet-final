@@ -590,6 +590,19 @@ const OrderDashboard = () => {
   // Bulk status update handler
   const handleBulkStatusChange = async (status: string) => {
     try {
+      // Role-based status restrictions - staff can only use pending, confirmed, and cancelled
+      if (primaryRole === 'staff') {
+        const allowedForStaff = ['pending', 'confirmed', 'cancelled'];
+        if (!allowedForStaff.includes(status)) {
+          toast({
+            title: "Permission Denied",
+            description: `Staff members can only set orders to: ${allowedForStaff.join(', ')}`,
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+
       const result = await bulkUpdateOrderStatus(Array.from(selectedOrders), status as any);
       
       if (result.success > 0) {
@@ -1067,6 +1080,11 @@ const OrderDashboard = () => {
       { value: 'cancelled', label: 'Cancelled' },
     ];
     
+    // Filter statuses based on user role - staff can only use pending, confirmed, and cancelled
+    const allowedStatuses = primaryRole === 'staff'
+      ? allStatuses.filter(s => ['pending', 'confirmed', 'cancelled'].includes(s.value))
+      : allStatuses;
+    
     // Check if user has permission to update orders
     const canUpdateStatus = isManager() || isSeniorStaff() || primaryRole === 'staff';
     
@@ -1091,7 +1109,7 @@ const OrderDashboard = () => {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="bg-background">
-          {allStatuses.map((statusOption) => (
+          {allowedStatuses.map((statusOption) => (
             <DropdownMenuItem
               key={statusOption.value}
               onClick={() => handleUpdateOrderStatus(orderId, statusOption.value)}
@@ -1646,6 +1664,19 @@ const OrderDashboard = () => {
         return;
       }
 
+      // Role-based status restrictions - staff can only use pending, confirmed, and cancelled
+      if (primaryRole === 'staff') {
+        const allowedForStaff = ['pending', 'confirmed', 'cancelled'];
+        if (!allowedForStaff.includes(newStatus)) {
+          toast({
+            title: "Permission Denied",
+            description: `Staff members can only set orders to: ${allowedForStaff.join(', ')}`,
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+
       const { data: currentOrder, error: fetchError } = await supabase
         .from('orders')
         .select('status, order_number')
@@ -2082,6 +2113,7 @@ const OrderDashboard = () => {
           onGenerateAWBs={handleBulkGenerateAWBs}
           progress={progress}
           couriers={couriers}
+          userRole={primaryRole}
         />
       </div>
 
