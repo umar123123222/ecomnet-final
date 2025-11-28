@@ -48,7 +48,7 @@ import { Eye, EyeOff, Bell } from 'lucide-react';
 import { AWBDownloadButton } from '@/components/orders/AWBDownloadButton';
 
 const OrderDashboard = () => {
-  const { isManager, isSeniorStaff, primaryRole } = useUserRoles();
+  const { isManager, isSeniorStaff, primaryRole, hasAnyRole } = useUserRoles();
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [selectAllPages, setSelectAllPages] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -590,11 +590,16 @@ const OrderDashboard = () => {
   // Bulk status update handler
   const handleBulkStatusChange = async (status: string) => {
     try {
-      // Filter out dispatched orders from selection
-      const ordersToUpdate = Array.from(selectedOrders).filter(orderId => {
-        const order = orders.find(o => o.id === orderId);
-        return order?.status !== 'dispatched';
-      });
+      // Only super_admin, super_manager, and warehouse_manager can update dispatched orders
+      const canOverrideDispatchLock = hasAnyRole(['super_admin', 'super_manager', 'warehouse_manager']);
+      
+      // Filter out dispatched orders from selection if user doesn't have override permission
+      const ordersToUpdate = canOverrideDispatchLock 
+        ? Array.from(selectedOrders)
+        : Array.from(selectedOrders).filter(orderId => {
+            const order = orders.find(o => o.id === orderId);
+            return order?.status !== 'dispatched';
+          });
       
       const skippedCount = selectedOrders.size - ordersToUpdate.length;
       
@@ -1110,8 +1115,9 @@ const OrderDashboard = () => {
       ? allStatuses.filter(s => ['pending', 'confirmed', 'cancelled'].includes(s.value))
       : allStatuses;
     
-    // If order is dispatched, show locked badge (cannot be manually updated)
-    if (status === 'dispatched') {
+    // If order is dispatched, show locked badge for users without override permission
+    const canOverrideDispatchLock = hasAnyRole(['super_admin', 'super_manager', 'warehouse_manager']);
+    if (status === 'dispatched' && !canOverrideDispatchLock) {
       return (
         <Badge variant={statusInfo.variant} className="gap-1.5">
           {StatusIcon && <StatusIcon className="h-3.5 w-3.5" />}
@@ -1678,8 +1684,9 @@ const OrderDashboard = () => {
       // Get current order status
       const order = orders.find(o => o.id === orderId);
       
-      // Block manual status changes for dispatched orders
-      if (order?.status === 'dispatched') {
+      // Block manual status changes for dispatched orders (unless user has override permission)
+      const canOverrideDispatchLock = hasAnyRole(['super_admin', 'super_manager', 'warehouse_manager']);
+      if (order?.status === 'dispatched' && !canOverrideDispatchLock) {
         toast({
           title: "Status Locked",
           description: "Dispatched orders cannot be manually updated. Status will update automatically via courier tracking or returns processing.",
