@@ -18,7 +18,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescri
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save, Shield, AlertTriangle, AlertCircle, MapPin, Clock, User, Phone, Mail, Calendar, ShoppingBag, FileText, RefreshCw, Copy } from 'lucide-react';
+import { Search, Upload, Plus, Filter, ChevronDown, ChevronUp, Package, Edit, Trash2, Send, Download, UserPlus, CheckCircle, Truck, X, Save, Shield, AlertTriangle, AlertCircle, MapPin, Clock, User, Phone, Mail, Calendar, ShoppingBag, FileText, RefreshCw, Copy, Lock } from 'lucide-react';
 import { downloadCourierLabel } from '@/utils/courierLabelDownload';
 import TagsNotes from '@/components/TagsNotes';
 import NewOrderDialog from '@/components/NewOrderDialog';
@@ -590,6 +590,31 @@ const OrderDashboard = () => {
   // Bulk status update handler
   const handleBulkStatusChange = async (status: string) => {
     try {
+      // Filter out dispatched orders from selection
+      const ordersToUpdate = Array.from(selectedOrders).filter(orderId => {
+        const order = orders.find(o => o.id === orderId);
+        return order?.status !== 'dispatched';
+      });
+      
+      const skippedCount = selectedOrders.size - ordersToUpdate.length;
+      
+      if (skippedCount > 0) {
+        toast({
+          title: "Some Orders Skipped",
+          description: `${skippedCount} dispatched order(s) were skipped. Dispatched orders can only be updated via courier tracking or returns.`,
+          variant: "default"
+        });
+      }
+      
+      if (ordersToUpdate.length === 0) {
+        toast({
+          title: "No Orders to Update",
+          description: "All selected orders are dispatched and cannot be manually updated.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
       // Role-based status restrictions - staff can only use pending, confirmed, and cancelled
       if (primaryRole === 'staff') {
         const allowedForStaff = ['pending', 'confirmed', 'cancelled'];
@@ -603,7 +628,7 @@ const OrderDashboard = () => {
         }
       }
 
-      const result = await bulkUpdateOrderStatus(Array.from(selectedOrders), status as any);
+      const result = await bulkUpdateOrderStatus(ordersToUpdate, status as any);
       
       if (result.success > 0) {
         toast({
@@ -1084,6 +1109,17 @@ const OrderDashboard = () => {
     const allowedStatuses = primaryRole === 'staff'
       ? allStatuses.filter(s => ['pending', 'confirmed', 'cancelled'].includes(s.value))
       : allStatuses;
+    
+    // If order is dispatched, show locked badge (cannot be manually updated)
+    if (status === 'dispatched') {
+      return (
+        <Badge variant={statusInfo.variant} className="gap-1.5">
+          {StatusIcon && <StatusIcon className="h-3.5 w-3.5" />}
+          {statusInfo.label}
+          <Lock className="h-3 w-3 ml-1" />
+        </Badge>
+      );
+    }
     
     // Check if user has permission to update orders
     const canUpdateStatus = isManager() || isSeniorStaff() || primaryRole === 'staff';
@@ -1639,10 +1675,22 @@ const OrderDashboard = () => {
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string, additionalData?: Record<string, any>) => {
     try {
+      // Get current order status
+      const order = orders.find(o => o.id === orderId);
+      
+      // Block manual status changes for dispatched orders
+      if (order?.status === 'dispatched') {
+        toast({
+          title: "Status Locked",
+          description: "Dispatched orders cannot be manually updated. Status will update automatically via courier tracking or returns processing.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
       // Special handling for cancellation - show confirmation dialog
       if (newStatus === 'cancelled') {
-        const order = orders.find(o => o.id === orderId);
-        setOrderToCancel({ id: orderId, orderNumber: order?.order_number || '' });
+        setOrderToCancel({ id: orderId, orderNumber: order?.orderNumber || '' });
         setCancelDialogOpen(true);
         return;
       }
