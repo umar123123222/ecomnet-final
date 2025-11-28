@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ModernButton } from "@/components/ui/modern-button";
@@ -10,15 +9,17 @@ import { Camera, Save, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-
 const Settings = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { profile } = useAuth();
+  const {
+    toast
+  } = useToast();
+  const {
+    profile
+  } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [profileImage, setProfileImage] = useState("");
-  
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -26,7 +27,6 @@ const Settings = () => {
     newPassword: "",
     confirmPassword: ""
   });
-
   useEffect(() => {
     if (profile) {
       setFormData(prev => ({
@@ -36,83 +36,72 @@ const Settings = () => {
       }));
     }
   }, [profile]);
-
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
     }));
   };
-
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = e => {
         setProfileImage(e.target?.result as string);
       };
       reader.readAsDataURL(file);
     }
   };
-
   const handleSaveProfile = async () => {
     if (!profile) return;
-
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          full_name: formData.name,
-          email: formData.email
-        })
-        .eq('id', profile.id);
-
+      const {
+        error
+      } = await supabase.from('profiles').update({
+        full_name: formData.name,
+        email: formData.email
+      }).eq('id', profile.id);
       if (error) throw error;
-
       toast({
         title: "Profile Updated",
-        description: "Your profile information has been updated successfully.",
+        description: "Your profile information has been updated successfully."
       });
     } catch (error) {
       toast({
         title: "Update Failed",
         description: "Failed to update profile. Please try again.",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
-
   const handleChangePassword = async () => {
     if (formData.newPassword !== formData.confirmPassword) {
       toast({
         title: "Password Mismatch",
         description: "New password and confirm password do not match.",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
-
     if (formData.newPassword.length < 8) {
       toast({
         title: "Invalid Password",
         description: "Password must be at least 8 characters long.",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
-    
     try {
-      const { error } = await supabase.auth.updateUser({
+      const {
+        error
+      } = await supabase.auth.updateUser({
         password: formData.newPassword
       });
-
       if (error) throw error;
-
       toast({
         title: "Password Changed",
-        description: "Your password has been updated successfully.",
+        description: "Your password has been updated successfully."
       });
-      
       setFormData(prev => ({
         ...prev,
         currentPassword: "",
@@ -123,13 +112,11 @@ const Settings = () => {
       toast({
         title: "Password Change Failed",
         description: "Failed to change password. Please try again.",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
-
-  return (
-    <div className="container-md spacing-md">
+  return <div className="container-md spacing-md">
       {/* Page Header */}
       <div className="page-header">
         <h1 className="page-title">Account Settings</h1>
@@ -157,19 +144,8 @@ const Settings = () => {
                 </AvatarFallback>
               </Avatar>
               <div className="space-y-2">
-                <input
-                  id="profile-image"
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImageUpload}
-                />
-                <ModernButton 
-                  variant="outline" 
-                  size="sm" 
-                  className="gap-2"
-                  onClick={() => document.getElementById('profile-image')?.click()}
-                >
+                <input id="profile-image" type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                <ModernButton variant="outline" size="sm" className="gap-2" onClick={() => document.getElementById('profile-image')?.click()}>
                   <Camera className="h-4 w-4" />
                   Change Photo
                 </ModernButton>
@@ -183,24 +159,11 @@ const Settings = () => {
             <div className="grid-2-col">
               <div className="form-group">
                 <Label htmlFor="name" className="form-label">Full Name</Label>
-                <Input
-                  id="name"
-                  className="form-input"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  placeholder="Enter your full name"
-                />
+                <Input id="name" className="form-input" value={formData.name} onChange={e => handleInputChange('name', e.target.value)} placeholder="Enter your full name" />
               </div>
               <div className="form-group">
                 <Label htmlFor="email" className="form-label">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  className="form-input"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  placeholder="Enter your email address"
-                />
+                <Input id="email" type="email" className="form-input" value={formData.email} onChange={e => handleInputChange('email', e.target.value)} placeholder="Enter your email address" />
               </div>
             </div>
 
@@ -226,19 +189,8 @@ const Settings = () => {
             <div className="form-group">
               <Label htmlFor="current-password" className="form-label">Current Password</Label>
               <div className="relative">
-                <Input
-                  id="current-password"
-                  type={showPassword ? "text" : "password"}
-                  className="form-input pr-10"
-                  value={formData.currentPassword}
-                  onChange={(e) => handleInputChange('currentPassword', e.target.value)}
-                  placeholder="Enter your current password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
+                <Input id="current-password" type={showPassword ? "text" : "password"} className="form-input pr-10" value={formData.currentPassword} onChange={e => handleInputChange('currentPassword', e.target.value)} placeholder="Enter your current password" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
@@ -248,14 +200,7 @@ const Settings = () => {
             <div className="grid-2-col">
               <div className="form-group">
                 <Label htmlFor="new-password" className="form-label">New Password</Label>
-                <Input
-                  id="new-password"
-                  type="password"
-                  className="form-input"
-                  value={formData.newPassword}
-                  onChange={(e) => handleInputChange('newPassword', e.target.value)}
-                  placeholder="Enter new password"
-                />
+                <Input id="new-password" type="password" className="form-input" value={formData.newPassword} onChange={e => handleInputChange('newPassword', e.target.value)} placeholder="Enter new password" />
                 <p className="form-helper">
                   Password must be at least 8 characters long
                 </p>
@@ -263,19 +208,8 @@ const Settings = () => {
               <div className="form-group">
                 <Label htmlFor="confirm-password" className="form-label">Confirm New Password</Label>
                 <div className="relative">
-                  <Input
-                    id="confirm-password"
-                    type={showConfirmPassword ? "text" : "password"}
-                    className="form-input pr-10"
-                    value={formData.confirmPassword}
-                    onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                    placeholder="Confirm your new password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  >
+                  <Input id="confirm-password" type={showConfirmPassword ? "text" : "password"} className="form-input pr-10" value={formData.confirmPassword} onChange={e => handleInputChange('confirmPassword', e.target.value)} placeholder="Confirm your new password" />
+                  <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                     {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
@@ -283,11 +217,7 @@ const Settings = () => {
             </div>
 
             <div className="flex justify-end pt-4 border-t border-border">
-              <ModernButton 
-                onClick={handleChangePassword}
-                variant="secondary"
-                className="gap-2"
-              >
+              <ModernButton onClick={handleChangePassword} variant="secondary" className="gap-2">
                 <Save className="h-4 w-4" />
                 Update Password
               </ModernButton>
@@ -296,26 +226,10 @@ const Settings = () => {
         </Card>
 
         {/* Shopify Integration Card */}
-        <Card className="modern-card">
-          <CardHeader className="card-header">
-            <CardTitle className="card-title">Shopify Integration</CardTitle>
-            <CardDescription className="card-description">
-              Manage Shopify store synchronization and webhook configuration
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="card-content">
-            <p className="text-sm text-muted-foreground mb-4">
-              Configure and monitor your Shopify store integration, sync products, orders, and customers.
-            </p>
-            <ModernButton onClick={() => navigate('/shopify-settings')}>
-              Configure Shopify
-            </ModernButton>
-          </CardContent>
-        </Card>
+        
 
         {/* System Operations - Super Admin Only */}
-        {profile?.role === 'super_admin' && (
-          <Card className="card">
+        {profile?.role === 'super_admin' && <Card className="card">
             <CardHeader className="card-header">
               <CardTitle className="card-title">System Operations</CardTitle>
               <CardDescription className="card-description">
@@ -329,40 +243,37 @@ const Settings = () => {
                   <p className="text-sm text-muted-foreground mb-3">
                     This will update all orders in the system to "pending" status. This action cannot be undone.
                   </p>
-                  <ModernButton
-                    variant="destructive"
-                    onClick={async () => {
-                      if (confirm('Are you sure you want to reset ALL orders to pending status? This cannot be undone.')) {
-                        try {
-                          const { updateAllOrdersPending } = await import('@/integrations/supabase/functions');
-                          const { data, error } = await updateAllOrdersPending();
-                          
-                          if (error) throw error;
-                          
-                          toast({
-                            title: "System Update Complete",
-                            description: `Successfully updated ${data?.ordersUpdated || 0} orders to pending status.`,
-                          });
-                        } catch (error: any) {
-                          toast({
-                            title: "Update Failed",
-                            description: error.message || "Failed to update orders",
-                            variant: "destructive",
-                          });
-                        }
-                      }
-                    }}
-                  >
+                  <ModernButton variant="destructive" onClick={async () => {
+                if (confirm('Are you sure you want to reset ALL orders to pending status? This cannot be undone.')) {
+                  try {
+                    const {
+                      updateAllOrdersPending
+                    } = await import('@/integrations/supabase/functions');
+                    const {
+                      data,
+                      error
+                    } = await updateAllOrdersPending();
+                    if (error) throw error;
+                    toast({
+                      title: "System Update Complete",
+                      description: `Successfully updated ${data?.ordersUpdated || 0} orders to pending status.`
+                    });
+                  } catch (error: any) {
+                    toast({
+                      title: "Update Failed",
+                      description: error.message || "Failed to update orders",
+                      variant: "destructive"
+                    });
+                  }
+                }
+              }}>
                     Reset All Orders to Pending
                   </ModernButton>
                 </div>
               </div>
             </CardContent>
-          </Card>
-        )}
+          </Card>}
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default Settings;
