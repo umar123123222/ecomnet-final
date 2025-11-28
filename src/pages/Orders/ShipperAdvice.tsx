@@ -22,16 +22,21 @@ const ShipperAdvice = () => {
     const fetchProblematicOrders = async () => {
       setLoading(true);
       try {
-        // Fetch orders that might need attention (multiple attempts, stuck in delivery, etc.)
+        // Fetch only dispatched orders (with courier) that need shipper advice
         const { data, error } = await supabase
           .from('orders')
           .select(`
             *,
             dispatches (
-              *
+              *,
+              courier_tracking_history (
+                status,
+                checked_at
+              )
             )
           `)
-          .in('status', ['pending', 'dispatched', 'booked'])
+          .eq('status', 'dispatched')
+          .not('tracking_id', 'is', null)
           .order('created_at', { ascending: false });
 
         if (error) {
@@ -42,21 +47,27 @@ const ShipperAdvice = () => {
             variant: "destructive",
           });
         } else {
-          // Transform data to match the expected format
-          const formattedOrders = (data || []).map((order, index) => ({
-            id: order.id,
-            orderNumber: order.order_number,
-            customerName: order.customer_name,
-            customerPhone: order.customer_phone,
-            address: order.customer_address,
-            status: order.status === 'pending' ? 'attempted' : 'in-transit',
-            courier: order.courier || 'TCS',
-            attemptDate: new Date(order.created_at).toISOString().split('T')[0],
-            attemptCount: Math.floor(Math.random() * 3) + 1, // Mock attempt count
-            lastAttemptReason: order.status === 'pending' ? 'Address not found' : 'Customer not available',
-            totalAmount: order.total_amount || 0,
-            daysStuck: Math.floor((Date.now() - new Date(order.created_at).getTime()) / (1000 * 60 * 60 * 24))
-          }));
+          // Filter and format orders that need shipper advice
+          const formattedOrders = (data || [])
+            .filter(order => {
+              // Only include orders that are with courier and waiting for action
+              const hasDispatch = order.dispatches && order.dispatches.length > 0;
+              return hasDispatch && order.tracking_id;
+            })
+            .map((order) => ({
+              id: order.id,
+              orderNumber: order.order_number,
+              customerName: order.customer_name,
+              customerPhone: order.customer_phone,
+              address: order.customer_address,
+              status: 'attempted',
+              courier: order.courier || 'TCS',
+              attemptDate: new Date(order.dispatched_at || order.created_at).toISOString().split('T')[0],
+              attemptCount: order.dispatches?.[0]?.courier_tracking_history?.length || 1,
+              lastAttemptReason: 'Customer not available',
+              totalAmount: order.total_amount || 0,
+              daysStuck: Math.floor((Date.now() - new Date(order.dispatched_at || order.created_at).getTime()) / (1000 * 60 * 60 * 24))
+            }));
 
           setOrders(formattedOrders);
         }
