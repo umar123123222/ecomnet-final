@@ -90,13 +90,20 @@ export const OrderDetailsModal = ({ order, open, onOpenChange }: OrderDetailsMod
     }
   }, [open, order?.id]);
 
-  // Auto-fetch tracking from courier API when dispatch info is loaded
+  // Auto-fetch tracking from courier API when Tracking tab becomes active
   useEffect(() => {
-    if (dispatchInfo?.tracking_id && order?.courier && !autoFetchAttempted && open) {
-      setAutoFetchAttempted(true);
-      fetchTrackingFromCourier();
+    if (activeTab === 'tracking' && dispatchInfo?.tracking_id && order?.courier && open) {
+      // Auto-fetch from courier if we don't have recent data (older than 5 minutes)
+      const shouldFetch = !trackingHistory.length || 
+        (trackingHistory[0] && 
+         new Date().getTime() - new Date(trackingHistory[0].checked_at).getTime() > 5 * 60 * 1000);
+      
+      if (shouldFetch && !autoFetchAttempted) {
+        setAutoFetchAttempted(true);
+        fetchTrackingFromCourier();
+      }
     }
-  }, [dispatchInfo, order?.courier, autoFetchAttempted, open]);
+  }, [activeTab, dispatchInfo?.tracking_id, order?.courier, trackingHistory, autoFetchAttempted, open]);
 
   const fetchTrackingDetails = async () => {
     if (!order?.id) {
