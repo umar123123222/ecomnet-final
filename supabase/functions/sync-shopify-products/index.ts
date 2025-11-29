@@ -157,12 +157,8 @@ Deno.serve(async (req) => {
           // Create or update parent product (using first variant as base)
           const firstVariant = product.variants[0];
           
-          // Auto-generate SKU if not present
-          const productSku = firstVariant?.sku || `SHOPIFY-${product.id}`;
-          
-          if (!firstVariant?.sku) {
-            console.log(`Auto-generated SKU for product without SKU: ${product.title} -> ${productSku}`);
-          }
+          // SKU is optional - use null if not provided
+          const productSku = firstVariant?.sku || null;
 
           const productData = {
             name: product.title,
@@ -198,12 +194,8 @@ Deno.serve(async (req) => {
 
           // Now sync all variants
           for (const variant of product.variants) {
-            // Auto-generate SKU for variant if not present
-            const variantSku = variant.sku || `SHOPIFY-${product.id}-${variant.id}`;
-            
-            if (!variant.sku) {
-              console.log(`Auto-generated SKU for variant: ${product.title} - ${variant.title} -> ${variantSku}`);
-            }
+            // SKU is optional - use null if not provided
+            const variantSku = variant.sku || null;
 
             // Check if variant exists
             const { data: existingVariant } = await supabase

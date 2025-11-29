@@ -2975,7 +2975,7 @@ export type Database = {
           price_adjustment: number | null
           product_id: string
           shopify_variant_id: number | null
-          sku: string
+          sku: string | null
           updated_at: string | null
           variant_name: string
           variant_type: string | null
@@ -2989,7 +2989,7 @@ export type Database = {
           price_adjustment?: number | null
           product_id: string
           shopify_variant_id?: number | null
-          sku: string
+          sku?: string | null
           updated_at?: string | null
           variant_name: string
           variant_type?: string | null
@@ -3003,7 +3003,7 @@ export type Database = {
           price_adjustment?: number | null
           product_id?: string
           shopify_variant_id?: number | null
-          sku?: string
+          sku?: string | null
           updated_at?: string | null
           variant_name?: string
           variant_type?: string | null
@@ -3191,7 +3191,7 @@ export type Database = {
           shopify_product_id: number | null
           shopify_variant_id: number | null
           size: string | null
-          sku: string
+          sku: string | null
           supplier_id: string | null
           sync_to_shopify: boolean | null
           synced_from_shopify: boolean | null
@@ -3223,7 +3223,7 @@ export type Database = {
           shopify_product_id?: number | null
           shopify_variant_id?: number | null
           size?: string | null
-          sku: string
+          sku?: string | null
           supplier_id?: string | null
           sync_to_shopify?: boolean | null
           synced_from_shopify?: boolean | null
@@ -3255,7 +3255,7 @@ export type Database = {
           shopify_product_id?: number | null
           shopify_variant_id?: number | null
           size?: string | null
-          sku?: string
+          sku?: string | null
           supplier_id?: string | null
           sync_to_shopify?: boolean | null
           synced_from_shopify?: boolean | null
