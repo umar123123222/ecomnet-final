@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw } from "lucide-react";
+import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw, Filter } from "lucide-react";
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
 import { SmartReorderSettings } from "@/components/inventory/SmartReorderSettings";
@@ -19,6 +19,7 @@ import { BulkOperationsPanelLegacy as BulkOperationsPanel } from '@/components/B
 import { bulkToggleProducts, bulkUpdateProductCategory, exportToCSV, bulkDeleteProducts } from '@/utils/bulkOperations';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRoles } from '@/hooks/useUserRoles';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const ProductManagement = () => {
   const { toast } = useToast();
@@ -318,8 +319,58 @@ const ProductManagement = () => {
       {/* Products List */}
       <Card>
         <CardHeader>
-          <CardTitle>Product Catalog</CardTitle>
-          <CardDescription>View and manage all products</CardDescription>
+          <div className="flex items-start justify-between">
+            <div>
+              <CardTitle>Product Catalog</CardTitle>
+              <CardDescription>View and manage all products</CardDescription>
+            </div>
+          </div>
+          
+          {/* Search and Filter Bar */}
+          <div className="flex items-center gap-4 mt-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, SKU, category..."
+                value={filters.search || ''}
+                onChange={(e) => updateFilter('search', e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            
+            <Select
+              value={filters.customValues?.status || 'all'}
+              onValueChange={(value) => {
+                if (value === 'all') {
+                  updateCustomFilter('status', undefined);
+                } else {
+                  updateCustomFilter('status', value);
+                }
+              }}
+            >
+              <SelectTrigger className="w-[180px]">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Products</SelectItem>
+                <SelectItem value="active">Active Only</SelectItem>
+                <SelectItem value="inactive">Inactive Only</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {activeFiltersCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={resetFilters}
+                className="gap-2"
+              >
+                <XCircle className="h-4 w-4" />
+                Clear Filters
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
