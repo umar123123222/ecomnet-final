@@ -111,6 +111,29 @@ serve(async (req) => {
       processingTime: Date.now() - startTime
     };
 
+    // Log activity if successful
+    if (result?.success && result?.order_id) {
+      await supabase
+        .from('activity_logs')
+        .insert({
+          action: 'order_dispatched',
+          entity_type: 'order',
+          entity_id: result.order_id,
+          details: {
+            order_number: result.order_number,
+            customer_name: result.customer_name,
+            courier: result.courier || courierCode || courierName,
+            match_type: result.match_type,
+            scanned_entry: cleanedEntry,
+            processing_time_ms: Date.now() - startTime,
+          },
+          user_id: userId,
+        })
+        .then(({ error: logError }) => {
+          if (logError) console.error('Activity log error:', logError);
+        });
+    }
+
     return new Response(
       JSON.stringify(response),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

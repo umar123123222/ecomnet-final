@@ -331,6 +331,24 @@ Deno.serve(async (req) => {
         .eq('id', existingOrder.id);
       
       console.log('Updated existing order:', existingOrder.id);
+
+      // Log order update activity
+      await supabase
+        .from('activity_logs')
+        .insert({
+          action: 'order_updated',
+          entity_type: 'order',
+          entity_id: existingOrder.id,
+          details: {
+            shopify_order_id: order.id,
+            order_number: orderData.order_number,
+            customer_name: orderData.customer_name,
+            previous_status: currentOrderState?.status,
+            new_status: finalStatus,
+            source: 'shopify_webhook',
+          },
+          user_id: '00000000-0000-0000-0000-000000000000',
+        });
     } else {
       // Create new order
       const { data: newOrder, error: orderError } = await supabase
@@ -357,6 +375,25 @@ Deno.serve(async (req) => {
       }
 
       console.log('Created new order:', newOrder?.id);
+      
+      // Log order creation activity
+      if (newOrder) {
+        await supabase
+          .from('activity_logs')
+          .insert({
+            action: 'order_created',
+            entity_type: 'order',
+            entity_id: newOrder.id,
+            details: {
+              shopify_order_id: order.id,
+              order_number: orderData.order_number,
+              customer_name: orderData.customer_name,
+              total_amount: orderData.total_amount,
+              source: 'shopify_webhook',
+            },
+            user_id: '00000000-0000-0000-0000-000000000000',
+          });
+      }
       
       // Queue sync to push Ecomnet tag back to Shopify
       if (newOrder) {

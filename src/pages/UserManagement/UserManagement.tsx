@@ -25,6 +25,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { UserRole } from '@/types/auth';
 import { BulkOperationsPanelLegacy as BulkOperationsPanel } from '@/components/BulkOperationsPanelLegacy';
 import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
+import { logActivity } from '@/utils/activityLogger';
 const userSchema = z.object({
   full_name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email'),
@@ -170,6 +171,20 @@ const UserManagement = () => {
       console.log('📝 Created user email:', result?.profile?.email);
       console.log('📝 Created user roles:', result?.profile?.user_roles?.map((r: any) => r.role));
       
+      // Log activity
+      if (result?.profile?.id) {
+        await logActivity({
+          action: 'user_created',
+          entityType: 'user',
+          entityId: result.profile.id,
+          details: {
+            email: result.profile.email,
+            full_name: result.profile.full_name,
+            role: result.profile.user_roles?.[0]?.role,
+          },
+        });
+      }
+      
       // Wait for backend to fully commit
       await new Promise(resolve => setTimeout(resolve, 200));
       
@@ -224,6 +239,20 @@ const UserManagement = () => {
       console.log('📝 Updated user ID:', result?.profile?.id);
       console.log('📝 Updated user email:', result?.profile?.email);
       console.log('📝 Updated user roles:', result?.profile?.user_roles?.map((r: any) => r.role));
+      
+      // Log user update activity
+      if (result?.profile?.id) {
+        await logActivity({
+          action: 'user_updated',
+          entityType: 'user',
+          entityId: result.profile.id,
+          details: {
+            email: result.profile.email,
+            full_name: result.profile.full_name,
+            role: result.profile.user_roles?.[0]?.role,
+          },
+        });
+      }
       
       // If updating current user's roles, refresh the auth context
       if (variables.userId === currentUser?.id) {
@@ -283,7 +312,17 @@ const UserManagement = () => {
           }
       });
     },
-    onSuccess: () => {
+    onSuccess: async (_, userId) => {
+      // Log user deletion
+      await logActivity({
+        action: 'user_deleted',
+        entityType: 'user',
+        entityId: userId,
+        details: {
+          timestamp: new Date().toISOString(),
+        },
+      });
+
       queryClient.invalidateQueries({
         queryKey: ['users']
       });
