@@ -2,8 +2,34 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-shopify-hmac-sha256, x-shopify-topic, x-shopify-shop-domain',
 };
+
+// HMAC verification for Shopify webhooks
+async function verifyShopifyWebhook(body: string, hmacHeader: string, secret: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(body));
+  const hashArray = Array.from(new Uint8Array(signature));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  const calculatedHash = btoa(String.fromCharCode(...new Uint8Array(signature)));
+  
+  return calculatedHash === hmacHeader;
+}
+
+// Normalize phone number
+function normalizePhone(phone: string | null): string | null {
+  if (!phone) return null;
+  return phone.replace(/[^0-9]/g, '');
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -16,7 +42,37 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { order, userId } = await req.json();
+    // Get Shopify webhook secret
+    const { data: webhookSecret } = await supabaseAdmin
+      .from('api_settings')
+      .select('setting_value')
+      .eq('setting_key', 'SHOPIFY_WEBHOOK_SECRET')
+      .single();
+
+    // Read raw body for HMAC verification
+    const body = await req.text();
+    const hmacHeader = req.headers.get('x-shopify-hmac-sha256');
+    const shopifyTopic = req.headers.get('x-shopify-topic');
+
+    console.log(`Received Shopify webhook: ${shopifyTopic}`);
+
+    // Verify HMAC if secret is configured
+    if (webhookSecret?.setting_value && hmacHeader) {
+      const isValid = await verifyShopifyWebhook(body, hmacHeader, webhookSecret.setting_value);
+      if (!isValid) {
+        console.error('Invalid HMAC signature');
+        return new Response(
+          JSON.stringify({ error: 'Invalid webhook signature' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      console.log('HMAC verification passed');
+    } else {
+      console.warn('HMAC verification skipped - no secret configured');
+    }
+
+    // Parse the order from Shopify
+    const order = JSON.parse(body);
 
     if (!order || !order.id) {
       return new Response(
@@ -25,134 +81,99 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Processing Shopify order update: ${order.id}`);
+    console.log(`Processing Shopify order update: ${order.id} (${order.name})`);
 
     const lineItems = order.line_items || [];
+    const normalizedPhone = normalizePhone(order.customer?.phone || order.shipping_address?.phone);
 
-    // Check if order exists
-    const { data: existingOrder } = await supabaseAdmin
+    // Check if order exists and fetch current state
+    const { data: currentOrderState } = await supabaseAdmin
       .from('orders')
-      .select('id, status')
+      .select('id, status, courier, tracking_id, booked_at, dispatched_at, delivered_at')
       .eq('shopify_order_id', order.id.toString())
       .single();
 
-    const isNewOrder = !existingOrder;
+    if (!currentOrderState) {
+      console.log('Order not found in database, skipping update');
+      return new Response(
+        JSON.stringify({ success: false, message: 'Order not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Determine final status - preserve local status unless Shopify marks as fulfilled/cancelled
+    let preservedStatus = currentOrderState.status;
+    
+    // Only override local status if Shopify marks as fulfilled or cancelled
+    if (order.fulfillment_status === 'fulfilled') {
+      preservedStatus = 'delivered';
+    } else if (order.cancelled_at) {
+      preservedStatus = 'cancelled';
+    }
+    // Otherwise keep the current local status
+
+    // Build update data - accept address changes, preserve courier/tracking data
     const orderData: any = {
-      shopify_order_id: order.id.toString(),
       shopify_order_number: order.order_number?.toString() || order.name,
       order_number: order.order_number?.toString() || order.name,
       customer_name: order.customer?.first_name && order.customer?.last_name
         ? `${order.customer.first_name} ${order.customer.last_name}`
         : order.customer?.first_name || 'Unknown',
       customer_email: order.customer?.email || null,
-      customer_phone: order.customer?.phone || order.shipping_address?.phone || null,
+      customer_phone: normalizedPhone,
       customer_address: order.shipping_address?.address1 || null,
+      city: order.shipping_address?.city || null,
       total_amount: parseFloat(order.total_price || '0'),
       items: lineItems,
-      status: 'pending',
+      notes: order.note || null,
       last_shopify_sync: new Date().toISOString(),
+      
+      // PRESERVE local courier/tracking data
+      status: preservedStatus,
+      courier: currentOrderState.courier,
+      tracking_id: currentOrderState.tracking_id,
+      booked_at: currentOrderState.booked_at,
+      dispatched_at: currentOrderState.dispatched_at,
+      delivered_at: preservedStatus === 'delivered' ? new Date().toISOString() : currentOrderState.delivered_at,
     };
 
-    let orderId = existingOrder?.id;
+    // Update existing order
+    const { error: updateError } = await supabaseAdmin
+      .from('orders')
+      .update(orderData)
+      .eq('id', currentOrderState.id);
 
-    if (isNewOrder) {
-      // Insert new order
-      const { data: newOrder, error: insertError } = await supabaseAdmin
-        .from('orders')
-        .insert(orderData)
-        .select('id')
-        .single();
+    if (updateError) throw updateError;
 
-      if (insertError) throw insertError;
-      orderId = newOrder.id;
+    console.log(`Successfully updated order: ${currentOrderState.id}`);
+    console.log(`- Address updated from Shopify`);
+    console.log(`- Preserved status: ${preservedStatus}`);
+    console.log(`- Preserved courier: ${currentOrderState.courier || 'none'}`);
+    console.log(`- Preserved tracking: ${currentOrderState.tracking_id || 'none'}`);
 
-      console.log(`Created new order: ${orderId}`);
-
-      // Create order items and link to products
-      for (const item of lineItems) {
-        // Try to match product by SKU or shopify variant_id
-        const { data: variant } = await supabaseAdmin
-          .from('product_variants')
-          .select('id, product_id, sku')
-          .eq('sku', item.sku)
-          .single();
-
-        let productId = variant?.product_id;
-        let variantId = variant?.id;
-
-        // Fallback: try to match by shopify_variant_id on products table
-        if (!productId && item.variant_id) {
-          const { data: product } = await supabaseAdmin
-            .from('products')
-            .select('id')
-            .eq('shopify_variant_id', item.variant_id)
-            .single();
-          productId = product?.id;
-        }
-
-        await supabaseAdmin
-          .from('order_items')
-          .insert({
-            order_id: orderId,
-            item_name: item.name,
-            quantity: item.quantity,
-            price: parseFloat(item.price),
-            product_id: productId,
-            variant_id: variantId,
-          });
-      }
-
-      // Log order creation activity
-      await supabaseAdmin
-        .from('activity_logs')
-        .insert({
-          action: 'order_created',
-          entity_type: 'order',
-          entity_id: orderId,
-          details: {
-            shopify_order_id: order.id,
-            order_number: orderData.order_number,
-            customer_name: orderData.customer_name,
-            total_amount: orderData.total_amount,
-            source: 'shopify_webhook',
-          },
-          user_id: userId || '00000000-0000-0000-0000-000000000000', // System user
-        });
-    } else {
-      // Update existing order
-      const { error: updateError } = await supabaseAdmin
-        .from('orders')
-        .update(orderData)
-        .eq('id', orderId);
-
-      if (updateError) throw updateError;
-
-      console.log(`Updated existing order: ${orderId}`);
-
-      // Log order update activity
-      await supabaseAdmin
-        .from('activity_logs')
-        .insert({
-          action: 'order_updated',
-          entity_type: 'order',
-          entity_id: orderId,
-          details: {
-            shopify_order_id: order.id,
-            order_number: orderData.order_number,
-            customer_name: orderData.customer_name,
-            previous_status: existingOrder.status,
-            source: 'shopify_webhook',
-          },
-          user_id: userId || '00000000-0000-0000-0000-000000000000', // System user
-        });
-    }
+    // Log order update activity
+    await supabaseAdmin
+      .from('activity_logs')
+      .insert({
+        action: 'order_updated_from_shopify',
+        entity_type: 'order',
+        entity_id: currentOrderState.id,
+        details: {
+          shopify_order_id: order.id,
+          order_number: orderData.order_number,
+          address_updated: true,
+          status_preserved: preservedStatus,
+          courier_preserved: currentOrderState.courier,
+          source: 'shopify_webhook',
+        },
+        user_id: '00000000-0000-0000-0000-000000000000', // System user
+      });
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        orderId, 
-        isNewOrder,
-        message: isNewOrder ? 'Order created' : 'Order updated'
+        orderId: currentOrderState.id,
+        message: 'Order updated - address synced from Shopify, local courier data preserved'
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
