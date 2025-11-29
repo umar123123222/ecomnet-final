@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2 } from "lucide-react";
+import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw } from "lucide-react";
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
 import { SmartReorderSettings } from "@/components/inventory/SmartReorderSettings";
@@ -31,6 +31,7 @@ const ProductManagement = () => {
   const [reorderProduct, setReorderProduct] = useState<Product | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(50);
+  const [isSyncingShopify, setIsSyncingShopify] = useState(false);
   const { progress, executeBulkOperation } = useBulkOperations();
 
 
@@ -195,6 +196,37 @@ const ProductManagement = () => {
     );
   };
 
+  const handleSyncFromShopify = async () => {
+    setIsSyncingShopify(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-shopify-products');
+      
+      if (error) throw error;
+      
+      toast({
+        title: 'Sync Started',
+        description: 'Products are being synced from Shopify. This may take a few moments.',
+      });
+      
+      // Wait a bit and refetch products
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+        toast({
+          title: 'Sync Complete',
+          description: 'Products have been synced successfully from Shopify.',
+        });
+      }, 3000);
+    } catch (error: any) {
+      toast({
+        title: 'Sync Failed',
+        description: error.message || 'Failed to sync products from Shopify',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSyncingShopify(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -204,18 +236,33 @@ const ProductManagement = () => {
           </h1>
           <p className="text-muted-foreground">Manage your product catalog</p>
         </div>
-        {permissions.canManageProducts && (
+        <div className="flex gap-2">
           <Button
-            onClick={() => {
-              setSelectedProduct(null);
-              setProductDialogOpen(true);
-            }}
+            onClick={handleSyncFromShopify}
+            disabled={isSyncingShopify}
+            variant="outline"
             className="gap-2"
           >
-            <Plus className="h-4 w-4" />
-            Add Product
+            {isSyncingShopify ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Sync from Shopify
           </Button>
-        )}
+          {permissions.canManageProducts && (
+            <Button
+              onClick={() => {
+                setSelectedProduct(null);
+                setProductDialogOpen(true);
+              }}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Product
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Summary Cards */}
