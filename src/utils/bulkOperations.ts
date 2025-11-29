@@ -319,33 +319,56 @@ export async function bulkDeleteProducts(
   const errors: string[] = [];
 
   await processBatch(productIds, BATCH_SIZE, async (batch) => {
-    // First, delete related scans to avoid foreign key constraint violation
-    const { error: scansError, count: scansDeleted } = await supabase
-      .from('scans')
-      .delete({ count: 'exact' })
-      .in('product_id', batch);
+    try {
+      // Delete related records in order to avoid foreign key constraint violations
+      
+      // 1. Delete inventory records
+      await supabase
+        .from('inventory')
+        .delete()
+        .in('product_id', batch);
 
-    if (scansError) {
-      console.error('Scan deletion error:', scansError);
+      // 2. Delete product variants
+      await supabase
+        .from('product_variants')
+        .delete()
+        .in('product_id', batch);
+
+      // 3. Delete bill of materials entries (both as finished product and raw material)
+      await supabase
+        .from('bill_of_materials')
+        .delete()
+        .in('finished_product_id', batch);
+      
+      await supabase
+        .from('bill_of_materials')
+        .delete()
+        .in('raw_material_id', batch);
+
+      // 4. Finally delete the products
+      const { data, error } = await supabase
+        .from('products')
+        .delete()
+        .in('id', batch)
+        .select('id');
+
+      if (error) {
+        console.error('Product deletion error:', error);
+        failed += batch.length;
+        errors.push(`Failed to delete products: ${error.message}`);
+      } else {
+        const deletedCount = data?.length || 0;
+        success += deletedCount;
+        failed += batch.length - deletedCount;
+        
+        if (deletedCount < batch.length) {
+          errors.push(`Some products could not be deleted. They may be referenced by orders, GRNs, or stock counts.`);
+        }
+      }
+    } catch (error: any) {
+      console.error('Bulk delete error:', error);
       failed += batch.length;
-      errors.push(`Failed to delete related scans: ${scansError.message}. Check if you have permission to delete scans.`);
-      return;
-    }
-
-    // Then delete the products
-    const { data, error } = await supabase
-      .from('products')
-      .delete()
-      .in('id', batch)
-      .select('id');
-
-    if (error) {
-      console.error('Product deletion error:', error);
-      failed += batch.length;
-      errors.push(`Failed to delete products: ${error.message}`);
-    } else {
-      success += data?.length || 0;
-      failed += batch.length - (data?.length || 0);
+      errors.push(`Unexpected error: ${error.message}`);
     }
   });
 
