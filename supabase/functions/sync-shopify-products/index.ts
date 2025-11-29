@@ -156,14 +156,17 @@ Deno.serve(async (req) => {
 
           // Create or update parent product (using first variant as base)
           const firstVariant = product.variants[0];
+          
+          // Auto-generate SKU if not present
+          const productSku = firstVariant?.sku || `SHOPIFY-${product.id}`;
+          
           if (!firstVariant?.sku) {
-            console.log(`Skipping product without SKU: ${product.title}`);
-            continue;
+            console.log(`Auto-generated SKU for product without SKU: ${product.title} -> ${productSku}`);
           }
 
           const productData = {
             name: product.title,
-            sku: firstVariant.sku,
+            sku: productSku,
             price: parseFloat(firstVariant.price),
             cost: firstVariant.compare_at_price ? parseFloat(firstVariant.compare_at_price) : null,
             description: product.body_html,
@@ -195,7 +198,12 @@ Deno.serve(async (req) => {
 
           // Now sync all variants
           for (const variant of product.variants) {
-            if (!variant.sku) continue;
+            // Auto-generate SKU for variant if not present
+            const variantSku = variant.sku || `SHOPIFY-${product.id}-${variant.id}`;
+            
+            if (!variant.sku) {
+              console.log(`Auto-generated SKU for variant: ${product.title} - ${variant.title} -> ${variantSku}`);
+            }
 
             // Check if variant exists
             const { data: existingVariant } = await supabase
@@ -208,7 +216,7 @@ Deno.serve(async (req) => {
               product_id: parentProductId,
               variant_name: variant.title !== 'Default Title' ? variant.title : 'Standard',
               variant_type: variant.title !== 'Default Title' ? 'size' : null,
-              sku: variant.sku,
+              sku: variantSku,
               price_adjustment: parseFloat(variant.price) - parseFloat(firstVariant.price),
               cost_adjustment: variant.compare_at_price && firstVariant.compare_at_price 
                 ? parseFloat(variant.compare_at_price) - parseFloat(firstVariant.compare_at_price)
