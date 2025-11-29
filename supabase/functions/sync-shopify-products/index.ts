@@ -145,41 +145,88 @@ Deno.serve(async (req) => {
         console.log(`Fetched ${products.length} products. Total synced so far: ${totalSynced}`);
         
         for (const product of products) {
-          for (const variant of product.variants) {
-            if (!variant.sku) {
-              console.log(`Skipping variant without SKU: ${product.title}`);
-              continue;
-            }
+          // Check if parent product exists
+          const { data: existingProduct } = await supabase
+            .from('products')
+            .select('id')
+            .eq('shopify_product_id', product.id)
+            .single();
 
-            // Check if product exists
-            const { data: existing } = await supabase
+          let parentProductId = existingProduct?.id;
+
+          // Create or update parent product (using first variant as base)
+          const firstVariant = product.variants[0];
+          if (!firstVariant?.sku) {
+            console.log(`Skipping product without SKU: ${product.title}`);
+            continue;
+          }
+
+          const productData = {
+            name: product.title,
+            sku: firstVariant.sku,
+            price: parseFloat(firstVariant.price),
+            cost: firstVariant.compare_at_price ? parseFloat(firstVariant.compare_at_price) : null,
+            description: product.body_html,
+            category: product.product_type,
+            shopify_product_id: product.id,
+            shopify_variant_id: firstVariant.id, // Primary variant
+            synced_from_shopify: true,
+            updated_at: new Date().toISOString(),
+          };
+
+          if (parentProductId) {
+            await supabase
               .from('products')
+              .update(productData)
+              .eq('id', parentProductId);
+          } else {
+            const { data: newProduct } = await supabase
+              .from('products')
+              .insert(productData)
+              .select('id')
+              .single();
+            parentProductId = newProduct?.id;
+          }
+
+          if (!parentProductId) {
+            console.error(`Failed to create/update product: ${product.title}`);
+            continue;
+          }
+
+          // Now sync all variants
+          for (const variant of product.variants) {
+            if (!variant.sku) continue;
+
+            // Check if variant exists
+            const { data: existingVariant } = await supabase
+              .from('product_variants')
               .select('id')
               .eq('shopify_variant_id', variant.id)
               .single();
 
-            const productData = {
-              name: `${product.title}${variant.title !== 'Default Title' ? ` - ${variant.title}` : ''}`,
+            const variantData = {
+              product_id: parentProductId,
+              variant_name: variant.title !== 'Default Title' ? variant.title : 'Standard',
+              variant_type: variant.title !== 'Default Title' ? 'size' : null,
               sku: variant.sku,
-              price: parseFloat(variant.price),
-              cost: variant.compare_at_price ? parseFloat(variant.compare_at_price) : null,
-              description: product.body_html,
-              category: product.product_type,
-              shopify_product_id: product.id,
+              price_adjustment: parseFloat(variant.price) - parseFloat(firstVariant.price),
+              cost_adjustment: variant.compare_at_price && firstVariant.compare_at_price 
+                ? parseFloat(variant.compare_at_price) - parseFloat(firstVariant.compare_at_price)
+                : 0,
               shopify_variant_id: variant.id,
-              synced_from_shopify: true,
+              is_active: true,
               updated_at: new Date().toISOString(),
             };
 
-            if (existing) {
+            if (existingVariant) {
               await supabase
-                .from('products')
-                .update(productData)
-                .eq('id', existing.id);
+                .from('product_variants')
+                .update(variantData)
+                .eq('id', existingVariant.id);
             } else {
               await supabase
-                .from('products')
-                .insert(productData);
+                .from('product_variants')
+                .insert(variantData);
             }
 
             totalSynced++;
