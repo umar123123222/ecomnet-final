@@ -8,8 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, ScanBarcode, Printer, Trash2 } from "lucide-react";
-import { BarcodeScanner } from '@/components/barcode/BarcodeScanner';
+import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2 } from "lucide-react";
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
 import { SmartReorderSettings } from "@/components/inventory/SmartReorderSettings";
@@ -28,8 +27,6 @@ const ProductManagement = () => {
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
-  const [scannerOpen, setScannerOpen] = useState(false);
-  const [scanningProductId, setScanningProductId] = useState<string | null>(null);
   const [reorderSettingsOpen, setReorderSettingsOpen] = useState(false);
   const [reorderProduct, setReorderProduct] = useState<Product | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -294,7 +291,6 @@ const ProductManagement = () => {
                       />
                     </TableHead>
                     <TableHead>SKU</TableHead>
-                    <TableHead>Barcode</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead className="text-right">Price</TableHead>
@@ -315,21 +311,6 @@ const ProductManagement = () => {
                           />
                         </TableCell>
                         <TableCell className="font-mono text-sm">{product.sku}</TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {(product as any).barcode || (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setScanningProductId(product.id);
-                                setScannerOpen(true);
-                              }}
-                            >
-                              <ScanBarcode className="h-3 w-3 mr-1" />
-                              Add
-                            </Button>
-                          )}
-                        </TableCell>
                         <TableCell className="font-medium">{product.name}</TableCell>
                         <TableCell>
                           <Badge variant="outline">{product.category || 'Uncategorized'}</Badge>
@@ -383,24 +364,13 @@ const ProductManagement = () => {
                             >
                               Smart Reorder
                             </Button>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              className="gap-2"
-                              onClick={() => {
-                                window.open(`/production/labels?product=${product.id}&type=finished_product`, '_blank');
-                              }}
-                            >
-                              <Printer className="h-3 w-3" />
-                              Labels
-                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
                     ))
                    ) : (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         No products found
                       </TableCell>
                     </TableRow>
@@ -471,33 +441,6 @@ const ProductManagement = () => {
           if (!open) setSelectedProduct(null);
         }}
         product={selectedProduct}
-      />
-
-      <BarcodeScanner
-        isOpen={scannerOpen}
-        onClose={() => {
-          setScannerOpen(false);
-          setScanningProductId(null);
-        }}
-        onScan={async (result) => {
-          if (scanningProductId) {
-            const { error } = await supabase
-              .from('products')
-              .update({ barcode: result.barcode })
-              .eq('id', scanningProductId);
-            
-            if (!error) {
-              toast({
-                title: 'Barcode Added',
-                description: `Barcode ${result.barcode} assigned to product`,
-              });
-            }
-          }
-          setScannerOpen(false);
-          setScanningProductId(null);
-        }}
-        scanType="product"
-        title="Scan Product Barcode"
       />
 
       <Dialog open={reorderSettingsOpen} onOpenChange={setReorderSettingsOpen}>
