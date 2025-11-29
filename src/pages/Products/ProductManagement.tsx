@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw, Filter } from "lucide-react";
+import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw, Filter, PackagePlus } from "lucide-react";
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
 import { SmartReorderSettings } from "@/components/inventory/SmartReorderSettings";
+import { BulkStockAdditionDialog } from "@/components/inventory/BulkStockAdditionDialog";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
@@ -30,6 +31,7 @@ const ProductManagement = () => {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [reorderSettingsOpen, setReorderSettingsOpen] = useState(false);
   const [reorderProduct, setReorderProduct] = useState<Product | null>(null);
+  const [bulkStockDialogOpen, setBulkStockDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(50);
   const [isSyncingShopify, setIsSyncingShopify] = useState(false);
@@ -252,16 +254,26 @@ const ProductManagement = () => {
             Sync from Shopify
           </Button>
           {permissions.canManageProducts && (
-            <Button
-              onClick={() => {
-                setSelectedProduct(null);
-                setProductDialogOpen(true);
-              }}
-              className="gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              Add Product
-            </Button>
+            <>
+              <Button
+                onClick={() => setBulkStockDialogOpen(true)}
+                variant="outline"
+                className="gap-2"
+              >
+                <PackagePlus className="h-4 w-4" />
+                Add Stock
+              </Button>
+              <Button
+                onClick={() => {
+                  setSelectedProduct(null);
+                  setProductDialogOpen(true);
+                }}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add Product
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -558,6 +570,12 @@ const ProductManagement = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <BulkStockAdditionDialog
+        open={bulkStockDialogOpen}
+        onOpenChange={setBulkStockDialogOpen}
+        products={products}
+      />
     </div>
   );
 };
