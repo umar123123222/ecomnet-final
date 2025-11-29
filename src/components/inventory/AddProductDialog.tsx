@@ -10,9 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Package } from "lucide-react";
 
 const productSchema = z.object({
   sku: z.string().trim().max(50, "SKU must be less than 50 characters").optional().or(z.literal("")),
@@ -39,6 +40,7 @@ interface AddProductDialogProps {
 
 export function AddProductDialog({ open, onOpenChange, product }: AddProductDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [packagingRequirements, setPackagingRequirements] = useState<Record<string, number>>({});
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -50,6 +52,20 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
         .from('suppliers')
         .select('id, name')
         .eq('status', 'active')
+        .order('name');
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  // Fetch packaging items
+  const { data: packagingItems = [] } = useQuery({
+    queryKey: ['packaging-items-active'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('packaging_items')
+        .select('id, name, sku, type, current_stock')
+        .eq('is_active', true)
         .order('name');
       if (error) throw error;
       return data;
@@ -92,6 +108,30 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
   const unitType = watch("unit_type");
   const supplierId = watch("supplier_id");
 
+  // Fetch existing packaging requirements when editing
+  useEffect(() => {
+    const fetchPackagingRequirements = async () => {
+      if (open && product?.id) {
+        const { data, error } = await supabase
+          .from('product_packaging_requirements')
+          .select('packaging_item_id, quantity_required')
+          .eq('product_id', product.id);
+        
+        if (!error && data) {
+          const requirements: Record<string, number> = {};
+          data.forEach(req => {
+            requirements[req.packaging_item_id] = req.quantity_required;
+          });
+          setPackagingRequirements(requirements);
+        }
+      } else if (open && !product) {
+        setPackagingRequirements({});
+      }
+    };
+
+    fetchPackagingRequirements();
+  }, [open, product]);
+
   // Reset form when product changes or dialog opens/closes
   useEffect(() => {
     if (open) {
@@ -131,6 +171,8 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
         sku: data.sku && data.sku.trim() !== "" ? data.sku : null,
       };
 
+      let productId: string;
+
       if (product) {
         const { error } = await supabase
           .from("products")
@@ -138,17 +180,72 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
           .eq("id", product.id);
 
         if (error) throw error;
+        productId = product.id;
+
+        // Update packaging requirements if packaging is required
+        if (data.requires_packaging) {
+          // Delete existing requirements
+          await supabase
+            .from('product_packaging_requirements')
+            .delete()
+            .eq('product_id', productId);
+
+          // Insert new requirements
+          const requirementsToInsert = Object.entries(packagingRequirements)
+            .filter(([_, qty]) => qty > 0)
+            .map(([packagingItemId, quantity]) => ({
+              product_id: productId,
+              packaging_item_id: packagingItemId,
+              quantity_required: quantity,
+            }));
+
+          if (requirementsToInsert.length > 0) {
+            const { error: reqError } = await supabase
+              .from('product_packaging_requirements')
+              .insert(requirementsToInsert);
+            
+            if (reqError) throw reqError;
+          }
+        } else {
+          // If packaging not required, delete all requirements
+          await supabase
+            .from('product_packaging_requirements')
+            .delete()
+            .eq('product_id', productId);
+        }
 
         toast({
           title: "Success",
           description: "Product updated successfully",
         });
       } else {
-        const { error } = await supabase
+        const { data: newProduct, error } = await supabase
           .from("products")
-          .insert([productData as any]);
+          .insert([productData as any])
+          .select()
+          .single();
 
         if (error) throw error;
+        productId = newProduct.id;
+
+        // Insert packaging requirements if packaging is required
+        if (data.requires_packaging) {
+          const requirementsToInsert = Object.entries(packagingRequirements)
+            .filter(([_, qty]) => qty > 0)
+            .map(([packagingItemId, quantity]) => ({
+              product_id: productId,
+              packaging_item_id: packagingItemId,
+              quantity_required: quantity,
+            }));
+
+          if (requirementsToInsert.length > 0) {
+            const { error: reqError } = await supabase
+              .from('product_packaging_requirements')
+              .insert(requirementsToInsert);
+            
+            if (reqError) throw reqError;
+          }
+        }
 
         toast({
           title: "Success",
@@ -158,6 +255,7 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
 
       queryClient.invalidateQueries({ queryKey: ["products"] });
       reset();
+      setPackagingRequirements({});
       onOpenChange(false);
     } catch (error: any) {
       toast({
@@ -337,20 +435,90 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
             </div>
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border p-4">
-            <div className="space-y-0.5">
-              <Label htmlFor="requires_packaging" className="text-base cursor-pointer">
-                Requires Packaging
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                Does this product require packaging materials (bottles, boxes, etc.)?
-              </p>
+          <div className="space-y-4 rounded-lg border p-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="requires_packaging" className="text-base cursor-pointer">
+                  Requires Packaging
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Does this product require packaging materials (bottles, boxes, etc.)?
+                </p>
+              </div>
+              <Switch
+                id="requires_packaging"
+                checked={requiresPackaging}
+                onCheckedChange={(checked) => {
+                  setValue("requires_packaging", checked);
+                  if (!checked) {
+                    setPackagingRequirements({});
+                  }
+                }}
+              />
             </div>
-            <Switch
-              id="requires_packaging"
-              checked={requiresPackaging}
-              onCheckedChange={(checked) => setValue("requires_packaging", checked)}
-            />
+
+            {requiresPackaging && (
+              <div className="mt-4 space-y-3 border-t pt-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Package className="h-4 w-4" />
+                  Select Packaging Items & Quantities
+                </div>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {packagingItems.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No active packaging items available</p>
+                  ) : (
+                    packagingItems.map((item) => {
+                      const isSelected = packagingRequirements[item.id] > 0;
+                      return (
+                        <div key={item.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50">
+                          <Checkbox
+                            id={`pkg-${item.id}`}
+                            checked={isSelected}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setPackagingRequirements(prev => ({ ...prev, [item.id]: 1 }));
+                              } else {
+                                setPackagingRequirements(prev => {
+                                  const updated = { ...prev };
+                                  delete updated[item.id];
+                                  return updated;
+                                });
+                              }
+                            }}
+                          />
+                          <Label htmlFor={`pkg-${item.id}`} className="flex-1 cursor-pointer">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="font-medium">{item.name}</span>
+                                <span className="text-xs text-muted-foreground ml-2">
+                                  ({item.type} • Stock: {item.current_stock})
+                                </span>
+                              </div>
+                            </div>
+                          </Label>
+                          {isSelected && (
+                            <Input
+                              type="number"
+                              min="1"
+                              className="w-20"
+                              value={packagingRequirements[item.id] || 1}
+                              onChange={(e) => {
+                                const value = parseInt(e.target.value) || 1;
+                                setPackagingRequirements(prev => ({
+                                  ...prev,
+                                  [item.id]: Math.max(1, value)
+                                }));
+                              }}
+                              placeholder="Qty"
+                            />
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center space-x-2">
