@@ -10,11 +10,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, ClipboardCheck, AlertTriangle, BarChart3, Camera, ScanBarcode } from 'lucide-react';
+import { Plus, Search, ClipboardCheck, AlertTriangle, BarChart3 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
-import { BarcodeScanner } from '@/components/barcode/BarcodeScanner';
-import type { ScanResult } from '@/components/barcode/BarcodeScanner';
 
 interface StockCount {
   id: string;
@@ -42,7 +40,6 @@ const StockAuditDashboard = () => {
   const [isStartCountDialogOpen, setIsStartCountDialogOpen] = useState(false);
   const [isCountingDialogOpen, setIsCountingDialogOpen] = useState(false);
   const [activeCount, setActiveCount] = useState<any>(null);
-  const [scannerOpen, setScannerOpen] = useState(false);
   
   const [newCountData, setNewCountData] = useState({
     outlet_id: '',
@@ -51,7 +48,6 @@ const StockAuditDashboard = () => {
   });
 
   const [countingData, setCountingData] = useState({
-    barcode: '',
     product_id: '',
     counted_quantity: ''
   });
@@ -207,7 +203,6 @@ const StockAuditDashboard = () => {
 
     // Reset form
     setCountingData({
-      barcode: '',
       product_id: '',
       counted_quantity: ''
     });
@@ -260,17 +255,6 @@ const StockAuditDashboard = () => {
   const handleStartCount = (e: React.FormEvent) => {
     e.preventDefault();
     startCountMutation.mutate(newCountData);
-  };
-
-  const handleScanResult = (result: ScanResult) => {
-    if (result.productId) {
-      setCountingData({
-        ...countingData,
-        product_id: result.productId,
-        barcode: result.barcode
-      });
-      setScannerOpen(false);
-    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -489,19 +473,9 @@ const StockAuditDashboard = () => {
           <div className="space-y-4">
             <Card className="bg-blue-50 dark:bg-blue-950">
               <CardContent className="pt-4">
-                <div className="flex items-center gap-2 text-blue-900 dark:text-blue-100">
-                  <Camera className="h-5 w-5" />
-                  <p className="text-sm">Scan barcode or manually select products to count</p>
-                </div>
+                <p className="text-sm text-blue-900 dark:text-blue-100">Select products manually to count</p>
               </CardContent>
             </Card>
-
-            <div className="flex gap-2">
-              <Button onClick={() => setScannerOpen(true)} variant="outline" className="flex-1">
-                <ScanBarcode className="mr-2 h-4 w-4" />
-                Scan to Count
-              </Button>
-            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -568,17 +542,6 @@ const StockAuditDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Barcode Scanner */}
-      <BarcodeScanner
-        isOpen={scannerOpen}
-        onClose={() => setScannerOpen(false)}
-        onScan={handleScanResult}
-        scanType="product"
-        title="Scan Product for Counting"
-        outletId={activeCount?.outlet_id}
-        context={{ count_id: activeCount?.id }}
-      />
     </div>
   );
 };

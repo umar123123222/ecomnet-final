@@ -47,7 +47,6 @@ export const getRolePermissions = (role: UserRole) => {
     canViewStockMovements: false,
     canBulkAdjustStock: false,
     canAccessPOS: false,
-    canAccessScanHistory: false,
     canAssignCouriers: false,
   };
 
@@ -97,7 +96,6 @@ export const getRolePermissions = (role: UserRole) => {
         canViewStockMovements: true,
         canBulkAdjustStock: true,
         canAccessPOS: true,
-        canAccessScanHistory: true,
         canAssignCouriers: true,
       };
     
@@ -138,7 +136,6 @@ export const getRolePermissions = (role: UserRole) => {
         canViewStockMovements: true,
         canBulkAdjustStock: true,
         canAccessPOS: true,
-        canAccessScanHistory: true,
         canAssignCouriers: true,
         // No admin panel access
       };
@@ -170,7 +167,6 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessVarianceManagement: true,
         canAccessFraudReporting: true,
         canAccessPOS: true,
-        canAccessScanHistory: true,
         canAssignCouriers: true,
       };
     
@@ -275,21 +271,11 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
   }
 
   // 3. POINT OF SALE - Direct sales operations
-  if (permissions.canAccessPOS || permissions.canAccessScanHistory) {
-    const posSubItems: NavigationItem[] = [];
-    
-    if (permissions.canAccessPOS) {
-      posSubItems.push({ label: 'Point of Sale', href: '/pos', icon: '' });
-    }
-    if (permissions.canAccessScanHistory) {
-      posSubItems.push({ label: 'Scan History', href: '/scan-history', icon: '' });
-    }
-
+  if (permissions.canAccessPOS) {
     items.push({
       label: 'Point of Sale',
       href: '/pos',
-      icon: 'Activity',
-      subItems: posSubItems
+      icon: 'Activity'
     });
   }
 
@@ -342,7 +328,7 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     });
   }
 
-  // 6.5 PRODUCTION - Manufacturing & barcode printing
+  // 6.5 PRODUCTION - Manufacturing operations
   if (['super_admin', 'super_manager', 'warehouse_manager', 'store_manager'].includes(role)) {
     items.push({
       label: 'Production',
@@ -350,8 +336,7 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       icon: 'Factory',
       subItems: [
         { label: 'Production Batches', href: '/production', icon: '' },
-        { label: 'Bill of Materials', href: '/production/bom', icon: '' },
-        { label: 'Print Labels', href: '/production/labels', icon: '' }
+        { label: 'Bill of Materials', href: '/production/bom', icon: '' }
       ]
     });
   }

@@ -11,7 +11,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { generateBarcodeValue } from '@/utils/barcodeGenerator';
 
 interface Props {
   open: boolean;
@@ -79,7 +78,9 @@ export function NewProductionBatchDialog({ open, onOpenChange }: Props) {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const batch_number = `BATCH-${generateBarcodeValue()}`;
+      const timestamp = Date.now().toString().slice(-8);
+      const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+      const batch_number = `BATCH-${timestamp}${random}`;
       
       return processProductionBatch({
         action: 'create',

@@ -99,9 +99,6 @@ const ActivityLogs = lazy(() => import("@/pages/ActivityLogs/ActivityLogs").then
 const POSMain = lazy(() => import("@/pages/POS/POSMain").then(module => ({
   default: module.default
 })));
-const ScanHistory = lazy(() => import("@/pages/Barcode/ScanHistory").then(module => ({
-  default: module.default
-})));
 const ConfirmationDashboard = lazy(() => import("@/pages/Confirmations/ConfirmationDashboard").then(module => ({
   default: module.default
 })));
@@ -110,9 +107,6 @@ const ProductionDashboard = lazy(() => import("@/pages/Production/ProductionDash
 })));
 const BOMManagement = lazy(() => import("@/pages/Production/BOMManagement").then(module => ({
   default: module.default
-})));
-const LabelPrinter = lazy(() => import("@/components/production/LabelPrinter").then(module => ({
-  default: module.LabelPrinter
 })));
 const AutomationHistory = lazy(() => import("@/pages/Inventory/AutomationHistory").then(module => ({
   default: module.default
@@ -272,9 +266,6 @@ const App = () => {
                   <Route path="pos" element={<Suspense fallback={<PageLoader />}>
                       <POSMain />
                     </Suspense>} />
-                  <Route path="scan-history" element={<Suspense fallback={<PageLoader />}>
-                      <ScanHistory />
-                    </Suspense>} />
                   <Route path="confirmations" element={<Suspense fallback={<PageLoader />}>
                       <ConfirmationDashboard />
                     </Suspense>} />
@@ -283,9 +274,6 @@ const App = () => {
                     </Suspense>} />
                   <Route path="production/bom" element={<Suspense fallback={<PageLoader />}>
                       <BOMManagement />
-                    </Suspense>} />
-                  <Route path="production/labels" element={<Suspense fallback={<PageLoader />}>
-                      <LabelPrinter />
                     </Suspense>} />
                   <Route path="automation-history" element={<Suspense fallback={<PageLoader />}>
                       <AutomationHistory />
