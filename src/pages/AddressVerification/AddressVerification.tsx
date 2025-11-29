@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/table';
 import { Search, Download, CheckCircle, XCircle, MessageCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { logActivity } from '@/utils/activityLogger';
 
 interface Address {
   id: string;
@@ -252,6 +253,18 @@ const AddressVerification = () => {
           })
           .eq('id', verification.order_id);
       }
+
+      // Log address verification
+      await logActivity({
+        action: 'address_verified',
+        entityType: 'address_verification',
+        entityId: addressId,
+        details: {
+          order_id: address.orderId,
+          customer_name: address.customerName,
+          verified: true,
+        },
+      });
 
       toast({
         title: "Success",

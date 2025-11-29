@@ -1,133 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
-import { createHmac } from 'https://deno.land/std@0.177.0/node/crypto.ts';
-import { getEcomnetStatusTag, updateEcomnetStatusTag } from '../_shared/ecomnetStatusTags.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-shopify-hmac-sha256, x-shopify-topic, x-shopify-shop-domain',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-function verifyWebhook(body: string, hmacHeader: string, secret: string): boolean {
-  const hash = createHmac('sha256', secret)
-    .update(body, 'utf8')
-    .digest('base64');
-  return hash === hmacHeader;
-}
-
-function generateShopifyTags(order: any, existingTags: string[] = []): string[] {
-  // Remove all existing "Shopify - *" tags
-  const nonShopifyTags = existingTags.filter(tag => !tag.startsWith('Shopify - '));
-  const shopifyTags: string[] = [];
-  
-  // Add fulfillment status tag
-  if (order.fulfillment_status === 'fulfilled') {
-    shopifyTags.push('Shopify - Fulfilled');
-  } else if (order.fulfillment_status === 'partial') {
-    shopifyTags.push('Shopify - Partially Fulfilled');
-  }
-  
-  // Add financial status tag
-  if (order.financial_status === 'paid') {
-    shopifyTags.push('Shopify - Paid');
-  } else if (order.financial_status === 'pending') {
-    shopifyTags.push('Shopify - Pending Payment');
-  } else if (order.financial_status === 'refunded') {
-    shopifyTags.push('Shopify - Refunded');
-  } else if (order.financial_status === 'voided') {
-    shopifyTags.push('Shopify - Voided');
-  }
-  
-  // Add cancellation tag
-  if (order.cancelled_at) {
-    shopifyTags.push('Shopify - Cancelled');
-  }
-  
-  // Combine non-Shopify tags with new Shopify tags
-  return [...nonShopifyTags, ...shopifyTags];
-}
-
-// Map Shopify tracking company names to internal courier codes
-function mapShopifyCourierToCode(trackingCompany: string | null): string | null {
-  if (!trackingCompany) return null;
-  
-  const company = trackingCompany.toLowerCase();
-  if (company.includes('tcs')) return 'tcs';
-  if (company.includes('leopard')) return 'leopard';
-  if (company.includes('postex') || company.includes('post ex')) return 'postex';
-  if (company.includes('trax')) return 'trax';
-  if (company.includes('rider')) return 'rider';
-  if (company.includes('call')) return 'callcourier';
-  
-  return null;
-}
-
-// Detect courier from Shopify tags (e.g., "postex", "tcs", etc.)
-function detectCourierFromTags(tags: string): string | null {
-  if (!tags) return null;
-  
-  const tagArray = tags.toLowerCase().split(',').map(t => t.trim());
-  
-  for (const tag of tagArray) {
-    if (tag === 'postex' || tag.includes('postex')) return 'postex';
-    if (tag === 'tcs' || tag.includes('tcs')) return 'tcs';
-    if (tag === 'leopard' || tag.includes('leopard')) return 'leopard';
-    if (tag === 'trax' || tag.includes('trax')) return 'trax';
-    if (tag === 'rider' || tag.includes('rider')) return 'rider';
-    if (tag.includes('call') && tag.includes('courier')) return 'callcourier';
-  }
-  
-  return null;
-}
-
-async function fetchShopifyCustomerPhone(customerId: number, supabase: any): Promise<string> {
-  try {
-    // Get Shopify credentials from api_settings
-    const { data: settings } = await supabase
-      .from('api_settings')
-      .select('setting_key, setting_value')
-      .in('setting_key', ['SHOPIFY_STORE_URL', 'SHOPIFY_ADMIN_API_TOKEN', 'SHOPIFY_API_VERSION']);
-    
-    if (!settings || settings.length < 3) {
-      console.warn('Shopify credentials not found in api_settings');
-      return '';
-    }
-    
-    const storeUrl = settings.find((s: any) => s.setting_key === 'SHOPIFY_STORE_URL')?.setting_value;
-    const accessToken = settings.find((s: any) => s.setting_key === 'SHOPIFY_ADMIN_API_TOKEN')?.setting_value;
-    const apiVersion = settings.find((s: any) => s.setting_key === 'SHOPIFY_API_VERSION')?.setting_value || '2024-01';
-    
-    if (!storeUrl || !accessToken) {
-      console.warn('Incomplete Shopify credentials');
-      return '';
-    }
-    
-    // Fetch customer from Shopify
-    const response = await fetch(`${storeUrl}/admin/api/${apiVersion}/customers/${customerId}.json`, {
-      headers: {
-        'X-Shopify-Access-Token': accessToken,
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      console.warn(`Failed to fetch Shopify customer ${customerId}: ${response.status}`);
-      return '';
-    }
-    
-    const data = await response.json();
-    const phone = data.customer?.phone || data.customer?.default_address?.phone;
-    
-    if (phone) {
-      console.log(`Fetched phone from Shopify customer API for customer ${customerId}`);
-      return phone;
-    }
-    
-    return '';
-  } catch (error) {
-    console.error('Error fetching Shopify customer phone:', error);
-    return '';
-  }
-}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -140,141 +16,115 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get webhook headers
-    const hmacHeader = req.headers.get('x-shopify-hmac-sha256');
-    const topic = req.headers.get('x-shopify-topic');
-    const shopDomain = req.headers.get('x-shopify-shop-domain');
+    const { order, userId } = await req.json();
 
-    // Get body as text for HMAC verification
-    const bodyText = await req.text();
-
-    // Verify webhook signature
-    const webhookSecret = Deno.env.get('SHOPIFY_WEBHOOK_SECRET');
-    if (webhookSecret && hmacHeader) {
-      const isValid = verifyWebhook(bodyText, hmacHeader, webhookSecret);
-      if (!isValid) {
-        console.error('Invalid webhook signature');
-        return new Response(JSON.stringify({ error: 'Invalid signature' }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
+    if (!order || !order.id) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid order data' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    const order = JSON.parse(bodyText);
-    console.log(`Received webhook: ${topic} for order ${order.id}`);
+    console.log(`Processing Shopify order update: ${order.id}`);
 
-    // Update webhook registry last triggered time
-    await supabase
-      .from('shopify_webhook_registry')
-      .update({ last_triggered: new Date().toISOString() })
-      .eq('topic', topic || 'orders/updated');
-
-    // Find the order in our database by Shopify order ID
-    const { data: existingOrder, error: findError } = await supabase
+    // Check if order exists
+    const { data: existingOrder } = await supabase
       .from('orders')
-      .select('id, tags')
+      .select('id, status')
       .eq('shopify_order_id', order.id.toString())
       .single();
 
-    if (findError || !existingOrder) {
-      console.log(`Order not found in database for Shopify ID ${order.id}`);
-      return new Response(JSON.stringify({ success: true, message: 'Order not found' }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Generate Shopify tags based on order state
-    const updatedTags = generateShopifyTags(order, existingOrder.tags || []);
-
-    // Extract tracking info and courier from Shopify fulfillment
-    let trackingId = null;
-    let trackingCompany = null;
-    let detectedCourier = null;
-    
-    if (order.fulfillments && order.fulfillments.length > 0) {
-      const fulfillment = order.fulfillments[0];
-      if (fulfillment.tracking_number) {
-        trackingId = fulfillment.tracking_number;
-        trackingCompany = fulfillment.tracking_company;
-        detectedCourier = mapShopifyCourierToCode(trackingCompany);
-        console.log('Extracted tracking from Shopify fulfillment:', {
-          tracking_id: trackingId,
-          tracking_company: trackingCompany,
-          mapped_courier: detectedCourier
-        });
-      }
-    }
-
-    // If no courier detected from tracking_company, try detecting from tags
-    if (!detectedCourier && order.tags) {
-      detectedCourier = detectCourierFromTags(order.tags);
-      console.log('Detected courier from Shopify tags:', detectedCourier);
-    }
-
-    // Extract address changes
-    const shippingAddress = order.shipping_address;
-    
-    // Update order in our database
-    const updateData: any = {
-      tags: updatedTags,
+    const isNewOrder = !existingOrder;
+    const orderData: any = {
+      shopify_order_id: order.id.toString(),
+      shopify_order_number: order.order_number?.toString() || order.name,
+      order_number: order.order_number?.toString() || order.name,
+      customer_name: order.customer?.first_name && order.customer?.last_name
+        ? `${order.customer.first_name} ${order.customer.last_name}`
+        : order.customer?.first_name || 'Unknown',
+      customer_email: order.customer?.email || null,
+      customer_phone: order.customer?.phone || order.shipping_address?.phone || null,
+      customer_address: order.shipping_address?.address1 || null,
+      total_amount: parseFloat(order.total_price || '0'),
+      items: order.line_items || [],
+      status: 'pending',
       last_shopify_sync: new Date().toISOString(),
     };
 
-    // Update tracking_id if found in Shopify
-    if (trackingId) {
-      updateData.tracking_id = trackingId;
+    let orderId = existingOrder?.id;
+
+    if (isNewOrder) {
+      // Insert new order
+      const { data: newOrder, error: insertError } = await supabase
+        .from('orders')
+        .insert(orderData)
+        .select('id')
+        .single();
+
+      if (insertError) throw insertError;
+      orderId = newOrder.id;
+
+      console.log(`Created new order: ${orderId}`);
+
+      // Log order creation activity
+      await supabase
+        .from('activity_logs')
+        .insert({
+          action: 'order_created',
+          entity_type: 'order',
+          entity_id: orderId,
+          details: {
+            shopify_order_id: order.id,
+            order_number: orderData.order_number,
+            customer_name: orderData.customer_name,
+            total_amount: orderData.total_amount,
+            source: 'shopify_webhook',
+          },
+          user_id: userId || '00000000-0000-0000-0000-000000000000', // System user
+        });
+    } else {
+      // Update existing order
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update(orderData)
+        .eq('id', orderId);
+
+      if (updateError) throw updateError;
+
+      console.log(`Updated existing order: ${orderId}`);
+
+      // Log order update activity
+      await supabase
+        .from('activity_logs')
+        .insert({
+          action: 'order_updated',
+          entity_type: 'order',
+          entity_id: orderId,
+          details: {
+            shopify_order_id: order.id,
+            order_number: orderData.order_number,
+            customer_name: orderData.customer_name,
+            previous_status: existingOrder.status,
+            source: 'shopify_webhook',
+          },
+          user_id: userId || '00000000-0000-0000-0000-000000000000', // System user
+        });
     }
 
-    // Update courier if detected from Shopify
-    if (detectedCourier) {
-      updateData.courier = detectedCourier;
-    }
-
-    // Exception: Set status to cancelled if order is cancelled in Shopify
-    if (order.cancelled_at) {
-      updateData.status = 'cancelled';
-      updateData.notes = `Order cancelled in Shopify at ${order.cancelled_at}. Reason: ${order.cancel_reason || 'Not specified'}`;
-    }
-
-    await supabase
-      .from('orders')
-      .update(updateData)
-      .eq('id', existingOrder.id);
-
-    console.log(`Updated order ${existingOrder.id} from Shopify webhook: ${topic}`);
-
-    // Log the sync
-    await supabase.from('shopify_sync_log').insert({
-      sync_type: 'order_update_webhook',
-      status: 'success',
-      records_processed: 1,
-      details: {
-        shopify_order_id: order.id,
-        local_order_id: existingOrder.id,
-        topic,
-        status: updateData.status || existingOrder.status,
-      },
-    });
-
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-
-  } catch (error) {
-    console.error('Error handling order update webhook:', error);
-    
     return new Response(
       JSON.stringify({ 
-        success: false, 
-        error: error.message 
+        success: true, 
+        orderId, 
+        isNewOrder,
+        message: isNewOrder ? 'Order created' : 'Order updated'
       }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error: any) {
+    console.error('Error handling Shopify order update:', error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

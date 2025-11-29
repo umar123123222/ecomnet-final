@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { UserRole } from '@/types/auth';
+import { logActivity } from '@/utils/activityLogger';
 
 interface UserProfile {
   id: string;
@@ -144,6 +145,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } 
         };
       }
+
+      // Log successful login
+      await logActivity({
+        action: 'user_login',
+        entityType: 'user',
+        entityId: data.session.user.id,
+        details: {
+          email: data.session.user.email,
+          timestamp: new Date().toISOString(),
+        },
+        userId: data.session.user.id,
+      });
     } else {
       setIsLoading(false);
     }
@@ -153,6 +166,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     setIsLoading(true);
+    
+    // Log logout before signing out
+    if (user) {
+      await logActivity({
+        action: 'user_logout',
+        entityType: 'user',
+        entityId: user.id,
+        details: {
+          email: user.email,
+          timestamp: new Date().toISOString(),
+        },
+        userId: user.id,
+      });
+    }
+    
     await supabase.auth.signOut();
     setIsLoading(false);
   };

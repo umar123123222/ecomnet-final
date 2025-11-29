@@ -79,6 +79,24 @@ Deno.serve(async (req) => {
 
     if (drawerError) console.error('Drawer event error:', drawerError);
 
+    // Log activity
+    const { error: logError } = await supabase
+      .from('activity_logs')
+      .insert({
+        action: 'pos_session_opened',
+        entity_type: 'pos_session',
+        entity_id: session.id,
+        details: {
+          session_number: session.session_number,
+          outlet_id,
+          register_number,
+          opening_cash,
+        },
+        user_id: user.id,
+      });
+
+    if (logError) console.error('Activity log error:', logError);
+
     console.log('Session opened:', session.session_number);
 
     return new Response(

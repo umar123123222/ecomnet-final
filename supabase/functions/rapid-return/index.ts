@@ -197,6 +197,27 @@ serve(async (req) => {
 
     const processingTime = Date.now() - startTime;
 
+    // Log activity
+    await supabase
+      .from('activity_logs')
+      .insert({
+        action: 'return_received',
+        entity_type: 'return',
+        entity_id: returnRecord.id,
+        details: {
+          order_number: orderData?.order_number || 'Unknown',
+          customer_name: orderData?.customer_name || 'Unknown',
+          tracking_id: returnRecord.tracking_id,
+          match_type: matchType,
+          scanned_entry: entry,
+          processing_time_ms: processingTime,
+        },
+        user_id: userId,
+      })
+      .then(({ error: logError }) => {
+        if (logError) console.error('Activity log error:', logError);
+      });
+
     // Return success with minimal data
     return new Response(
       JSON.stringify({
