@@ -23,6 +23,8 @@ import { RecentStockAdjustments } from "@/components/inventory/RecentStockAdjust
 import { SmartReorderRecommendations } from "@/components/inventory/SmartReorderRecommendations";
 import { SmartReorderSettings as SmartReorderGlobalSettings } from "@/components/inventory/SmartReorderGlobalSettings";
 import { PackagingInventoryWidget } from "@/components/inventory/PackagingInventoryWidget";
+import { ProductStockWidget } from "@/components/inventory/ProductStockWidget";
+import { OutletStockWidget } from "@/components/inventory/OutletStockWidget";
 import { PackagingLowStockAlerts } from "@/components/inventory/PackagingLowStockAlerts";
 import { PendingTransfersWidget } from "@/components/inventory/PendingTransfersWidget";
 import { QuickTransferDialog } from "@/components/inventory/QuickTransferDialog";
@@ -497,6 +499,12 @@ const InventoryDashboard = () => {
             canCreateStockTransfer: permissions.canCreateStockTransfer,
           }}
         />
+      </div>
+
+      {/* Stock Overview - New Widgets */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <ProductStockWidget />
+        <OutletStockWidget />
       </div>
 
       {/* Recent Adjustments and Alerts */}

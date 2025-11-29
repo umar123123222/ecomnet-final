@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
@@ -27,8 +27,10 @@ Deno.serve(async (req) => {
 
     console.log(`Processing Shopify order update: ${order.id}`);
 
+    const lineItems = order.line_items || [];
+
     // Check if order exists
-    const { data: existingOrder } = await supabase
+    const { data: existingOrder } = await supabaseAdmin
       .from('orders')
       .select('id, status')
       .eq('shopify_order_id', order.id.toString())
@@ -46,7 +48,7 @@ Deno.serve(async (req) => {
       customer_phone: order.customer?.phone || order.shipping_address?.phone || null,
       customer_address: order.shipping_address?.address1 || null,
       total_amount: parseFloat(order.total_price || '0'),
-      items: order.line_items || [],
+      items: lineItems,
       status: 'pending',
       last_shopify_sync: new Date().toISOString(),
     };
@@ -55,7 +57,7 @@ Deno.serve(async (req) => {
 
     if (isNewOrder) {
       // Insert new order
-      const { data: newOrder, error: insertError } = await supabase
+      const { data: newOrder, error: insertError } = await supabaseAdmin
         .from('orders')
         .insert(orderData)
         .select('id')
@@ -66,8 +68,42 @@ Deno.serve(async (req) => {
 
       console.log(`Created new order: ${orderId}`);
 
+      // Create order items and link to products
+      for (const item of lineItems) {
+        // Try to match product by SKU or shopify variant_id
+        const { data: variant } = await supabaseAdmin
+          .from('product_variants')
+          .select('id, product_id, sku')
+          .eq('sku', item.sku)
+          .single();
+
+        let productId = variant?.product_id;
+        let variantId = variant?.id;
+
+        // Fallback: try to match by shopify_variant_id on products table
+        if (!productId && item.variant_id) {
+          const { data: product } = await supabaseAdmin
+            .from('products')
+            .select('id')
+            .eq('shopify_variant_id', item.variant_id)
+            .single();
+          productId = product?.id;
+        }
+
+        await supabaseAdmin
+          .from('order_items')
+          .insert({
+            order_id: orderId,
+            item_name: item.name,
+            quantity: item.quantity,
+            price: parseFloat(item.price),
+            product_id: productId,
+            variant_id: variantId,
+          });
+      }
+
       // Log order creation activity
-      await supabase
+      await supabaseAdmin
         .from('activity_logs')
         .insert({
           action: 'order_created',
@@ -84,7 +120,7 @@ Deno.serve(async (req) => {
         });
     } else {
       // Update existing order
-      const { error: updateError } = await supabase
+      const { error: updateError } = await supabaseAdmin
         .from('orders')
         .update(orderData)
         .eq('id', orderId);
@@ -94,7 +130,7 @@ Deno.serve(async (req) => {
       console.log(`Updated existing order: ${orderId}`);
 
       // Log order update activity
-      await supabase
+      await supabaseAdmin
         .from('activity_logs')
         .insert({
           action: 'order_updated',
