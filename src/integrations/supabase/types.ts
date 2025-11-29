@@ -2851,6 +2851,65 @@ export type Database = {
           },
         ]
       }
+      product_bundle_items: {
+        Row: {
+          bundle_product_id: string
+          component_product_id: string
+          created_at: string | null
+          id: string
+          notes: string | null
+          quantity: number
+          updated_at: string | null
+        }
+        Insert: {
+          bundle_product_id: string
+          component_product_id: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          quantity?: number
+          updated_at?: string | null
+        }
+        Update: {
+          bundle_product_id?: string
+          component_product_id?: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          quantity?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_bundle_items_bundle_product_id_fkey"
+            columns: ["bundle_product_id"]
+            isOneToOne: false
+            referencedRelation: "product_stock_summary"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "product_bundle_items_bundle_product_id_fkey"
+            columns: ["bundle_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_bundle_items_component_product_id_fkey"
+            columns: ["component_product_id"]
+            isOneToOne: false
+            referencedRelation: "product_stock_summary"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "product_bundle_items_component_product_id_fkey"
+            columns: ["component_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_packaging: {
         Row: {
           created_at: string
@@ -3177,6 +3236,7 @@ export type Database = {
           description: string | null
           id: string
           is_active: boolean
+          is_bundle: boolean | null
           lead_time_days: number | null
           name: string
           packaging_metadata: Json | null
@@ -3209,6 +3269,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean
+          is_bundle?: boolean | null
           lead_time_days?: number | null
           name: string
           packaging_metadata?: Json | null
@@ -3241,6 +3302,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean
+          is_bundle?: boolean | null
           lead_time_days?: number | null
           name?: string
           packaging_metadata?: Json | null

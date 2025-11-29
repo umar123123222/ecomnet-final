@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Package } from "lucide-react";
+import { Loader2, Package, Gift } from "lucide-react";
 
 const productSchema = z.object({
   sku: z.string().trim().max(50, "SKU must be less than 50 characters").optional().or(z.literal("")),
@@ -28,6 +28,7 @@ const productSchema = z.object({
   unit_type: z.enum(['ml', 'grams', 'liters', 'kg', 'pieces', 'boxes']).optional(),
   requires_packaging: z.boolean().default(false),
   supplier_id: z.string().optional(),
+  is_bundle: z.boolean().default(false),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -41,6 +42,8 @@ interface AddProductDialogProps {
 export function AddProductDialog({ open, onOpenChange, product }: AddProductDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [packagingRequirements, setPackagingRequirements] = useState<Record<string, number>>({});
+  const [bundleItems, setBundleItems] = useState<Record<string, { quantity: number; notes?: string }>>({});
+  const [bundleSearchTerm, setBundleSearchTerm] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -72,6 +75,27 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
     }
   });
 
+  // Fetch all products for bundle components
+  const { data: availableProducts = [] } = useQuery({
+    queryKey: ['products-for-bundles', product?.id],
+    queryFn: async () => {
+      let query = supabase
+        .from('products')
+        .select('id, name, sku, size, unit_type')
+        .eq('is_active', true)
+        .order('name');
+      
+      // Exclude current product if editing
+      if (product?.id) {
+        query = query.neq('id', product.id);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    }
+  });
+
   const {
     register,
     handleSubmit,
@@ -87,6 +111,7 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
       unit_type: product.unit_type || undefined,
       requires_packaging: product.requires_packaging || false,
       supplier_id: product.supplier_id || undefined,
+      is_bundle: product.is_bundle || false,
     } : {
       sku: "",
       name: "",
@@ -100,13 +125,21 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
       unit_type: undefined,
       requires_packaging: false,
       supplier_id: undefined,
+      is_bundle: false,
     },
   });
 
   const isActive = watch("is_active");
   const requiresPackaging = watch("requires_packaging");
+  const isBundle = watch("is_bundle");
   const unitType = watch("unit_type");
   const supplierId = watch("supplier_id");
+
+  // Filter products for bundle search
+  const filteredBundleProducts = availableProducts.filter(p =>
+    p.name.toLowerCase().includes(bundleSearchTerm.toLowerCase()) ||
+    (p.sku && p.sku.toLowerCase().includes(bundleSearchTerm.toLowerCase()))
+  );
 
   // Fetch existing packaging requirements when editing
   useEffect(() => {
@@ -132,6 +165,33 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
     fetchPackagingRequirements();
   }, [open, product]);
 
+  // Fetch existing bundle items when editing
+  useEffect(() => {
+    const fetchBundleItems = async () => {
+      if (open && product?.id && product.is_bundle) {
+        const { data, error } = await supabase
+          .from('product_bundle_items')
+          .select('component_product_id, quantity, notes')
+          .eq('bundle_product_id', product.id);
+        
+        if (!error && data) {
+          const items: Record<string, { quantity: number; notes?: string }> = {};
+          data.forEach(item => {
+            items[item.component_product_id] = {
+              quantity: item.quantity,
+              notes: item.notes || undefined
+            };
+          });
+          setBundleItems(items);
+        }
+      } else if (open && !product) {
+        setBundleItems({});
+      }
+    };
+
+    fetchBundleItems();
+  }, [open, product]);
+
   // Reset form when product changes or dialog opens/closes
   useEffect(() => {
     if (open) {
@@ -142,6 +202,7 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
           unit_type: product.unit_type || undefined,
           requires_packaging: product.requires_packaging || false,
           supplier_id: product.supplier_id || undefined,
+          is_bundle: product.is_bundle || false,
         });
       } else {
         reset({
@@ -157,7 +218,9 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
           unit_type: undefined,
           requires_packaging: false,
           supplier_id: undefined,
+          is_bundle: false,
         });
+        setBundleItems({});
       }
     }
   }, [open, product, reset]);
@@ -214,6 +277,39 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
             .eq('product_id', productId);
         }
 
+        // Update bundle items if this is a bundle
+        if (data.is_bundle) {
+          // Delete existing bundle items
+          await supabase
+            .from('product_bundle_items')
+            .delete()
+            .eq('bundle_product_id', productId);
+
+          // Insert new bundle items
+          const bundleItemsToInsert = Object.entries(bundleItems)
+            .filter(([_, item]) => item.quantity > 0)
+            .map(([componentProductId, item]) => ({
+              bundle_product_id: productId,
+              component_product_id: componentProductId,
+              quantity: item.quantity,
+              notes: item.notes || null,
+            }));
+
+          if (bundleItemsToInsert.length > 0) {
+            const { error: bundleError } = await supabase
+              .from('product_bundle_items')
+              .insert(bundleItemsToInsert);
+            
+            if (bundleError) throw bundleError;
+          }
+        } else {
+          // If not a bundle, delete all bundle items
+          await supabase
+            .from('product_bundle_items')
+            .delete()
+            .eq('bundle_product_id', productId);
+        }
+
         toast({
           title: "Success",
           description: "Product updated successfully",
@@ -247,6 +343,26 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
           }
         }
 
+        // Insert bundle items if this is a bundle
+        if (data.is_bundle) {
+          const bundleItemsToInsert = Object.entries(bundleItems)
+            .filter(([_, item]) => item.quantity > 0)
+            .map(([componentProductId, item]) => ({
+              bundle_product_id: productId,
+              component_product_id: componentProductId,
+              quantity: item.quantity,
+              notes: item.notes || null,
+            }));
+
+          if (bundleItemsToInsert.length > 0) {
+            const { error: bundleError } = await supabase
+              .from('product_bundle_items')
+              .insert(bundleItemsToInsert);
+            
+            if (bundleError) throw bundleError;
+          }
+        }
+
         toast({
           title: "Success",
           description: "Product created successfully",
@@ -256,6 +372,8 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
       queryClient.invalidateQueries({ queryKey: ["products"] });
       reset();
       setPackagingRequirements({});
+      setBundleItems({});
+      setBundleSearchTerm("");
       onOpenChange(false);
     } catch (error: any) {
       toast({
@@ -517,6 +635,126 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
                     })
                   )}
                 </div>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4 rounded-lg border p-4 border-purple-200 bg-purple-50/50">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="is_bundle" className="text-base cursor-pointer">
+                  🎁 This is a Bundle/Deal
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Create a gift set, tester box, or deal combining multiple products
+                </p>
+              </div>
+              <Switch
+                id="is_bundle"
+                checked={isBundle}
+                onCheckedChange={(checked) => {
+                  setValue("is_bundle", checked);
+                  if (!checked) {
+                    setBundleItems({});
+                    setBundleSearchTerm("");
+                  }
+                }}
+              />
+            </div>
+
+            {isBundle && (
+              <div className="mt-4 space-y-3 border-t pt-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Gift className="h-4 w-4" />
+                  Select Products to Include in Bundle
+                </div>
+                
+                <Input
+                  placeholder="Search products..."
+                  value={bundleSearchTerm}
+                  onChange={(e) => setBundleSearchTerm(e.target.value)}
+                />
+                
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {filteredBundleProducts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      {bundleSearchTerm ? "No products found" : "No products available"}
+                    </p>
+                  ) : (
+                    filteredBundleProducts.map((prod) => {
+                      const isSelected = !!bundleItems[prod.id];
+                      return (
+                        <div key={prod.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50">
+                          <Checkbox
+                            id={`bundle-${prod.id}`}
+                            checked={isSelected}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setBundleItems(prev => ({ 
+                                  ...prev, 
+                                  [prod.id]: { quantity: 1 } 
+                                }));
+                              } else {
+                                setBundleItems(prev => {
+                                  const updated = { ...prev };
+                                  delete updated[prod.id];
+                                  return updated;
+                                });
+                              }
+                            }}
+                          />
+                          <Label htmlFor={`bundle-${prod.id}`} className="flex-1 cursor-pointer">
+                            <span className="font-medium">{prod.name}</span>
+                            <span className="text-xs text-muted-foreground ml-2">
+                              ({prod.sku || 'No SKU'} • {prod.size}{prod.unit_type})
+                            </span>
+                          </Label>
+                          {isSelected && (
+                            <>
+                              <Input
+                                type="number"
+                                min="1"
+                                className="w-16"
+                                value={bundleItems[prod.id]?.quantity || 1}
+                                onChange={(e) => {
+                                  const value = parseInt(e.target.value) || 1;
+                                  setBundleItems(prev => ({
+                                    ...prev,
+                                    [prod.id]: {
+                                      ...prev[prod.id],
+                                      quantity: Math.max(1, value)
+                                    }
+                                  }));
+                                }}
+                                placeholder="Qty"
+                              />
+                              <Input
+                                className="w-32"
+                                value={bundleItems[prod.id]?.notes || ""}
+                                onChange={(e) => {
+                                  setBundleItems(prev => ({
+                                    ...prev,
+                                    [prod.id]: {
+                                      ...prev[prod.id],
+                                      notes: e.target.value
+                                    }
+                                  }));
+                                }}
+                                placeholder="Notes (e.g., 5ml)"
+                              />
+                            </>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+                
+                {Object.keys(bundleItems).length > 0 && (
+                  <div className="mt-2 p-2 bg-purple-100 rounded text-sm">
+                    Bundle contains {Object.keys(bundleItems).length} products
+                  </div>
+                )}
               </div>
             )}
           </div>
