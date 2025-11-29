@@ -48,7 +48,6 @@ export const getRolePermissions = (role: UserRole) => {
     canBulkAdjustStock: false,
     canAccessPOS: false,
     canAccessScanHistory: false,
-    canAccessBarcode: false,
     canAssignCouriers: false,
   };
 
@@ -352,8 +351,7 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       subItems: [
         { label: 'Production Batches', href: '/production', icon: '' },
         { label: 'Bill of Materials', href: '/production/bom', icon: '' },
-        { label: 'Print Labels', href: '/production/labels', icon: '' },
-        { label: 'Barcode Management', href: '/barcode-management', icon: '' }
+        { label: 'Print Labels', href: '/production/labels', icon: '' }
       ]
     });
   }
