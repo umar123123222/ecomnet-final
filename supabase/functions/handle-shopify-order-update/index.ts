@@ -104,14 +104,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Determine final status - preserve local status unless Shopify marks as cancelled
+    // CRITICAL: ALWAYS preserve ERP status except for explicit cancellations
+    // ERP status is the source of truth - only manual changes or courier API updates change it
     let preservedStatus = currentOrderState.status;
     
-    // Only override local status if Shopify marks as cancelled
+    // ONLY override if Shopify explicitly cancels the order
     if (order.cancelled_at) {
       preservedStatus = 'cancelled';
+      console.log(`✓ Order cancelled in Shopify, updating ERP status to cancelled`);
+    } else {
+      console.log(`✓ Preserving ERP status: ${currentOrderState.status} (not affected by Shopify updates)`);
     }
-    // Otherwise keep the current local status (fulfillment doesn't mean delivered)
 
     // Prepare tags: merge Shopify tags with Ecomnet status tag
     const shopifyTags = order.tags ? order.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [];

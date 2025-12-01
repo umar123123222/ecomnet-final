@@ -65,26 +65,10 @@ async function verifyShopifyWebhook(body: string, hmacHeader: string): Promise<b
 }
 
 /**
- * Determines if we should preserve the existing status or use the new one from Shopify
- * Priority order: delivered > returned > dispatched > booked > cancelled > pending
+ * CRITICAL: ERP status is the source of truth
+ * Only allow status change from Shopify for explicit cancellations
+ * All other status changes MUST be done manually in ERP or via courier API
  */
-function shouldPreserveStatus(currentStatus: string, shopifyStatus: string): boolean {
-  const statusPriority: Record<string, number> = {
-    'delivered': 5,
-    'returned': 4,
-    'dispatched': 3,
-    'booked': 3,
-    'cancelled': 2,
-    'pending': 1,
-    'confirmed': 2,
-  };
-  
-  const currentPriority = statusPriority[currentStatus] || 0;
-  const shopifyPriority = statusPriority[shopifyStatus] || 0;
-  
-  // Preserve current status if it's more advanced than Shopify's
-  return currentPriority > shopifyPriority;
-}
 
 async function fetchShopifyCustomerPhone(customerId: number, supabase: any): Promise<string> {
   try {
@@ -292,29 +276,21 @@ Deno.serve(async (req) => {
         .eq('id', existingOrder.id)
         .single();
       
-      // Determine final status based on priority
-      let finalStatus = initialStatus;
+      // CRITICAL: ALWAYS preserve ERP status except for explicit cancellations
+      // ERP status is the source of truth - only manual changes or courier API updates change it
+      let finalStatus = currentOrderState.status; // Always use current ERP status
       
-      // Check if order is cancelled in Shopify
+      // ONLY override if Shopify explicitly cancels the order
       if ((order as any).cancelled_at) {
         finalStatus = 'cancelled';
-        console.log(`Order ${order.order_number} cancelled in Shopify, updating to cancelled`);
-      } 
-      // Otherwise, preserve more advanced status
-      else if (currentOrderState && shouldPreserveStatus(currentOrderState.status, initialStatus)) {
-        finalStatus = currentOrderState.status;
-        console.log(`Preserving existing status for order ${order.order_number}:`, {
-          currentStatus: currentOrderState.status,
-          shopifyStatus: initialStatus,
-          preserved: true,
-          hasCourier: !!currentOrderState.courier,
-          hasTracking: !!currentOrderState.tracking_id
-        });
+        console.log(`✓ Order ${order.order_number} cancelled in Shopify, updating ERP status to cancelled`);
       } else {
-        console.log(`Updating status for order ${order.order_number}:`, {
-          currentStatus: currentOrderState?.status,
-          newStatus: finalStatus,
-          preserved: false
+        console.log(`✓ Preserving ERP status for order ${order.order_number}:`, {
+          erpStatus: currentOrderState.status,
+          shopifyFulfillment: order.fulfillment_status,
+          hasCourier: !!currentOrderState.courier,
+          hasTracking: !!currentOrderState.tracking_id,
+          note: 'ERP status is source of truth - not changed by Shopify webhooks'
         });
       }
       
