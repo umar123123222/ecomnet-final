@@ -22,12 +22,13 @@ Deno.serve(async (req) => {
 
     console.log(`Starting verification of delivered orders (batch size: ${limit})...`);
 
-    // Get delivered orders with tracking IDs (limited batch)
+    // Get delivered orders with tracking IDs and courier assigned (limited batch)
     const { data: deliveredOrders, error: fetchError } = await supabaseAdmin
       .from('orders')
       .select('id, order_number, status, courier, tracking_id, tags')
       .eq('status', 'delivered')
       .not('tracking_id', 'is', null)
+      .not('courier', 'is', null)
       .order('delivered_at', { ascending: false, nullsFirst: false })
       .limit(limit);
 
