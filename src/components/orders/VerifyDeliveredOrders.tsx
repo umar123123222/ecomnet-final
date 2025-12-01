@@ -9,15 +9,18 @@ import { toast } from "sonner";
 export function VerifyDeliveredOrders() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [batchSize, setBatchSize] = useState(50);
 
   const handleVerify = async () => {
     try {
       setLoading(true);
       setResult(null);
       
-      toast.info("Verifying all delivered orders with courier APIs...");
+      toast.info(`Processing batch of up to ${batchSize} orders...`);
 
-      const { data, error } = await supabase.functions.invoke('verify-delivered-orders');
+      const { data, error } = await supabase.functions.invoke('verify-delivered-orders', {
+        body: { batchSize }
+      });
 
       if (error) throw error;
 
@@ -26,9 +29,9 @@ export function VerifyDeliveredOrders() {
       if (data.downgraded > 0) {
         toast.success(`Fixed ${data.downgraded} incorrectly marked orders!`);
       } else if (data.verified > 0) {
-        toast.success(`All ${data.verified} delivered orders verified as correct!`);
+        toast.success(`Processed ${data.processed} orders - all verified correct!`);
       } else {
-        toast.info("No delivered orders found to verify");
+        toast.info("No more delivered orders to verify");
       }
     } catch (error: any) {
       console.error('Error verifying orders:', error);
@@ -47,10 +50,23 @@ export function VerifyDeliveredOrders() {
           <CardTitle>Verify Delivered Orders</CardTitle>
         </div>
         <CardDescription>
-          Re-check all orders marked as "delivered" against courier APIs. Any orders that aren't actually delivered will be automatically downgraded to the correct status.
+          Re-check orders marked as "delivered" against courier APIs in batches. Any orders that aren't actually delivered will be automatically downgraded to the correct status. Run multiple times to process all orders.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Batch Size (max 100)</label>
+          <input 
+            type="number" 
+            min="1" 
+            max="100" 
+            value={batchSize}
+            onChange={(e) => setBatchSize(Math.min(100, Math.max(1, parseInt(e.target.value) || 50)))}
+            className="w-full px-3 py-2 border rounded-md"
+            disabled={loading}
+          />
+        </div>
+
         <Button 
           onClick={handleVerify} 
           disabled={loading}
@@ -64,7 +80,7 @@ export function VerifyDeliveredOrders() {
           ) : (
             <>
               <ShieldCheck className="mr-2 h-4 w-4" />
-              Verify All Delivered Orders
+              Verify Batch
             </>
           )}
         </Button>
@@ -83,6 +99,14 @@ export function VerifyDeliveredOrders() {
                 <CheckCircle2 className="h-4 w-4" />
                 <AlertDescription>
                   <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-4 text-sm mb-2">
+                      <div>
+                        <strong>Processed:</strong> {result.processed}/{result.batchSize}
+                      </div>
+                      <div className={result.hasMore ? "text-blue-600 font-semibold" : ""}>
+                        {result.hasMore ? "✓ More orders available" : "✓ All orders checked"}
+                      </div>
+                    </div>
                     <div className="grid grid-cols-3 gap-2 text-sm">
                       <div>
                         <strong>Verified:</strong> {result.verified}

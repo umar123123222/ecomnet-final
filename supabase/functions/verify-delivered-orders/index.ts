@@ -16,14 +16,20 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log('Starting verification of delivered orders...');
+    // Get batch size from request body (default 50, max 100)
+    const { batchSize = 50 } = await req.json().catch(() => ({}));
+    const limit = Math.min(Math.max(batchSize, 1), 100);
 
-    // Get all delivered orders with tracking IDs
+    console.log(`Starting verification of delivered orders (batch size: ${limit})...`);
+
+    // Get delivered orders with tracking IDs (limited batch)
     const { data: deliveredOrders, error: fetchError } = await supabaseAdmin
       .from('orders')
       .select('id, order_number, status, courier, tracking_id, tags')
       .eq('status', 'delivered')
-      .not('tracking_id', 'is', null);
+      .not('tracking_id', 'is', null)
+      .order('delivered_at', { ascending: false, nullsFirst: false })
+      .limit(limit);
 
     if (fetchError) {
       console.error('Error fetching delivered orders:', fetchError);
@@ -35,15 +41,16 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: 'No delivered orders to verify',
+          message: 'No more delivered orders to verify',
           verified: 0,
-          downgraded: 0
+          downgraded: 0,
+          batchSize: limit
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Found ${deliveredOrders.length} delivered orders to verify`);
+    console.log(`Processing batch of ${deliveredOrders.length} delivered orders...`);
 
     let verifiedCount = 0;
     let downgradedCount = 0;
@@ -181,10 +188,13 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Verified ${deliveredOrders.length} orders`,
+        message: `Processed batch of ${deliveredOrders.length} orders`,
+        batchSize: limit,
+        processed: deliveredOrders.length,
         verified: verifiedCount,
         downgraded: downgradedCount,
         errors: errorCount,
+        hasMore: deliveredOrders.length === limit,
         downgradedOrders: downgradedOrders.length > 0 ? downgradedOrders : undefined,
         errorDetails: errors.length > 0 ? errors : undefined,
       }),
