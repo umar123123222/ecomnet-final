@@ -509,8 +509,8 @@ const BusinessSettings = () => {
   };
   return <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Business Settings</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-3xl font-bold tracking-tight px-[30px]">Business Settings</h1>
+        <p className="text-muted-foreground mt-2 px-[30px]">
           Configure business-wide settings and integrations
         </p>
       </div>
@@ -664,18 +664,13 @@ const BusinessSettings = () => {
                   </Alert>
 
                   <div className="space-y-4">
-                    {couriers.map(courier => (
-                      <Collapsible
-                        key={courier.id}
-                        open={openCouriers[courier.id]}
-                        onOpenChange={(open) => setOpenCouriers(prev => ({ ...prev, [courier.id]: open }))}
-                      >
+                    {couriers.map(courier => <Collapsible key={courier.id} open={openCouriers[courier.id]} onOpenChange={open => setOpenCouriers(prev => ({
+                  ...prev,
+                  [courier.id]: open
+                }))}>
                         <div className="border rounded-lg">
                           <CollapsibleTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              className="w-full flex items-center justify-between p-4 hover:bg-muted/50"
-                            >
+                            <Button variant="ghost" className="w-full flex items-center justify-between p-4 hover:bg-muted/50">
                               <div className="flex items-center gap-3">
                                 <Truck className="h-5 w-5" />
                                 <div className="text-left">
@@ -690,16 +685,10 @@ const BusinessSettings = () => {
                             </Button>
                           </CollapsibleTrigger>
                           <CollapsibleContent className="px-4 pb-4">
-                            <CourierConfigCard
-                              courier={courier}
-                              onSave={handleSaveCourier}
-                              onDelete={handleDeleteCourier}
-                              onTest={handleTestCourier}
-                            />
+                            <CourierConfigCard courier={courier} onSave={handleSaveCourier} onDelete={handleDeleteCourier} onTest={handleTestCourier} />
                           </CollapsibleContent>
                         </div>
-                      </Collapsible>
-                    ))}
+                      </Collapsible>)}
                   </div>
 
                   {showAddCourier ? <CourierConfigCard onSave={handleSaveCourier} onTest={handleTestCourier} /> : <Button variant="outline" onClick={() => setShowAddCourier(true)} className="w-full">
