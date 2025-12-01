@@ -22,3 +22,10 @@ export async function invokeSmartReorder(action: string, params: any) {
     body: { action, ...params }
   });
 }
+
+// Export function to backfill Shopify fulfillments
+export async function invokeBackfillShopifyFulfillments() {
+  return await supabase.functions.invoke('backfill-shopify-fulfillments', {
+    body: {}
+  });
+}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, invokeBackfillShopifyFulfillments } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -2154,6 +2154,38 @@ const OrderDashboard = () => {
                     <VerifyDeliveredOrders />
                   </DialogContent>
                 </Dialog>
+                
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="gap-2"
+                  onClick={async () => {
+                    try {
+                      toast({ description: "Starting backfill of Shopify fulfillments..." });
+                      const { data, error } = await invokeBackfillShopifyFulfillments();
+                      
+                      if (error) throw error;
+                      
+                      if (data) {
+                        toast({ 
+                          title: "Backfill Complete",
+                          description: `Updated: ${data.updated}, Skipped: ${data.skipped}, Errors: ${data.errors}`,
+                        });
+                        fetchOrders(); // Refresh the orders list
+                      }
+                    } catch (error: any) {
+                      console.error('Backfill error:', error);
+                      toast({ 
+                        variant: "destructive",
+                        title: "Backfill Failed",
+                        description: error.message 
+                      });
+                    }
+                  }}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Sync Tracking
+                </Button>
               </>
             )}
             <Button
