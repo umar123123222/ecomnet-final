@@ -189,3 +189,6 @@ verify_jwt = true
 [functions.fix-adjusted-order-totals]
 verify_jwt = true
 
+[functions.verify-delivered-orders]
+verify_jwt = true
+
