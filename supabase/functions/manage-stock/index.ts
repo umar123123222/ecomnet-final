@@ -455,6 +455,301 @@ serve(async (req) => {
         )
       }
 
+      case 'checkBundleAvailability': {
+        const { productId, outletId, quantity } = data
+        
+        console.log(`[checkBundleAvailability] Checking bundle: ${productId} at outlet: ${outletId}`)
+        
+        // First check if product is a bundle
+        const { data: product, error: productError } = await supabaseClient
+          .from('products')
+          .select('is_bundle, name')
+          .eq('id', productId)
+          .single()
+
+        if (productError) throw productError
+
+        if (!product?.is_bundle) {
+          // Not a bundle - use regular availability check
+          const { data: inventory, error: invError } = await supabaseClient
+            .from('inventory')
+            .select('available_quantity')
+            .eq('product_id', productId)
+            .eq('outlet_id', outletId)
+            .single()
+
+          if (invError) throw invError
+
+          return new Response(
+            JSON.stringify({ 
+              available: (inventory?.available_quantity || 0) >= quantity,
+              availableQuantity: inventory?.available_quantity || 0,
+              isBundle: false
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        // Fetch bundle components
+        const { data: bundleItems, error: bundleError } = await supabaseClient
+          .from('product_bundle_items')
+          .select(`
+            component_product_id,
+            quantity,
+            component:products(name, sku)
+          `)
+          .eq('bundle_product_id', productId)
+
+        if (bundleError) throw bundleError
+
+        if (!bundleItems || bundleItems.length === 0) {
+          throw new Error('Bundle has no components defined')
+        }
+
+        // Check each component's availability
+        let minBundlesAvailable = Infinity
+        const componentStatus = []
+
+        for (const item of bundleItems) {
+          const { data: inv, error: invError } = await supabaseClient
+            .from('inventory')
+            .select('available_quantity')
+            .eq('product_id', item.component_product_id)
+            .eq('outlet_id', outletId)
+            .single()
+
+          if (invError) {
+            console.error(`Error fetching inventory for component ${item.component_product_id}:`, invError)
+            // Component not found in outlet - treat as 0 stock
+            componentStatus.push({
+              component_id: item.component_product_id,
+              component_name: item.component?.name,
+              component_sku: item.component?.sku,
+              required_per_bundle: item.quantity,
+              available: 0,
+              bundles_possible: 0,
+              is_limiting: true
+            })
+            minBundlesAvailable = 0
+            continue
+          }
+
+          const availableQty = inv?.available_quantity || 0
+          const bundlesPossible = Math.floor(availableQty / item.quantity)
+          minBundlesAvailable = Math.min(minBundlesAvailable, bundlesPossible)
+
+          componentStatus.push({
+            component_id: item.component_product_id,
+            component_name: item.component?.name,
+            component_sku: item.component?.sku,
+            required_per_bundle: item.quantity,
+            available: availableQty,
+            bundles_possible: bundlesPossible,
+            is_limiting: false // Will update after loop
+          })
+        }
+
+        // Mark limiting components
+        componentStatus.forEach(comp => {
+          comp.is_limiting = comp.bundles_possible === minBundlesAvailable
+        })
+
+        console.log(`[checkBundleAvailability] Bundle "${product.name}" can make ${minBundlesAvailable} bundles`)
+
+        return new Response(
+          JSON.stringify({
+            available: minBundlesAvailable >= quantity,
+            bundleAvailability: minBundlesAvailable,
+            componentStatus,
+            isBundle: true
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'reserveBundleStock': {
+        const { productId, outletId, quantity, orderId } = data
+        
+        console.log(`[reserveBundleStock] Reserving ${quantity} bundles for product ${productId}`)
+
+        // Fetch bundle components
+        const { data: bundleItems, error: bundleError } = await supabaseClient
+          .from('product_bundle_items')
+          .select('component_product_id, quantity')
+          .eq('bundle_product_id', productId)
+
+        if (bundleError) throw bundleError
+
+        // Reserve each component
+        for (const item of bundleItems) {
+          const reserveQty = item.quantity * quantity
+
+          const { data: inventory, error: getError } = await supabaseClient
+            .from('inventory')
+            .select('reserved_quantity, available_quantity')
+            .eq('product_id', item.component_product_id)
+            .eq('outlet_id', outletId)
+            .single()
+
+          if (getError) throw getError
+
+          if (inventory.available_quantity < reserveQty) {
+            throw new Error(`Insufficient stock for component ${item.component_product_id}`)
+          }
+
+          const newReservedQty = inventory.reserved_quantity + reserveQty
+          const { error: updateError } = await supabaseClient
+            .from('inventory')
+            .update({ reserved_quantity: newReservedQty })
+            .eq('product_id', item.component_product_id)
+            .eq('outlet_id', outletId)
+
+          if (updateError) throw updateError
+
+          // Create stock movement for audit
+          await supabaseClient
+            .from('stock_movements')
+            .insert({
+              product_id: item.component_product_id,
+              outlet_id: outletId,
+              quantity: 0,
+              movement_type: 'adjustment',
+              notes: `Bundle stock reserved for order: ${orderId || 'N/A'} (+${reserveQty} reserved)`,
+              created_by: user.id,
+              reference_id: orderId
+            })
+
+          console.log(`[reserveBundleStock] Reserved ${reserveQty} units of component ${item.component_product_id}`)
+        }
+
+        return new Response(
+          JSON.stringify({ success: true }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'releaseBundleStock': {
+        const { productId, outletId, quantity, orderId } = data
+        
+        console.log(`[releaseBundleStock] Releasing ${quantity} bundles for product ${productId}`)
+
+        // Fetch bundle components
+        const { data: bundleItems, error: bundleError } = await supabaseClient
+          .from('product_bundle_items')
+          .select('component_product_id, quantity')
+          .eq('bundle_product_id', productId)
+
+        if (bundleError) throw bundleError
+
+        // Release each component
+        for (const item of bundleItems) {
+          const releaseQty = item.quantity * quantity
+
+          const { data: inventory, error: getError } = await supabaseClient
+            .from('inventory')
+            .select('reserved_quantity')
+            .eq('product_id', item.component_product_id)
+            .eq('outlet_id', outletId)
+            .single()
+
+          if (getError) throw getError
+
+          const newReservedQty = Math.max(0, inventory.reserved_quantity - releaseQty)
+          const { error: updateError } = await supabaseClient
+            .from('inventory')
+            .update({ reserved_quantity: newReservedQty })
+            .eq('product_id', item.component_product_id)
+            .eq('outlet_id', outletId)
+
+          if (updateError) throw updateError
+
+          // Create stock movement for audit
+          await supabaseClient
+            .from('stock_movements')
+            .insert({
+              product_id: item.component_product_id,
+              outlet_id: outletId,
+              quantity: 0,
+              movement_type: 'adjustment',
+              notes: `Bundle reservation released for order: ${orderId || 'N/A'} (-${releaseQty} reserved)`,
+              created_by: user.id,
+              reference_id: orderId
+            })
+
+          console.log(`[releaseBundleStock] Released ${releaseQty} units of component ${item.component_product_id}`)
+        }
+
+        return new Response(
+          JSON.stringify({ success: true }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      case 'recordBundleSale': {
+        const { productId, outletId, quantity, orderId } = data
+        
+        console.log(`[recordBundleSale] Recording sale of ${quantity} bundles for product ${productId}`)
+
+        // Fetch bundle components
+        const { data: bundleItems, error: bundleError } = await supabaseClient
+          .from('product_bundle_items')
+          .select(`
+            component_product_id,
+            quantity,
+            component:products(name)
+          `)
+          .eq('bundle_product_id', productId)
+
+        if (bundleError) throw bundleError
+
+        // Deduct each component
+        for (const item of bundleItems) {
+          const deductQty = item.quantity * quantity
+
+          const { data: inventory, error: getError } = await supabaseClient
+            .from('inventory')
+            .select('quantity, reserved_quantity')
+            .eq('product_id', item.component_product_id)
+            .eq('outlet_id', outletId)
+            .single()
+
+          if (getError) throw getError
+
+          const { error: updateError } = await supabaseClient
+            .from('inventory')
+            .update({
+              quantity: Math.max(0, inventory.quantity - deductQty),
+              reserved_quantity: Math.max(0, inventory.reserved_quantity - deductQty)
+            })
+            .eq('product_id', item.component_product_id)
+            .eq('outlet_id', outletId)
+
+          if (updateError) throw updateError
+
+          // Create stock movement
+          const { error: movementError } = await supabaseClient
+            .from('stock_movements')
+            .insert({
+              product_id: item.component_product_id,
+              outlet_id: outletId,
+              quantity: deductQty,
+              movement_type: 'sale',
+              reference_id: orderId,
+              notes: `Bundle sale (${item.component?.name})`,
+              created_by: user.id
+            })
+
+          if (movementError) throw movementError
+
+          console.log(`[recordBundleSale] Deducted ${deductQty} units of component ${item.component?.name}`)
+        }
+
+        return new Response(
+          JSON.stringify({ success: true }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid operation' }),

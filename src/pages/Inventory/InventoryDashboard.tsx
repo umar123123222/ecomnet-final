@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 import { Inventory, Outlet, Product } from "@/types/inventory";
 import { StockAdjustmentDialog } from "@/components/inventory/StockAdjustmentDialog";
@@ -44,6 +45,7 @@ import { InventorySummaryWidget } from "@/components/inventory/InventorySummaryW
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { BundleAvailabilityWidget } from "@/components/inventory/BundleAvailabilityWidget";
 
 const InventoryDashboard = () => {
   const { user } = useAuth();
@@ -422,6 +424,7 @@ const InventoryDashboard = () => {
                     <TableRow>
                       <TableHead>SKU</TableHead>
                       <TableHead>Product</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead>Outlet</TableHead>
                       <TableHead className="text-right">Total</TableHead>
                       <TableHead className="text-right">Reserved</TableHead>
@@ -435,11 +438,32 @@ const InventoryDashboard = () => {
                       filteredInventory.map((item) => {
                         const isLowStock = item.available_quantity <= (item.product?.reorder_level || 0);
                         const isOutOfStock = item.available_quantity === 0;
+                        const isBundle = item.product?.is_bundle;
                         
                         return (
                           <TableRow key={item.id}>
                             <TableCell className="font-mono text-sm">{item.product?.sku}</TableCell>
                             <TableCell className="font-medium">{item.product?.name}</TableCell>
+                            <TableCell>
+                              {isBundle ? (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Badge variant="outline" className="gap-1 cursor-help">
+                                        📦 Bundle
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <div className="text-xs">
+                                        Bundle product - stock calculated from components
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ) : (
+                                <Badge variant="secondary" className="text-xs">Regular</Badge>
+                              )}
+                            </TableCell>
                             <TableCell>{item.outlet?.name}</TableCell>
                             <TableCell className="text-right">{item.quantity}</TableCell>
                             <TableCell className="text-right">{item.reserved_quantity}</TableCell>
@@ -463,7 +487,7 @@ const InventoryDashboard = () => {
                       })
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                           No inventory items found
                         </TableCell>
                       </TableRow>
