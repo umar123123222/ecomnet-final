@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
+import { getEcomnetStatusTag } from '../_shared/ecomnetStatusTags.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -112,6 +113,14 @@ Deno.serve(async (req) => {
     }
     // Otherwise keep the current local status
 
+    // Prepare tags: merge Shopify tags with Ecomnet status tag
+    const shopifyTags = order.tags ? order.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [];
+    const ecomnetTag = getEcomnetStatusTag(preservedStatus);
+    
+    // Remove any old Ecomnet status tags and add the current one
+    const nonEcomnetTags = shopifyTags.filter((tag: string) => !tag.startsWith('Ecomnet - '));
+    const allTags = [...nonEcomnetTags, ecomnetTag];
+
     // Build update data - accept address changes, preserve courier/tracking data
     const orderData: any = {
       shopify_order_number: order.order_number?.toString() || order.name,
@@ -126,6 +135,7 @@ Deno.serve(async (req) => {
       total_amount: parseFloat(order.total_price || '0'),
       items: lineItems,
       notes: order.note || null,
+      tags: allTags,
       last_shopify_sync: new Date().toISOString(),
       
       // PRESERVE local courier/tracking data
@@ -147,6 +157,7 @@ Deno.serve(async (req) => {
 
     console.log(`Successfully updated order: ${currentOrderState.id}`);
     console.log(`- Address updated from Shopify`);
+    console.log(`- Tags synced: ${allTags.length} tags (${shopifyTags.length} from Shopify + Ecomnet status)`);
     console.log(`- Preserved status: ${preservedStatus}`);
     console.log(`- Preserved courier: ${currentOrderState.courier || 'none'}`);
     console.log(`- Preserved tracking: ${currentOrderState.tracking_id || 'none'}`);
@@ -173,7 +184,8 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         orderId: currentOrderState.id,
-        message: 'Order updated - address synced from Shopify, local courier data preserved'
+        tagsCount: allTags.length,
+        message: 'Order updated - address & tags synced from Shopify, local courier data preserved'
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
