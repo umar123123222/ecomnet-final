@@ -26,11 +26,18 @@ import { FullSyncControl } from "@/components/shopify/FullSyncControl";
 import { MissingOrdersSync } from "@/components/shopify/MissingOrdersSync";
 import { CourierConfigCard } from "@/components/settings/CourierConfigCard";
 import { AWBGenerationPanel } from "@/components/settings/AWBGenerationPanel";
-
 const BusinessSettings = () => {
-  const { hasRole } = useUserRoles();
-  const { toast } = useToast();
-  const { getSetting, updateSetting, isUpdating } = useBusinessSettings();
+  const {
+    hasRole
+  } = useUserRoles();
+  const {
+    toast
+  } = useToast();
+  const {
+    getSetting,
+    updateSetting,
+    isUpdating
+  } = useBusinessSettings();
 
   // Only super_admin can access business settings (security critical)
   if (!hasRole('super_admin')) {
@@ -43,7 +50,7 @@ const BusinessSettings = () => {
   const [companyEmail, setCompanyEmail] = useState('');
   const [companyPhone, setCompanyPhone] = useState('');
   const [companyCurrency, setCompanyCurrency] = useState('USD');
-  
+
   // Pickup Address State
   const [pickupAddressName, setPickupAddressName] = useState('');
   const [pickupAddressPhone, setPickupAddressPhone] = useState('');
@@ -72,26 +79,25 @@ const BusinessSettings = () => {
   useEffect(() => {
     loadCouriers();
   }, []);
-
   const loadCouriers = async () => {
     setLoadingCouriers(true);
     try {
-      const { data, error } = await supabase
-        .from('couriers')
-        .select('*')
-        .order('name');
-      
+      const {
+        data,
+        error
+      } = await supabase.from('couriers').select('*').order('name');
       if (error) throw error;
-      
+
       // Load API keys and pickup codes for each courier
-      const couriersWithKeys = await Promise.all(
-        (data || []).map(async (courier) => {
-          const apiKey = getSetting(`${courier.code.toUpperCase()}_API_KEY`) || '';
-          const pickupCode = getSetting(`${courier.code.toUpperCase()}_PICKUP_ADDRESS_CODE`) || '';
-          return { ...courier, api_key: apiKey, pickup_address_code: pickupCode };
-        })
-      );
-      
+      const couriersWithKeys = await Promise.all((data || []).map(async courier => {
+        const apiKey = getSetting(`${courier.code.toUpperCase()}_API_KEY`) || '';
+        const pickupCode = getSetting(`${courier.code.toUpperCase()}_PICKUP_ADDRESS_CODE`) || '';
+        return {
+          ...courier,
+          api_key: apiKey,
+          pickup_address_code: pickupCode
+        };
+      }));
       setCouriers(couriersWithKeys);
     } catch (error: any) {
       console.error('Error loading couriers:', error);
@@ -104,7 +110,6 @@ const BusinessSettings = () => {
       setLoadingCouriers(false);
     }
   };
-
   const handleSaveCourier = async (config: any) => {
     try {
       const courierData = {
@@ -121,57 +126,44 @@ const BusinessSettings = () => {
         api_endpoint: config.booking_endpoint,
         config: {}
       };
-
       if (config.id) {
         // Update existing
-        const { error } = await supabase
-          .from('couriers')
-          .update(courierData)
-          .eq('id', config.id);
-        
+        const {
+          error
+        } = await supabase.from('couriers').update(courierData).eq('id', config.id);
         if (error) throw error;
       } else {
         // Insert new
-        const { error } = await supabase
-          .from('couriers')
-          .insert([courierData]);
-        
+        const {
+          error
+        } = await supabase.from('couriers').insert([courierData]);
         if (error) throw error;
       }
 
       // Save API key
       await updateSetting(`${config.code.toUpperCase()}_API_KEY`, config.api_key, `API key for ${config.name}`);
-      
+
       // Save pickup address code if provided
       if (config.pickup_address_code) {
-        await updateSetting(
-          `${config.code.toUpperCase()}_PICKUP_ADDRESS_CODE`, 
-          config.pickup_address_code, 
-          `Pickup address code for ${config.name}`
-        );
+        await updateSetting(`${config.code.toUpperCase()}_PICKUP_ADDRESS_CODE`, config.pickup_address_code, `Pickup address code for ${config.name}`);
       }
-
       await loadCouriers();
       setShowAddCourier(false);
     } catch (error: any) {
       throw new Error(`Failed to save courier: ${error.message}`);
     }
   };
-
   const handleDeleteCourier = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('couriers')
-        .delete()
-        .eq('id', id);
-      
+      const {
+        error
+      } = await supabase.from('couriers').delete().eq('id', id);
       if (error) throw error;
       await loadCouriers();
     } catch (error: any) {
       throw new Error(`Failed to delete courier: ${error.message}`);
     }
   };
-
   const handleTestCourier = async (config: any): Promise<boolean> => {
     // Simple connectivity test - you can enhance this
     try {
@@ -190,7 +182,7 @@ const BusinessSettings = () => {
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  
+
   // Auto-sync toggles
   const [autoSyncOrders, setAutoSyncOrders] = useState(true);
   const [autoSyncInventory, setAutoSyncInventory] = useState(false);
@@ -207,7 +199,6 @@ const BusinessSettings = () => {
     const autoProducts = getSetting('SHOPIFY_AUTO_SYNC_PRODUCTS');
     const autoCustomers = getSetting('SHOPIFY_AUTO_SYNC_CUSTOMERS');
     const locationId = getSetting('SHOPIFY_DEFAULT_LOCATION_ID');
-    
     if (storeUrl) setShopifyStoreUrl(storeUrl);
     if (apiVersion) setShopifyApiVersion(apiVersion);
     if (autoOrders) setAutoSyncOrders(autoOrders === 'true');
@@ -252,14 +243,7 @@ const BusinessSettings = () => {
   const handleSaveCompanyInfo = async () => {
     try {
       // Save all company settings
-      await Promise.all([
-        updateSetting('company_name', companyName, 'Company name'),
-        updateSetting('portal_url', portalUrl, 'Company portal URL'),
-        updateSetting('company_email', companyEmail, 'Company contact email'),
-        updateSetting('company_phone', companyPhone, 'Company contact phone'),
-        updateSetting('company_currency', companyCurrency, 'Company default currency'),
-      ]);
-
+      await Promise.all([updateSetting('company_name', companyName, 'Company name'), updateSetting('portal_url', portalUrl, 'Company portal URL'), updateSetting('company_email', companyEmail, 'Company contact email'), updateSetting('company_phone', companyPhone, 'Company contact phone'), updateSetting('company_currency', companyCurrency, 'Company default currency')]);
       toast({
         title: "Company Information Saved",
         description: "Your company details have been updated successfully."
@@ -272,16 +256,9 @@ const BusinessSettings = () => {
       });
     }
   };
-  
   const handleSavePickupAddress = async () => {
     try {
-      await Promise.all([
-        updateSetting('PICKUP_ADDRESS_NAME', pickupAddressName, 'Warehouse/Company name for pickup'),
-        updateSetting('PICKUP_ADDRESS_PHONE', pickupAddressPhone, 'Contact phone for pickup'),
-        updateSetting('PICKUP_ADDRESS_ADDRESS', pickupAddress, 'Warehouse pickup address'),
-        updateSetting('PICKUP_ADDRESS_CITY', pickupCity, 'Warehouse city'),
-      ]);
-
+      await Promise.all([updateSetting('PICKUP_ADDRESS_NAME', pickupAddressName, 'Warehouse/Company name for pickup'), updateSetting('PICKUP_ADDRESS_PHONE', pickupAddressPhone, 'Contact phone for pickup'), updateSetting('PICKUP_ADDRESS_ADDRESS', pickupAddress, 'Warehouse pickup address'), updateSetting('PICKUP_ADDRESS_CITY', pickupCity, 'Warehouse city')]);
       toast({
         title: "Pickup Address Saved",
         description: "Your pickup address has been updated successfully."
@@ -323,7 +300,7 @@ const BusinessSettings = () => {
       toast({
         title: "Missing information",
         description: "Please enter both Store URL and Access Token",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
@@ -334,49 +311,48 @@ const BusinessSettings = () => {
       toast({
         title: "Invalid API Version",
         description: "API version must be in format YYYY-MM (e.g., 2024-10). Valid months: 01, 04, 07, 10",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
-
     setIsTestingConnection(true);
     setConnectionStatus('idle');
-
     try {
       // Clean store URL
       const cleanUrl = shopifyStoreUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
-      
+
       // Test connection via edge function (server-side)
-      const { data, error } = await supabase.functions.invoke('test-shopify-connection', {
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke('test-shopify-connection', {
         body: {
           store_url: `https://${cleanUrl}`,
           api_token: shopifyAccessToken,
-          api_version: shopifyApiVersion,
-        },
+          api_version: shopifyApiVersion
+        }
       });
-
       if (error) {
         setConnectionStatus('error');
         toast({
           title: "Connection error",
           description: error.message || "Failed to test connection",
-          variant: "destructive",
+          variant: "destructive"
         });
         return;
       }
-
       if (data.ok) {
         setConnectionStatus('success');
         toast({
           title: "Connection successful",
-          description: `Connected to ${data.shop_name} (${data.domain})`,
+          description: `Connected to ${data.shop_name} (${data.domain})`
         });
       } else {
         setConnectionStatus('error');
         toast({
           title: "Connection failed",
           description: data.error || data.hint || "Please check your credentials",
-          variant: "destructive",
+          variant: "destructive"
         });
       }
     } catch (error: any) {
@@ -384,19 +360,18 @@ const BusinessSettings = () => {
       toast({
         title: "Connection error",
         description: error.message || "Failed to connect to Shopify",
-        variant: "destructive",
+        variant: "destructive"
       });
     } finally {
       setIsTestingConnection(false);
     }
   };
-
   const handleSaveShopify = async () => {
     if (!shopifyStoreUrl || !shopifyApiVersion || !shopifyAccessToken) {
       toast({
         title: "Missing information",
         description: "Please fill in Store URL, API Version, and Admin API Token",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
@@ -407,22 +382,25 @@ const BusinessSettings = () => {
       toast({
         title: "Invalid Store URL",
         description: "Store URL should be in format: your-store.myshopify.com",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
-
     setIsSaving(true);
     try {
       // Update all credentials via edge function
-      const { updateShopifyCredentials } = await import("@/integrations/supabase/functions");
-      const { data, error } = await updateShopifyCredentials({
+      const {
+        updateShopifyCredentials
+      } = await import("@/integrations/supabase/functions");
+      const {
+        data,
+        error
+      } = await updateShopifyCredentials({
         store_url: `https://${cleanUrl}`,
         api_token: shopifyAccessToken,
         api_version: shopifyApiVersion,
-        location_id: shopifyLocationId,
+        location_id: shopifyLocationId
       });
-
       if (error) {
         throw error;
       }
@@ -433,92 +411,85 @@ const BusinessSettings = () => {
         if (data.next_steps && Array.isArray(data.next_steps)) {
           description = data.next_steps.join('\n');
         }
-        
         toast({
           title: "Settings Updated",
           description,
-          duration: 8000,
+          duration: 8000
         });
       }
 
       // Always update auto-sync settings
-      await Promise.all([
-        updateSetting('SHOPIFY_AUTO_SYNC_ORDERS', autoSyncOrders.toString(), 'Auto-sync orders to Shopify'),
-        updateSetting('SHOPIFY_AUTO_SYNC_INVENTORY', autoSyncInventory.toString(), 'Auto-sync inventory to Shopify'),
-        updateSetting('SHOPIFY_AUTO_SYNC_PRODUCTS', autoSyncProducts.toString(), 'Auto-sync products to Shopify'),
-        updateSetting('SHOPIFY_AUTO_SYNC_CUSTOMERS', autoSyncCustomers.toString(), 'Auto-sync customers to Shopify'),
-      ]);
-      
+      await Promise.all([updateSetting('SHOPIFY_AUTO_SYNC_ORDERS', autoSyncOrders.toString(), 'Auto-sync orders to Shopify'), updateSetting('SHOPIFY_AUTO_SYNC_INVENTORY', autoSyncInventory.toString(), 'Auto-sync inventory to Shopify'), updateSetting('SHOPIFY_AUTO_SYNC_PRODUCTS', autoSyncProducts.toString(), 'Auto-sync products to Shopify'), updateSetting('SHOPIFY_AUTO_SYNC_CUSTOMERS', autoSyncCustomers.toString(), 'Auto-sync customers to Shopify')]);
       setConnectionStatus('idle');
       toast({
         title: "Settings saved",
-        description: "Shopify integration settings have been updated successfully.",
+        description: "Shopify integration settings have been updated successfully."
       });
     } catch (error: any) {
       console.error('Error saving Shopify settings:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to save Shopify settings",
-        variant: "destructive",
+        variant: "destructive"
       });
     } finally {
       setIsSaving(false);
     }
   };
-
   const handleRegisterWebhooks = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('register-shopify-webhooks');
-      
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke('register-shopify-webhooks');
       if (error) throw error;
-
       toast({
         title: "Webhooks Registered",
-        description: `Successfully registered ${data.registered?.length || 0} webhooks`,
+        description: `Successfully registered ${data.registered?.length || 0} webhooks`
       });
     } catch (error: any) {
       toast({
         title: "Error",
         description: error.message || "Failed to register webhooks",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
-
   const handleProcessQueue = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('process-sync-queue');
-      
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke('process-sync-queue');
       if (error) throw error;
-
       toast({
         title: "Queue Processed",
-        description: `Processed ${data.processed || 0} items, ${data.failed || 0} failed`,
+        description: `Processed ${data.processed || 0} items, ${data.failed || 0} failed`
       });
     } catch (error: any) {
       toast({
         title: "Error",
         description: error.message || "Failed to process queue",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
-
   const handleFullSync = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('sync-shopify-all');
-      
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke('sync-shopify-all');
       if (error) throw error;
-
       toast({
         title: "Full Sync Started",
-        description: "Syncing all products, orders, and customers from Shopify",
+        description: "Syncing all products, orders, and customers from Shopify"
       });
     } catch (error: any) {
       toast({
         title: "Error",
         description: error.message || "Failed to start full sync",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
@@ -594,11 +565,9 @@ const BusinessSettings = () => {
                     <SelectValue placeholder="Select currency" />
                   </SelectTrigger>
                   <SelectContent>
-                    {SUPPORTED_CURRENCIES.map((currency) => (
-                      <SelectItem key={currency.code} value={currency.code}>
+                    {SUPPORTED_CURRENCIES.map(currency => <SelectItem key={currency.code} value={currency.code}>
                         {currency.symbol} {currency.name} ({currency.code})
-                      </SelectItem>
-                    ))}
+                      </SelectItem>)}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
@@ -635,62 +604,34 @@ const BusinessSettings = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="pickupAddressName">Warehouse/Company Name *</Label>
-                <Input 
-                  id="pickupAddressName" 
-                  placeholder="Enter warehouse or company name" 
-                  value={pickupAddressName} 
-                  onChange={e => setPickupAddressName(e.target.value)} 
-                />
+                <Input id="pickupAddressName" placeholder="Enter warehouse or company name" value={pickupAddressName} onChange={e => setPickupAddressName(e.target.value)} />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="pickupAddressPhone">Contact Phone Number *</Label>
-                <Input 
-                  id="pickupAddressPhone" 
-                  placeholder="+92 300 1234567" 
-                  value={pickupAddressPhone} 
-                  onChange={e => setPickupAddressPhone(e.target.value)} 
-                />
+                <Input id="pickupAddressPhone" placeholder="+92 300 1234567" value={pickupAddressPhone} onChange={e => setPickupAddressPhone(e.target.value)} />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="pickupAddress">Pickup Address *</Label>
-                <Input 
-                  id="pickupAddress" 
-                  placeholder="Enter complete warehouse address" 
-                  value={pickupAddress} 
-                  onChange={e => setPickupAddress(e.target.value)} 
-                />
+                <Input id="pickupAddress" placeholder="Enter complete warehouse address" value={pickupAddress} onChange={e => setPickupAddress(e.target.value)} />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="pickupCity">City *</Label>
-                <Input 
-                  id="pickupCity" 
-                  placeholder="Enter city name" 
-                  value={pickupCity} 
-                  onChange={e => setPickupCity(e.target.value)} 
-                />
+                <Input id="pickupCity" placeholder="Enter city name" value={pickupCity} onChange={e => setPickupCity(e.target.value)} />
               </div>
 
               <Separator />
 
-              <Button 
-                onClick={handleSavePickupAddress} 
-                className="w-full" 
-                disabled={isUpdating || !pickupAddressName || !pickupAddressPhone || !pickupAddress || !pickupCity}
-              >
-                {isUpdating ? (
-                  <>
+              <Button onClick={handleSavePickupAddress} className="w-full" disabled={isUpdating || !pickupAddressName || !pickupAddressPhone || !pickupAddress || !pickupCity}>
+                {isUpdating ? <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Saving...
-                  </>
-                ) : (
-                  <>
+                  </> : <>
                     <Save className="mr-2 h-4 w-4" />
                     Save Pickup Address
-                  </>
-                )}
+                  </>}
               </Button>
             </CardContent>
           </Card>
@@ -709,12 +650,9 @@ const BusinessSettings = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {loadingCouriers ? (
-                <div className="flex items-center justify-center py-8">
+              {loadingCouriers ? <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin" />
-                </div>
-              ) : (
-                <>
+                </div> : <>
                   <Alert>
                     <CheckCircle2 className="h-4 w-4" />
                     <AlertDescription className="text-sm">
@@ -724,32 +662,13 @@ const BusinessSettings = () => {
                   </Alert>
 
                   <div className="space-y-4">
-                    {couriers.map((courier) => (
-                      <CourierConfigCard
-                        key={courier.id}
-                        courier={courier}
-                        onSave={handleSaveCourier}
-                        onDelete={handleDeleteCourier}
-                        onTest={handleTestCourier}
-                      />
-                    ))}
+                    {couriers.map(courier => <CourierConfigCard key={courier.id} courier={courier} onSave={handleSaveCourier} onDelete={handleDeleteCourier} onTest={handleTestCourier} />)}
                   </div>
 
-                  {showAddCourier ? (
-                    <CourierConfigCard
-                      onSave={handleSaveCourier}
-                      onTest={handleTestCourier}
-                    />
-                  ) : (
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowAddCourier(true)}
-                      className="w-full"
-                    >
+                  {showAddCourier ? <CourierConfigCard onSave={handleSaveCourier} onTest={handleTestCourier} /> : <Button variant="outline" onClick={() => setShowAddCourier(true)} className="w-full">
                       <Plus className="h-4 w-4 mr-2" />
                       Add New Courier
-                    </Button>
-                  )}
+                    </Button>}
 
                   <Separator />
 
@@ -758,18 +677,10 @@ const BusinessSettings = () => {
                   <Separator />
 
                   <div className="space-y-2">
-                    <h4 className="text-sm font-medium">System Features</h4>
-                    <ul className="text-sm text-muted-foreground space-y-1">
-                      <li>• Automated order booking with courier APIs</li>
-                      <li>• Daily tracking updates for active shipments</li>
-                      <li>• Automatic shipping slip downloads</li>
-                      <li>• Support for custom authentication methods</li>
-                      <li>• Flexible label formats (PDF, PNG, HTML, URL)</li>
-                      <li>• Bulk AWB generation (up to 1000 orders)</li>
-                    </ul>
+                    
+                    
                   </div>
-                </>
-              )}
+                </>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -788,22 +699,18 @@ const BusinessSettings = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {connectionStatus === 'success' && (
-                <Alert>
+              {connectionStatus === 'success' && <Alert>
                   <CheckCircle2 className="h-4 w-4" />
                   <AlertDescription>
                     Successfully connected to Shopify
                   </AlertDescription>
-                </Alert>
-              )}
-              {connectionStatus === 'error' && (
-                <Alert variant="destructive">
+                </Alert>}
+              {connectionStatus === 'error' && <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
                     Failed to connect to Shopify. Please check your credentials.
                   </AlertDescription>
-                </Alert>
-              )}
+                </Alert>}
 
               <Alert>
                 <CheckCircle2 className="h-4 w-4" />
@@ -815,12 +722,7 @@ const BusinessSettings = () => {
               
               <div className="space-y-2">
                 <Label htmlFor="shopifyStoreUrl">Store URL *</Label>
-                <Input 
-                  id="shopifyStoreUrl" 
-                  placeholder="your-store.myshopify.com" 
-                  value={shopifyStoreUrl} 
-                  onChange={e => setShopifyStoreUrl(e.target.value)} 
-                />
+                <Input id="shopifyStoreUrl" placeholder="your-store.myshopify.com" value={shopifyStoreUrl} onChange={e => setShopifyStoreUrl(e.target.value)} />
                 <p className="text-sm text-muted-foreground">
                   Your Shopify store domain (e.g., your-store.myshopify.com)
                 </p>
@@ -828,21 +730,10 @@ const BusinessSettings = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="shopifyAccessToken">Admin API Access Token *</Label>
-                <Input 
-                  id="shopifyAccessToken" 
-                  type="password" 
-                  placeholder="shpat_xxxxxxxxxxxx" 
-                  value={shopifyAccessToken} 
-                  onChange={e => setShopifyAccessToken(e.target.value)} 
-                />
+                <Input id="shopifyAccessToken" type="password" placeholder="shpat_xxxxxxxxxxxx" value={shopifyAccessToken} onChange={e => setShopifyAccessToken(e.target.value)} />
                 <p className="text-sm text-muted-foreground">
                   Shopify Admin API access token - stored securely in database.{" "}
-                  <a 
-                    href="https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/generate-app-access-tokens-admin"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
+                  <a href="https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/generate-app-access-tokens-admin" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                     How to get an access token
                   </a>
                 </p>
@@ -851,12 +742,7 @@ const BusinessSettings = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="shopifyApiVersion">API Version *</Label>
-                  <Input 
-                    id="shopifyApiVersion" 
-                    placeholder="2024-01" 
-                    value={shopifyApiVersion} 
-                    onChange={e => setShopifyApiVersion(e.target.value)} 
-                  />
+                  <Input id="shopifyApiVersion" placeholder="2024-01" value={shopifyApiVersion} onChange={e => setShopifyApiVersion(e.target.value)} />
                   <p className="text-sm text-muted-foreground">
                     Shopify API version (e.g., 2024-01, 2024-04)
                   </p>
@@ -864,12 +750,7 @@ const BusinessSettings = () => {
                 
                 <div className="space-y-2">
                   <Label htmlFor="shopifyLocationId">Default Location ID</Label>
-                  <Input 
-                    id="shopifyLocationId" 
-                    placeholder="123456789" 
-                    value={shopifyLocationId} 
-                    onChange={e => setShopifyLocationId(e.target.value)} 
-                  />
+                  <Input id="shopifyLocationId" placeholder="123456789" value={shopifyLocationId} onChange={e => setShopifyLocationId(e.target.value)} />
                   <p className="text-sm text-muted-foreground">
                     Shopify location ID for inventory sync
                   </p>
@@ -880,39 +761,27 @@ const BusinessSettings = () => {
 
               <div className="space-y-2">
                 <h4 className="text-sm font-medium">Connection Status</h4>
-                <Button
-                  variant="outline"
-                  onClick={handleTestConnection}
-                  disabled={isTestingConnection || isSaving || !shopifyStoreUrl || !shopifyAccessToken || !shopifyApiVersion}
-                >
-                  {isTestingConnection ? (
-                    <>
+                <Button variant="outline" onClick={handleTestConnection} disabled={isTestingConnection || isSaving || !shopifyStoreUrl || !shopifyAccessToken || !shopifyApiVersion}>
+                  {isTestingConnection ? <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Testing Connection...
-                    </>
-                  ) : (
-                    <>
+                    </> : <>
                       <Plug className="mr-2 h-4 w-4" />
                       Test Connection
-                    </>
-                  )}
+                    </>}
                 </Button>
               </div>
 
               <Separator />
 
               <Button onClick={handleSaveShopify} className="w-full" disabled={isSaving || isUpdating}>
-                {isSaving || isUpdating ? (
-                  <>
+                {isSaving || isUpdating ? <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Saving...
-                  </>
-                ) : (
-                  <>
+                  </> : <>
                     <Save className="mr-2 h-4 w-4" />
                     Save Connection Settings
-                  </>
-                )}
+                  </>}
               </Button>
             </CardContent>
           </Card>
@@ -936,11 +805,7 @@ const BusinessSettings = () => {
                     Automatically create and update orders in Shopify
                   </p>
                 </div>
-                <Switch 
-                  id="autoSyncOrders"
-                  checked={autoSyncOrders}
-                  onCheckedChange={setAutoSyncOrders}
-                />
+                <Switch id="autoSyncOrders" checked={autoSyncOrders} onCheckedChange={setAutoSyncOrders} />
               </div>
 
               <Separator />
@@ -952,11 +817,7 @@ const BusinessSettings = () => {
                     Automatically update stock levels in Shopify
                   </p>
                 </div>
-                <Switch 
-                  id="autoSyncInventory"
-                  checked={autoSyncInventory}
-                  onCheckedChange={setAutoSyncInventory}
-                />
+                <Switch id="autoSyncInventory" checked={autoSyncInventory} onCheckedChange={setAutoSyncInventory} />
               </div>
 
               <Separator />
@@ -968,11 +829,7 @@ const BusinessSettings = () => {
                     Automatically sync product changes to Shopify
                   </p>
                 </div>
-                <Switch 
-                  id="autoSyncProducts"
-                  checked={autoSyncProducts}
-                  onCheckedChange={setAutoSyncProducts}
-                />
+                <Switch id="autoSyncProducts" checked={autoSyncProducts} onCheckedChange={setAutoSyncProducts} />
               </div>
 
               <Separator />
@@ -984,27 +841,19 @@ const BusinessSettings = () => {
                     Automatically sync customer data with Shopify
                   </p>
                 </div>
-                <Switch 
-                  id="autoSyncCustomers"
-                  checked={autoSyncCustomers}
-                  onCheckedChange={setAutoSyncCustomers}
-                />
+                <Switch id="autoSyncCustomers" checked={autoSyncCustomers} onCheckedChange={setAutoSyncCustomers} />
               </div>
 
               <Separator />
 
               <Button onClick={handleSaveShopify} className="w-full" disabled={isUpdating}>
-                {isUpdating ? (
-                  <>
+                {isUpdating ? <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Saving...
-                  </>
-                ) : (
-                  <>
+                  </> : <>
                     <Save className="mr-2 h-4 w-4" />
                     Save Auto-Sync Settings
-                  </>
-                )}
+                  </>}
               </Button>
             </CardContent>
           </Card>
@@ -1042,8 +891,8 @@ const BusinessSettings = () => {
 
               <Alert>
                 <AlertDescription className="text-sm">
-                  <strong>Register Webhooks:</strong> Set up real-time sync for order/inventory/product updates.<br/>
-                  <strong>Process Queue:</strong> Manually process pending sync operations.<br/>
+                  <strong>Register Webhooks:</strong> Set up real-time sync for order/inventory/product updates.<br />
+                  <strong>Process Queue:</strong> Manually process pending sync operations.<br />
                   <strong>Full Sync:</strong> Import all products, orders, and customers from Shopify.
                 </AlertDescription>
               </Alert>
