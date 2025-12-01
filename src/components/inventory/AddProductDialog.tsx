@@ -16,15 +16,15 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Package, Gift } from "lucide-react";
 
 const productSchema = z.object({
-  sku: z.string().trim().max(50, "SKU must be less than 50 characters").optional().or(z.literal("")),
+  sku: z.string().trim().max(50, "SKU must be less than 50 characters").nullable().transform(v => v ?? "").optional().or(z.literal("")),
   name: z.string().trim().min(1, "Name is required").max(200, "Name must be less than 200 characters"),
-  description: z.string().trim().max(1000, "Description must be less than 1000 characters").optional(),
-  category: z.string().trim().max(100, "Category must be less than 100 characters").optional(),
+  description: z.string().trim().max(1000, "Description must be less than 1000 characters").nullable().transform(v => v ?? "").optional(),
+  category: z.string().trim().max(100, "Category must be less than 100 characters").nullable().transform(v => v ?? "").optional(),
   price: z.number().min(0, "Price must be positive"),
   cost: z.number().min(0, "Cost must be positive").optional(),
   reorder_level: z.number().int().min(0, "Reorder level must be a positive integer"),
   is_active: z.boolean(),
-  size: z.string().optional(),
+  size: z.string().nullable().transform(v => v ?? "").optional(),
   unit_type: z.enum(['ml', 'grams', 'liters', 'kg', 'pieces', 'boxes']).optional(),
   requires_packaging: z.boolean().default(false),
   supplier_id: z.string().optional(),
@@ -106,7 +106,14 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
   } = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
     defaultValues: product ? {
-      ...product,
+      sku: product.sku || "",
+      name: product.name || "",
+      description: product.description || "",
+      category: product.category || "",
+      price: product.price || 0,
+      cost: product.cost || 0,
+      reorder_level: product.reorder_level || 10,
+      is_active: product.is_active ?? true,
       size: product.size || "",
       unit_type: product.unit_type || undefined,
       requires_packaging: product.requires_packaging || false,
@@ -197,7 +204,14 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
     if (open) {
       if (product) {
         reset({
-          ...product,
+          sku: product.sku || "",
+          name: product.name || "",
+          description: product.description || "",
+          category: product.category || "",
+          price: product.price || 0,
+          cost: product.cost || 0,
+          reorder_level: product.reorder_level || 10,
+          is_active: product.is_active ?? true,
           size: product.size || "",
           unit_type: product.unit_type || undefined,
           requires_packaging: product.requires_packaging || false,
