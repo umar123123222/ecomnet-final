@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 import { crypto } from 'https://deno.land/std@0.177.0/crypto/mod.ts';
 import { getEcomnetStatusTag } from '../_shared/ecomnetStatusTags.ts';
+import { calculateOrderTotal, filterActiveLineItems } from '../_shared/orderTotalCalculator.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -237,6 +238,10 @@ Deno.serve(async (req) => {
     
     const normalizedOrderPhone = orderPhone?.replace(/\D/g, '') || '';
     
+    // Filter active line items
+    const lineItems = order.line_items || [];
+    const activeLineItems = filterActiveLineItems(lineItems);
+    
     // Determine initial status
     const initialStatus = order.fulfillment_status === 'fulfilled' ? 'delivered' : 'pending';
     
@@ -256,14 +261,14 @@ Deno.serve(async (req) => {
       customer_phone_last_5_chr: normalizedOrderPhone?.slice(-5) || '',
       customer_address: order.shipping_address.address1,
       city: order.shipping_address.city,
-      total_amount: parseFloat(order.total_price),
-      total_items: order.line_items.length.toString(),
+      total_amount: calculateOrderTotal(lineItems, order.total_price),
+      total_items: activeLineItems.length.toString(),
       tags: allTags,
       notes: order.note,
       status: initialStatus,
       synced_to_shopify: true,
       last_shopify_sync: new Date().toISOString(),
-      items: order.line_items.map(item => ({
+      items: activeLineItems.map(item => ({
         id: item.id,
         name: item.name,
         quantity: item.quantity,

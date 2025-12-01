@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 import { getEcomnetStatusTag } from '../_shared/ecomnetStatusTags.ts';
+import { calculateOrderTotal, filterActiveLineItems } from '../_shared/orderTotalCalculator.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -85,6 +86,7 @@ Deno.serve(async (req) => {
     console.log(`Processing Shopify order update: ${order.id} (${order.name})`);
 
     const lineItems = order.line_items || [];
+    const activeLineItems = filterActiveLineItems(lineItems);
     const normalizedPhone = normalizePhone(order.customer?.phone || order.shipping_address?.phone);
 
     // Check if order exists and fetch current state
@@ -132,8 +134,8 @@ Deno.serve(async (req) => {
       customer_phone: normalizedPhone,
       customer_address: order.shipping_address?.address1 || null,
       city: order.shipping_address?.city || null,
-      total_amount: parseFloat(order.total_price || '0'),
-      items: lineItems,
+      total_amount: calculateOrderTotal(lineItems, order.total_price || '0'),
+      items: activeLineItems,
       notes: order.note || null,
       tags: allTags,
       last_shopify_sync: new Date().toISOString(),
