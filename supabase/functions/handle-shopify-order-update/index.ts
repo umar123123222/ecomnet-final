@@ -104,16 +104,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Determine final status - preserve local status unless Shopify marks as fulfilled/cancelled
+    // Determine final status - preserve local status unless Shopify marks as cancelled
     let preservedStatus = currentOrderState.status;
     
-    // Only override local status if Shopify marks as fulfilled or cancelled
-    if (order.fulfillment_status === 'fulfilled') {
-      preservedStatus = 'delivered';
-    } else if (order.cancelled_at) {
+    // Only override local status if Shopify marks as cancelled
+    if (order.cancelled_at) {
       preservedStatus = 'cancelled';
     }
-    // Otherwise keep the current local status
+    // Otherwise keep the current local status (fulfillment doesn't mean delivered)
 
     // Prepare tags: merge Shopify tags with Ecomnet status tag
     const shopifyTags = order.tags ? order.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [];
@@ -122,6 +120,12 @@ Deno.serve(async (req) => {
     // Remove any old Ecomnet status tags and add the current one
     const nonEcomnetTags = shopifyTags.filter((tag: string) => !tag.startsWith('Ecomnet - '));
     const allTags = [...nonEcomnetTags, ecomnetTag];
+    
+    // Add 'Shopify - Fulfilled' tag if order is fulfilled in Shopify (but don't change status)
+    if (order.fulfillment_status === 'fulfilled' && !allTags.includes('Shopify - Fulfilled')) {
+      allTags.push('Shopify - Fulfilled');
+      console.log(`Order fulfilled in Shopify, added tag but preserved ERP status: ${preservedStatus}`);
+    }
 
     // Build update data - accept address changes, preserve courier/tracking data
     const orderData: any = {
@@ -146,7 +150,7 @@ Deno.serve(async (req) => {
       tracking_id: currentOrderState.tracking_id,
       booked_at: currentOrderState.booked_at,
       dispatched_at: currentOrderState.dispatched_at,
-      delivered_at: preservedStatus === 'delivered' ? new Date().toISOString() : currentOrderState.delivered_at,
+      delivered_at: currentOrderState.delivered_at,
     };
 
     // Update existing order
