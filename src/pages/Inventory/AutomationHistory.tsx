@@ -146,7 +146,7 @@ export default function AutomationHistory() {
     const csvContent = [
       ["Date", "PO Number", "Trigger", "Type", "Qty", "Current Stock", "Status", "Processing Time"],
       ...filteredHistory.map(item => [
-        format(new Date(item.created_at), "yyyy-MM-dd HH:mm"),
+        format(new Date(item.created_at), "yyyy-MM-dd hh:mm a"),
         item.purchase_orders?.po_number || "N/A",
         item.trigger_reason,
         item.trigger_type,
@@ -340,7 +340,7 @@ export default function AutomationHistory() {
                   {filteredHistory.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">
-                        {format(new Date(item.created_at), "MMM dd, yyyy HH:mm")}
+                        {format(new Date(item.created_at), "MMM dd, yyyy hh:mm a")}
                       </TableCell>
                       <TableCell>{getStatusBadge(item)}</TableCell>
                       <TableCell>

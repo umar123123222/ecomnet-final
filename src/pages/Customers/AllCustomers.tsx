@@ -242,7 +242,7 @@ const AllCustomers = () => {
           id: `tag-${Date.now()}`,
           text: tag,
           addedBy: profile?.full_name || user?.email || 'Current User',
-          addedAt: new Date().toLocaleString(),
+          addedAt: new Date().toLocaleString('en-US', { hour12: true }),
           canDelete: true
         };
         return {
@@ -269,7 +269,7 @@ const AllCustomers = () => {
           id: `note-${Date.now()}`,
           text: note,
           addedBy: profile?.full_name || user?.email || 'Current User',
-          addedAt: new Date().toLocaleString(),
+          addedAt: new Date().toLocaleString('en-US', { hour12: true }),
           canDelete: true
         };
         return {

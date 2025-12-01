@@ -404,7 +404,7 @@ export function MissingOrdersSync() {
                         {order.detection_method.replace('_', ' ')}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {format(new Date(order.detected_at), 'MMM dd, HH:mm')}
+                        {format(new Date(order.detected_at), 'MMM dd, hh:mm a')}
                       </TableCell>
                     </TableRow>
                   ))}

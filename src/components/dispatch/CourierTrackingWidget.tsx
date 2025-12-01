@@ -148,7 +148,7 @@ export function CourierTrackingWidget() {
                             {event.status}
                           </span>
                           <span className="text-xs text-muted-foreground whitespace-nowrap">
-                            {new Date(event.timestamp).toLocaleString()}
+                            {new Date(event.timestamp).toLocaleString('en-US', { hour12: true })}
                           </span>
                         </div>
                         <div className="text-sm text-muted-foreground">

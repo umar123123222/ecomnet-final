@@ -157,7 +157,7 @@ export function AWBManager() {
                   <div className="flex-1">
                     <p className="font-medium">{awb.courier_code.toUpperCase()}</p>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(awb.generated_at).toLocaleString()}
+                      {new Date(awb.generated_at).toLocaleString('en-US', { hour12: true })}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {awb.total_orders} shipments

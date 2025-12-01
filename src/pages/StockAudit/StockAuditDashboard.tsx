@@ -374,7 +374,7 @@ const StockAuditDashboard = () => {
                     <div className="flex gap-6 text-sm">
                       <div>
                         <span className="text-muted-foreground">Started:</span>{' '}
-                        {format(new Date(count.started_at), 'MMM dd, yyyy HH:mm')}
+                        {format(new Date(count.started_at), 'MMM dd, yyyy hh:mm a')}
                       </div>
                       <div>
                         <span className="text-muted-foreground">Items:</span>{' '}

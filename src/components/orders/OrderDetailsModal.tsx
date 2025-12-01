@@ -307,7 +307,7 @@ export const OrderDetailsModal = ({
                     <Clock className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <div className="text-xs text-muted-foreground">Dispatched</div>
-                      <div className="font-medium">{format(new Date(dispatchInfo.dispatch_date), 'MMM d, yyyy HH:mm')}</div>
+                      <div className="font-medium">{format(new Date(dispatchInfo.dispatch_date), 'MMM d, yyyy hh:mm a')}</div>
                     </div>
                   </div>}
                 {dispatchInfo.estimated_delivery && <div className="flex items-center gap-2 text-sm">
@@ -383,7 +383,7 @@ export const OrderDetailsModal = ({
                                   {format(new Date(event.checked_at), 'MMM d, yyyy')}
                                 </div>
                                 <div className="text-xs text-muted-foreground font-mono">
-                                  {format(new Date(event.checked_at), 'HH:mm')}
+                                  {format(new Date(event.checked_at), 'hh:mm a')}
                                 </div>
                               </div>
                             </div>
@@ -435,7 +435,7 @@ export const OrderDetailsModal = ({
                                 {format(new Date(event.checked_at), 'MMM d, yyyy')}
                               </div>
                               <div className="text-xs text-muted-foreground font-mono">
-                                {format(new Date(event.checked_at), 'HH:mm:ss')}
+                                {format(new Date(event.checked_at), 'hh:mm:ss a')}
                               </div>
                             </td>
                           </tr>)}

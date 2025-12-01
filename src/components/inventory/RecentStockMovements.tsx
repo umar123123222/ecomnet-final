@@ -100,7 +100,7 @@ export function RecentStockMovements() {
                       {movement.product?.name}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {movement.outlet?.name} • {format(new Date(movement.created_at), "MMM dd, HH:mm")}
+                      {movement.outlet?.name} • {format(new Date(movement.created_at), "MMM dd, hh:mm a")}
                     </div>
                   </div>
                 </div>

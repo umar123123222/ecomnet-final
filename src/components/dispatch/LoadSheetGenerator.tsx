@@ -163,7 +163,7 @@ export function LoadSheetGenerator() {
                   <div className="flex-1">
                     <p className="font-medium">{sheet.couriers.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(sheet.generated_at).toLocaleString()}
+                      {new Date(sheet.generated_at).toLocaleString('en-US', { hour12: true })}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {sheet.tracking_ids.length} shipments

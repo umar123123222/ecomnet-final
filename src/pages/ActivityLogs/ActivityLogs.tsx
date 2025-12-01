@@ -174,7 +174,7 @@ const ActivityLogs = () => {
     const csvData = [
       ["Timestamp", "User", "Action", "Entity Type", "Entity ID", "Details"],
       ...filteredLogs.map((log) => [
-        format(new Date(log.created_at), "yyyy-MM-dd HH:mm:ss"),
+        format(new Date(log.created_at), "yyyy-MM-dd hh:mm:ss a"),
         log.profiles?.full_name || log.profiles?.email || "Unknown",
         log.action,
         log.entity_type,
@@ -188,7 +188,7 @@ const ActivityLogs = () => {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `activity-logs-${format(new Date(), "yyyy-MM-dd-HHmmss")}.csv`;
+    link.download = `activity-logs-${format(new Date(), "yyyy-MM-dd-hhmmss-a")}.csv`;
     link.click();
     window.URL.revokeObjectURL(url);
 
@@ -399,7 +399,7 @@ const ActivityLogs = () => {
                       filteredLogs.map((log) => (
                         <TableRow key={log.id}>
                           <TableCell className="text-sm">
-                            {format(new Date(log.created_at), "MMM dd, yyyy HH:mm:ss")}
+                            {format(new Date(log.created_at), "MMM dd, yyyy hh:mm:ss a")}
                           </TableCell>
                           <TableCell>
                             <div>
@@ -490,7 +490,7 @@ const ActivityLogs = () => {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Timestamp</p>
                   <p className="text-sm">
-                    {format(new Date(selectedLog.created_at), "MMM dd, yyyy HH:mm:ss")}
+                    {format(new Date(selectedLog.created_at), "MMM dd, yyyy hh:mm:ss a")}
                   </p>
                 </div>
                 <div>

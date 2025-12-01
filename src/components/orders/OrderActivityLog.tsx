@@ -424,7 +424,7 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
                           </Badge>
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <Clock className="h-3 w-3" />
-                            {format(new Date(event.timestamp), 'MMM d, yyyy')} at {format(new Date(event.timestamp), 'HH:mm')}
+                            {format(new Date(event.timestamp), 'MMM d, yyyy')} at {format(new Date(event.timestamp), 'hh:mm a')}
                           </div>
                           {event.location && (
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">

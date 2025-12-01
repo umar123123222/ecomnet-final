@@ -64,7 +64,7 @@ export function InventoryReportGenerator() {
               'Total Cost': (inv.quantity * (inv.product?.cost || 0)).toFixed(2),
               'Total Value': (inv.quantity * (inv.product?.price || 0)).toFixed(2),
             }),
-            'Last Updated': new Date(inv.updated_at).toLocaleString(),
+            'Last Updated': new Date(inv.updated_at).toLocaleString('en-US', { hour12: true }),
           })) || [];
           break;
 
@@ -164,7 +164,7 @@ export function InventoryReportGenerator() {
             .order('created_at', { ascending: false });
 
           reportData = movements?.map(mov => ({
-            'Date': new Date(mov.created_at).toLocaleString(),
+            'Date': new Date(mov.created_at).toLocaleString('en-US', { hour12: true }),
             'Product': mov.product?.name,
             'SKU': mov.product?.sku,
             ...(includeOutlets && { 'Outlet': mov.outlet?.name }),
