@@ -242,13 +242,19 @@ Deno.serve(async (req) => {
     const lineItems = order.line_items || [];
     const activeLineItems = filterActiveLineItems(lineItems);
     
-    // Determine initial status
-    const initialStatus = order.fulfillment_status === 'fulfilled' ? 'delivered' : 'pending';
+    // Determine initial status (always pending, fulfillment doesn't mean delivered)
+    const initialStatus = 'pending';
     
     // Prepare tags with initial Ecomnet status tag
     const shopifyTags = order.tags ? order.tags.split(',').map(t => t.trim()) : [];
     const ecomnetTag = getEcomnetStatusTag(initialStatus);
     const allTags = [...shopifyTags, ecomnetTag];
+    
+    // Add 'Shopify - Fulfilled' tag if order is fulfilled in Shopify
+    if (order.fulfillment_status === 'fulfilled' && !allTags.includes('Shopify - Fulfilled')) {
+      allTags.push('Shopify - Fulfilled');
+      console.log(`Order ${order.order_number} marked fulfilled in Shopify, added tag`);
+    }
     
     const orderData = {
       order_number: `SHOP-${order.order_number}`,
@@ -294,11 +300,6 @@ Deno.serve(async (req) => {
         finalStatus = 'cancelled';
         console.log(`Order ${order.order_number} cancelled in Shopify, updating to cancelled`);
       } 
-      // If Shopify marks as fulfilled, always update to delivered
-      else if (order.fulfillment_status === 'fulfilled') {
-        finalStatus = 'delivered';
-        console.log(`Order ${order.order_number} fulfilled in Shopify, updating to delivered`);
-      }
       // Otherwise, preserve more advanced status
       else if (currentOrderState && shouldPreserveStatus(currentOrderState.status, initialStatus)) {
         finalStatus = currentOrderState.status;
@@ -326,7 +327,7 @@ Deno.serve(async (req) => {
         tracking_id: currentOrderState?.tracking_id || orderData.tracking_id,
         booked_at: currentOrderState?.booked_at || orderData.booked_at,
         dispatched_at: currentOrderState?.dispatched_at || orderData.dispatched_at,
-        delivered_at: currentOrderState?.delivered_at || (finalStatus === 'delivered' ? new Date().toISOString() : orderData.delivered_at),
+        delivered_at: currentOrderState?.delivered_at || orderData.delivered_at,
       };
       
       // Update existing order with preserved data
