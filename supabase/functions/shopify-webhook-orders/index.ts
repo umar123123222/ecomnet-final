@@ -70,6 +70,20 @@ async function verifyShopifyWebhook(body: string, hmacHeader: string): Promise<b
  * All other status changes MUST be done manually in ERP or via courier API
  */
 
+// Map Shopify tracking company names to ERP courier codes
+function mapShopifyTrackingCompanyToCourier(trackingCompany: string): string {
+  const companyLower = trackingCompany.toLowerCase();
+  
+  if (companyLower.includes('leopard')) return 'leopard';
+  if (companyLower.includes('tcs')) return 'tcs';
+  if (companyLower.includes('postex') || companyLower.includes('post ex')) return 'postex';
+  if (companyLower.includes('trax')) return 'trax';
+  if (companyLower.includes('m&p')) return 'm&p';
+  
+  // Return original if no specific mapping found
+  return trackingCompany;
+}
+
 async function fetchShopifyCustomerPhone(customerId: number, supabase: any): Promise<string> {
   try {
     // Get Shopify credentials from api_settings
@@ -293,15 +307,42 @@ Deno.serve(async (req) => {
           note: 'ERP status is source of truth - not changed by Shopify webhooks'
         });
       }
+
+      // Extract fulfillment data if available and ERP doesn't have it
+      let extractedTracking = currentOrderState.tracking_id;
+      let extractedCourier = currentOrderState.courier;
+
+      // If Shopify has fulfillment data and ERP doesn't have tracking, extract it
+      if ((order as any).fulfillments && (order as any).fulfillments.length > 0) {
+        const fulfillment = (order as any).fulfillments[0];
+        
+        // Only fill in if ERP doesn't already have this data
+        if (!currentOrderState.tracking_id && fulfillment.tracking_number) {
+          extractedTracking = fulfillment.tracking_number;
+          console.log(`✓ Extracted tracking from Shopify fulfillment: ${extractedTracking}`);
+        }
+        
+        if (!currentOrderState.courier && fulfillment.tracking_company) {
+          // Map Shopify tracking company to ERP courier code
+          extractedCourier = mapShopifyTrackingCompanyToCourier(fulfillment.tracking_company);
+          console.log(`✓ Extracted courier from Shopify fulfillment: ${fulfillment.tracking_company} -> ${extractedCourier}`);
+        }
+        
+        // If we extracted tracking and status is still pending, update to booked
+        if (extractedTracking && !currentOrderState.tracking_id && finalStatus === 'pending') {
+          finalStatus = 'booked';
+          console.log(`✓ Auto-updating status to booked (tracking extracted from Shopify)`);
+        }
+      }
       
-      // Prepare final order data with preserved fields
+      // Prepare final order data with preserved/extracted fields
       const finalOrderData = {
         ...orderData,
         status: finalStatus,
-        // Preserve courier booking data if it exists
-        courier: currentOrderState?.courier || orderData.courier,
-        tracking_id: currentOrderState?.tracking_id || orderData.tracking_id,
-        booked_at: currentOrderState?.booked_at || orderData.booked_at,
+        // Use extracted data if ERP didn't have it, otherwise preserve ERP data
+        courier: extractedCourier || orderData.courier,
+        tracking_id: extractedTracking || orderData.tracking_id,
+        booked_at: extractedTracking && !currentOrderState.tracking_id ? new Date().toISOString() : (currentOrderState?.booked_at || orderData.booked_at),
         dispatched_at: currentOrderState?.dispatched_at || orderData.dispatched_at,
         delivered_at: currentOrderState?.delivered_at || orderData.delivered_at,
       };
