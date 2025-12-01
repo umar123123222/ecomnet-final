@@ -132,64 +132,69 @@ async function cancelWithCourier(
   }
 
   let cancelEndpoint: string;
+  let method = 'POST';
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
   let payload: any;
 
-  // Use configured cancellation endpoint if available
-  if (courier.cancellation_endpoint) {
-    cancelEndpoint = courier.cancellation_endpoint;
-    console.log('[CANCEL] Using configured cancellation endpoint:', cancelEndpoint);
-  } else if (courierCode === 'POSTEX') {
-    // Postex-specific fallback - use v1 API for cancellation with PUT method
-    cancelEndpoint = 'https://api.postex.pk/services/integration/api/order/v1/cancel-order';
+  // Leopard-specific handling
+  if (courierCode === 'LEOPARD') {
+    console.log('[CANCEL] Using Leopard POST body authentication');
+    cancelEndpoint = courier.cancellation_endpoint || 'https://merchantapi.leopardscourier.com/api/cancelBookedPackets/format/json/';
     
-    headers['token'] = apiKey;
-    payload = {
-      trackingNumber: trackingId
-    };
-    
-    console.log('[CANCEL] Using Postex cancellation:', { endpoint: cancelEndpoint, trackingNumber: trackingId, method: 'PUT' });
-  } else if (courierCode === 'TCS' || courierCode === 'LEOPARD') {
-    // TCS/Leopard-specific configuration (if they support cancellation)
-    console.warn(`[CANCEL] ${courierCode} cancellation not implemented yet, proceeding with local cleanup`);
-    return { success: true, message: `Cancelled locally (${courierCode} API cancellation not implemented)` };
-  } else {
-    // Generic courier cancellation
-    cancelEndpoint = courier.tracking_endpoint?.replace('/track', '/cancel') 
-      || courier.api_endpoint?.replace('/book', '/cancel')
-      || `${courier.api_endpoint}/cancel`;
-    
-    // Apply generic auth
-    if (courier.auth_type === 'bearer') {
-      headers['Authorization'] = `Bearer ${apiKey}`;
-    } else if (courier.auth_type === 'api_key') {
-      headers['X-API-Key'] = apiKey;
-      if (courier.auth_config?.header_name) {
-        headers[courier.auth_config.header_name] = apiKey;
-      }
-    } else if (courier.auth_type === 'basic') {
-      const credentials = btoa(`${courier.auth_config?.username || ''}:${apiKey}`);
-      headers['Authorization'] = `Basic ${credentials}`;
+    const apiPassword = await getAPISetting('LEOPARD_API_PASSWORD', supabaseClient);
+    if (!apiPassword) {
+      console.warn('[CANCEL] LEOPARD_API_PASSWORD not configured, proceeding with local cleanup');
+      return { success: true, message: 'Cancelled locally (no API password)' };
     }
     
     payload = {
-      tracking_id: trackingId,
-      tracking_number: trackingId,
-      cn_number: trackingId,
-      awb_number: trackingId,
-      reason: reason,
-      cancel_reason: reason,
+      api_key: apiKey,
+      api_password: apiPassword,
+      cn_numbers: trackingId
     };
     
-    console.log('[CANCEL] Using generic cancellation:', { endpoint: cancelEndpoint });
+    console.log('[CANCEL] Leopard cancellation payload prepared');
+  } else if (courier.cancellation_endpoint) {
+    // Use configured cancellation endpoint if available
+    cancelEndpoint = courier.cancellation_endpoint;
+    console.log('[CANCEL] Using configured cancellation endpoint:', cancelEndpoint);
+    
+    // Apply authentication based on courier type
+    if (courierCode === 'POSTEX') {
+      method = 'PUT';
+      headers['token'] = apiKey;
+      payload = {
+        trackingNumber: trackingId
+      };
+    } else {
+      // Generic auth
+      if (courier.auth_type === 'bearer_token') {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      } else if (courier.auth_type === 'api_key_header') {
+        const headerName = courier.auth_config?.header_name || 'X-API-Key';
+        headers[headerName] = apiKey;
+      } else if (courier.auth_type === 'basic_auth') {
+        const credentials = btoa(`${courier.auth_config?.username || ''}:${apiKey}`);
+        headers['Authorization'] = `Basic ${credentials}`;
+      }
+      
+      payload = {
+        tracking_id: trackingId,
+        tracking_number: trackingId,
+        cn_number: trackingId,
+        awb_number: trackingId,
+        reason: reason,
+        cancel_reason: reason,
+      };
+    }
+  } else {
+    console.warn(`[CANCEL] ${courierCode} cancellation endpoint not configured, proceeding with local cleanup`);
+    return { success: true, message: `Cancelled locally (${courierCode} API cancellation not configured)` };
   }
 
   try {
-    // Use PUT method for Postex, POST for others
-    const method = courierCode === 'POSTEX' ? 'PUT' : 'POST';
-    
     const response = await fetch(cancelEndpoint, {
       method,
       headers,
