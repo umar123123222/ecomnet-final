@@ -23,9 +23,43 @@ export async function invokeSmartReorder(action: string, params: any) {
   });
 }
 
-// Export function to backfill Shopify fulfillments
+// Export function to backfill Shopify fulfillments (processes in batches of 10)
 export async function invokeBackfillShopifyFulfillments() {
-  return await supabase.functions.invoke('backfill-shopify-fulfillments', {
-    body: {}
-  });
+  let totalUpdated = 0;
+  let totalSkipped = 0;
+  let totalErrors = 0;
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase.functions.invoke('backfill-shopify-fulfillments', {
+      body: { offset, limit: 10 }
+    });
+
+    if (error) {
+      return { data: null, error };
+    }
+
+    if (data) {
+      totalUpdated += data.updated || 0;
+      totalSkipped += data.skipped || 0;
+      totalErrors += data.errors || 0;
+      hasMore = data.hasMore || false;
+      offset = data.nextOffset || 0;
+
+      // If no more batches, break
+      if (!hasMore) break;
+    } else {
+      break;
+    }
+  }
+
+  return {
+    data: {
+      updated: totalUpdated,
+      skipped: totalSkipped,
+      errors: totalErrors
+    },
+    error: null
+  };
 }

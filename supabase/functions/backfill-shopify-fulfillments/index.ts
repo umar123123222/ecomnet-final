@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
 
     // Parse request body for batch parameters
     const body = await req.json().catch(() => ({}));
-    const limit = body.limit || 50; // Process 50 orders at a time by default
+    const limit = body.limit || 10; // Process 10 orders at a time to avoid timeouts
     const offset = body.offset || 0;
 
     console.log(`Starting backfill batch: limit=${limit}, offset=${offset}`);
@@ -132,7 +132,6 @@ Deno.serve(async (req) => {
     let updatedCount = 0;
     let skippedCount = 0;
     let errorCount = 0;
-    const results: any[] = [];
 
     // Process orders in batches to avoid rate limits
     for (const order of ordersToBackfill) {
@@ -153,11 +152,6 @@ Deno.serve(async (req) => {
         if (!shopifyResponse.ok) {
           console.error(`Failed to fetch Shopify order ${order.shopify_order_id}: ${shopifyResponse.status}`);
           errorCount++;
-          results.push({
-            order_number: order.order_number,
-            status: 'error',
-            message: `Failed to fetch from Shopify: ${shopifyResponse.status}`
-          });
           continue;
         }
 
@@ -168,11 +162,6 @@ Deno.serve(async (req) => {
         if (!shopifyOrder.fulfillments || shopifyOrder.fulfillments.length === 0) {
           console.log(`Order ${order.order_number} has no fulfillments in Shopify, skipping`);
           skippedCount++;
-          results.push({
-            order_number: order.order_number,
-            status: 'skipped',
-            message: 'No fulfillments in Shopify'
-          });
           continue;
         }
 
@@ -183,11 +172,6 @@ Deno.serve(async (req) => {
         if (!trackingNumber) {
           console.log(`Order ${order.order_number} fulfillment has no tracking number, skipping`);
           skippedCount++;
-          results.push({
-            order_number: order.order_number,
-            status: 'skipped',
-            message: 'No tracking number in fulfillment'
-          });
           continue;
         }
 
@@ -216,11 +200,6 @@ Deno.serve(async (req) => {
         if (updateError) {
           console.error(`Failed to update order ${order.order_number}:`, updateError);
           errorCount++;
-          results.push({
-            order_number: order.order_number,
-            status: 'error',
-            message: updateError.message
-          });
           continue;
         }
 
@@ -243,14 +222,6 @@ Deno.serve(async (req) => {
           });
 
         updatedCount++;
-        results.push({
-          order_number: order.order_number,
-          status: 'updated',
-          tracking_id: trackingNumber,
-          courier: courierCode,
-          new_status: newStatus
-        });
-
         console.log(`✓ Successfully updated order ${order.order_number}`);
 
         // Add delay to stay under Shopify rate limits (600ms = ~100 requests/minute, safely under 2/sec limit)
@@ -259,11 +230,6 @@ Deno.serve(async (req) => {
       } catch (error: any) {
         console.error(`Error processing order ${order.order_number}:`, error);
         errorCount++;
-        results.push({
-          order_number: order.order_number,
-          status: 'error',
-          message: error.message
-        });
       }
     }
 
@@ -281,11 +247,10 @@ Deno.serve(async (req) => {
       skipped: skippedCount,
       errors: errorCount,
       hasMore: hasMore,
-      nextOffset: hasMore ? processedCount : null,
-      results: results
+      nextOffset: hasMore ? processedCount : null
     };
 
-    console.log('Backfill summary:', JSON.stringify(summary, null, 2));
+    console.log(`Batch complete: ${updatedCount} updated, ${skippedCount} skipped, ${errorCount} errors`);
 
     return new Response(
       JSON.stringify(summary),
