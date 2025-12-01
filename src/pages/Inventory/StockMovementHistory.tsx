@@ -95,7 +95,7 @@ export default function StockMovementHistory() {
       ["Date", "Product", "SKU", "Type", "Quantity", "From", "To", "Notes", "Performed By"].join(","),
       ...filteredMovements.map((m: any) =>
         [
-          format(new Date(m.created_at), "yyyy-MM-dd HH:mm:ss"),
+          format(new Date(m.created_at), "yyyy-MM-dd hh:mm:ss a"),
           `"${m.product?.name || ""}"`,
           m.product?.sku || "",
           m.movement_type,
@@ -238,7 +238,7 @@ export default function StockMovementHistory() {
                       <TableCell className="whitespace-nowrap">
                         <div className="flex items-center gap-2 text-sm">
                           <Calendar className="h-3 w-3 text-muted-foreground" />
-                          {format(new Date(movement.created_at), "MMM dd, yyyy HH:mm")}
+                          {format(new Date(movement.created_at), "MMM dd, yyyy hh:mm a")}
                         </div>
                       </TableCell>
                       <TableCell>

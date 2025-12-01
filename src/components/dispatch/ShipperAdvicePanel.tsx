@@ -193,7 +193,7 @@ export function ShipperAdvicePanel() {
                         {log.orders?.order_number} - {log.orders?.customer_name}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {log.couriers?.name} • {new Date(log.requested_at).toLocaleString()}
+                        {log.couriers?.name} • {new Date(log.requested_at).toLocaleString('en-US', { hour12: true })}
                       </p>
                       {log.remarks && (
                         <p className="text-sm text-muted-foreground mt-1">{log.remarks}</p>

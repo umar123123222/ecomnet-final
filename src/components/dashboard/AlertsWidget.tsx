@@ -187,7 +187,7 @@ export function AlertsWidget() {
                   <div className="text-sm font-medium mb-1">{alert.title}</div>
                   <div className="text-xs text-muted-foreground">{alert.message}</div>
                   <div className="text-xs text-muted-foreground mt-2">
-                    {new Date(alert.created_at).toLocaleString()}
+                    {new Date(alert.created_at).toLocaleString('en-US', { hour12: true })}
                   </div>
                 </div>
               ))}

@@ -59,7 +59,7 @@ const PaymentPanel = ({ cart, sessionId, outletId, onBack, onComplete }: Payment
         <div class="divider"></div>
         <div class="small">
           <div>Receipt: ${sale.sale_number}</div>
-          <div>Date: ${new Date(sale.created_at).toLocaleString()}</div>
+          <div>Date: ${new Date(sale.created_at).toLocaleString('en-US', { hour12: true })}</div>
           <div>Cashier: ${sale.cashier_id}</div>
         </div>
         <div class="divider"></div>

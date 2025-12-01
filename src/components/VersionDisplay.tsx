@@ -6,7 +6,7 @@ const VersionDisplay = () => {
   
   return (
     <div className="text-xs text-muted-foreground px-4 py-2">
-      v{version} • {new Date(buildTime).toLocaleDateString()} {new Date(buildTime).toLocaleTimeString()}
+      v{version} • {new Date(buildTime).toLocaleDateString()} {new Date(buildTime).toLocaleTimeString('en-US', { hour12: true })}
     </div>
   );
 };

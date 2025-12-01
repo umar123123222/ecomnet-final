@@ -199,7 +199,7 @@ export function SyncStatusWidget() {
             <div>
               <div className="text-xs text-muted-foreground">Last Sync</div>
               <div className="text-xs font-medium">
-                {stats.lastSync ? new Date(stats.lastSync).toLocaleTimeString() : 'N/A'}
+                {stats.lastSync ? new Date(stats.lastSync).toLocaleTimeString('en-US', { hour12: true }) : 'N/A'}
               </div>
             </div>
           </div>
