@@ -46,6 +46,7 @@ import { OrderDetailsModal } from '@/components/orders/OrderDetailsModal';
 import { CancelOrderDialog } from '@/components/orders/CancelOrderDialog';
 import { Eye, EyeOff, Bell } from 'lucide-react';
 import { AWBDownloadButton } from '@/components/orders/AWBDownloadButton';
+import { FixShopifyFulfilledOrders } from '@/components/orders/FixShopifyFulfilledOrders';
 
 const OrderDashboard = () => {
   const { isManager, isSeniorStaff, primaryRole, hasAnyRole, permissions } = useUserRoles();
@@ -2121,6 +2122,22 @@ const OrderDashboard = () => {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {(isManager || primaryRole === 'super_admin') && (
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    Fix Orders
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Fix Shopify Fulfilled Orders</DialogTitle>
+                  </DialogHeader>
+                  <FixShopifyFulfilledOrders />
+                </DialogContent>
+              </Dialog>
+            )}
             <Button
               variant="outline"
               size="sm"
