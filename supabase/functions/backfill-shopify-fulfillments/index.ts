@@ -18,6 +18,37 @@ function mapShopifyTrackingCompanyToCourier(trackingCompany: string): string {
   return trackingCompany;
 }
 
+// Helper function to retry with exponential backoff
+async function fetchWithRetry(url: string, options: any, maxRetries = 3): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      
+      // If we get a 429 (rate limit), wait and retry
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * 1000;
+        console.log(`Rate limited (429), waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        continue;
+      }
+      
+      return response;
+    } catch (error: any) {
+      lastError = error;
+      if (attempt < maxRetries - 1) {
+        const waitTime = Math.pow(2, attempt) * 1000;
+        console.log(`Request failed, waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
+  }
+  
+  throw lastError || new Error('Max retries exceeded');
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -28,6 +59,13 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+
+    // Parse request body for batch parameters
+    const body = await req.json().catch(() => ({}));
+    const limit = body.limit || 50; // Process 50 orders at a time by default
+    const offset = body.offset || 0;
+
+    console.log(`Starting backfill batch: limit=${limit}, offset=${offset}`);
 
     // Get Shopify credentials
     const { data: settings } = await supabaseAdmin
@@ -47,7 +85,16 @@ Deno.serve(async (req) => {
       throw new Error('Incomplete Shopify credentials');
     }
 
-    console.log('Starting backfill of Shopify fulfillments from Nov 29, 2024...');
+    console.log('Fetching orders to backfill from Nov 29, 2024...');
+
+    // First, get total count
+    const { count: totalCount } = await supabaseAdmin
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .not('shopify_order_id', 'is', null)
+      .is('tracking_id', null)
+      .in('status', ['pending', 'confirmed', 'booked'])
+      .gte('created_at', '2024-11-29T00:00:00Z');
 
     // Fetch orders from Nov 29, 2024 onwards that:
     // 1. Have shopify_order_id (synced from Shopify)
@@ -60,23 +107,27 @@ Deno.serve(async (req) => {
       .is('tracking_id', null)
       .in('status', ['pending', 'confirmed', 'booked'])
       .gte('created_at', '2024-11-29T00:00:00Z')
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .range(offset, offset + limit - 1);
 
     if (fetchError) throw fetchError;
 
     if (!ordersToBackfill || ordersToBackfill.length === 0) {
-      console.log('No orders found that need backfilling');
+      console.log('No orders found in this batch');
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: 'No orders found that need backfilling',
-          processed: 0 
+          message: 'No orders found in this batch',
+          total: totalCount || 0,
+          processed: 0,
+          remaining: 0,
+          hasMore: false
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Found ${ordersToBackfill.length} orders to backfill`);
+    console.log(`Found ${ordersToBackfill.length} orders in this batch (${offset + 1}-${offset + ordersToBackfill.length} of ${totalCount} total)`);
 
     let updatedCount = 0;
     let skippedCount = 0;
@@ -88,8 +139,8 @@ Deno.serve(async (req) => {
       try {
         console.log(`Processing order ${order.order_number} (Shopify ID: ${order.shopify_order_id})`);
 
-        // Fetch order from Shopify to get fulfillment data
-        const shopifyResponse = await fetch(
+        // Fetch order from Shopify to get fulfillment data (with retry logic)
+        const shopifyResponse = await fetchWithRetry(
           `${storeUrl}/admin/api/${apiVersion}/orders/${order.shopify_order_id}.json`,
           {
             headers: {
@@ -202,8 +253,8 @@ Deno.serve(async (req) => {
 
         console.log(`✓ Successfully updated order ${order.order_number}`);
 
-        // Add a small delay to avoid rate limits (350ms = ~170 requests/minute, well under Shopify's 2/sec limit)
-        await new Promise(resolve => setTimeout(resolve, 350));
+        // Add delay to stay under Shopify rate limits (600ms = ~100 requests/minute, safely under 2/sec limit)
+        await new Promise(resolve => setTimeout(resolve, 600));
 
       } catch (error: any) {
         console.error(`Error processing order ${order.order_number}:`, error);
@@ -216,13 +267,21 @@ Deno.serve(async (req) => {
       }
     }
 
+    const processedCount = offset + ordersToBackfill.length;
+    const hasMore = (totalCount || 0) > processedCount;
+    
     const summary = {
       success: true,
-      message: 'Backfill completed',
-      total_orders: ordersToBackfill.length,
+      message: hasMore ? 'Batch completed, more orders remaining' : 'Backfill completed',
+      total: totalCount || 0,
+      processed: processedCount,
+      remaining: Math.max(0, (totalCount || 0) - processedCount),
+      batch_size: ordersToBackfill.length,
       updated: updatedCount,
       skipped: skippedCount,
       errors: errorCount,
+      hasMore: hasMore,
+      nextOffset: hasMore ? processedCount : null,
       results: results
     };
 
