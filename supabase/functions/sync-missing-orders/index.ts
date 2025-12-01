@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 import { getAPISetting } from '../_shared/apiSettings.ts';
+import { calculateOrderTotal, filterActiveLineItems } from '../_shared/orderTotalCalculator.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -203,6 +204,9 @@ Deno.serve(async (req) => {
         // Set initial status (pending unless cancelled)
         const internalStatus = order.cancelled_at ? 'cancelled' : 'pending';
 
+        // Filter active line items
+        const activeLineItems = filterActiveLineItems(order.line_items);
+
         // Create order
         const { error: orderError } = await supabaseClient
           .from('orders')
@@ -220,11 +224,12 @@ Deno.serve(async (req) => {
               : '',
             city: order.shipping_address?.city || '',
             outlet_id: outlet.id,
-            total_amount: parseFloat(order.total_price),
+            total_amount: calculateOrderTotal(order.line_items, order.total_price),
             status: internalStatus,
             tags: shopifyStateTags,
             notes: order.note || '',
             confirmation_required: false, // Shopify orders don't need confirmation
+            items: activeLineItems,
           });
 
         if (orderError) {

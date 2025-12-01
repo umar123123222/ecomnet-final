@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 import { getAPISetting } from '../_shared/apiSettings.ts';
+import { calculateOrderTotal, filterActiveLineItems } from '../_shared/orderTotalCalculator.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -212,6 +213,9 @@ Deno.serve(async (req) => {
               const baseShopifyTags = order.tags ? order.tags.split(',').map((t: string) => t.trim()) : [];
               const shopifyStateTags = generateShopifyTags(order, [...existingTags, ...baseShopifyTags]);
 
+              // Filter active line items
+              const activeLineItems = filterActiveLineItems(order.line_items);
+
               const orderData: Record<string, any> = {
                 order_number: `SHOP-${order.order_number}`,
                 shopify_order_number: String(order.order_number),
@@ -222,11 +226,12 @@ Deno.serve(async (req) => {
                 customer_phone: order.customer?.phone || order.phone || null,
                 customer_address: order.shipping_address?.address1 || 'N/A',
                 city: order.shipping_address?.city || 'N/A',
-                total_amount: parseFloat(order.total_price),
+                total_amount: calculateOrderTotal(order.line_items, order.total_price),
                 tags: shopifyStateTags,
                 status: order.cancelled_at ? 'cancelled' : 'pending',
                 synced_to_shopify: true,
                 last_shopify_sync: new Date().toISOString(),
+                items: activeLineItems,
               };
 
               if (!existing) {
