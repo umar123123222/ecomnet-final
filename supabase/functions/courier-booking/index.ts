@@ -665,12 +665,45 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
     otherHeaderKeys: Object.keys(headers).filter(k => !['Authorization','token','Content-Type'].includes(k))
   });
 
-  // Build request body - Postex-specific or generic
+  // Build request body - courier-specific
   let body;
   
-  if (courierCode === 'POSTEX') {
+  if (courierCode === 'LEOPARD') {
+    // Leopard-specific booking structure
+    console.log('[LEOPARD] Building booking payload with POST body authentication');
+    
+    const apiPassword = await getAPISetting('LEOPARD_API_PASSWORD', supabaseClient);
+    if (!apiPassword) {
+      const error: any = new Error('LEOPARD_API_PASSWORD not configured. Please add it in Business Settings > API Settings.');
+      error.code = 'CONFIGURATION_REQUIRED';
+      throw error;
+    }
+    
+    body = {
+      api_key: apiKey,
+      api_password: apiPassword,
+      booked_packet_weight: request.weight, // in grams
+      booked_packet_no_piece: request.pieces,
+      booked_packet_collect_amount: request.codAmount || 0,
+      booked_packet_order_id: orderNumber,
+      origin_city: 'self', // or request.pickupAddress.city
+      destination_city: request.deliveryAddress.city,
+      shipment_name_eng: request.pickupAddress.name,
+      shipment_email: 'merchant@example.com',
+      shipment_phone: request.pickupAddress.phone,
+      shipment_address: request.pickupAddress.address,
+      consignment_name_eng: request.deliveryAddress.name,
+      consignment_email: '',
+      consignment_phone: request.deliveryAddress.phone,
+      consignment_phone_two: '',
+      consignment_phone_three: '',
+      consignment_address: request.deliveryAddress.address,
+      special_instructions: request.specialInstructions || ''
+    };
+    
+    console.log('[LEOPARD] Booking payload prepared with required fields');
+  } else if (courierCode === 'POSTEX') {
     // Postex v3 API requires specific structure
-    // Get pickup address code from courier-specific setting
     const pickupAddressCode = await getAPISetting(`${courierCode}_PICKUP_ADDRESS_CODE`, supabaseClient);
     
     if (!pickupAddressCode) {
@@ -685,14 +718,14 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
       const itemsList = request.items
         .map(item => `${item.name} (x${item.quantity})`)
         .join(', ');
-      orderDetail = itemsList; // Send just the product list
+      orderDetail = itemsList;
       console.log('[POSTEX] Formatted order detail with items:', orderDetail);
     } else {
       orderDetail = `${request.pieces} items`;
       console.log('[POSTEX] Using fallback order detail (no items provided)');
     }
     
-    // Calculate total item count for Postex (they expect a number, not an array)
+    // Calculate total item count for Postex
     const totalItemCount = request.items && request.items.length > 0
       ? request.items.reduce((sum, item) => sum + item.quantity, 0)
       : request.pieces;
@@ -704,15 +737,14 @@ async function bookWithCustomEndpoint(request: BookingRequest, courier: any, sup
       cityName: request.deliveryAddress.city,
       pickupCityName: request.pickupAddress.city,
       transactionNotes: request.specialInstructions || '',
-      orderRefNumber: orderNumber, // Use human-readable order number
+      orderRefNumber: orderNumber,
       invoicePayment: request.codAmount || 0,
-      orderType: 'Normal', // Valid values: Normal, Reversed, Replacement
+      orderType: 'Normal',
       orderDetail: orderDetail,
       pickupAddressCode: pickupAddressCode,
-      items: totalItemCount // Postex expects a number (count), not an array
+      items: totalItemCount
     };
     
-    // Defensive logging for Postex payload
     console.log('[POSTEX] Booking payload:', {
       hasOrderDetail: 'orderDetail' in body,
       itemsCount: totalItemCount,

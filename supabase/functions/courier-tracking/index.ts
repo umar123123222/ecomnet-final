@@ -144,41 +144,66 @@ function parsePostExResponse(data: any) {
 }
 
 async function trackWithCustomEndpoint(trackingId: string, courier: any, supabaseClient: any) {
+  const courierCode = courier.code.toLowerCase();
   const apiKey = await getAPISetting(`${courier.code.toUpperCase()}_API_KEY`, supabaseClient);
   
-  // Support multiple placeholder formats for different courier APIs
   let url = courier.tracking_endpoint;
-  url = url.replace('{tracking_id}', trackingId);
-  url = url.replace('{trackingId}', trackingId);
-  url = url.replace('{trackingNumber}', trackingId);
-  url = url.replace('{tracking_number}', trackingId);
-  url = url.replace('{awb}', trackingId);
-  url = url.replace('{AWB}', trackingId);
-  
-  console.log('Tracking URL after replacement:', url);
+  let method = 'GET';
+  let body = null;
   
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
-  // Apply authentication based on auth_type
-  if (courier.auth_type === 'bearer_token') {
-    headers['Authorization'] = `Bearer ${apiKey}`;
-  } else if (courier.auth_type === 'api_key_header') {
-    const headerName = courier.auth_config?.header_name || 'X-API-Key';
-    headers[headerName] = apiKey || '';
-  } else if (courier.auth_type === 'basic_auth') {
-    const username = courier.auth_config?.username || '';
-    const encoded = btoa(`${username}:${apiKey}`);
-    headers['Authorization'] = `Basic ${encoded}`;
-  }
+  // Leopard-specific handling
+  if (courierCode === 'leopard') {
+    console.log('[LEOPARD] Using POST body authentication for tracking');
+    method = 'POST';
+    
+    const apiPassword = await getAPISetting('LEOPARD_API_PASSWORD', supabaseClient);
+    if (!apiPassword) {
+      throw new Error('LEOPARD_API_PASSWORD not configured. Please add it in Business Settings > API Settings.');
+    }
+    
+    body = JSON.stringify({
+      api_key: apiKey,
+      api_password: apiPassword,
+      track_numbers: trackingId
+    });
+  } else {
+    // Standard placeholder replacement for other couriers
+    url = url.replace('{tracking_id}', trackingId);
+    url = url.replace('{trackingId}', trackingId);
+    url = url.replace('{trackingNumber}', trackingId);
+    url = url.replace('{tracking_number}', trackingId);
+    url = url.replace('{awb}', trackingId);
+    url = url.replace('{AWB}', trackingId);
+    
+    // Apply authentication based on auth_type
+    if (courier.auth_type === 'bearer_token') {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    } else if (courier.auth_type === 'api_key_header') {
+      const headerName = courier.auth_config?.header_name || 'X-API-Key';
+      headers[headerName] = apiKey || '';
+    } else if (courier.auth_type === 'basic_auth') {
+      const username = courier.auth_config?.username || '';
+      const encoded = btoa(`${username}:${apiKey}`);
+      headers['Authorization'] = `Basic ${encoded}`;
+    }
 
-  // Add custom headers if configured
-  if (courier.auth_config?.custom_headers) {
-    Object.assign(headers, courier.auth_config.custom_headers);
+    // Add custom headers if configured
+    if (courier.auth_config?.custom_headers) {
+      Object.assign(headers, courier.auth_config.custom_headers);
+    }
   }
+  
+  console.log(`Tracking ${courier.name}:`, { method, url: url.substring(0, 100) });
 
-  const response = await fetch(url, { headers });
+  const response = await fetch(url, { 
+    method,
+    headers,
+    ...(body && { body })
+  });
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -193,6 +218,8 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
   let trackingData;
   if (courier.code.toLowerCase() === 'postex') {
     trackingData = parsePostExResponse(data);
+  } else if (courier.code.toLowerCase() === 'leopard') {
+    trackingData = parseLeopardResponse(data);
   } else {
     // Generic parsing for other couriers
     trackingData = {
@@ -245,6 +272,63 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
   return trackingData;
 }
 
+// Leopard response parser
+function parseLeopardResponse(data: any) {
+  console.log('[LEOPARD] Parsing tracking response:', JSON.stringify(data, null, 2));
+  
+  const packet = data.packet_list?.[0];
+  if (!packet) {
+    console.error('[LEOPARD] No packet data found in response');
+    return {
+      status: 'in_transit',
+      currentLocation: 'Unknown',
+      statusHistory: [],
+      raw: data
+    };
+  }
+  
+  const trackingDetail = packet['Tracking Detail'] || [];
+  
+  const statusHistory = trackingDetail.map((event: any) => {
+    const mappedStatus = mapLeopardStatus(event.Status);
+    return {
+      status: mappedStatus,
+      message: event.Status || 'Status Update',
+      location: event.Reason || packet.destination_city_name || '',
+      timestamp: event['Activity Date'] || new Date().toISOString(),
+      receiverName: event['Reciever Name'] || null,
+      raw: event
+    };
+  });
+  
+  const currentStatus = statusHistory[statusHistory.length - 1]?.status || 'in_transit';
+  
+  console.log(`[LEOPARD] Parsed ${statusHistory.length} events. Current: ${currentStatus}`);
+  
+  return {
+    status: currentStatus,
+    currentLocation: packet.destination_city_name || 'In Transit',
+    statusHistory,
+    estimatedDelivery: null,
+    raw: data
+  };
+}
+
+function mapLeopardStatus(status: string): string {
+  const normalized = status.toUpperCase();
+  const statusMap: Record<string, string> = {
+    'BOOKED': 'booked',
+    'DISPATCHED': 'in_transit',
+    'IN TRANSIT': 'in_transit',
+    'ON THE WAY': 'in_transit',
+    'OUT FOR DELIVERY': 'out_for_delivery',
+    'DELIVERED': 'delivered',
+    'RETURNED': 'returned',
+    'RETURN': 'returned'
+  };
+  return statusMap[normalized] || 'in_transit';
+}
+
 // Legacy hardcoded functions removed - all couriers must now use configured tracking_endpoint
 
 function mapTCSStatus(status: string): string {
@@ -252,18 +336,6 @@ function mapTCSStatus(status: string): string {
     'BOOKED': 'booked',
     'IN_TRANSIT': 'in_transit',
     'OUT_FOR_DELIVERY': 'out_for_delivery',
-    'DELIVERED': 'delivered',
-    'RETURNED': 'returned'
-  };
-  return statusMap[status] || 'in_transit';
-}
-
-function mapLeopardStatus(status: string): string {
-  const statusMap: Record<string, string> = {
-    'BOOKED': 'booked',
-    'DISPATCHED': 'in_transit',
-    'IN TRANSIT': 'in_transit',
-    'OUT FOR DELIVERY': 'out_for_delivery',
     'DELIVERED': 'delivered',
     'RETURNED': 'returned'
   };
