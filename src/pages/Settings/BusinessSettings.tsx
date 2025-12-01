@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { Navigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Building2, Link, Mail, Phone, Truck, ShoppingBag, MessageSquare, DollarSign, Loader2, CheckCircle2, AlertCircle, Plug, Save, RefreshCw, Zap, Activity, MapPin, Package } from "lucide-react";
+import { Plus, Trash2, Building2, Link, Mail, Phone, Truck, ShoppingBag, MessageSquare, DollarSign, Loader2, CheckCircle2, AlertCircle, Plug, Save, RefreshCw, Zap, Activity, MapPin, Package, ChevronDown } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SUPPORTED_CURRENCIES } from "@/utils/currency";
 import { useBusinessSettings } from "@/hooks/useBusinessSettings";
@@ -74,6 +75,7 @@ const BusinessSettings = () => {
   const [couriers, setCouriers] = useState<any[]>([]);
   const [loadingCouriers, setLoadingCouriers] = useState(false);
   const [showAddCourier, setShowAddCourier] = useState(false);
+  const [openCouriers, setOpenCouriers] = useState<Record<string, boolean>>({});
 
   // Load couriers from database
   useEffect(() => {
@@ -662,7 +664,42 @@ const BusinessSettings = () => {
                   </Alert>
 
                   <div className="space-y-4">
-                    {couriers.map(courier => <CourierConfigCard key={courier.id} courier={courier} onSave={handleSaveCourier} onDelete={handleDeleteCourier} onTest={handleTestCourier} />)}
+                    {couriers.map(courier => (
+                      <Collapsible
+                        key={courier.id}
+                        open={openCouriers[courier.id]}
+                        onOpenChange={(open) => setOpenCouriers(prev => ({ ...prev, [courier.id]: open }))}
+                      >
+                        <div className="border rounded-lg">
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              className="w-full flex items-center justify-between p-4 hover:bg-muted/50"
+                            >
+                              <div className="flex items-center gap-3">
+                                <Truck className="h-5 w-5" />
+                                <div className="text-left">
+                                  <div className="font-semibold">{courier.name}</div>
+                                  <div className="text-sm text-muted-foreground">{courier.code.toUpperCase()}</div>
+                                </div>
+                                <Badge variant={courier.is_active ? "default" : "secondary"}>
+                                  {courier.is_active ? "Active" : "Inactive"}
+                                </Badge>
+                              </div>
+                              <ChevronDown className={`h-4 w-4 transition-transform ${openCouriers[courier.id] ? 'rotate-180' : ''}`} />
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="px-4 pb-4">
+                            <CourierConfigCard
+                              courier={courier}
+                              onSave={handleSaveCourier}
+                              onDelete={handleDeleteCourier}
+                              onTest={handleTestCourier}
+                            />
+                          </CollapsibleContent>
+                        </div>
+                      </Collapsible>
+                    ))}
                   </div>
 
                   {showAddCourier ? <CourierConfigCard onSave={handleSaveCourier} onTest={handleTestCourier} /> : <Button variant="outline" onClick={() => setShowAddCourier(true)} className="w-full">
