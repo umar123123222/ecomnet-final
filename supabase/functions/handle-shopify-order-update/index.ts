@@ -33,6 +33,20 @@ function normalizePhone(phone: string | null): string | null {
   return phone.replace(/[^0-9]/g, '');
 }
 
+// Map Shopify tracking company names to ERP courier codes
+function mapShopifyTrackingCompanyToCourier(trackingCompany: string): string {
+  const companyLower = trackingCompany.toLowerCase();
+  
+  if (companyLower.includes('leopard')) return 'leopard';
+  if (companyLower.includes('tcs')) return 'tcs';
+  if (companyLower.includes('postex') || companyLower.includes('post ex')) return 'postex';
+  if (companyLower.includes('trax')) return 'trax';
+  if (companyLower.includes('m&p')) return 'm&p';
+  
+  // Return original if no specific mapping found
+  return trackingCompany;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -116,6 +130,33 @@ Deno.serve(async (req) => {
       console.log(`✓ Preserving ERP status: ${currentOrderState.status} (not affected by Shopify updates)`);
     }
 
+    // Extract fulfillment data if available and ERP doesn't have it
+    let extractedTracking = currentOrderState.tracking_id;
+    let extractedCourier = currentOrderState.courier;
+
+    // If Shopify has fulfillment data and ERP doesn't have tracking, extract it
+    if (order.fulfillments && order.fulfillments.length > 0) {
+      const fulfillment = order.fulfillments[0];
+      
+      // Only fill in if ERP doesn't already have this data
+      if (!currentOrderState.tracking_id && fulfillment.tracking_number) {
+        extractedTracking = fulfillment.tracking_number;
+        console.log(`✓ Extracted tracking from Shopify fulfillment: ${extractedTracking}`);
+      }
+      
+      if (!currentOrderState.courier && fulfillment.tracking_company) {
+        // Map Shopify tracking company to ERP courier code
+        extractedCourier = mapShopifyTrackingCompanyToCourier(fulfillment.tracking_company);
+        console.log(`✓ Extracted courier from Shopify fulfillment: ${fulfillment.tracking_company} -> ${extractedCourier}`);
+      }
+      
+      // If we extracted tracking and status is still pending, update to booked
+      if (extractedTracking && !currentOrderState.tracking_id && preservedStatus === 'pending') {
+        preservedStatus = 'booked';
+        console.log(`✓ Auto-updating status to booked (tracking extracted from Shopify)`);
+      }
+    }
+
     // Prepare tags: merge Shopify tags with Ecomnet status tag
     const shopifyTags = order.tags ? order.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [];
     const ecomnetTag = getEcomnetStatusTag(preservedStatus);
@@ -147,11 +188,11 @@ Deno.serve(async (req) => {
       tags: allTags,
       last_shopify_sync: new Date().toISOString(),
       
-      // PRESERVE local courier/tracking data
+      // PRESERVE local courier/tracking data (or use extracted data if ERP didn't have it)
       status: preservedStatus,
-      courier: currentOrderState.courier,
-      tracking_id: currentOrderState.tracking_id,
-      booked_at: currentOrderState.booked_at,
+      courier: extractedCourier,
+      tracking_id: extractedTracking,
+      booked_at: extractedTracking && !currentOrderState.tracking_id ? new Date().toISOString() : currentOrderState.booked_at,
       dispatched_at: currentOrderState.dispatched_at,
       delivered_at: currentOrderState.delivered_at,
     };
@@ -167,9 +208,9 @@ Deno.serve(async (req) => {
     console.log(`Successfully updated order: ${currentOrderState.id}`);
     console.log(`- Address updated from Shopify`);
     console.log(`- Tags synced: ${allTags.length} tags (${shopifyTags.length} from Shopify + Ecomnet status)`);
-    console.log(`- Preserved status: ${preservedStatus}`);
-    console.log(`- Preserved courier: ${currentOrderState.courier || 'none'}`);
-    console.log(`- Preserved tracking: ${currentOrderState.tracking_id || 'none'}`);
+    console.log(`- Status: ${preservedStatus}`);
+    console.log(`- Courier: ${extractedCourier || 'none'} ${extractedCourier !== currentOrderState.courier ? '(extracted from fulfillment)' : '(preserved)'}`);
+    console.log(`- Tracking: ${extractedTracking || 'none'} ${extractedTracking !== currentOrderState.tracking_id ? '(extracted from fulfillment)' : '(preserved)'}`);
 
     // Log order update activity
     await supabaseAdmin

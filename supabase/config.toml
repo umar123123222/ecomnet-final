@@ -192,3 +192,6 @@ verify_jwt = true
 [functions.verify-delivered-orders]
 verify_jwt = true
 
+[functions.backfill-shopify-fulfillments]
+verify_jwt = true
+
