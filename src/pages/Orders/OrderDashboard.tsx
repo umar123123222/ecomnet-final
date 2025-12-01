@@ -2160,25 +2160,38 @@ const OrderDashboard = () => {
                   size="sm" 
                   className="gap-2"
                   onClick={async () => {
+                    console.log('Sync Tracking button clicked');
                     try {
-                      toast({ description: "Starting backfill of Shopify fulfillments..." });
+                      toast({ description: "Starting backfill of Shopify fulfillments from Nov 29th..." });
+                      console.log('Calling backfill function...');
+                      
                       const { data, error } = await invokeBackfillShopifyFulfillments();
                       
-                      if (error) throw error;
+                      console.log('Backfill response:', { data, error });
+                      
+                      if (error) {
+                        console.error('Backfill error:', error);
+                        throw error;
+                      }
                       
                       if (data) {
+                        console.log('Backfill completed successfully:', data);
                         toast({ 
                           title: "Backfill Complete",
-                          description: `Updated: ${data.updated}, Skipped: ${data.skipped}, Errors: ${data.errors}`,
+                          description: `Updated: ${data.updated || 0}, Skipped: ${data.skipped || 0}, Errors: ${data.errors || 0}`,
                         });
-                        fetchOrders(); // Refresh the orders list
+                        await fetchOrders(); // Refresh the orders list
+                      } else {
+                        toast({ 
+                          description: "Backfill completed but no data returned"
+                        });
                       }
                     } catch (error: any) {
                       console.error('Backfill error:', error);
                       toast({ 
                         variant: "destructive",
                         title: "Backfill Failed",
-                        description: error.message 
+                        description: error.message || 'Unknown error occurred'
                       });
                     }
                   }}
