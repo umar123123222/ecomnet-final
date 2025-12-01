@@ -58,7 +58,7 @@ serve(async (req) => {
           // Try to find product by name match
           const { data: product } = await supabaseClient
             .from('products')
-            .select('id')
+            .select('id, is_bundle, name')
             .ilike('name', `%${item.item_name}%`)
             .single();
 
@@ -67,49 +67,125 @@ serve(async (req) => {
             continue;
           }
 
-          // Check inventory
-          const { data: inventory, error: invError } = await supabaseClient
-            .from('inventory')
-            .select('id, quantity, reserved_quantity, available_quantity')
-            .eq('product_id', product.id)
-            .eq('outlet_id', data.outlet_id)
-            .single();
+          if (product.is_bundle) {
+            // BUNDLE PRODUCT: Fetch components and deduct each
+            console.log(`Processing bundle: ${product.name}`);
+            
+            const { data: bundleItems, error: bundleError } = await supabaseClient
+              .from('product_bundle_items')
+              .select(`
+                component_product_id,
+                quantity,
+                component:products(name, sku)
+              `)
+              .eq('bundle_product_id', product.id);
 
-          if (invError || !inventory) {
-            insufficientStock.push(item.item_name);
-            continue;
+            if (bundleError) {
+              console.error(`Error fetching bundle components:`, bundleError);
+              insufficientStock.push(`${item.item_name} (bundle components not found)`);
+              continue;
+            }
+
+            if (!bundleItems || bundleItems.length === 0) {
+              console.error(`Bundle ${product.name} has no components`);
+              insufficientStock.push(`${item.item_name} (no components defined)`);
+              continue;
+            }
+
+            // Process each component
+            for (const bundleItem of bundleItems) {
+              const deductQty = bundleItem.quantity * item.quantity;
+              
+              // Check component inventory
+              const { data: inventory, error: invError } = await supabaseClient
+                .from('inventory')
+                .select('id, quantity, reserved_quantity, available_quantity')
+                .eq('product_id', bundleItem.component_product_id)
+                .eq('outlet_id', data.outlet_id)
+                .single();
+
+              if (invError || !inventory) {
+                insufficientStock.push(`${bundleItem.component?.name || 'Unknown'} (for bundle ${item.item_name})`);
+                continue;
+              }
+
+              // Check if sufficient component stock
+              if (inventory.available_quantity < deductQty) {
+                insufficientStock.push(
+                  `${bundleItem.component?.name} (for bundle ${item.item_name}) - need: ${deductQty}, available: ${inventory.available_quantity}`
+                );
+                continue;
+              }
+
+              // Deduct component inventory
+              await supabaseClient
+                .from('inventory')
+                .update({
+                  quantity: inventory.quantity - deductQty,
+                  reserved_quantity: Math.max(0, inventory.reserved_quantity - deductQty)
+                })
+                .eq('id', inventory.id);
+
+              console.log(`Dispatched ${deductQty} units of ${bundleItem.component?.name} (component of ${item.item_name})`);
+
+              // Create stock movement for component
+              await supabaseClient
+                .from('stock_movements')
+                .insert({
+                  product_id: bundleItem.component_product_id,
+                  outlet_id: data.outlet_id,
+                  movement_type: 'sale',
+                  quantity: -deductQty,
+                  created_by: user.id,
+                  reference_id: order.id,
+                  notes: `Bundle dispatch: ${item.item_name} -> ${bundleItem.component?.name} (${order.order_number})`
+                });
+            }
+          } else {
+            // REGULAR PRODUCT: Existing deduction logic
+            const { data: inventory, error: invError } = await supabaseClient
+              .from('inventory')
+              .select('id, quantity, reserved_quantity, available_quantity')
+              .eq('product_id', product.id)
+              .eq('outlet_id', data.outlet_id)
+              .single();
+
+            if (invError || !inventory) {
+              insufficientStock.push(item.item_name);
+              continue;
+            }
+
+            // Check if sufficient stock
+            const requiredQty = item.quantity;
+            if (inventory.available_quantity < requiredQty) {
+              insufficientStock.push(`${item.item_name} (need: ${requiredQty}, available: ${inventory.available_quantity})`);
+              continue;
+            }
+
+            // Deduct from inventory (available_quantity auto-calculated by DB trigger)
+            await supabaseClient
+              .from('inventory')
+              .update({
+                quantity: inventory.quantity - requiredQty,
+                reserved_quantity: Math.max(0, inventory.reserved_quantity - requiredQty)
+              })
+              .eq('id', inventory.id);
+
+            console.log(`Dispatched ${requiredQty} units of ${item.item_name} (reserved: ${inventory.reserved_quantity} -> ${Math.max(0, inventory.reserved_quantity - requiredQty)})`);
+
+            // Create stock movement record
+            await supabaseClient
+              .from('stock_movements')
+              .insert({
+                product_id: product.id,
+                outlet_id: data.outlet_id,
+                movement_type: 'sale',
+                quantity: -requiredQty,
+                created_by: user.id,
+                reference_id: order.id,
+                notes: `Order dispatch: ${order.order_number}`
+              });
           }
-
-          // Check if sufficient stock
-          const requiredQty = item.quantity;
-          if (inventory.available_quantity < requiredQty) {
-            insufficientStock.push(`${item.item_name} (need: ${requiredQty}, available: ${inventory.available_quantity})`);
-            continue;
-          }
-
-          // Deduct from inventory (available_quantity auto-calculated by DB trigger)
-          await supabaseClient
-            .from('inventory')
-            .update({
-              quantity: inventory.quantity - requiredQty,
-              reserved_quantity: Math.max(0, inventory.reserved_quantity - requiredQty)
-            })
-            .eq('id', inventory.id);
-
-          console.log(`Dispatched ${requiredQty} units of ${item.item_name} (reserved: ${inventory.reserved_quantity} -> ${Math.max(0, inventory.reserved_quantity - requiredQty)})`);
-
-          // Create stock movement record
-          await supabaseClient
-            .from('stock_movements')
-            .insert({
-              product_id: product.id,
-              outlet_id: data.outlet_id,
-              movement_type: 'sale',
-              quantity: -requiredQty,
-              created_by: user.id,
-              reference_id: order.id,
-              notes: `Order dispatch: ${order.order_number}`
-            });
         }
 
         // If there's insufficient stock, throw error
@@ -164,31 +240,66 @@ serve(async (req) => {
         for (const item of order.order_items) {
           const { data: product } = await supabaseClient
             .from('products')
-            .select('id')
+            .select('id, is_bundle, name')
             .ilike('name', `%${item.item_name}%`)
             .single();
 
           if (!product) continue;
 
-          const { data: inventory } = await supabaseClient
-            .from('inventory')
-            .select('id, quantity, reserved_quantity')
-            .eq('product_id', product.id)
-            .eq('outlet_id', data.outlet_id)
-            .single();
+          if (product.is_bundle) {
+            // BUNDLE PRODUCT: Release each component's reservation
+            console.log(`Releasing bundle reservations: ${product.name}`);
+            
+            const { data: bundleItems } = await supabaseClient
+              .from('product_bundle_items')
+              .select('component_product_id, quantity')
+              .eq('bundle_product_id', product.id);
 
-          if (!inventory) continue;
+            if (!bundleItems) continue;
 
-          // Release reservation (available_quantity auto-calculated by DB trigger)
-          const releaseQty = Math.min(item.quantity, inventory.reserved_quantity);
-          await supabaseClient
-            .from('inventory')
-            .update({
-              reserved_quantity: Math.max(0, inventory.reserved_quantity - releaseQty)
-            })
-            .eq('id', inventory.id);
+            for (const bundleItem of bundleItems) {
+              const releaseQty = bundleItem.quantity * item.quantity;
+              
+              const { data: inventory } = await supabaseClient
+                .from('inventory')
+                .select('id, reserved_quantity')
+                .eq('product_id', bundleItem.component_product_id)
+                .eq('outlet_id', data.outlet_id)
+                .single();
 
-          console.log(`Released ${releaseQty} reserved units of ${item.item_name}`);
+              if (!inventory) continue;
+
+              await supabaseClient
+                .from('inventory')
+                .update({
+                  reserved_quantity: Math.max(0, inventory.reserved_quantity - releaseQty)
+                })
+                .eq('id', inventory.id);
+
+              console.log(`Released ${releaseQty} reserved units of component (for bundle ${item.item_name})`);
+            }
+          } else {
+            // REGULAR PRODUCT: Existing release logic
+            const { data: inventory } = await supabaseClient
+              .from('inventory')
+              .select('id, quantity, reserved_quantity')
+              .eq('product_id', product.id)
+              .eq('outlet_id', data.outlet_id)
+              .single();
+
+            if (!inventory) continue;
+
+            // Release reservation (available_quantity auto-calculated by DB trigger)
+            const releaseQty = Math.min(item.quantity, inventory.reserved_quantity);
+            await supabaseClient
+              .from('inventory')
+              .update({
+                reserved_quantity: Math.max(0, inventory.reserved_quantity - releaseQty)
+              })
+              .eq('id', inventory.id);
+
+            console.log(`Released ${releaseQty} reserved units of ${item.item_name}`);
+          }
         }
 
         // Update order status

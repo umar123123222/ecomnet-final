@@ -10,6 +10,7 @@ export interface Product {
   cost?: number | null;
   reorder_level: number;
   is_active: boolean;
+  is_bundle?: boolean;
   created_at: string;
   updated_at: string;
   size?: string | null;
