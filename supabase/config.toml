@@ -6,6 +6,9 @@ verify_jwt = false
 [functions.rapid-return]
 verify_jwt = false
 
+[functions.handle-shopify-fulfillment-cancelled]
+verify_jwt = false
+
 [functions.update-shopify-credentials]
 verify_jwt = true
 

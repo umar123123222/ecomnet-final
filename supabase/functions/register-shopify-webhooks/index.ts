@@ -61,6 +61,10 @@ Deno.serve(async (req) => {
         address: `${baseWebhookUrl}/handle-shopify-order-update`,
       },
       {
+        topic: 'fulfillments/update',
+        address: `${baseWebhookUrl}/handle-shopify-fulfillment-cancelled`,
+      },
+      {
         topic: 'inventory_levels/update',
         address: `${baseWebhookUrl}/handle-shopify-inventory-update`,
       },
