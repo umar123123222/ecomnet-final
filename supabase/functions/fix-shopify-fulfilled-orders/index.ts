@@ -18,13 +18,13 @@ Deno.serve(async (req) => {
 
     console.log('Starting fix for orders incorrectly marked as delivered...');
 
-    // Find all orders that are marked 'delivered' but have no courier or tracking
+    // Find all orders that are marked 'delivered' but have no tracking_id
     // These are likely orders that were auto-marked delivered due to Shopify fulfillment
+    // (They have a courier but were never actually confirmed delivered by courier API)
     const { data: affectedOrders, error: fetchError } = await supabaseAdmin
       .from('orders')
-      .select('id, order_number, status, tags, shopify_order_id')
+      .select('id, order_number, status, tags, shopify_order_id, courier')
       .eq('status', 'delivered')
-      .is('courier', null)
       .is('tracking_id', null);
 
     if (fetchError) {
@@ -53,21 +53,21 @@ Deno.serve(async (req) => {
 
     for (const order of affectedOrders) {
       try {
-        // Update status back to pending and add 'Shopify - Fulfilled' tag
+        // Update status to dispatched (since they have courier) and add 'Shopify - Fulfilled' tag
         const currentTags = order.tags || [];
         const updatedTags = currentTags.includes('Shopify - Fulfilled') 
           ? currentTags 
           : [...currentTags, 'Shopify - Fulfilled'];
 
-        // Also replace any 'Ecomnet - Delivered' tag with 'Ecomnet - Pending'
+        // Replace 'Ecomnet - Delivered' tag with 'Ecomnet - Dispatched'
         const finalTags = updatedTags.map(tag => 
-          tag === 'Ecomnet - Delivered' ? 'Ecomnet - Pending' : tag
+          tag === 'Ecomnet - Delivered' ? 'Ecomnet - Dispatched' : tag
         );
 
         const { error: updateError } = await supabaseAdmin
           .from('orders')
           .update({
-            status: 'pending',
+            status: 'dispatched',
             tags: finalTags,
             delivered_at: null,
           })
@@ -90,8 +90,9 @@ Deno.serve(async (req) => {
             details: {
               order_number: order.order_number,
               previous_status: 'delivered',
-              new_status: 'pending',
-              reason: 'Fixed incorrect delivered status from Shopify fulfillment',
+              new_status: 'dispatched',
+              reason: 'Fixed incorrect delivered status - no tracking confirmation from courier',
+              courier: order.courier,
               shopify_fulfilled_tag_added: !currentTags.includes('Shopify - Fulfilled'),
             },
             user_id: '00000000-0000-0000-0000-000000000000', // System user
