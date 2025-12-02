@@ -246,4 +246,32 @@ export const NotificationTemplates = {
     type: 'order_update' as NotificationType,
     priority: 'normal' as NotificationPriority,
   }),
+
+  transferRequested: (fromOutlet: string, toOutlet: string, items: number) => ({
+    title: 'Stock Transfer Requested',
+    message: `Transfer request from ${fromOutlet} to ${toOutlet} with ${items} item(s)`,
+    type: 'info' as NotificationType,
+    priority: 'normal' as NotificationPriority,
+  }),
+
+  transferReceived: (transferId: string, outletName: string) => ({
+    title: 'Transfer Received',
+    message: `Transfer to ${outletName} has been received and processed`,
+    type: 'success' as NotificationType,
+    priority: 'normal' as NotificationPriority,
+  }),
+
+  transferVarianceDetected: (productName: string, expected: number, received: number, outletName: string) => ({
+    title: 'Transfer Variance Detected',
+    message: `${productName} at ${outletName}: Expected ${expected}, Received ${received}. Variance: ${expected - received}`,
+    type: 'warning' as NotificationType,
+    priority: 'high' as NotificationPriority,
+  }),
+
+  transferCompleted: (fromOutlet: string, toOutlet: string) => ({
+    title: 'Transfer Completed',
+    message: `Stock transfer from ${fromOutlet} to ${toOutlet} completed successfully`,
+    type: 'success' as NotificationType,
+    priority: 'low' as NotificationPriority,
+  }),
 };

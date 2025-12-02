@@ -143,31 +143,31 @@ export const getRolePermissions = (role: UserRole) => {
     case 'store_manager':
       return {
         ...permissions,
-        canAccessDashboard: true,
-        canAccessOrders: true,
-        canAccessCustomers: true,
-        canAccessDispatch: true,
-        canAccessReturns: true,
-        canAccessAddressVerification: true,
+        canAccessDashboard: false,
+        canAccessOrders: false,
+        canAccessCustomers: false,
+        canAccessDispatch: false,
+        canAccessReturns: false,
+        canAccessAddressVerification: false,
         canAccessInventory: true,
-        canAccessOutlets: true,
-        canManageOutlets: true,
-        canAccessProducts: true,
-        canManageProducts: true,
+        canAccessOutlets: false,
+        canManageOutlets: false,
+        canAccessProducts: false,
+        canManageProducts: false,
         canAccessStockTransfer: true,
         canCreateStockTransfer: true,
-        canAccessLocations: true,
+        canAccessLocations: false,
         canAccessSettings: true,
-        canAccessSuppliers: true,
-        canManageSuppliers: true,
-        canAccessSupplierAnalytics: true,
-        canAccessPurchaseOrders: true,
-        canAccessReceiving: true,
-        canAccessStockAudit: true,
-        canAccessVarianceManagement: true,
-        canAccessFraudReporting: true,
+        canAccessSuppliers: false,
+        canManageSuppliers: false,
+        canAccessSupplierAnalytics: false,
+        canAccessPurchaseOrders: false,
+        canAccessReceiving: false,
+        canAccessStockAudit: false,
+        canAccessVarianceManagement: false,
+        canAccessFraudReporting: false,
         canAccessPOS: true,
-        canAssignCouriers: true,
+        canAssignCouriers: false,
       };
     
     case 'warehouse_manager':
@@ -328,8 +328,8 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     });
   }
 
-  // 6.5 PRODUCTION - Manufacturing operations
-  if (['super_admin', 'super_manager', 'warehouse_manager', 'store_manager'].includes(role)) {
+  // 6.5 PRODUCTION - Manufacturing operations (not for store managers)
+  if (['super_admin', 'super_manager', 'warehouse_manager'].includes(role)) {
     items.push({
       label: 'Production',
       href: '/production',
