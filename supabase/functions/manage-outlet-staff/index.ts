@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
             can_access_pos,
             created_at,
             updated_at,
-            profiles:user_id (
+            profiles!outlet_staff_user_id_fkey (
               id,
               email,
               full_name,
