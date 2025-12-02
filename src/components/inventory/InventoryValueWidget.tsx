@@ -5,51 +5,48 @@ import { Badge } from "@/components/ui/badge";
 import { DollarSign, TrendingUp, TrendingDown, Package, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/utils/currency";
 import { useCurrency } from "@/hooks/useCurrency";
-
 export function InventoryValueWidget() {
-  const { currency } = useCurrency();
-
-  const { data: inventoryValue, isLoading } = useQuery({
+  const {
+    currency
+  } = useCurrency();
+  const {
+    data: inventoryValue,
+    isLoading
+  } = useQuery({
     queryKey: ['inventory-value'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('inventory')
-        .select(`
+      const {
+        data,
+        error
+      } = await supabase.from('inventory').select(`
           quantity,
           product:products (
             cost,
             price
           )
         `);
-
       if (error) throw error;
-
       const totalCostValue = data.reduce((sum, item) => {
         const cost = item.product?.cost || 0;
-        return sum + (item.quantity * cost);
+        return sum + item.quantity * cost;
       }, 0);
-
       const totalRetailValue = data.reduce((sum, item) => {
         const price = item.product?.price || 0;
-        return sum + (item.quantity * price);
+        return sum + item.quantity * price;
       }, 0);
-
       const potentialProfit = totalRetailValue - totalCostValue;
-      const profitMargin = totalCostValue > 0 ? (potentialProfit / totalCostValue) * 100 : 0;
-
+      const profitMargin = totalCostValue > 0 ? potentialProfit / totalCostValue * 100 : 0;
       return {
         costValue: totalCostValue,
         retailValue: totalRetailValue,
         potentialProfit,
         profitMargin,
-        totalItems: data.length,
+        totalItems: data.length
       };
-    },
+    }
   });
-
   if (isLoading) {
-    return (
-      <Card>
+    return <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5" />
@@ -61,12 +58,9 @@ export function InventoryValueWidget() {
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         </CardContent>
-      </Card>
-    );
+      </Card>;
   }
-
-  return (
-    <Card>
+  return <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <DollarSign className="h-5 w-5" />
@@ -91,7 +85,7 @@ export function InventoryValueWidget() {
             <TrendingUp className="h-8 w-8 text-green-500" />
           </div>
 
-          <div className="flex items-center justify-between p-3 border rounded-lg bg-accent/50">
+          <div className="flex items-center justify-between p-3 border rounded-lg bg-muted">
             <div>
               <p className="text-sm text-muted-foreground">Potential Profit</p>
               <p className="text-2xl font-bold text-green-600">
@@ -103,11 +97,7 @@ export function InventoryValueWidget() {
                 </Badge>
               </div>
             </div>
-            {(inventoryValue?.profitMargin || 0) > 0 ? (
-              <TrendingUp className="h-8 w-8 text-green-500" />
-            ) : (
-              <TrendingDown className="h-8 w-8 text-red-500" />
-            )}
+            {(inventoryValue?.profitMargin || 0) > 0 ? <TrendingUp className="h-8 w-8 text-green-500" /> : <TrendingDown className="h-8 w-8 text-red-500" />}
           </div>
 
           <div className="pt-2 border-t">
@@ -118,6 +108,5 @@ export function InventoryValueWidget() {
           </div>
         </div>
       </CardContent>
-    </Card>
-  );
+    </Card>;
 }
