@@ -165,32 +165,34 @@ const InventoryDashboard = () => {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold text-foreground">
             Inventory Dashboard
           </h1>
           <p className="text-muted-foreground">Track and manage stock levels across outlets</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             onClick={handleTriggerAutomation}
             disabled={triggering}
             variant="outline"
+            size="sm"
             className="gap-2"
           >
             <PlayCircle className="h-4 w-4" />
             {triggering ? 'Running...' : 'Run Smart Reorder'}
           </Button>
           <Link to="/automation-history">
-            <Button variant="outline" className="gap-2">
+            <Button variant="outline" size="sm" className="gap-2">
               <History className="h-4 w-4" />
-              Automation History
+              History
             </Button>
           </Link>
           {permissions.canCreateStockTransfer && (
             <Button
               onClick={() => setQuickTransferDialogOpen(true)}
               variant="secondary"
+              size="sm"
               className="gap-2"
             >
               <ArrowRight className="h-4 w-4" />
@@ -201,6 +203,7 @@ const InventoryDashboard = () => {
             <Button
               onClick={() => setBulkAdjustmentDialogOpen(true)}
               variant="secondary"
+              size="sm"
               className="gap-2"
             >
               <FileSpreadsheet className="h-4 w-4" />
@@ -210,6 +213,7 @@ const InventoryDashboard = () => {
           {permissions.canAccessInventory && (
             <Button
               onClick={() => setAdjustmentDialogOpen(true)}
+              size="sm"
               className="gap-2"
             >
               <Settings className="h-4 w-4" />
@@ -224,34 +228,40 @@ const InventoryDashboard = () => {
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card className="border-l-4 border-l-primary">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Items</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Items</CardTitle>
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <Package className="h-4 w-4 text-primary" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalItems.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Across all outlets</p>
+            <div className="text-2xl font-bold text-foreground">{totalItems.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground mt-1">Across all outlets</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-info">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Value</CardTitle>
+            <div className="h-8 w-8 rounded-full bg-info/10 flex items-center justify-center">
+              <DollarSign className="h-4 w-4 text-info" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">PKR {totalValue.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Inventory worth</p>
+            <div className="text-2xl font-bold text-foreground">PKR {totalValue.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground mt-1">Inventory worth</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-warning">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Low Stock Items</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Low Stock Items</CardTitle>
+            <div className="h-8 w-8 rounded-full bg-warning/10 flex items-center justify-center">
+              <AlertTriangle className="h-4 w-4 text-warning" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">{lowStockCount}</div>
-            <p className="text-xs text-muted-foreground">Needs attention</p>
+            <div className="text-2xl font-bold text-warning">{lowStockCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">Needs attention</p>
           </CardContent>
         </Card>
       </div>
@@ -259,7 +269,7 @@ const InventoryDashboard = () => {
       {/* Inventory Table with Integrated Filters */}
       <Card>
         {/* Integrated Filter Bar */}
-        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between p-4 bg-muted/30 rounded-t-lg border-b">
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between p-4 bg-muted/50 rounded-t-lg border-b">
           {/* Left side - Quick filters */}
           <div className="flex flex-1 gap-3 flex-wrap items-center">
             {/* Search */}
@@ -411,7 +421,7 @@ const InventoryDashboard = () => {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
             <>
@@ -471,13 +481,18 @@ const InventoryDashboard = () => {
                             <TableCell className="text-right">{item.product?.reorder_level || 10}</TableCell>
                             <TableCell>
                               {isOutOfStock ? (
-                                <Badge variant="destructive">Out of Stock</Badge>
+                                <Badge variant="destructive" className="gap-1">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Out of Stock
+                                </Badge>
                               ) : isLowStock ? (
-                                <Badge variant="outline" className="border-orange-500 text-orange-500">
+                                <Badge className="bg-warning/10 text-warning border-warning gap-1" variant="outline">
+                                  <TrendingUp className="h-3 w-3" />
                                   Low Stock
                                 </Badge>
                               ) : (
-                                <Badge variant="outline" className="border-green-500 text-green-500">
+                                <Badge className="bg-success/10 text-success border-success gap-1" variant="outline">
+                                  <Package className="h-3 w-3" />
                                   In Stock
                                 </Badge>
                               )}
