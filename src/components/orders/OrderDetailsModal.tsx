@@ -7,7 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { Package, Truck, MapPin, Clock, CheckCircle, XCircle, AlertCircle, History, FileText, RefreshCw, RotateCcw, Box } from "lucide-react";
+import { Package, Truck, MapPin, Clock, CheckCircle, XCircle, AlertCircle, History, FileText, RefreshCw, RotateCcw, Box, ChevronRight, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ConfirmOrderDialog } from "./ConfirmOrderDialog";
 import { BookCourierDialog } from "./BookCourierDialog";
 import { OrderActivityLog } from "./OrderActivityLog";
@@ -449,107 +450,83 @@ export const OrderDetailsModal = ({
                   </Button>}
               </div>}
 
-            {/* Tracking History - Horizontal Table Format */}
-            {trackingHistory.length > 0 ? <div className="space-y-4">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-primary" />
-                  Tracking History
-                </h3>
+            {/* Tracking History - Collapsible Horizontal Timeline with Arrows */}
+            {trackingHistory.length > 0 ? (
+              <Collapsible defaultOpen={true} className="space-y-2">
+                <CollapsibleTrigger asChild>
+                  <button className="w-full flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-muted/50 transition-colors">
+                    <span className="font-semibold flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-primary" />
+                      Tracking History ({trackingHistory.length} updates)
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]>&]:rotate-180" />
+                  </button>
+                </CollapsibleTrigger>
                 
-                <div className="border rounded-lg overflow-hidden">
-                  <ScrollArea className="w-full">
-                    <div className="min-w-max p-6">
-                      {/* Horizontal tracking stages */}
-                      <div className="flex items-start gap-1">
-                        {trackingHistory.map((event, index) => <div key={event.id} className="flex items-start flex-1 min-w-[160px]">
-                            {/* Stage card */}
-                            <div className="flex flex-col items-center text-center flex-1">
-                              {/* Icon with checkmark badge */}
-                              <div className="relative mb-3">
-                                <div className={`p-3 rounded-full ${getStatusColor(event.status).includes('green') || getStatusColor(event.status).includes('blue') ? 'bg-primary/10' : 'bg-muted'}`}>
-                                  <div className={`h-8 w-8 flex items-center justify-center ${getStatusColor(event.status).includes('green') || getStatusColor(event.status).includes('blue') ? 'text-primary' : 'text-muted-foreground'}`}>
-                                    {getStatusIcon(event.status)}
+                <CollapsibleContent>
+                  <div className="border rounded-lg overflow-hidden">
+                    <ScrollArea className="w-full">
+                      <div className="min-w-max p-4">
+                        {/* Horizontal tracking stages with arrows */}
+                        <div className="flex items-start">
+                          {trackingHistory.map((event, index) => (
+                            <div key={event.id} className="flex items-start">
+                              {/* Stage card */}
+                              <div className="flex flex-col items-center text-center min-w-[130px]">
+                                {/* Icon with checkmark badge */}
+                                <div className="relative mb-2">
+                                  <div className={`p-2 rounded-full ${getStatusColor(event.status).includes('green') || getStatusColor(event.status).includes('blue') ? 'bg-primary/10' : 'bg-muted'}`}>
+                                    <div className={`h-5 w-5 flex items-center justify-center ${getStatusColor(event.status).includes('green') || getStatusColor(event.status).includes('blue') ? 'text-primary' : 'text-muted-foreground'}`}>
+                                      {getStatusIcon(event.status)}
+                                    </div>
+                                  </div>
+                                  {/* Checkmark badge for completed stages */}
+                                  {(getStatusColor(event.status).includes('green') || getStatusColor(event.status).includes('blue')) && (
+                                    <div className="absolute -top-0.5 -right-0.5 bg-green-500 rounded-full p-0.5">
+                                      <CheckCircle className="h-3 w-3 text-white" />
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Stage info */}
+                                <div className="space-y-0.5">
+                                  <div className="text-xs font-medium">
+                                    {formatTrackingStatus(event.status)}
+                                  </div>
+                                  {event.current_location && (
+                                    <div className="text-xs text-muted-foreground truncate max-w-[120px]">
+                                      {event.current_location}
+                                    </div>
+                                  )}
+                                  <div className="text-xs text-muted-foreground">
+                                    {format(new Date(event.checked_at), 'MMM d')}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground font-mono">
+                                    {format(new Date(event.checked_at), 'hh:mm a')}
                                   </div>
                                 </div>
-                                {/* Checkmark badge for completed stages */}
-                                {(getStatusColor(event.status).includes('green') || getStatusColor(event.status).includes('blue')) && <div className="absolute -top-1 -right-1 bg-green-500 rounded-full p-0.5">
-                                    <CheckCircle className="h-4 w-4 text-white" />
-                                  </div>}
                               </div>
                               
-                              {/* Stage info */}
-                              <div className="space-y-1">
-                                <div className="text-sm font-medium">
-                                  {formatTrackingStatus(event.status)}
+                              {/* Arrow connector - show except for last item */}
+                              {index < trackingHistory.length - 1 && (
+                                <div className="flex items-center pt-4 px-1">
+                                  <ChevronRight className={`h-5 w-5 ${
+                                    getStatusColor(event.status).includes('green') || getStatusColor(event.status).includes('blue') 
+                                      ? 'text-primary' 
+                                      : 'text-muted-foreground'
+                                  }`} />
                                 </div>
-                                {event.current_location && <div className="text-xs text-muted-foreground">
-                                    {event.current_location}
-                                  </div>}
-                                <div className="text-xs text-muted-foreground">
-                                  {format(new Date(event.checked_at), 'MMM d, yyyy')}
-                                </div>
-                                <div className="text-xs text-muted-foreground font-mono">
-                                  {format(new Date(event.checked_at), 'hh:mm a')}
-                                </div>
-                              </div>
+                              )}
                             </div>
-                            
-                            {/* Connector line - show except for last item */}
-                            {index < trackingHistory.length - 1 && <div className="flex items-center pt-6 px-2">
-                                <div className={`h-px flex-1 min-w-[20px] ${getStatusColor(event.status).includes('green') || getStatusColor(event.status).includes('blue') ? 'bg-primary' : 'bg-border'}`} />
-                              </div>}
-                          </div>)}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  </ScrollArea>
-                </div>
-
-                {/* Detailed tracking table */}
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="bg-muted/50 px-4 py-2 border-b">
-                    <h4 className="text-sm font-semibold">Detailed History</h4>
+                    </ScrollArea>
                   </div>
-                  <ScrollArea className="h-[300px]">
-                    <table className="w-full">
-                      <thead className="bg-muted/30 sticky top-0">
-                        <tr className="text-xs text-muted-foreground border-b">
-                          <th className="text-left p-3 font-medium">Status</th>
-                          <th className="text-left p-3 font-medium">Location</th>
-                          <th className="text-left p-3 font-medium">Date & Time</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {trackingHistory.map(event => <tr key={event.id} className="border-b hover:bg-muted/20 transition-colors">
-                            <td className="p-3">
-                              <div className="flex items-center gap-2">
-                                <div className={`p-1.5 rounded-full ${getStatusColor(event.status)}`}>
-                                  {getStatusIcon(event.status)}
-                                </div>
-                                <span className="text-sm font-medium">
-                                  {formatTrackingStatus(event.status)}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="p-3">
-                              {event.current_location ? <div className="flex items-center gap-1.5 text-sm">
-                                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                                  {event.current_location}
-                                </div> : <span className="text-sm text-muted-foreground">-</span>}
-                            </td>
-                            <td className="p-3">
-                              <div className="text-sm">
-                                {format(new Date(event.checked_at), 'MMM d, yyyy')}
-                              </div>
-                              <div className="text-xs text-muted-foreground font-mono">
-                                {format(new Date(event.checked_at), 'hh:mm:ss a')}
-                              </div>
-                            </td>
-                          </tr>)}
-                      </tbody>
-                    </table>
-                  </ScrollArea>
-                </div>
-              </div> : <div className="flex flex-col items-center justify-center py-12 space-y-4 border rounded-lg bg-muted/20">
+                </CollapsibleContent>
+              </Collapsible>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 space-y-4 border rounded-lg bg-muted/20">
                 <div className="p-4 rounded-full bg-muted">
                   <Package className="h-12 w-12 text-muted-foreground" />
                 </div>
@@ -559,11 +536,14 @@ export const OrderDetailsModal = ({
                     Tracking updates from the courier haven't been fetched yet. Click "Fetch Tracking" to get the latest updates.
                   </div>
                 </div>
-                {dispatchInfo?.tracking_id && <Button variant="default" onClick={handleFetchTracking}>
+                {dispatchInfo?.tracking_id && (
+                  <Button variant="default" onClick={handleFetchTracking}>
                     <Package className="h-4 w-4 mr-2" />
                     Fetch Tracking Now
-                  </Button>}
-              </div>}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>}
           </TabsContent>
 

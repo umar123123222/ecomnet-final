@@ -21,8 +21,12 @@ import {
   AlertCircle,
   FileText,
   Send,
-  RotateCcw
+  RotateCcw,
+  ChevronDown,
+  Info
 } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Button } from '@/components/ui/button';
 
 interface TimelineEvent {
   id: string;
@@ -402,66 +406,72 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
           <div className="text-xs text-muted-foreground">Activities will appear here as actions are taken</div>
         </div>
       ) : (
-        <ScrollArea className="h-[500px] pr-4">
+        <ScrollArea className="h-[350px] pr-4">
           <div className="relative">
             {/* Timeline line */}
-            <div className="absolute left-6 top-0 bottom-0 w-px bg-border" />
+            <div className="absolute left-5 top-0 bottom-0 w-px bg-border" />
             
-            <div className="space-y-6">
-              {timeline.map((event, index) => (
-                <div key={event.id} className="relative pl-14">
+            <div className="space-y-3">
+              {timeline.map((event) => (
+                <div key={event.id} className="relative pl-11">
                   {/* Timeline dot */}
-                  <div className={`absolute left-4 top-1 p-1.5 rounded-full border-2 bg-background ${getEventColor(event.type, event.status)}`}>
+                  <div className={`absolute left-3 top-1 p-1 rounded-full border bg-background ${getEventColor(event.type, event.status)}`}>
                     {getEventIcon(event.type)}
                   </div>
 
-                  <div className="border rounded-lg p-4 bg-card space-y-3">
-                    <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-1 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge className={getEventColor(event.type, event.status)}>
-                            {event.title}
-                          </Badge>
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            {format(new Date(event.timestamp), 'MMM d, yyyy')} at {format(new Date(event.timestamp), 'hh:mm a')}
-                          </div>
-                          {event.location && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <MapPin className="h-3 w-3" />
-                              {event.location}
-                            </div>
-                          )}
-                        </div>
-                        {event.description && (
-                          <p className="text-sm text-foreground font-medium">{event.description}</p>
-                        )}
-                      </div>
+                  <div className="border rounded-lg p-3 bg-card space-y-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline" className={`text-xs ${getEventColor(event.type, event.status)}`}>
+                        {event.title}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {format(new Date(event.timestamp), 'MMM d')} • {format(new Date(event.timestamp), 'hh:mm a')}
+                      </span>
+                      {event.location && (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <MapPin className="h-3 w-3" />
+                          {event.location}
+                        </span>
+                      )}
                     </div>
+                    
+                    {event.description && (
+                      <p className="text-sm text-foreground">{event.description}</p>
+                    )}
 
                     {event.user && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">{event.user.full_name}</span>
-                        <span className="text-muted-foreground">({event.user.email})</span>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <User className="h-3 w-3" />
+                        <span>{event.user.full_name}</span>
                       </div>
                     )}
 
                     {event.details && Object.keys(event.details).length > 0 && (
-                      <div className="bg-muted/50 rounded p-3 text-sm space-y-1">
-                        {Object.entries(event.details).map(([key, value]) => (
-                          <div key={key} className="flex gap-2">
-                            <span className="font-medium text-foreground capitalize">
-                              {key.replace(/_/g, ' ')}:
-                            </span>
-                            <span className="text-muted-foreground">
-                              {typeof value === 'object' 
-                                ? JSON.stringify(value) 
-                                : String(value)}
-                            </span>
+                      <Collapsible>
+                        <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground">
+                            <Info className="h-3 w-3 mr-1" />
+                            Show details
+                            <ChevronDown className="h-3 w-3 ml-1 transition-transform duration-200 [[data-state=open]>&]:rotate-180" />
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <div className="bg-muted/50 rounded p-2 mt-2 text-xs space-y-1">
+                            {Object.entries(event.details).map(([key, value]) => (
+                              <div key={key} className="flex gap-2">
+                                <span className="font-medium text-foreground capitalize">
+                                  {key.replace(/_/g, ' ')}:
+                                </span>
+                                <span className="text-muted-foreground truncate">
+                                  {typeof value === 'object' 
+                                    ? JSON.stringify(value) 
+                                    : String(value)}
+                                </span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </CollapsibleContent>
+                      </Collapsible>
                     )}
                   </div>
                 </div>
