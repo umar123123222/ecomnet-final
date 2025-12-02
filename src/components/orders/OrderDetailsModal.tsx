@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,92 @@ import { BookCourierDialog } from "./BookCourierDialog";
 import { OrderActivityLog } from "./OrderActivityLog";
 import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+
+// Compact Vertical Tracking Timeline Component
+const TrackingTimeline = ({ 
+  trackingHistory, 
+  formatTrackingStatus, 
+  getStatusIcon, 
+  getStatusColor 
+}: { 
+  trackingHistory: TrackingEvent[];
+  formatTrackingStatus: (status: string) => string;
+  getStatusIcon: (status: string) => React.ReactNode;
+  getStatusColor: (status: string) => string;
+}) => {
+  const [showAll, setShowAll] = useState(false);
+  const INITIAL_DISPLAY = 4;
+  const displayedEvents = showAll ? trackingHistory : trackingHistory.slice(0, INITIAL_DISPLAY);
+  const hiddenCount = trackingHistory.length - INITIAL_DISPLAY;
+
+  return (
+    <Collapsible defaultOpen={true} className="space-y-2">
+      <CollapsibleTrigger asChild>
+        <button className="w-full flex items-center justify-between p-2 border rounded-lg bg-card hover:bg-muted/50 transition-colors">
+          <span className="text-sm font-medium flex items-center gap-2">
+            <Clock className="h-4 w-4 text-primary" />
+            Tracking History ({trackingHistory.length})
+          </span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]>&]:rotate-180" />
+        </button>
+      </CollapsibleTrigger>
+      
+      <CollapsibleContent>
+        <div className="border rounded-lg p-3 bg-card">
+          <div className="relative">
+            {/* Vertical timeline line */}
+            <div className="absolute left-[11px] top-2 bottom-2 w-px bg-border" />
+            
+            <div className="space-y-2">
+              {displayedEvents.map((event, index) => (
+                <div key={event.id} className="relative flex items-start gap-3 pl-7">
+                  {/* Timeline dot */}
+                  <div className={`absolute left-0 p-1 rounded-full border bg-background ${getStatusColor(event.status)}`}>
+                    <div className="h-3 w-3 flex items-center justify-center">
+                      {getStatusIcon(event.status)}
+                    </div>
+                  </div>
+                  
+                  {/* Event content - single line */}
+                  <div className="flex-1 min-w-0 py-0.5">
+                    <div className="flex items-center gap-2 flex-wrap text-sm">
+                      <span className="font-medium">{formatTrackingStatus(event.status)}</span>
+                      {event.current_location && (
+                        <span className="text-muted-foreground truncate">{event.current_location}</span>
+                      )}
+                      <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">
+                        {format(new Date(event.checked_at), 'MMM d, hh:mm a')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Show more button */}
+            {hiddenCount > 0 && !showAll && (
+              <button 
+                onClick={() => setShowAll(true)}
+                className="mt-2 ml-7 text-xs text-primary hover:underline"
+              >
+                Show {hiddenCount} more update{hiddenCount > 1 ? 's' : ''}...
+              </button>
+            )}
+            {showAll && hiddenCount > 0 && (
+              <button 
+                onClick={() => setShowAll(false)}
+                className="mt-2 ml-7 text-xs text-muted-foreground hover:underline"
+              >
+                Show less
+              </button>
+            )}
+          </div>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+};
+
 interface Order {
   id: string;
   order_number: string;
@@ -190,10 +276,10 @@ export const OrderDetailsModal = ({
     return statusMap[status] || status;
   };
   const getStatusIcon = (status: string) => {
-    if (status === 'delivered') return <CheckCircle className="h-5 w-5 text-green-500" />;
-    if (status === 'returned' || status === 'cancelled') return <XCircle className="h-5 w-5 text-red-500" />;
-    if (status === 'failed_delivery') return <AlertCircle className="h-5 w-5 text-orange-500" />;
-    return <Truck className="h-5 w-5 text-blue-500" />;
+    if (status === 'delivered') return <CheckCircle className="h-3 w-3 text-green-500" />;
+    if (status === 'returned' || status === 'cancelled') return <XCircle className="h-3 w-3 text-red-500" />;
+    if (status === 'failed_delivery') return <AlertCircle className="h-3 w-3 text-orange-500" />;
+    return <Truck className="h-3 w-3 text-blue-500" />;
   };
   const getStatusColor = (status: string) => {
     if (status === 'delivered') return 'bg-green-500/10 text-green-500 border-green-500/20';
@@ -450,96 +536,29 @@ export const OrderDetailsModal = ({
                   </Button>}
               </div>}
 
-            {/* Tracking History - Collapsible Horizontal Timeline with Arrows */}
+            {/* Tracking History - Compact Vertical Timeline */}
             {trackingHistory.length > 0 ? (
-              <Collapsible defaultOpen={true} className="space-y-2">
-                <CollapsibleTrigger asChild>
-                  <button className="w-full flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-muted/50 transition-colors">
-                    <span className="font-semibold flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-primary" />
-                      Tracking History ({trackingHistory.length} updates)
-                    </span>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]>&]:rotate-180" />
-                  </button>
-                </CollapsibleTrigger>
-                
-                <CollapsibleContent>
-                  <div className="border rounded-lg overflow-hidden">
-                    <ScrollArea className="w-full">
-                      <div className="min-w-max p-4">
-                        {/* Horizontal tracking stages with arrows */}
-                        <div className="flex items-start">
-                          {trackingHistory.map((event, index) => (
-                            <div key={event.id} className="flex items-start">
-                              {/* Stage card */}
-                              <div className="flex flex-col items-center text-center min-w-[130px]">
-                                {/* Icon with checkmark badge */}
-                                <div className="relative mb-2">
-                                  <div className={`p-2 rounded-full ${getStatusColor(event.status).includes('green') || getStatusColor(event.status).includes('blue') ? 'bg-primary/10' : 'bg-muted'}`}>
-                                    <div className={`h-5 w-5 flex items-center justify-center ${getStatusColor(event.status).includes('green') || getStatusColor(event.status).includes('blue') ? 'text-primary' : 'text-muted-foreground'}`}>
-                                      {getStatusIcon(event.status)}
-                                    </div>
-                                  </div>
-                                  {/* Checkmark badge for completed stages */}
-                                  {(getStatusColor(event.status).includes('green') || getStatusColor(event.status).includes('blue')) && (
-                                    <div className="absolute -top-0.5 -right-0.5 bg-green-500 rounded-full p-0.5">
-                                      <CheckCircle className="h-3 w-3 text-white" />
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                {/* Stage info */}
-                                <div className="space-y-0.5">
-                                  <div className="text-xs font-medium">
-                                    {formatTrackingStatus(event.status)}
-                                  </div>
-                                  {event.current_location && (
-                                    <div className="text-xs text-muted-foreground truncate max-w-[120px]">
-                                      {event.current_location}
-                                    </div>
-                                  )}
-                                  <div className="text-xs text-muted-foreground">
-                                    {format(new Date(event.checked_at), 'MMM d')}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground font-mono">
-                                    {format(new Date(event.checked_at), 'hh:mm a')}
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              {/* Arrow connector - show except for last item */}
-                              {index < trackingHistory.length - 1 && (
-                                <div className="flex items-center pt-4 px-1">
-                                  <ChevronRight className={`h-5 w-5 ${
-                                    getStatusColor(event.status).includes('green') || getStatusColor(event.status).includes('blue') 
-                                      ? 'text-primary' 
-                                      : 'text-muted-foreground'
-                                  }`} />
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </ScrollArea>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
+              <TrackingTimeline 
+                trackingHistory={trackingHistory}
+                formatTrackingStatus={formatTrackingStatus}
+                getStatusIcon={getStatusIcon}
+                getStatusColor={getStatusColor}
+              />
             ) : (
-              <div className="flex flex-col items-center justify-center py-12 space-y-4 border rounded-lg bg-muted/20">
-                <div className="p-4 rounded-full bg-muted">
-                  <Package className="h-12 w-12 text-muted-foreground" />
+              <div className="flex flex-col items-center justify-center py-8 space-y-3 border rounded-lg bg-muted/20">
+                <div className="p-3 rounded-full bg-muted">
+                  <Package className="h-8 w-8 text-muted-foreground" />
                 </div>
                 <div className="space-y-1 text-center">
-                  <div className="text-lg font-semibold">No Tracking Data Available</div>
-                  <div className="text-sm text-muted-foreground max-w-md">
-                    Tracking updates from the courier haven't been fetched yet. Click "Fetch Tracking" to get the latest updates.
+                  <div className="text-sm font-semibold">No Tracking Data</div>
+                  <div className="text-xs text-muted-foreground max-w-xs">
+                    Click "Fetch Tracking" to get updates from the courier.
                   </div>
                 </div>
                 {dispatchInfo?.tracking_id && (
-                  <Button variant="default" onClick={handleFetchTracking}>
+                  <Button variant="outline" size="sm" onClick={handleFetchTracking}>
                     <Package className="h-4 w-4 mr-2" />
-                    Fetch Tracking Now
+                    Fetch Tracking
                   </Button>
                 )}
               </div>
