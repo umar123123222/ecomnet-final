@@ -213,14 +213,14 @@ export function AddOutletDialog({ open, onOpenChange, outlet }: AddOutletDialogP
           <div className="space-y-2">
             <Label htmlFor="manager_id">Assign Manager</Label>
             <Select
-              value={managerId || ""}
-              onValueChange={(value) => setValue("manager_id", value || null)}
+              value={managerId || "none"}
+              onValueChange={(value) => setValue("manager_id", value === "none" ? null : value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select a manager" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">No Manager</SelectItem>
+                <SelectItem value="none">No Manager</SelectItem>
                 {managers.map((manager) => (
                   <SelectItem key={manager.id} value={manager.id}>
                     {manager.full_name}
@@ -335,14 +335,14 @@ export function AddOutletDialog({ open, onOpenChange, outlet }: AddOutletDialogP
             <div className="space-y-2">
               <Label htmlFor="manager_id">Assign Manager</Label>
               <Select
-                value={managerId || ""}
-                onValueChange={(value) => setValue("manager_id", value || null)}
+                value={managerId || "none"}
+                onValueChange={(value) => setValue("manager_id", value === "none" ? null : value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a manager" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No Manager</SelectItem>
+                  <SelectItem value="none">No Manager</SelectItem>
                   {managers.map((manager) => (
                     <SelectItem key={manager.id} value={manager.id}>
                       {manager.full_name}
