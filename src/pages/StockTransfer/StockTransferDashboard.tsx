@@ -15,11 +15,17 @@ import { useToast } from "@/hooks/use-toast";
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { useAuth } from '@/contexts/AuthContext';
 
-type TransferWithRelations = StockTransferRequest & {
-  product?: { name: string; sku: string };
+type TransferWithRelations = Omit<StockTransferRequest, 'from_outlet' | 'to_outlet'> & {
   from_outlet?: { name: string };
   to_outlet?: { name: string };
   requester?: { full_name: string };
+  items?: {
+    id: string;
+    product_id: string;
+    quantity_requested: number;
+    quantity_approved: number | null;
+    product: { name: string; sku: string };
+  }[];
 };
 
 const StockTransferDashboard = () => {
@@ -314,14 +320,22 @@ const StockTransferDashboard = () => {
                         </TableCell>
                         <TableCell>
                           <div>
-                            <div className="font-medium">{transfer.product?.name}</div>
-                            <div className="text-xs text-muted-foreground">{transfer.product?.sku}</div>
+                            {transfer.items && transfer.items.length > 0 ? (
+                              transfer.items.map((item, idx) => (
+                                <div key={idx}>
+                                  <div className="font-medium">{item.product?.name}</div>
+                                  <div className="text-xs text-muted-foreground">{item.product?.sku} (Qty: {item.quantity_approved || item.quantity_requested})</div>
+                                </div>
+                              ))
+                            ) : (
+                              <span className="text-muted-foreground">No items</span>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>{transfer.from_outlet?.name}</TableCell>
                         <TableCell>{transfer.to_outlet?.name}</TableCell>
                         <TableCell className="text-right font-medium">
-                          {(transfer as any).quantity_approved || (transfer as any).quantity_requested || 0}
+                          {transfer.items?.reduce((sum, item) => sum + (item.quantity_approved || item.quantity_requested), 0) || 0}
                         </TableCell>
                         <TableCell>{transfer.requester?.full_name}</TableCell>
                         <TableCell>{getStatusBadge(transfer.status)}</TableCell>
