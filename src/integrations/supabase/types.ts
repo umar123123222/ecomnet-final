@@ -4552,6 +4552,57 @@ export type Database = {
           },
         ]
       }
+      stock_transfer_packaging_items: {
+        Row: {
+          created_at: string
+          id: string
+          is_auto_calculated: boolean
+          notes: string | null
+          packaging_item_id: string
+          quantity_approved: number | null
+          quantity_received: number | null
+          quantity_requested: number
+          transfer_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_auto_calculated?: boolean
+          notes?: string | null
+          packaging_item_id: string
+          quantity_approved?: number | null
+          quantity_received?: number | null
+          quantity_requested?: number
+          transfer_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_auto_calculated?: boolean
+          notes?: string | null
+          packaging_item_id?: string
+          quantity_approved?: number | null
+          quantity_received?: number | null
+          quantity_requested?: number
+          transfer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_transfer_packaging_items_packaging_item_id_fkey"
+            columns: ["packaging_item_id"]
+            isOneToOne: false
+            referencedRelation: "packaging_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_packaging_items_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "stock_transfer_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_transfer_requests: {
         Row: {
           approved_by: string | null
