@@ -198,3 +198,6 @@ verify_jwt = true
 [functions.backfill-shopify-fulfillments]
 verify_jwt = false
 
+[functions.backfill-order-shipping]
+verify_jwt = true
+

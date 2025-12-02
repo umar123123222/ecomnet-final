@@ -21,6 +21,7 @@ interface Order {
   customer_email?: string;
   city: string;
   total_amount: number;
+  shipping_charges?: number;
   status: string;
   courier?: string | null;
   tracking_id?: string | null;
@@ -246,6 +247,61 @@ export const OrderDetailsModal = ({
               
             </div>
           </DialogHeader>
+
+          {/* Order Summary Card */}
+          <div className="border rounded-lg p-4 bg-card space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              {/* Customer Info */}
+              <div className="space-y-2">
+                <div className="text-sm text-muted-foreground">Customer</div>
+                <div className="font-medium">{order.customer_name}</div>
+                {order.customer_phone && (
+                  <div className="text-sm text-muted-foreground">{order.customer_phone}</div>
+                )}
+                {order.customer_email && (
+                  <div className="text-sm text-muted-foreground">{order.customer_email}</div>
+                )}
+              </div>
+
+              {/* Order Total Breakdown */}
+              <div className="space-y-2">
+                <div className="text-sm text-muted-foreground">Order Total</div>
+                {order.shipping_charges !== undefined && order.shipping_charges > 0 ? (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Subtotal:</span>
+                      <span className="font-mono">
+                        PKR {(order.total_amount - order.shipping_charges).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Shipping:</span>
+                      <span className="font-mono">
+                        PKR {order.shipping_charges.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="border-t pt-1 mt-1"></div>
+                    <div className="flex justify-between font-semibold">
+                      <span>Total:</span>
+                      <span className="font-mono">
+                        PKR {order.total_amount.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="font-semibold font-mono">
+                    PKR {order.total_amount.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Address */}
+            <div className="pt-2 border-t">
+              <div className="text-sm text-muted-foreground mb-1">Delivery Address</div>
+              <div className="text-sm">{order.customer_address}, {order.city}</div>
+            </div>
+          </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">

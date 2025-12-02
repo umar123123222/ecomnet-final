@@ -1979,6 +1979,7 @@ export type Database = {
           order_type: string | null
           risk_level: string | null
           risk_score: number | null
+          shipping_charges: number | null
           shopify_fulfillment_id: number | null
           shopify_last_sync_at: string | null
           shopify_order_id: number | null
@@ -2037,6 +2038,7 @@ export type Database = {
           order_type?: string | null
           risk_level?: string | null
           risk_score?: number | null
+          shipping_charges?: number | null
           shopify_fulfillment_id?: number | null
           shopify_last_sync_at?: string | null
           shopify_order_id?: number | null
@@ -2095,6 +2097,7 @@ export type Database = {
           order_type?: string | null
           risk_level?: string | null
           risk_score?: number | null
+          shipping_charges?: number | null
           shopify_fulfillment_id?: number | null
           shopify_last_sync_at?: string | null
           shopify_order_id?: number | null
