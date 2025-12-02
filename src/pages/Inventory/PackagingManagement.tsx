@@ -62,6 +62,8 @@ const packagingSchema = z.object({
   current_stock: z.number().int().min(0),
   is_active: z.boolean().default(true),
   supplier_id: z.string().optional(),
+  allocation_type: z.enum(['per_product', 'product_specific', 'per_order_rules', 'none']).default('none'),
+  linked_product_ids: z.array(z.string()).default([]),
 });
 
 type PackagingFormData = z.infer<typeof packagingSchema>;
@@ -120,6 +122,20 @@ export default function PackagingManagement() {
     }
   });
 
+  // Fetch products for product-specific allocation
+  const { data: products = [] } = useQuery({
+    queryKey: ['products-for-packaging'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, sku')
+        .eq('is_active', true)
+        .order('name');
+      if (error) throw error;
+      return data;
+    }
+  });
+
   const form = useForm<PackagingFormData>({
     resolver: zodResolver(packagingSchema),
     defaultValues: {
@@ -133,8 +149,12 @@ export default function PackagingManagement() {
       current_stock: 0,
       is_active: true,
       supplier_id: undefined,
+      allocation_type: "none",
+      linked_product_ids: [],
     },
   });
+
+  const watchAllocationType = form.watch('allocation_type');
 
   const createMutation = useMutation({
     mutationFn: async (data: PackagingFormData) => {
@@ -201,6 +221,8 @@ export default function PackagingManagement() {
       current_stock: item.current_stock,
       is_active: item.is_active,
       supplier_id: item.supplier_id || undefined,
+      allocation_type: item.allocation_type || "none",
+      linked_product_ids: item.linked_product_ids || [],
     });
     setDialogOpen(true);
   };
@@ -351,6 +373,7 @@ export default function PackagingManagement() {
               <TableHead>Name</TableHead>
               <TableHead>SKU</TableHead>
               <TableHead>Type</TableHead>
+              <TableHead>Allocation</TableHead>
               <TableHead>Size</TableHead>
               <TableHead className="text-right">Current Stock</TableHead>
               <TableHead className="text-right">Reserved</TableHead>
@@ -364,19 +387,25 @@ export default function PackagingManagement() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={permissions.canManagePackaging ? 12 : 11} className="text-center">
+                <TableCell colSpan={permissions.canManagePackaging ? 13 : 12} className="text-center">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : filteredItems?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={permissions.canManagePackaging ? 12 : 11} className="text-center">
+                <TableCell colSpan={permissions.canManagePackaging ? 13 : 12} className="text-center">
                   No packaging items found
                 </TableCell>
               </TableRow>
             ) : (
               filteredItems?.map((item) => {
                 const status = getStockStatus(item);
+                const allocationLabel = {
+                  'per_product': 'Per Product',
+                  'product_specific': 'Product Specific',
+                  'per_order_rules': 'Order Rules',
+                  'none': '-'
+                }[item.allocation_type || 'none'];
                 return (
                   <TableRow key={item.id}>
                     {permissions.canManagePackaging && (
@@ -390,6 +419,11 @@ export default function PackagingManagement() {
                     <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell>{item.sku}</TableCell>
                     <TableCell className="capitalize">{item.type}</TableCell>
+                    <TableCell>
+                      <Badge variant={item.allocation_type === 'none' ? 'outline' : 'secondary'}>
+                        {allocationLabel}
+                      </Badge>
+                    </TableCell>
                     <TableCell>{item.size || "-"}</TableCell>
                     <TableCell className="text-right">
                       <span className="font-medium">{item.current_stock}</span>
@@ -637,6 +671,93 @@ export default function PackagingManagement() {
                     </FormItem>
                   )}
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="allocation_type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Allocation Type</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">None (Manual Only)</SelectItem>
+                          <SelectItem value="per_product">Per Product (1 per unit)</SelectItem>
+                          <SelectItem value="product_specific">Product Specific</SelectItem>
+                          <SelectItem value="per_order_rules">Per Order Rules</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {field.value === 'per_product' && 'One packaging item per product unit in pending orders'}
+                        {field.value === 'product_specific' && 'Only for specific linked products'}
+                        {field.value === 'per_order_rules' && 'Based on order packaging rules (e.g., flyers)'}
+                        {field.value === 'none' && 'No automatic reservation'}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {watchAllocationType === 'product_specific' && (
+                  <FormField
+                    control={form.control}
+                    name="linked_product_ids"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Linked Products</FormLabel>
+                        <Select
+                          onValueChange={(value) => {
+                            const current = field.value || [];
+                            if (current.includes(value)) {
+                              field.onChange(current.filter(id => id !== value));
+                            } else {
+                              field.onChange([...current, value]);
+                            }
+                          }}
+                          value=""
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Add product..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {products.filter(p => !(field.value || []).includes(p.id)).map((product) => (
+                              <SelectItem key={product.id} value={product.id}>
+                                {product.name} ({product.sku})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {(field.value || []).length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {(field.value || []).map((productId: string) => {
+                              const product = products.find(p => p.id === productId);
+                              return (
+                                <Badge
+                                  key={productId}
+                                  variant="secondary"
+                                  className="cursor-pointer"
+                                  onClick={() => field.onChange((field.value || []).filter((id: string) => id !== productId))}
+                                >
+                                  {product?.name || productId}
+                                  <span className="ml-1">×</span>
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </div>
 
               <FormField
