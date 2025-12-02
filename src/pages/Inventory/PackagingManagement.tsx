@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Package, AlertTriangle, Printer, Edit, Trash2, PackagePlus } from "lucide-react";
+import { Plus, Search, Package, AlertTriangle, Edit, Trash2, PackagePlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useBulkOperations } from "@/hooks/useBulkOperations";
 import { bulkDeletePackagingItems } from "@/utils/bulkOperations";
@@ -46,7 +46,6 @@ import { Switch } from "@/components/ui/switch";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { SmartReorderSettings } from "@/components/inventory/SmartReorderSettings";
 import { PackagingAdjustmentDialog } from "@/components/inventory/PackagingAdjustmentDialog";
 import { PackagingRulesManager } from "@/components/inventory/PackagingRulesManager";
 import { useUserRoles } from '@/hooks/useUserRoles';
@@ -72,8 +71,6 @@ export default function PackagingManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
-  const [reorderSettingsOpen, setReorderSettingsOpen] = useState(false);
-  const [reorderItem, setReorderItem] = useState<any>(null);
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const { toast } = useToast();
@@ -453,26 +450,6 @@ export default function PackagingManagement() {
                             Edit
                           </Button>
                         )}
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => {
-                            setReorderItem(item);
-                            setReorderSettingsOpen(true);
-                          }}
-                        >
-                          Smart Reorder
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => {
-                            window.open(`/production/labels?packaging=${item.id}&type=packaging`, '_blank');
-                          }}
-                        >
-                          <Printer className="h-3 w-3 mr-1" />
-                          Labels
-                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -799,24 +776,6 @@ export default function PackagingManagement() {
               </DialogFooter>
             </form>
           </Form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={reorderSettingsOpen} onOpenChange={setReorderSettingsOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Smart Reorder Settings</DialogTitle>
-          </DialogHeader>
-          {reorderItem && (
-            <SmartReorderSettings
-              item={reorderItem}
-              itemType="packaging"
-              suppliers={suppliers}
-              onUpdate={() => {
-                setReorderSettingsOpen(false);
-              }}
-            />
-          )}
         </DialogContent>
       </Dialog>
 
