@@ -4,20 +4,60 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Building2, MapPin, Plus, Loader2, Users } from "lucide-react";
+import { Building2, MapPin, Plus, Loader2, Users, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Outlet, Inventory } from "@/types/inventory";
 import { AddOutletDialog } from "@/components/inventory/AddOutletDialog";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { getRolePermissions } from "@/utils/rolePermissions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const OutletManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [outletDialogOpen, setOutletDialogOpen] = useState(false);
   const [selectedOutlet, setSelectedOutlet] = useState<Outlet | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [outletToDelete, setOutletToDelete] = useState<Outlet | null>(null);
   const { primaryRole } = useUserRoles();
   const permissions = getRolePermissions(primaryRole);
+
+  // Delete outlet mutation
+  const deleteOutletMutation = useMutation({
+    mutationFn: async (outletId: string) => {
+      const { error } = await supabase
+        .from("outlets")
+        .delete()
+        .eq("id", outletId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Outlet deleted successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["outlets"] });
+      queryClient.invalidateQueries({ queryKey: ["outlet-stats"] });
+      setDeleteDialogOpen(false);
+      setOutletToDelete(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete outlet",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Fetch outlets
   const { data: outlets, isLoading } = useQuery<(Outlet & { manager?: { full_name: string } })[]>({
@@ -135,16 +175,31 @@ const OutletManagement = () => {
                           {outlet.phone}
                         </div>
                       )}
-                      <Button
-                        variant="outline"
-                        className="w-full mt-2"
-                        onClick={() => {
-                          setSelectedOutlet(outlet);
-                          setOutletDialogOpen(true);
-                        }}
-                      >
-                        View Details
-                      </Button>
+                      {permissions.canManageOutlets && (
+                        <div className="flex gap-2 mt-2">
+                          <Button
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => {
+                              setSelectedOutlet(outlet);
+                              setOutletDialogOpen(true);
+                            }}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="text-red-600 hover:bg-red-50"
+                            onClick={() => {
+                              setOutletToDelete(outlet);
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 );
@@ -197,16 +252,31 @@ const OutletManagement = () => {
                           {outlet.phone}
                         </div>
                       )}
-                      <Button
-                        variant="outline"
-                        className="w-full mt-2"
-                        onClick={() => {
-                          setSelectedOutlet(outlet);
-                          setOutletDialogOpen(true);
-                        }}
-                      >
-                        View Details
-                      </Button>
+                      {permissions.canManageOutlets && (
+                        <div className="flex gap-2 mt-2">
+                          <Button
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => {
+                              setSelectedOutlet(outlet);
+                              setOutletDialogOpen(true);
+                            }}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="text-red-600 hover:bg-red-50"
+                            onClick={() => {
+                              setOutletToDelete(outlet);
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 );
@@ -225,6 +295,34 @@ const OutletManagement = () => {
         }}
         outlet={selectedOutlet}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Outlet</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{outletToDelete?.name}"? This action cannot be undone.
+              All inventory and associated data will remain but will no longer be linked to this outlet.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setOutletToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => outletToDelete && deleteOutletMutation.mutate(outletToDelete.id)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteOutletMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
