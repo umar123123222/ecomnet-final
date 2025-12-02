@@ -173,11 +173,11 @@ useEffect(() => {
             customer_address,
             city,
             total_amount,
-            status
-          ),
-          order_packaging:order_packaging!order_packaging_order_id_fkey(
-            id,
-            packaging_items:packaging_items(name, sku)
+            status,
+            order_packaging (
+              id,
+              packaging_items (name, sku)
+            )
           )
         `);
 
@@ -1616,10 +1616,10 @@ const metrics = useMemo(() => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {dispatch.order_packaging && dispatch.order_packaging.length > 0 ? (
+                        {dispatch.orders?.order_packaging && dispatch.orders.order_packaging.length > 0 ? (
                           <div className="flex items-center gap-1 text-sm">
                             <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>{dispatch.order_packaging[0].packaging_items?.name || 'Unknown'}</span>
+                            <span>{dispatch.orders.order_packaging[0].packaging_items?.name || 'Unknown'}</span>
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">-</span>
