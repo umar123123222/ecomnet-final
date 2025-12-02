@@ -2339,6 +2339,7 @@ export type Database = {
       }
       packaging_items: {
         Row: {
+          allocation_type: string | null
           auto_reorder_enabled: boolean | null
           avg_daily_usage: number | null
           barcode: string | null
@@ -2349,6 +2350,7 @@ export type Database = {
           id: string
           is_active: boolean
           lead_time_days: number | null
+          linked_product_ids: string[] | null
           material: string | null
           name: string
           preferred_supplier_id: string | null
@@ -2362,6 +2364,7 @@ export type Database = {
           usage_velocity_updated_at: string | null
         }
         Insert: {
+          allocation_type?: string | null
           auto_reorder_enabled?: boolean | null
           avg_daily_usage?: number | null
           barcode?: string | null
@@ -2372,6 +2375,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           lead_time_days?: number | null
+          linked_product_ids?: string[] | null
           material?: string | null
           name: string
           preferred_supplier_id?: string | null
@@ -2385,6 +2389,7 @@ export type Database = {
           usage_velocity_updated_at?: string | null
         }
         Update: {
+          allocation_type?: string | null
           auto_reorder_enabled?: boolean | null
           avg_daily_usage?: number | null
           barcode?: string | null
@@ -2395,6 +2400,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           lead_time_days?: number | null
+          linked_product_ids?: string[] | null
           material?: string | null
           name?: string
           preferred_supplier_id?: string | null
