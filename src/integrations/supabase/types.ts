@@ -5521,6 +5521,13 @@ export type Database = {
           status: Database["public"]["Enums"]["order_status"]
         }[]
       }
+      get_packaging_reservations: {
+        Args: never
+        Returns: {
+          packaging_item_id: string
+          reserved_count: number
+        }[]
+      }
       get_product_lifecycle: {
         Args: { p_barcode: string }
         Returns: {
