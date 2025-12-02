@@ -8,8 +8,12 @@ export function calculateOrderTotal(lineItems: any[], shopifyTotalPrice: string,
     return parseFloat(shopifyTotalPrice || '0');
   }
 
-  // Check if any item has current_quantity (indicates order was adjusted)
-  const hasAdjustments = lineItems.some(item => 'current_quantity' in item);
+  // Check if any item has current_quantity that differs from quantity (indicates order was adjusted)
+  const hasAdjustments = lineItems.some(item => 
+    'current_quantity' in item && 
+    item.current_quantity !== undefined &&
+    item.current_quantity !== item.quantity
+  );
 
   if (hasAdjustments) {
     // Calculate total from active items only, then add shipping
