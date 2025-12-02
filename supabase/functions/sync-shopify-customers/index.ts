@@ -286,11 +286,11 @@ Deno.serve(async (req) => {
       console.log(`[Manual Upsert] Processing ${customerPayloads.length} customers...`);
 
       try {
-        // Step 1: Query for existing customers
+        // Step 1: Query for existing customers by shopify_customer_id
         const shopifyIds = customerPayloads.map(c => c.shopify_customer_id);
         const { data: existingCustomers, error: queryError } = await admin
           .from('customers')
-          .select('id, shopify_customer_id')
+          .select('id, shopify_customer_id, email')
           .in('shopify_customer_id', shopifyIds);
 
         if (queryError) {
@@ -300,17 +300,36 @@ Deno.serve(async (req) => {
           const existingMap = new Map(
             (existingCustomers || []).map(c => [c.shopify_customer_id, c.id])
           );
-          console.log(`[Found] ${existingMap.size} existing customers out of ${customerPayloads.length}`);
+          console.log(`[Found] ${existingMap.size} existing customers by Shopify ID out of ${customerPayloads.length}`);
 
-          // Step 2: Separate into updates and inserts
+          // Step 2: For payloads without Shopify match, check by email
           const toUpdate: Array<{ id: string; data: any }> = [];
           const toInsert: Array<any> = [];
 
           for (const payload of customerPayloads) {
             const existingId = existingMap.get(payload.shopify_customer_id);
             if (existingId) {
+              // Found by Shopify ID - update
               toUpdate.push({ id: existingId, data: payload });
+            } else if (payload.email) {
+              // Not found by Shopify ID, try email match
+              const { data: emailMatch } = await admin
+                .from('customers')
+                .select('id')
+                .ilike('email', payload.email)
+                .is('shopify_customer_id', null) // Only match customers without Shopify ID
+                .maybeSingle();
+              
+              if (emailMatch) {
+                // Found by email - update and link Shopify ID
+                console.log(`[Email Match] Found customer by email ${payload.email}, linking Shopify ID ${payload.shopify_customer_id}`);
+                toUpdate.push({ id: emailMatch.id, data: payload });
+              } else {
+                // No match - insert new
+                toInsert.push(payload);
+              }
             } else {
+              // No email to check - insert new
               toInsert.push(payload);
             }
           }
