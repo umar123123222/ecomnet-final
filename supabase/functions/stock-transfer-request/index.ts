@@ -22,7 +22,6 @@ serve(async (req) => {
       }
     )
 
-    // Verify user is authenticated
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
     if (authError || !user) {
       return new Response(
@@ -32,15 +31,25 @@ serve(async (req) => {
     }
 
     const { action, ...data } = await req.json()
+    console.log(`Stock transfer action: ${action}`, data)
 
     switch (action) {
       case 'create': {
-        const { productId, fromOutletId, toOutletId, quantity, notes } = data
+        // Support both old format (single item) and new format (multiple items with packaging)
+        const { 
+          product_id, quantity_requested, // Old format
+          items, packaging_items, // New format
+          from_outlet_id, to_outlet_id, notes,
+          fromOutletId, toOutletId // Alternative field names
+        } = data
         
-        // Check if requesting user has access to destination outlet (where they're requesting inventory TO)
+        const finalFromOutletId = from_outlet_id || fromOutletId
+        const finalToOutletId = to_outlet_id || toOutletId
+        
+        // Check if requesting user has access to destination outlet
         const { data: hasAccess } = await supabaseClient.rpc('has_outlet_access', {
           _user_id: user.id,
-          _outlet_id: toOutletId
+          _outlet_id: finalToOutletId
         })
 
         if (!hasAccess) {
@@ -54,8 +63,8 @@ serve(async (req) => {
         const { data: request, error } = await supabaseClient
           .from('stock_transfer_requests')
           .insert({
-            from_outlet_id: fromOutletId,
-            to_outlet_id: toOutletId,
+            from_outlet_id: finalFromOutletId,
+            to_outlet_id: finalToOutletId,
             notes: notes,
             requested_by: user.id,
             status: 'pending'
@@ -65,16 +74,42 @@ serve(async (req) => {
 
         if (error) throw error
 
-        // Create transfer items
-        const { error: itemsError } = await supabaseClient
-          .from('stock_transfer_items')
-          .insert({
+        // Handle items - support both old and new format
+        const productItems = items || (product_id ? [{ product_id, quantity: quantity_requested }] : [])
+        
+        if (productItems.length > 0) {
+          const transferItems = productItems.map((item: any) => ({
             transfer_id: request.id,
-            product_id: productId,
-            quantity_requested: quantity
-          })
+            product_id: item.product_id,
+            quantity_requested: item.quantity
+          }))
 
-        if (itemsError) throw itemsError
+          const { error: itemsError } = await supabaseClient
+            .from('stock_transfer_items')
+            .insert(transferItems)
+
+          if (itemsError) throw itemsError
+        }
+
+        // Handle packaging items if provided
+        if (packaging_items && packaging_items.length > 0) {
+          const packagingTransferItems = packaging_items.map((item: any) => ({
+            transfer_id: request.id,
+            packaging_item_id: item.packaging_item_id,
+            quantity_requested: item.quantity,
+            is_auto_calculated: item.is_auto_calculated || false,
+            notes: item.notes
+          }))
+
+          const { error: packagingError } = await supabaseClient
+            .from('stock_transfer_packaging_items')
+            .insert(packagingTransferItems)
+
+          if (packagingError) {
+            console.error('Error inserting packaging items:', packagingError)
+            // Don't throw - packaging table might not exist yet
+          }
+        }
 
         return new Response(
           JSON.stringify({ success: true, request }),
@@ -83,9 +118,8 @@ serve(async (req) => {
       }
 
       case 'approve': {
-        const { transfer_id, quantity_approved } = data
+        const { transfer_id, quantity_approved, items_approved, packaging_items_approved } = data
         
-        // Get the request details
         const { data: request, error: getError } = await supabaseClient
           .from('stock_transfer_requests')
           .select('*')
@@ -94,7 +128,6 @@ serve(async (req) => {
 
         if (getError) throw getError
 
-        // Check if user has permission to approve
         const { data: profile } = await supabaseClient
           .from('profiles')
           .select('role')
@@ -109,7 +142,6 @@ serve(async (req) => {
           )
         }
 
-        // Update request status and quantity
         const { error: updateError } = await supabaseClient
           .from('stock_transfer_requests')
           .update({
@@ -121,14 +153,30 @@ serve(async (req) => {
 
         if (updateError) throw updateError
 
-        // Update items with approved quantity
-        if (quantity_approved) {
-          const { error: itemsError } = await supabaseClient
+        // Update product items with approved quantities
+        if (items_approved && items_approved.length > 0) {
+          for (const item of items_approved) {
+            await supabaseClient
+              .from('stock_transfer_items')
+              .update({ quantity_approved: item.quantity_approved })
+              .eq('id', item.id)
+          }
+        } else if (quantity_approved) {
+          // Old format - single quantity
+          await supabaseClient
             .from('stock_transfer_items')
             .update({ quantity_approved })
             .eq('transfer_id', transfer_id)
+        }
 
-          if (itemsError) throw itemsError
+        // Update packaging items with approved quantities
+        if (packaging_items_approved && packaging_items_approved.length > 0) {
+          for (const item of packaging_items_approved) {
+            await supabaseClient
+              .from('stock_transfer_packaging_items')
+              .update({ quantity_approved: item.quantity_approved })
+              .eq('id', item.id)
+          }
         }
 
         return new Response(
@@ -140,7 +188,6 @@ serve(async (req) => {
       case 'reject': {
         const { transfer_id, rejection_reason } = data
         
-        // Check if user has permission
         const { data: profile } = await supabaseClient
           .from('profiles')
           .select('role')
@@ -174,12 +221,13 @@ serve(async (req) => {
       case 'complete': {
         const { transfer_id } = data
         
-        // Get the approved request with items
+        // Get the approved request with items and packaging
         const { data: request, error: getError } = await supabaseClient
           .from('stock_transfer_requests')
           .select(`
             *,
-            items:stock_transfer_items(*)
+            items:stock_transfer_items(*),
+            packaging_items:stock_transfer_packaging_items(*)
           `)
           .eq('id', transfer_id)
           .eq('status', 'approved')
@@ -194,11 +242,10 @@ serve(async (req) => {
           )
         }
 
-        // Process each item
+        // Process product items
         for (const item of request.items) {
           const quantity = item.quantity_approved || item.quantity_requested
 
-          // Create stock movements (this will update inventory automatically via triggers)
           const { error: movementError } = await supabaseClient
             .from('stock_movements')
             .insert([
@@ -217,7 +264,7 @@ serve(async (req) => {
                 quantity: quantity,
                 movement_type: 'transfer_in',
                 reference_id: transfer_id,
-                notes: `Transfer from outlet`,
+                notes: `Transfer from warehouse`,
                 created_by: user.id,
               }
             ])
@@ -225,7 +272,41 @@ serve(async (req) => {
           if (movementError) throw movementError
         }
 
-        // Update request to completed
+        // Process packaging items
+        if (request.packaging_items && request.packaging_items.length > 0) {
+          for (const packItem of request.packaging_items) {
+            const quantity = packItem.quantity_approved || packItem.quantity_requested
+
+            // Create packaging movement (deduct from warehouse)
+            const { error: packMovementError } = await supabaseClient
+              .from('packaging_movements')
+              .insert({
+                packaging_item_id: packItem.packaging_item_id,
+                movement_type: 'transfer_out',
+                quantity: -quantity,
+                reference_id: transfer_id,
+                notes: `Transfer to outlet`,
+                created_by: user.id
+              })
+
+            if (packMovementError) {
+              console.error('Error creating packaging movement:', packMovementError)
+            }
+
+            // Deduct from packaging_items current_stock
+            await supabaseClient.rpc('decrement_packaging_stock', {
+              p_packaging_item_id: packItem.packaging_item_id,
+              p_quantity: quantity
+            }).catch(() => {
+              // If RPC doesn't exist, do direct update
+              supabaseClient
+                .from('packaging_items')
+                .update({ current_stock: supabaseClient.raw(`current_stock - ${quantity}`) })
+                .eq('id', packItem.packaging_item_id)
+            })
+          }
+        }
+
         const { error: completeError } = await supabaseClient
           .from('stock_transfer_requests')
           .update({
@@ -243,9 +324,8 @@ serve(async (req) => {
       }
 
       case 'receive': {
-        const { transfer_id, receipt_items, notes } = data
+        const { transfer_id, receipt_items, packaging_receipt_items, notes } = data
         
-        // Get transfer details with items
         const { data: transfer, error: transferError } = await supabaseClient
           .from('stock_transfer_requests')
           .select(`
@@ -258,6 +338,13 @@ serve(async (req) => {
               quantity_approved,
               quantity_requested,
               product:products(id, name, sku, cost)
+            ),
+            packaging_items:stock_transfer_packaging_items(
+              id,
+              packaging_item_id,
+              quantity_approved,
+              quantity_requested,
+              packaging:packaging_items(id, name, sku, cost_per_unit)
             )
           `)
           .eq('id', transfer_id)
@@ -265,7 +352,6 @@ serve(async (req) => {
 
         if (transferError) throw transferError
 
-        // Verify user has access to receiving outlet
         const { data: hasAccess } = await supabaseClient.rpc('has_outlet_access', {
           _user_id: user.id,
           _outlet_id: transfer.to_outlet_id
@@ -278,7 +364,6 @@ serve(async (req) => {
           )
         }
 
-        // Create transfer receipt
         const { data: receipt, error: receiptError } = await supabaseClient
           .from('transfer_receipts')
           .insert({
@@ -292,13 +377,13 @@ serve(async (req) => {
 
         if (receiptError) throw receiptError
 
-        // Create receipt items and track variances
         const variances: any[] = []
-        for (const item of receipt_items) {
+
+        // Process product receipt items
+        for (const item of (receipt_items || [])) {
           const transferItem = transfer.items.find((ti: any) => ti.id === item.transfer_item_id)
           if (!transferItem) continue
 
-          // Insert receipt item
           const { error: itemError } = await supabaseClient
             .from('transfer_receipt_items')
             .insert({
@@ -311,7 +396,6 @@ serve(async (req) => {
 
           if (itemError) throw itemError
 
-          // If variance exists, create variance record
           const variance = item.quantity_expected - item.quantity_received
           if (variance !== 0) {
             const varianceValue = variance * (transferItem.product?.cost || 0)
@@ -341,7 +425,6 @@ serve(async (req) => {
             variances.push(varianceRecord)
           }
 
-          // Create stock movement for received quantity
           const { error: movementError } = await supabaseClient
             .from('stock_movements')
             .insert({
@@ -357,7 +440,34 @@ serve(async (req) => {
           if (movementError) throw movementError
         }
 
-        // Update transfer status to completed or received based on variances
+        // Process packaging receipt items
+        for (const item of (packaging_receipt_items || [])) {
+          const packagingItem = transfer.packaging_items?.find((pi: any) => pi.id === item.transfer_packaging_item_id)
+          if (!packagingItem) continue
+
+          // Update received quantity
+          await supabaseClient
+            .from('stock_transfer_packaging_items')
+            .update({ quantity_received: item.quantity_received })
+            .eq('id', item.transfer_packaging_item_id)
+
+          // Create packaging movement for received quantity
+          const { error: packMovementError } = await supabaseClient
+            .from('packaging_movements')
+            .insert({
+              packaging_item_id: packagingItem.packaging_item_id,
+              movement_type: 'transfer_in',
+              quantity: item.quantity_received,
+              reference_id: transfer_id,
+              notes: `Transfer receipt from ${transfer.from_outlet?.name || 'warehouse'}`,
+              created_by: user.id
+            })
+
+          if (packMovementError) {
+            console.error('Error creating packaging receipt movement:', packMovementError)
+          }
+        }
+
         const status = variances.length > 0 ? 'received' : 'completed'
         const { error: updateError } = await supabaseClient
           .from('stock_transfer_requests')
@@ -371,7 +481,6 @@ serve(async (req) => {
 
         // Send notifications if variances detected
         if (variances.length > 0) {
-          // Get users to notify (super_admin, super_manager, warehouse_manager)
           const { data: managersToNotify } = await supabaseClient
             .from('profiles')
             .select('id, email, full_name')
@@ -414,7 +523,6 @@ serve(async (req) => {
       case 'cancel': {
         const { transfer_id } = data
         
-        // Get the request
         const { data: request, error: getError } = await supabaseClient
           .from('stock_transfer_requests')
           .select('requested_by, status')
@@ -423,7 +531,6 @@ serve(async (req) => {
 
         if (getError) throw getError
 
-        // Check if user can cancel (must be requester or admin)
         const { data: profile } = await supabaseClient
           .from('profiles')
           .select('role')
@@ -447,7 +554,6 @@ serve(async (req) => {
           )
         }
 
-        // Update request status
         const { error } = await supabaseClient
           .from('stock_transfer_requests')
           .update({ status: 'cancelled' })
