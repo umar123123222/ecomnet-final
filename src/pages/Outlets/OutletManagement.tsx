@@ -31,35 +31,48 @@ const OutletManagement = () => {
   const { primaryRole } = useUserRoles();
   const permissions = getRolePermissions(primaryRole);
 
-  // Delete outlet mutation
+  // Delete outlet mutation (soft delete when linked data exists)
   const deleteOutletMutation = useMutation({
     mutationFn: async (outletId: string) => {
-      // Check for related records
+      // Check for related records that would block hard delete
       const [purchaseOrders, inventory, stockTransfers] = await Promise.all([
         supabase.from("purchase_orders").select("id", { count: "exact", head: true }).eq("outlet_id", outletId),
         supabase.from("inventory").select("id", { count: "exact", head: true }).eq("outlet_id", outletId),
-        supabase.from("stock_transfer_requests").select("id", { count: "exact", head: true }).or(`from_outlet_id.eq.${outletId},to_outlet_id.eq.${outletId}`)
+        supabase
+          .from("stock_transfer_requests")
+          .select("id", { count: "exact", head: true })
+          .or(`from_outlet_id.eq.${outletId},to_outlet_id.eq.${outletId}`),
       ]);
 
-      const relatedRecords = [];
-      if (purchaseOrders.count && purchaseOrders.count > 0) relatedRecords.push(`${purchaseOrders.count} purchase order(s)`);
-      if (inventory.count && inventory.count > 0) relatedRecords.push(`${inventory.count} inventory record(s)`);
-      if (stockTransfers.count && stockTransfers.count > 0) relatedRecords.push(`${stockTransfers.count} stock transfer(s)`);
+      const hasLinkedData =
+        (purchaseOrders.count ?? 0) > 0 ||
+        (inventory.count ?? 0) > 0 ||
+        (stockTransfers.count ?? 0) > 0;
 
-      if (relatedRecords.length > 0) {
-        throw new Error(`Cannot delete outlet. It has ${relatedRecords.join(", ")} associated with it. Please remove or reassign these records first.`);
+      if (hasLinkedData) {
+        // Soft delete: mark outlet inactive but keep history and links
+        const { error } = await supabase
+          .from("outlets")
+          .update({ is_active: false })
+          .eq("id", outletId);
+        if (error) throw error;
+        return { softDeleted: true };
       }
 
+      // No linked data, safe to hard delete
       const { error } = await supabase
         .from("outlets")
         .delete()
         .eq("id", outletId);
       if (error) throw error;
+      return { softDeleted: false };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast({
         title: "Success",
-        description: "Outlet deleted successfully",
+        description: result?.softDeleted
+          ? "Outlet deactivated. Existing records remain linked for history."
+          : "Outlet deleted successfully",
       });
       queryClient.invalidateQueries({ queryKey: ["outlets"] });
       queryClient.invalidateQueries({ queryKey: ["outlet-stats"] });
