@@ -5552,6 +5552,7 @@ export type Database = {
       }
       mark_expired_confirmations: { Args: never; Returns: number }
       match_barcode_to_product: { Args: { p_barcode: string }; Returns: string }
+      merge_duplicate_customers: { Args: never; Returns: undefined }
       normalize_phone: { Args: { p_phone: string }; Returns: string }
       rapid_dispatch_order: {
         Args: {
