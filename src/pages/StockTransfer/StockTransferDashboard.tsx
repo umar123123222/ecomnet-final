@@ -5,12 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowRightLeft, Clock, CheckCircle, XCircle, Plus, Loader2 } from "lucide-react";
+import { ArrowRightLeft, Clock, CheckCircle, XCircle, Plus, Loader2, PackageCheck } from "lucide-react";
 import { format } from "date-fns";
 import { StockTransferRequest, Product, Outlet } from "@/types/inventory";
 import { StockTransferDialog } from "@/components/inventory/StockTransferDialog";
+import { TransferReceiveDialog } from "@/components/inventory/TransferReceiveDialog";
+import { OutletInventoryView } from "@/components/inventory/OutletInventoryView";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRoles } from '@/hooks/useUserRoles';
+import { useAuth } from '@/contexts/AuthContext';
 
 type TransferWithRelations = StockTransferRequest & {
   product?: { name: string; sku: string };
@@ -22,9 +25,14 @@ type TransferWithRelations = StockTransferRequest & {
 const StockTransferDashboard = () => {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
+  const [selectedTransfer, setSelectedTransfer] = useState<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { permissions } = useUserRoles();
+  const { permissions, primaryRole } = useUserRoles();
+  const { profile } = useAuth();
+
+  const isStoreManager = primaryRole === 'store_manager';
 
   // Fetch products and outlets for the dialog
   const { data: products } = useQuery<Product[]>({
@@ -55,7 +63,7 @@ const StockTransferDashboard = () => {
 
   // Fetch transfer requests with items
   const { data: transfers, isLoading } = useQuery<TransferWithRelations[]>({
-    queryKey: ["stock-transfers", filterStatus],
+    queryKey: ["stock-transfers", filterStatus, profile?.id],
     queryFn: async () => {
       let query = supabase
         .from("stock_transfer_requests")
@@ -63,9 +71,29 @@ const StockTransferDashboard = () => {
           *,
           from_outlet:outlets!stock_transfer_requests_from_outlet_id_fkey(name),
           to_outlet:outlets!stock_transfer_requests_to_outlet_id_fkey(name),
-          requester:profiles!stock_transfer_requests_requested_by_fkey(full_name)
+          requester:profiles!stock_transfer_requests_requested_by_fkey(full_name),
+          items:stock_transfer_items(
+            id,
+            product_id,
+            quantity_requested,
+            quantity_approved,
+            product:products(name, sku)
+          )
         `)
         .order("created_at", { ascending: false });
+
+      // Filter for store managers - only show transfers TO their outlet
+      if (isStoreManager) {
+        const { data: userOutlet } = await supabase
+          .from("outlets")
+          .select("id")
+          .eq("manager_id", profile?.id)
+          .single();
+        
+        if (userOutlet) {
+          query = query.eq("to_outlet_id", userOutlet.id);
+        }
+      }
 
       if (filterStatus !== "all") {
         query = query.eq("status", filterStatus);
@@ -172,7 +200,11 @@ const StockTransferDashboard = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      {isStoreManager ? (
+        <OutletInventoryView />
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
             Stock Transfer Requests
@@ -294,7 +326,7 @@ const StockTransferDashboard = () => {
                         <TableCell>{transfer.requester?.full_name}</TableCell>
                         <TableCell>{getStatusBadge(transfer.status)}</TableCell>
                         <TableCell className="text-right">
-                          {transfer.status === 'pending' && (
+                          {transfer.status === 'pending' && !isStoreManager && (
                             <div className="flex gap-1 justify-end">
                               <Button
                                 variant="outline"
@@ -315,13 +347,30 @@ const StockTransferDashboard = () => {
                             </div>
                           )}
                           {transfer.status === 'approved' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleComplete(transfer.id)}
-                            >
-                              Complete
-                            </Button>
+                            <>
+                              {isStoreManager ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-2"
+                                  onClick={() => {
+                                    setSelectedTransfer(transfer);
+                                    setReceiveDialogOpen(true);
+                                  }}
+                                >
+                                  <PackageCheck className="h-4 w-4" />
+                                  Receive
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleComplete(transfer.id)}
+                                >
+                                  Complete
+                                </Button>
+                              )}
+                            </>
                           )}
                         </TableCell>
                       </TableRow>
@@ -347,6 +396,14 @@ const StockTransferDashboard = () => {
         products={products || []}
         outlets={outlets || []}
       />
+      
+      <TransferReceiveDialog
+        open={receiveDialogOpen}
+        onOpenChange={setReceiveDialogOpen}
+        transfer={selectedTransfer}
+      />
+        </>
+      )}
     </div>
   );
 };

@@ -5021,6 +5021,186 @@ export type Database = {
         }
         Relationships: []
       }
+      transfer_receipt_items: {
+        Row: {
+          created_at: string | null
+          id: string
+          quantity_expected: number
+          quantity_received: number
+          receipt_id: string
+          transfer_item_id: string
+          variance: number | null
+          variance_reason: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          quantity_expected: number
+          quantity_received: number
+          receipt_id: string
+          transfer_item_id: string
+          variance?: number | null
+          variance_reason?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          quantity_expected?: number
+          quantity_received?: number
+          receipt_id?: string
+          transfer_item_id?: string
+          variance?: number | null
+          variance_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transfer_receipt_items_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "transfer_receipts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transfer_receipt_items_transfer_item_id_fkey"
+            columns: ["transfer_item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_transfer_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transfer_receipts: {
+        Row: {
+          created_at: string | null
+          id: string
+          notes: string | null
+          received_at: string | null
+          received_by: string
+          transfer_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          received_at?: string | null
+          received_by: string
+          transfer_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          received_at?: string | null
+          received_by?: string
+          transfer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transfer_receipts_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "stock_transfer_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transfer_variances: {
+        Row: {
+          created_at: string | null
+          expected_quantity: number
+          id: string
+          outlet_id: string
+          product_id: string
+          received_quantity: number
+          reported_by: string
+          resolution_notes: string | null
+          resolved_at: string | null
+          severity: string | null
+          status: string | null
+          transfer_id: string
+          transfer_item_id: string
+          variance: number
+          variance_value: number
+        }
+        Insert: {
+          created_at?: string | null
+          expected_quantity: number
+          id?: string
+          outlet_id: string
+          product_id: string
+          received_quantity: number
+          reported_by: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          severity?: string | null
+          status?: string | null
+          transfer_id: string
+          transfer_item_id: string
+          variance: number
+          variance_value?: number
+        }
+        Update: {
+          created_at?: string | null
+          expected_quantity?: number
+          id?: string
+          outlet_id?: string
+          product_id?: string
+          received_quantity?: number
+          reported_by?: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          severity?: string | null
+          status?: string | null
+          transfer_id?: string
+          transfer_item_id?: string
+          variance?: number
+          variance_value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transfer_variances_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlet_stock_summary"
+            referencedColumns: ["outlet_id"]
+          },
+          {
+            foreignKeyName: "transfer_variances_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transfer_variances_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "product_stock_summary"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "transfer_variances_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transfer_variances_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "stock_transfer_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transfer_variances_transfer_item_id_fkey"
+            columns: ["transfer_item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_transfer_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_performance: {
         Row: {
           addresses_verified: number | null
