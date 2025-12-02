@@ -101,3 +101,38 @@ export interface StockTransferItem {
   quantity_received?: number;
   product?: Product;
 }
+
+export interface OrderPackagingRule {
+  id: string;
+  packaging_item_id: string;
+  min_items: number;
+  max_items: number;
+  priority: number;
+  is_active: boolean;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  packaging_items?: PackagingItem;
+}
+
+export interface OrderPackaging {
+  id: string;
+  order_id: string;
+  packaging_item_id: string;
+  quantity: number;
+  auto_selected: boolean;
+  selected_by?: string;
+  created_at: string;
+  packaging_items?: PackagingItem;
+}
+
+export interface PackagingMovement {
+  id: string;
+  packaging_item_id: string;
+  movement_type: 'dispatch' | 'adjustment' | 'purchase' | 'return';
+  quantity: number;
+  reference_id?: string;
+  notes?: string;
+  created_by: string;
+  created_at: string;
+}

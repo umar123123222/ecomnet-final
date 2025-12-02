@@ -48,6 +48,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { SmartReorderSettings } from "@/components/inventory/SmartReorderSettings";
 import { PackagingAdjustmentDialog } from "@/components/inventory/PackagingAdjustmentDialog";
+import { PackagingRulesManager } from "@/components/inventory/PackagingRulesManager";
 import { useUserRoles } from '@/hooks/useUserRoles';
 
 const packagingSchema = z.object({
@@ -680,6 +681,8 @@ export default function PackagingManagement() {
         onOpenChange={setAdjustmentDialogOpen}
         packagingItems={packagingItems || []}
       />
+
+      <PackagingRulesManager />
     </div>
   );
 }
