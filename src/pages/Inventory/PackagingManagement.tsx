@@ -82,12 +82,35 @@ export default function PackagingManagement() {
   const { data: packagingItems, isLoading } = useQuery({
     queryKey: ["packaging-items"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch packaging items
+      const { data: items, error } = await supabase
         .from("packaging_items")
         .select("*")
         .order("name");
       if (error) throw error;
-      return data;
+
+      // Fetch reserved quantities from order_packaging for pending/booked orders
+      const { data: reservedData } = await supabase
+        .from("order_packaging")
+        .select(`
+          packaging_item_id,
+          quantity,
+          orders!inner(status)
+        `)
+        .in("orders.status", ["pending", "booked", "confirmed"]);
+
+      // Calculate reserved quantity per packaging item
+      const reservedMap = new Map<string, number>();
+      reservedData?.forEach((op: any) => {
+        const current = reservedMap.get(op.packaging_item_id) || 0;
+        reservedMap.set(op.packaging_item_id, current + (op.quantity || 1));
+      });
+
+      // Add reserved_quantity to each item
+      return items?.map(item => ({
+        ...item,
+        reserved_quantity: reservedMap.get(item.id) || 0
+      }));
     },
   });
 
@@ -338,6 +361,8 @@ export default function PackagingManagement() {
               <TableHead>Type</TableHead>
               <TableHead>Size</TableHead>
               <TableHead className="text-right">Current Stock</TableHead>
+              <TableHead className="text-right">Reserved</TableHead>
+              <TableHead className="text-right">Available</TableHead>
               <TableHead className="text-right">Reorder Level</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Cost</TableHead>
@@ -347,13 +372,13 @@ export default function PackagingManagement() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={permissions.canManagePackaging ? 10 : 9} className="text-center">
+                <TableCell colSpan={permissions.canManagePackaging ? 12 : 11} className="text-center">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : filteredItems?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={permissions.canManagePackaging ? 10 : 9} className="text-center">
+                <TableCell colSpan={permissions.canManagePackaging ? 12 : 11} className="text-center">
                   No packaging items found
                 </TableCell>
               </TableRow>
@@ -376,6 +401,12 @@ export default function PackagingManagement() {
                     <TableCell>{item.size || "-"}</TableCell>
                     <TableCell className="text-right">
                       <span className="font-medium">{item.current_stock}</span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="text-orange-600">{item.reserved_quantity || 0}</span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="font-medium text-green-600">{item.current_stock - (item.reserved_quantity || 0)}</span>
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="text-muted-foreground">{item.reorder_level}</span>
