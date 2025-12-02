@@ -183,14 +183,16 @@ Deno.serve(async (req) => {
         }
       }
       
-      const { data: existingCustomer } = await supabase
+      // Step 1: Try to find by shopify_customer_id
+      const { data: existingByShopify } = await supabase
         .from('customers')
         .select('id')
         .eq('shopify_customer_id', order.customer.id)
-        .single();
+        .maybeSingle();
 
-      if (existingCustomer) {
-        customerId = existingCustomer.id;
+      if (existingByShopify) {
+        customerId = existingByShopify.id;
+        console.log(`Found customer by Shopify ID: ${customerId}`);
         
         // Update customer
         await supabase
@@ -203,22 +205,90 @@ Deno.serve(async (req) => {
           })
           .eq('id', customerId);
       } else {
-        // Create new customer
-        const { data: newCustomer } = await supabase
-          .from('customers')
-          .insert({
-            name: `${order.customer.first_name} ${order.customer.last_name}`,
-            email: order.customer.email,
-            phone: normalizedPhone || '',
-            phone_last_5_chr: normalizedPhone?.slice(-5) || '',
-            shopify_customer_id: order.customer.id,
-            total_orders: 0,
-            return_count: 0,
-          })
-          .select('id')
-          .single();
+        // Step 2: Try to find by normalized phone
+        let existingByPhone = null;
+        if (normalizedPhone) {
+          const { data } = await supabase.rpc('normalize_phone', { p_phone: normalizedPhone });
+          const normalized = data;
+          
+          if (normalized) {
+            const { data: phoneMatch } = await supabase
+              .from('customers')
+              .select('id')
+              .filter('phone', 'neq', null)
+              .filter('phone', 'neq', '')
+              .limit(100);
+            
+            // Find match by normalized phone in client
+            existingByPhone = phoneMatch?.find(c => {
+              const custNorm = c.phone?.replace(/\D/g, '');
+              return custNorm === normalized;
+            });
+          }
+        }
         
-        customerId = newCustomer?.id || null;
+        if (existingByPhone) {
+          customerId = existingByPhone.id;
+          console.log(`Found customer by phone: ${customerId}, linking to Shopify ID ${order.customer.id}`);
+          
+          // Update existing customer with shopify_customer_id
+          await supabase
+            .from('customers')
+            .update({
+              shopify_customer_id: order.customer.id,
+              name: `${order.customer.first_name} ${order.customer.last_name}`,
+              email: order.customer.email,
+              phone: normalizedPhone || '',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', customerId);
+        } else {
+          // Step 3: Try to find by email
+          let existingByEmail = null;
+          if (order.customer.email) {
+            const { data: emailMatch } = await supabase
+              .from('customers')
+              .select('id')
+              .ilike('email', order.customer.email)
+              .maybeSingle();
+            
+            existingByEmail = emailMatch;
+          }
+          
+          if (existingByEmail) {
+            customerId = existingByEmail.id;
+            console.log(`Found customer by email: ${customerId}, linking to Shopify ID ${order.customer.id}`);
+            
+            // Update existing customer with shopify_customer_id
+            await supabase
+              .from('customers')
+              .update({
+                shopify_customer_id: order.customer.id,
+                name: `${order.customer.first_name} ${order.customer.last_name}`,
+                phone: normalizedPhone || '',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', customerId);
+          } else {
+            // Step 4: Create new customer (no existing match found)
+            console.log(`Creating new customer for Shopify ID ${order.customer.id}`);
+            const { data: newCustomer } = await supabase
+              .from('customers')
+              .insert({
+                name: `${order.customer.first_name} ${order.customer.last_name}`,
+                email: order.customer.email,
+                phone: normalizedPhone || '',
+                phone_last_5_chr: normalizedPhone?.slice(-5) || '',
+                shopify_customer_id: order.customer.id,
+                total_orders: 0,
+                return_count: 0,
+              })
+              .select('id')
+              .single();
+            
+            customerId = newCustomer?.id || null;
+          }
+        }
       }
     }
 
