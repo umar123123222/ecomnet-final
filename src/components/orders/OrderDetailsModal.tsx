@@ -4,13 +4,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { Package, Truck, MapPin, Clock, CheckCircle, XCircle, AlertCircle, History, FileText, RefreshCw, RotateCcw } from "lucide-react";
+import { Package, Truck, MapPin, Clock, CheckCircle, XCircle, AlertCircle, History, FileText, RefreshCw, RotateCcw, Box } from "lucide-react";
 import { ConfirmOrderDialog } from "./ConfirmOrderDialog";
 import { BookCourierDialog } from "./BookCourierDialog";
 import { OrderActivityLog } from "./OrderActivityLog";
 import { toast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 interface Order {
   id: string;
   order_number: string;
@@ -62,6 +64,23 @@ export const OrderDetailsModal = ({
   const [showBookDialog, setShowBookDialog] = useState(false);
   const [activeTab, setActiveTab] = useState("tracking");
   const [autoFetchAttempted, setAutoFetchAttempted] = useState(false);
+
+  // Fetch packaging recommendation
+  const { data: packagingRecommendation, isLoading: packagingLoading } = useQuery({
+    queryKey: ['packaging-recommendation', order?.id],
+    queryFn: async () => {
+      if (!order?.id) return null;
+      const { data, error } = await supabase
+        .rpc('get_order_packaging_recommendation', { p_order_id: order.id })
+        .single();
+      if (error) {
+        console.error('Error fetching packaging recommendation:', error);
+        return null;
+      }
+      return data;
+    },
+    enabled: !!order?.id && open
+  });
   useEffect(() => {
     if (!open) {
       // Reset state when modal closes
@@ -301,6 +320,37 @@ export const OrderDetailsModal = ({
               <div className="text-sm text-muted-foreground mb-1">Delivery Address</div>
               <div className="text-sm">{order.customer_address}, {order.city}</div>
             </div>
+
+            {/* Packaging Recommendation */}
+            {packagingRecommendation && (
+              <div className="pt-2 border-t">
+                <div className="text-sm text-muted-foreground mb-2">📦 Packaging</div>
+                <Alert className={packagingRecommendation.is_available ? 'border-green-500/50 bg-green-500/5' : 'border-orange-500/50 bg-orange-500/5'}>
+                  <Box className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-medium">{packagingRecommendation.packaging_name}</span>
+                        <span className="text-xs text-muted-foreground ml-2">
+                          ({packagingRecommendation.packaging_sku})
+                        </span>
+                      </div>
+                      <div className="text-sm">
+                        {packagingRecommendation.is_available ? (
+                          <span className="text-green-600 dark:text-green-400">
+                            ✓ {packagingRecommendation.current_stock} in stock
+                          </span>
+                        ) : (
+                          <span className="text-orange-600 dark:text-orange-400">
+                            ⚠️ Out of stock
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

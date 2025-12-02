@@ -1905,6 +1905,95 @@ export type Database = {
           },
         ]
       }
+      order_packaging: {
+        Row: {
+          auto_selected: boolean | null
+          created_at: string | null
+          id: string
+          order_id: string
+          packaging_item_id: string
+          quantity: number | null
+          selected_by: string | null
+        }
+        Insert: {
+          auto_selected?: boolean | null
+          created_at?: string | null
+          id?: string
+          order_id: string
+          packaging_item_id: string
+          quantity?: number | null
+          selected_by?: string | null
+        }
+        Update: {
+          auto_selected?: boolean | null
+          created_at?: string | null
+          id?: string
+          order_id?: string
+          packaging_item_id?: string
+          quantity?: number | null
+          selected_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_packaging_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_packaging_packaging_item_id_fkey"
+            columns: ["packaging_item_id"]
+            isOneToOne: false
+            referencedRelation: "packaging_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_packaging_rules: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          max_items: number
+          min_items: number
+          notes: string | null
+          packaging_item_id: string
+          priority: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_items: number
+          min_items: number
+          notes?: string | null
+          packaging_item_id: string
+          priority?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_items?: number
+          min_items?: number
+          notes?: string | null
+          packaging_item_id?: string
+          priority?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_packaging_rules_packaging_item_id_fkey"
+            columns: ["packaging_item_id"]
+            isOneToOne: false
+            referencedRelation: "packaging_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_update_failures: {
         Row: {
           attempted_update: Json
@@ -2331,6 +2420,47 @@ export type Database = {
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      packaging_movements: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          id: string
+          movement_type: string
+          notes: string | null
+          packaging_item_id: string
+          quantity: number
+          reference_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          id?: string
+          movement_type: string
+          notes?: string | null
+          packaging_item_id: string
+          quantity: number
+          reference_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          movement_type?: string
+          notes?: string | null
+          packaging_item_id?: string
+          quantity?: number
+          reference_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packaging_movements_packaging_item_id_fkey"
+            columns: ["packaging_item_id"]
+            isOneToOne: false
+            referencedRelation: "packaging_items"
             referencedColumns: ["id"]
           },
         ]
@@ -5185,6 +5315,17 @@ export type Database = {
       get_current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      get_order_packaging_recommendation: {
+        Args: { p_order_id: string }
+        Returns: {
+          current_stock: number
+          is_available: boolean
+          packaging_item_id: string
+          packaging_name: string
+          packaging_sku: string
+          quantity_needed: number
+        }[]
       }
       get_order_stats_by_status: {
         Args: never

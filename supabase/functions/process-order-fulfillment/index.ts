@@ -193,6 +193,50 @@ serve(async (req) => {
           throw new Error(`Insufficient stock for: ${insufficientStock.join(', ')}`);
         }
 
+        // Get packaging recommendation and handle packaging
+        let packagingWarning: string | null = null;
+        const { data: packaging, error: packagingError } = await supabaseClient
+          .rpc('get_order_packaging_recommendation', { p_order_id: data.order_id })
+          .single();
+
+        if (!packagingError && packaging) {
+          if (packaging.is_available) {
+            // Deduct packaging stock
+            await supabaseClient
+              .from('packaging_items')
+              .update({ current_stock: packaging.current_stock - 1 })
+              .eq('id', packaging.packaging_item_id);
+
+            // Record packaging usage
+            await supabaseClient
+              .from('order_packaging')
+              .insert({
+                order_id: data.order_id,
+                packaging_item_id: packaging.packaging_item_id,
+                quantity: 1,
+                auto_selected: true,
+                selected_by: user.id
+              });
+
+            // Create packaging movement
+            await supabaseClient
+              .from('packaging_movements')
+              .insert({
+                packaging_item_id: packaging.packaging_item_id,
+                movement_type: 'dispatch',
+                quantity: -1,
+                reference_id: data.order_id,
+                created_by: user.id,
+                notes: 'Auto-selected for dispatch'
+              });
+
+            console.log(`Used packaging: ${packaging.packaging_name} for order ${order.order_number}`);
+          } else {
+            packagingWarning = `Low stock: ${packaging.packaging_name}`;
+            console.warn(packagingWarning);
+          }
+        }
+
         // Update order status to dispatched
         await supabaseClient
           .from('orders')
@@ -209,14 +253,16 @@ serve(async (req) => {
           entity_id: data.order_id,
           action: 'order_dispatched',
           details: {
-            outlet_id: data.outlet_id
+            outlet_id: data.outlet_id,
+            packaging_warning: packagingWarning
           }
         });
 
         return new Response(
           JSON.stringify({ 
             success: true, 
-            message: 'Order dispatched and inventory updated successfully'
+            message: 'Order dispatched and inventory updated successfully',
+            packaging_warning: packagingWarning
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );

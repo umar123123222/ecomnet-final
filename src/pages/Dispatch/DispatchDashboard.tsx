@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, Lock, ScanBarcode } from 'lucide-react';
+import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, Lock, ScanBarcode, Package } from 'lucide-react';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
@@ -174,6 +174,10 @@ useEffect(() => {
             city,
             total_amount,
             status
+          ),
+          order_packaging:order_packaging!order_packaging_order_id_fkey(
+            id,
+            packaging_items:packaging_items(name, sku)
           )
         `);
 
@@ -1570,15 +1574,16 @@ const metrics = useMemo(() => {
                 <TableHead>Tracking ID</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Courier</TableHead>
+                <TableHead>Packaging</TableHead>
                 <TableHead>Dispatched By</TableHead>
                 <TableHead>Dispatch Date</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? <TableRow>
-                  <TableCell colSpan={6} className="text-center">Loading...</TableCell>
+                  <TableCell colSpan={7} className="text-center">Loading...</TableCell>
                 </TableRow> : filteredDispatches.length === 0 ? <TableRow>
-                  <TableCell colSpan={6} className="text-center">No dispatches found</TableCell>
+                  <TableCell colSpan={7} className="text-center">No dispatches found</TableCell>
                 </TableRow> : filteredDispatches.map(dispatch => {
                   // Extract just the order number without SHOP- prefix
                   const orderNumber = dispatch.orders?.order_number?.replace('SHOP-', '') || 'N/A';
@@ -1604,6 +1609,16 @@ const metrics = useMemo(() => {
                           <Truck className="h-4 w-4 text-gray-500" />
                           {dispatch.courier || 'N/A'}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {dispatch.order_packaging && dispatch.order_packaging.length > 0 ? (
+                          <div className="flex items-center gap-1 text-sm">
+                            <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span>{dispatch.order_packaging[0].packaging_items?.name || 'Unknown'}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
