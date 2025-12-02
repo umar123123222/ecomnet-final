@@ -34,6 +34,22 @@ const OutletManagement = () => {
   // Delete outlet mutation
   const deleteOutletMutation = useMutation({
     mutationFn: async (outletId: string) => {
+      // Check for related records
+      const [purchaseOrders, inventory, stockTransfers] = await Promise.all([
+        supabase.from("purchase_orders").select("id", { count: "exact", head: true }).eq("outlet_id", outletId),
+        supabase.from("inventory").select("id", { count: "exact", head: true }).eq("outlet_id", outletId),
+        supabase.from("stock_transfer_requests").select("id", { count: "exact", head: true }).or(`from_outlet_id.eq.${outletId},to_outlet_id.eq.${outletId}`)
+      ]);
+
+      const relatedRecords = [];
+      if (purchaseOrders.count && purchaseOrders.count > 0) relatedRecords.push(`${purchaseOrders.count} purchase order(s)`);
+      if (inventory.count && inventory.count > 0) relatedRecords.push(`${inventory.count} inventory record(s)`);
+      if (stockTransfers.count && stockTransfers.count > 0) relatedRecords.push(`${stockTransfers.count} stock transfer(s)`);
+
+      if (relatedRecords.length > 0) {
+        throw new Error(`Cannot delete outlet. It has ${relatedRecords.join(", ")} associated with it. Please remove or reassign these records first.`);
+      }
+
       const { error } = await supabase
         .from("outlets")
         .delete()
