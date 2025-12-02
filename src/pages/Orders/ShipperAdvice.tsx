@@ -26,8 +26,8 @@ const ShipperAdvice = () => {
     const fetchProblematicOrders = async () => {
       setLoading(true);
       try {
-        // Fetch only dispatched orders (with courier) that need shipper advice
-        const { data, error } = await supabase
+        // Fetch dispatched orders that may need shipper advice
+        const { data: ordersData, error: ordersError } = await supabase
           .from('orders')
           .select(`
             *,
@@ -45,72 +45,100 @@ const ShipperAdvice = () => {
           .not('tracking_id', 'is', null)
           .order('created_at', { ascending: false });
 
-        if (error) {
-          console.error('Error fetching orders:', error);
+        // Fetch existing shipper advice logs to exclude orders with pending advice
+        const { data: adviceLogs, error: adviceError } = await supabase
+          .from('shipper_advice_logs')
+          .select('order_id, status, advice_type, requested_at')
+          .in('status', ['pending', 'submitted']);
+
+        if (ordersError) {
+          console.error('Error fetching orders:', ordersError);
           toast({
             title: "Error",
             description: "Failed to fetch orders",
             variant: "destructive",
           });
-        } else {
-          // Filter orders that have actually been attempted but failed delivery
-          const needsAdviceStatuses = ['delivery_failed', 'pending', 'out_for_delivery'];
-          
-          const formattedOrders = (data || [])
-            .filter(order => {
-              const dispatch = order.dispatches?.[0];
-              if (!dispatch || !order.tracking_id) return false;
-              
-              // Get the latest tracking status
-              const trackingHistory = dispatch.courier_tracking_history || [];
-              if (trackingHistory.length === 0) return false;
-              
-              const latestTracking = [...trackingHistory].sort(
-                (a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
-              )[0];
-              
-              // Only show orders with failed delivery attempts or pending actions
-              return needsAdviceStatuses.includes(latestTracking.status);
-            })
-            .map((order) => {
-              const dispatch = order.dispatches[0];
-              const trackingHistory = dispatch.courier_tracking_history || [];
-              
-              // Sort tracking history by date
-              const sortedHistory = [...trackingHistory].sort(
-                (a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
-              );
-              
-              const latestTracking = sortedHistory[0];
-              
-              // Count actual delivery attempts (out_for_delivery or delivery_failed events)
-              const attemptStatuses = ['out_for_delivery', 'delivery_failed'];
-              const attemptCount = trackingHistory.filter(h => 
-                attemptStatuses.includes(h.status)
-              ).length;
-              
-              // Calculate days stuck since last tracking update
-              const lastUpdate = new Date(latestTracking.checked_at);
-              const daysStuck = Math.floor((Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
-              
-              return {
-                id: order.id,
-                orderNumber: order.order_number,
-                customerName: order.customer_name,
-                customerPhone: order.customer_phone,
-                address: order.customer_address,
-                status: latestTracking.status,
-                courier: order.courier || 'TCS',
-                attemptDate: latestTracking.checked_at.split('T')[0],
-                attemptCount: attemptCount || 1,
-                lastAttemptReason: latestTracking.current_location || 'Unknown reason',
-                totalAmount: order.total_amount || 0,
-                daysStuck: daysStuck
-              };
-            });
-
-          setOrders(formattedOrders);
+          return;
         }
+
+        // Create a set of order IDs that already have pending advice
+        const ordersWithPendingAdvice = new Set(
+          (adviceLogs || []).map(log => log.order_id)
+        );
+
+        // Statuses that indicate parcel needs shipper advice
+        const needsAdviceStatuses = [
+          'delivery_failed', 
+          'attempted', 
+          'refused', 
+          'customer_not_available',
+          'wrong_address',
+          'incomplete_address',
+          'customer_refused',
+          'hold',
+          'returned_to_origin'
+        ];
+        
+        const formattedOrders = (ordersData || [])
+          .filter(order => {
+            const dispatch = order.dispatches?.[0];
+            if (!dispatch || !order.tracking_id) return false;
+            
+            // Exclude orders that already have pending shipper advice
+            if (ordersWithPendingAdvice.has(order.id)) return false;
+            
+            // Get the latest tracking status
+            const trackingHistory = dispatch.courier_tracking_history || [];
+            if (trackingHistory.length === 0) return false;
+            
+            const latestTracking = [...trackingHistory].sort(
+              (a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
+            )[0];
+            
+            // Show orders with problematic statuses that need attention
+            return needsAdviceStatuses.includes(latestTracking.status);
+          })
+          .map((order) => {
+            const dispatch = order.dispatches[0];
+            const trackingHistory = dispatch.courier_tracking_history || [];
+            
+            // Sort tracking history by date
+            const sortedHistory = [...trackingHistory].sort(
+              (a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
+            );
+            
+            const latestTracking = sortedHistory[0];
+            
+            // Count actual delivery attempts
+            const attemptStatuses = ['out_for_delivery', 'delivery_failed', 'attempted'];
+            const attemptCount = trackingHistory.filter(h => 
+              attemptStatuses.includes(h.status)
+            ).length;
+            
+            // Calculate days stuck since last tracking update
+            const lastUpdate = new Date(latestTracking.checked_at);
+            const daysStuck = Math.floor((Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
+            
+            return {
+              id: order.id,
+              orderNumber: order.order_number,
+              trackingId: order.tracking_id,
+              customerName: order.customer_name,
+              customerPhone: order.customer_phone,
+              address: order.customer_address,
+              city: order.city,
+              status: latestTracking.status,
+              courier: order.courier || 'Unknown',
+              courierName: dispatch.courier || order.courier,
+              attemptDate: latestTracking.checked_at.split('T')[0],
+              attemptCount: attemptCount || 1,
+              lastAttemptReason: latestTracking.current_location || 'Unknown reason',
+              totalAmount: order.total_amount || 0,
+              daysStuck: daysStuck
+            };
+          });
+
+        setOrders(formattedOrders);
       } catch (error) {
         console.error('Error:', error);
       } finally {
@@ -243,8 +271,8 @@ const ShipperAdvice = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Shipper Advice</h1>
-          <p className="text-gray-600 mt-1">Orders that need attention or are stuck in delivery</p>
+          <h1 className="text-3xl font-bold text-foreground">Parcels Waiting for Shipper Advice</h1>
+          <p className="text-muted-foreground mt-1">Orders with failed deliveries that need reattempt, return, or reschedule instructions</p>
         </div>
         <Button variant="outline" disabled={selectedOrders.length === 0} onClick={handleExportSelected}>
           <Download className="h-4 w-4 mr-2" />
@@ -258,11 +286,11 @@ const ShipperAdvice = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Issues</p>
-                <p className="text-2xl font-bold text-gray-900">{filteredOrders.length}</p>
+                <p className="text-sm font-medium text-muted-foreground">Awaiting Advice</p>
+                <p className="text-2xl font-bold text-foreground">{filteredOrders.length}</p>
               </div>
-              <div className="h-8 w-8 bg-red-100 rounded-lg flex items-center justify-center">
-                <Filter className="h-4 w-4 text-red-600" />
+              <div className="h-8 w-8 bg-destructive/10 rounded-lg flex items-center justify-center">
+                <Filter className="h-4 w-4 text-destructive" />
               </div>
             </div>
           </CardContent>
@@ -272,13 +300,13 @@ const ShipperAdvice = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">High Priority</p>
-                <p className="text-2xl font-bold text-red-600">
+                <p className="text-sm font-medium text-muted-foreground">High Priority (7+ days)</p>
+                <p className="text-2xl font-bold text-destructive">
                   {filteredOrders.filter(order => order.daysStuck >= 7).length}
                 </p>
               </div>
-              <div className="h-8 w-8 bg-red-100 rounded-lg flex items-center justify-center">
-                <MessageSquare className="h-4 w-4 text-red-600" />
+              <div className="h-8 w-8 bg-destructive/10 rounded-lg flex items-center justify-center">
+                <MessageSquare className="h-4 w-4 text-destructive" />
               </div>
             </div>
           </CardContent>
@@ -288,7 +316,7 @@ const ShipperAdvice = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Multiple Attempts</p>
+                <p className="text-sm font-medium text-muted-foreground">Multiple Attempts</p>
                 <p className="text-2xl font-bold text-orange-600">
                   {filteredOrders.filter(order => order.attemptCount > 2).length}
                 </p>
@@ -304,7 +332,7 @@ const ShipperAdvice = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Value</p>
+                <p className="text-sm font-medium text-muted-foreground">Total Value at Risk</p>
                 <p className="text-2xl font-bold text-green-600">
                   ₨{filteredOrders.reduce((sum, order) => sum + order.totalAmount, 0).toLocaleString()}
                 </p>
@@ -362,7 +390,7 @@ const ShipperAdvice = () => {
 
           {/* Table */}
           <div className="overflow-x-auto -mx-6 px-6">
-            <Table className="min-w-[1200px]">
+            <Table className="min-w-[1300px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12">
@@ -372,12 +400,13 @@ const ShipperAdvice = () => {
                     />
                   </TableHead>
                   <TableHead>Order #</TableHead>
+                  <TableHead>Tracking ID</TableHead>
                   <TableHead>Customer</TableHead>
-                  <TableHead>Phone</TableHead>
+                  <TableHead>City</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Courier</TableHead>
                   <TableHead>Attempts</TableHead>
-                  <TableHead>Last Reason</TableHead>
+                  <TableHead>Reason</TableHead>
                   <TableHead>Days Stuck</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Actions</TableHead>
@@ -386,16 +415,18 @@ const ShipperAdvice = () => {
                <TableBody>
                  {loading ? (
                    <TableRow>
-                     <TableCell colSpan={11} className="text-center">Loading orders...</TableCell>
+                     <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Loading parcels...</TableCell>
                    </TableRow>
                  ) : filteredOrders.length === 0 ? (
                    <TableRow>
-                     <TableCell colSpan={11} className="text-center">No problematic orders found</TableCell>
+                     <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
+                       No parcels waiting for shipper advice
+                     </TableCell>
                    </TableRow>
                  ) : (
                    filteredOrders.map((order) => (
                      <React.Fragment key={order.id}>
-                       <TableRow>
+                       <TableRow className="hover:bg-muted/50">
                          <TableCell>
                            <Checkbox
                              checked={selectedOrders.includes(order.id)}
@@ -403,25 +434,26 @@ const ShipperAdvice = () => {
                            />
                          </TableCell>
                          <TableCell className="font-medium">{order.orderNumber}</TableCell>
+                         <TableCell className="font-mono text-xs">{order.trackingId}</TableCell>
                          <TableCell>
                            <div>
                              <p className="font-medium">{order.customerName}</p>
-                             <p className="text-xs text-gray-500 truncate max-w-[150px]">{order.address}</p>
+                             <p className="text-xs text-muted-foreground">{order.customerPhone}</p>
                            </div>
                          </TableCell>
-                         <TableCell>{order.customerPhone}</TableCell>
+                         <TableCell>{order.city || '-'}</TableCell>
                          <TableCell>
                            <Badge className={`${getStatusColor(order.status)} capitalize`}>
-                             {order.status}
+                             {order.status.replace(/_/g, ' ')}
                            </Badge>
                          </TableCell>
                          <TableCell>{order.courier}</TableCell>
                          <TableCell>
-                           <span className={order.attemptCount > 2 ? 'text-red-600 font-semibold' : ''}>
+                           <span className={order.attemptCount > 2 ? 'text-destructive font-semibold' : ''}>
                              {order.attemptCount}
                            </span>
                          </TableCell>
-                         <TableCell className="max-w-[120px] truncate">
+                         <TableCell className="max-w-[150px] truncate text-muted-foreground text-sm">
                            {order.lastAttemptReason}
                          </TableCell>
                          <TableCell>
@@ -429,7 +461,7 @@ const ShipperAdvice = () => {
                              {order.daysStuck} days
                            </span>
                          </TableCell>
-                         <TableCell>₨{order.totalAmount.toLocaleString()}</TableCell>
+                         <TableCell className="font-medium">₨{order.totalAmount.toLocaleString()}</TableCell>
                          <TableCell>
                            <div className="flex gap-2">
                              <Button variant="outline" size="sm" onClick={() => toggleRowExpansion(order.id)}>
@@ -443,18 +475,22 @@ const ShipperAdvice = () => {
                        </TableRow>
                        {expandedRows.includes(order.id) && (
                          <TableRow>
-                           <TableCell colSpan={11}>
-                             <div className="p-4 bg-gray-50 rounded-lg">
+                           <TableCell colSpan={12} className="bg-muted/30">
+                             <div className="p-4 space-y-4">
+                               <div className="grid grid-cols-2 gap-4 text-sm">
+                                 <div>
+                                   <span className="text-muted-foreground">Full Address:</span>
+                                   <p className="font-medium">{order.address || 'N/A'}</p>
+                                 </div>
+                                 <div>
+                                   <span className="text-muted-foreground">Last Attempt Date:</span>
+                                   <p className="font-medium">{order.attemptDate}</p>
+                                 </div>
+                               </div>
                                <TagsNotes
                                  itemId={order.id}
-                                 tags={[
-                                   { id: '1', text: 'Priority', addedBy: 'System', addedAt: '2024-01-15', canDelete: true },
-                                   { id: '2', text: 'VIP Customer', addedBy: 'Manager', addedAt: '2024-01-14', canDelete: true }
-                                 ]}
-                                 notes={[
-                                   { id: '1', text: 'Customer requested express delivery', addedBy: 'Agent', addedAt: '2024-01-15', canDelete: true },
-                                   { id: '2', text: 'Fragile items - handle with care', addedBy: 'Dispatch', addedAt: '2024-01-14', canDelete: true }
-                                 ]}
+                                 tags={[]}
+                                 notes={[]}
                                  onAddTag={(tag) => {/* Add tag functionality */}}
                                  onAddNote={(note) => {/* Add note functionality */}}
                                  onDeleteTag={(tagId) => {/* Delete tag functionality */}}
