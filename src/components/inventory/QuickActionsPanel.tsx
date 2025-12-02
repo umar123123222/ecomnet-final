@@ -102,8 +102,8 @@ export function QuickActionsPanel({
       label: 'Smart Reorder',
       description: 'Configure automation',
       href: '#smart-reorder',
-      iconColor: 'text-purple-500',
-      iconBg: 'bg-purple-500/10',
+      iconColor: 'text-rose-500',
+      iconBg: 'bg-rose-500/10',
     },
   ];
 
