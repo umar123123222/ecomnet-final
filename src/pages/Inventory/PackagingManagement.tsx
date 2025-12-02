@@ -89,21 +89,13 @@ export default function PackagingManagement() {
         .order("name");
       if (error) throw error;
 
-      // Fetch reserved quantities from order_packaging for pending/booked orders
-      const { data: reservedData } = await supabase
-        .from("order_packaging")
-        .select(`
-          packaging_item_id,
-          quantity,
-          orders!inner(status)
-        `)
-        .in("orders.status", ["pending", "booked", "confirmed"]);
+      // Fetch reserved quantities using RPC function that calculates from pending/booked orders + packaging rules
+      const { data: reservedData } = await supabase.rpc('get_packaging_reservations');
 
-      // Calculate reserved quantity per packaging item
+      // Create a map of packaging_item_id -> reserved_count
       const reservedMap = new Map<string, number>();
-      reservedData?.forEach((op: any) => {
-        const current = reservedMap.get(op.packaging_item_id) || 0;
-        reservedMap.set(op.packaging_item_id, current + (op.quantity || 1));
+      reservedData?.forEach((item: { packaging_item_id: string; reserved_count: number }) => {
+        reservedMap.set(item.packaging_item_id, Number(item.reserved_count));
       });
 
       // Add reserved_quantity to each item
