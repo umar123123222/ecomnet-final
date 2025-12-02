@@ -219,17 +219,20 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
         });
       });
 
-      // Add courier tracking history
-      trackingHistory?.forEach(tracking => {
+      // Only add significant courier tracking events (not every transit update)
+      // Granular tracking (in_transit, at_warehouse, etc.) is shown in Tracking History section
+      const significantTrackingStatuses = ['delivered', 'returned', 'cancelled', 'failed_delivery'];
+      trackingHistory?.filter(tracking => 
+        significantTrackingStatuses.includes(tracking.status)
+      ).forEach(tracking => {
         events.push({
           id: tracking.id,
           type: 'tracking_update',
           timestamp: tracking.checked_at,
-          title: 'Tracking Update',
-          description: formatTrackingStatus(tracking.status),
+          title: formatTrackingStatus(tracking.status), // Use actual status name instead of "Tracking Update"
+          description: tracking.current_location ? `Location: ${tracking.current_location}` : undefined,
           location: tracking.current_location,
           status: tracking.status,
-          rawResponse: tracking.raw_response,
         });
       });
 
