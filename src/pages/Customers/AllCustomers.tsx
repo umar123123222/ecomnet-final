@@ -118,17 +118,18 @@ const AllCustomers = () => {
 
       setCustomers(formattedCustomers);
 
-      // Calculate summary data
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-      const newThisMonth = formattedCustomers.filter(c => {
-        const createdDate = new Date(c.createdAt);
-        return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear;
-      }).length;
+      // Calculate summary data - fetch new customers this month from database
+      const currentDate = new Date();
+      const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      
+      const { count: newCustomersCount } = await supabase
+        .from('customers')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', firstDayOfMonth.toISOString());
 
       setSummaryData({
         activeCustomers: totalCustomers || 0,
-        newThisMonth
+        newThisMonth: newCustomersCount || 0
       });
     } catch (error) {
       console.error('Error:', error);
