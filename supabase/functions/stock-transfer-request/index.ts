@@ -37,15 +37,15 @@ serve(async (req) => {
       case 'create': {
         const { productId, fromOutletId, toOutletId, quantity, notes } = data
         
-        // Check if requesting user has access to from_outlet
+        // Check if requesting user has access to destination outlet (where they're requesting inventory TO)
         const { data: hasAccess } = await supabaseClient.rpc('has_outlet_access', {
           _user_id: user.id,
-          _outlet_id: fromOutletId
+          _outlet_id: toOutletId
         })
 
         if (!hasAccess) {
           return new Response(
-            JSON.stringify({ error: 'No access to source outlet' }),
+            JSON.stringify({ error: 'No access to destination outlet' }),
             { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
