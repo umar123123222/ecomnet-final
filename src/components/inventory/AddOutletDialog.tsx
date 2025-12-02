@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -78,6 +78,31 @@ export function AddOutletDialog({ open, onOpenChange, outlet }: AddOutletDialogP
   const outletType = watch("outlet_type");
   const managerId = watch("manager_id");
   const isActive = watch("is_active");
+
+  // Reset form with outlet data when dialog opens in edit mode
+  useEffect(() => {
+    if (open && outlet) {
+      reset({
+        name: outlet.name || "",
+        outlet_type: outlet.outlet_type || "retail",
+        address: outlet.address || "",
+        city: outlet.city || "",
+        phone: outlet.phone || "",
+        manager_id: outlet.manager_id || null,
+        is_active: outlet.is_active ?? true,
+      });
+    } else if (open && !outlet) {
+      reset({
+        name: "",
+        outlet_type: "retail",
+        address: "",
+        city: "",
+        phone: "",
+        manager_id: null,
+        is_active: true,
+      });
+    }
+  }, [open, outlet, reset]);
 
   const onSubmit = async (data: OutletFormData) => {
     setIsSubmitting(true);
