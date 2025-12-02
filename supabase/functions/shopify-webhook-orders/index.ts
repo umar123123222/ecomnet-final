@@ -37,6 +37,10 @@ interface ShopifyOrder {
     variant_id: number;
   }>;
   total_price: string;
+  total_shipping_price_set?: {
+    shop_money: { amount: string; currency_code: string; };
+  };
+  shipping_lines?: Array<{ price: string; title: string; }>;
   tags: string;
   note?: string;
   fulfillment_status?: string;
@@ -240,6 +244,14 @@ Deno.serve(async (req) => {
     const lineItems = order.line_items || [];
     const activeLineItems = filterActiveLineItems(lineItems);
     
+    // Extract shipping charges from Shopify
+    const shippingCharges = parseFloat(
+      order.total_shipping_price_set?.shop_money?.amount || 
+      order.shipping_lines?.reduce((sum, line) => sum + parseFloat(line.price || '0'), 0).toString() || 
+      '0'
+    );
+    console.log(`Order ${order.order_number} shipping charges: ${shippingCharges}`);
+    
     // Determine initial status (always pending, fulfillment doesn't mean delivered)
     const initialStatus = 'pending';
     
@@ -265,7 +277,8 @@ Deno.serve(async (req) => {
       customer_phone_last_5_chr: normalizedOrderPhone?.slice(-5) || '',
       customer_address: order.shipping_address.address1,
       city: order.shipping_address.city,
-      total_amount: calculateOrderTotal(lineItems, order.total_price),
+      total_amount: calculateOrderTotal(lineItems, order.total_price, shippingCharges),
+      shipping_charges: shippingCharges,
       total_items: activeLineItems.length.toString(),
       tags: allTags,
       notes: order.note,
