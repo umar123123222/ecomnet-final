@@ -59,12 +59,14 @@ const InventoryDashboard = () => {
   const [triggering, setTriggering] = useState(false);
 
   const isStoreManager = primaryRole === 'store_manager';
+  const isWarehouseManager = primaryRole === 'warehouse_manager';
+  const isOutletScoped = isStoreManager || isWarehouseManager;
 
-  // Fetch the store manager's assigned outlet
+  // Fetch the store/warehouse manager's assigned outlet
   const { data: userOutlet } = useQuery({
     queryKey: ["user-assigned-outlet", profile?.id],
     queryFn: async () => {
-      if (!profile?.id || !isStoreManager) return null;
+      if (!profile?.id || !isOutletScoped) return null;
       
       // First check if user is a manager of an outlet
       const { data: managedOutlet } = await supabase
@@ -85,7 +87,7 @@ const InventoryDashboard = () => {
 
       return staffOutlet?.outlet || null;
     },
-    enabled: !!profile?.id && isStoreManager,
+    enabled: !!profile?.id && isOutletScoped,
   });
 
   const handleTriggerAutomation = async () => {
@@ -122,9 +124,9 @@ const InventoryDashboard = () => {
     },
   });
 
-  // Fetch outlets - for store managers, only show their outlet
+  // Fetch outlets - for store/warehouse managers, only show their outlet
   const { data: outlets } = useQuery<Outlet[]>({
-    queryKey: ["outlets", isStoreManager, userOutlet?.id],
+    queryKey: ["outlets", isOutletScoped, userOutlet?.id],
     queryFn: async () => {
       let query = supabase
         .from("outlets")
@@ -132,8 +134,8 @@ const InventoryDashboard = () => {
         .eq("is_active", true)
         .order("name");
       
-      // Store managers only see their outlet
-      if (isStoreManager && userOutlet?.id) {
+      // Store/warehouse managers only see their outlet
+      if (isOutletScoped && userOutlet?.id) {
         query = query.eq("id", userOutlet.id);
       }
       
@@ -141,13 +143,13 @@ const InventoryDashboard = () => {
       if (error) throw error;
       return data as Outlet[];
     },
-    enabled: !isStoreManager || !!userOutlet,
+    enabled: !isOutletScoped || !!userOutlet,
   });
 
 
-  // Fetch inventory data - filtered by outlet for store managers
+  // Fetch inventory data - filtered by outlet for store/warehouse managers
   const { data: inventory, isLoading } = useQuery<Inventory[]>({
-    queryKey: ["inventory", isStoreManager, userOutlet?.id],
+    queryKey: ["inventory", isOutletScoped, userOutlet?.id],
     queryFn: async () => {
       let query = supabase
         .from("inventory")
@@ -157,8 +159,8 @@ const InventoryDashboard = () => {
           outlet:outlets(*)
         `);
       
-      // Store managers only see their outlet's inventory
-      if (isStoreManager && userOutlet?.id) {
+      // Store/warehouse managers only see their outlet's inventory
+      if (isOutletScoped && userOutlet?.id) {
         query = query.eq("outlet_id", userOutlet.id);
       }
       
@@ -166,7 +168,7 @@ const InventoryDashboard = () => {
       if (error) throw error;
       return data as Inventory[];
     },
-    enabled: !isStoreManager || !!userOutlet,
+    enabled: !isOutletScoped || !!userOutlet,
   });
 
   // Advanced filtering
