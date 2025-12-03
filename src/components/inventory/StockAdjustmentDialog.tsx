@@ -7,21 +7,28 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, AlertTriangle, TrendingUp, TrendingDown, Info } from "lucide-react";
+import { Loader2, AlertTriangle, TrendingUp, TrendingDown, Info, Upload, X, Image as ImageIcon } from "lucide-react";
+
+const REASON_OPTIONS = [
+  { value: "inventory_made", label: "Inventory Made" },
+  { value: "damaged", label: "Damaged" },
+  { value: "return", label: "Return" },
+] as const;
 
 const adjustmentSchema = z.object({
   product_id: z.string().min(1, "Product is required"),
   outlet_id: z.string().min(1, "Outlet is required"),
-  adjustment_type: z.enum(["increase", "decrease", "set_exact"], {
+  adjustment_type: z.enum(["increase", "decrease"], {
     required_error: "Please select adjustment type",
   }),
-  quantity: z.number().int().min(0, "Quantity must be at least 0"),
-  reason: z.string().trim().min(1, "Reason is required").max(500, "Reason must be less than 500 characters"),
+  quantity: z.number().int().min(1, "Quantity must be at least 1"),
+  reason: z.enum(["inventory_made", "damaged", "return"], {
+    required_error: "Please select a reason",
+  }),
 });
 
 type AdjustmentFormData = z.infer<typeof adjustmentSchema>;
@@ -41,6 +48,9 @@ export function StockAdjustmentDialog({
 }: StockAdjustmentDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -56,9 +66,9 @@ export function StockAdjustmentDialog({
     defaultValues: {
       product_id: "",
       outlet_id: "",
-      adjustment_type: "set_exact",
-      quantity: 0,
-      reason: "",
+      adjustment_type: "increase",
+      quantity: 1,
+      reason: undefined,
     },
   });
 
@@ -66,6 +76,7 @@ export function StockAdjustmentDialog({
   const selectedProductId = watch("product_id");
   const selectedOutletId = watch("outlet_id");
   const quantity = watch("quantity") || 0;
+  const reason = watch("reason");
 
   // Fetch current stock for selected product and outlet
   const { data: currentInventory, isLoading: isLoadingInventory } = useQuery({
@@ -90,16 +101,44 @@ export function StockAdjustmentDialog({
   });
 
   const currentStock = currentInventory?.quantity || 0;
-  const calculatedNewStock = adjustmentType === "set_exact"
-    ? quantity
-    : adjustmentType === "increase" 
+  const calculatedNewStock = adjustmentType === "increase" 
     ? currentStock + quantity 
     : currentStock - quantity;
 
   // Check if this is a large adjustment (>100 units or >50% change)
   const isLargeAdjustment = quantity > 100 || (currentStock > 0 && Math.abs(quantity / currentStock) > 0.5);
 
+  // Handle image selection
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setImageError("Image must be less than 5MB");
+        return;
+      }
+      setImageFile(file);
+      setImageError(null);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setImageError(null);
+  };
+
   const onSubmit = async (data: AdjustmentFormData) => {
+    // Validate image for damaged reason
+    if (data.reason === "damaged" && !imageFile) {
+      setImageError("Image is required for damaged items");
+      return;
+    }
+
     // Show confirmation for large adjustments
     if (isLargeAdjustment && !showConfirmation) {
       setShowConfirmation(true);
@@ -108,14 +147,34 @@ export function StockAdjustmentDialog({
 
     setIsSubmitting(true);
     try {
-      let adjustmentQuantity: number;
-      
-      if (data.adjustment_type === "set_exact") {
-        // Calculate the difference needed to reach exact quantity
-        adjustmentQuantity = data.quantity - currentStock;
-      } else {
-        adjustmentQuantity = data.adjustment_type === "increase" ? data.quantity : -data.quantity;
+      let imageUrl: string | null = null;
+
+      // Upload image if present
+      if (imageFile) {
+        const fileExt = imageFile.name.split('.').pop();
+        const fileName = `stock-adjustment-${Date.now()}.${fileExt}`;
+        const filePath = `stock-adjustments/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('packaging-adjustments')
+          .upload(filePath, imageFile);
+
+        if (uploadError) {
+          console.error('Image upload error:', uploadError);
+          // Continue without image if upload fails
+        } else {
+          const { data: urlData } = supabase.storage
+            .from('packaging-adjustments')
+            .getPublicUrl(filePath);
+          imageUrl = urlData.publicUrl;
+        }
       }
+
+      const adjustmentQuantity = data.adjustment_type === "increase" ? data.quantity : -data.quantity;
+      const reasonLabel = REASON_OPTIONS.find(r => r.value === data.reason)?.label || data.reason;
+      const reasonText = imageUrl 
+        ? `${reasonLabel} | Image: ${imageUrl}`
+        : reasonLabel;
 
       const { data: result, error } = await supabase.functions.invoke("manage-stock", {
         body: {
@@ -124,7 +183,7 @@ export function StockAdjustmentDialog({
             productId: data.product_id,
             outletId: data.outlet_id,
             quantity: adjustmentQuantity,
-            reason: data.reason,
+            reason: reasonText,
           },
         },
       });
@@ -133,9 +192,7 @@ export function StockAdjustmentDialog({
 
       const resultData = result as any;
 
-      const actionText = data.adjustment_type === "set_exact" 
-        ? "set to"
-        : data.adjustment_type === "increase" 
+      const actionText = data.adjustment_type === "increase" 
         ? "increased to" 
         : "decreased to";
 
@@ -146,7 +203,11 @@ export function StockAdjustmentDialog({
 
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       queryClient.invalidateQueries({ queryKey: ["inventory-item"] });
+      queryClient.invalidateQueries({ queryKey: ["products-inventory-aggregated"] });
       reset();
+      setImageFile(null);
+      setImagePreview(null);
+      setImageError(null);
       setShowConfirmation(false);
       onOpenChange(false);
     } catch (error: any) {
@@ -160,10 +221,13 @@ export function StockAdjustmentDialog({
     }
   };
 
-  // Reset confirmation when dialog closes
+  // Reset confirmation and image when dialog closes
   useEffect(() => {
     if (!open) {
       setShowConfirmation(false);
+      setImageFile(null);
+      setImagePreview(null);
+      setImageError(null);
     }
   }, [open]);
 
@@ -178,7 +242,7 @@ export function StockAdjustmentDialog({
           <DialogDescription>
             {showConfirmation 
               ? "Please confirm this large stock adjustment"
-              : "Increase or decrease stock quantity for a product"}
+              : "Add or remove stock quantity for a product"}
           </DialogDescription>
         </DialogHeader>
 
@@ -235,22 +299,16 @@ export function StockAdjustmentDialog({
                   <Label htmlFor="adjustment_type">Adjustment Type *</Label>
                   <Select
                     value={adjustmentType}
-                    onValueChange={(value) => setValue("adjustment_type", value as "increase" | "decrease" | "set_exact")}
+                    onValueChange={(value) => setValue("adjustment_type", value as "increase" | "decrease")}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="set_exact">
-                        <div className="flex items-center gap-2">
-                          <Info className="h-4 w-4 text-primary" />
-                          Set Exact Quantity (Manual Count)
-                        </div>
-                      </SelectItem>
                       <SelectItem value="increase">
                         <div className="flex items-center gap-2">
-                          <TrendingUp className="h-4 w-4 text-success" />
-                          Receive/Add Stock
+                          <TrendingUp className="h-4 w-4 text-green-500" />
+                          Add Stock
                         </div>
                       </SelectItem>
                       <SelectItem value="decrease">
@@ -295,18 +353,14 @@ export function StockAdjustmentDialog({
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="quantity">
-                    {adjustmentType === "set_exact" 
-                      ? "Current Physical Count *" 
-                      : adjustmentType === "increase"
-                      ? "Quantity Received *"
-                      : "Quantity to Remove *"}
+                    {adjustmentType === "increase" ? "Quantity to Add *" : "Quantity to Remove *"}
                   </Label>
                   <Input
                     id="quantity"
                     type="number"
-                    min={adjustmentType === "set_exact" ? "0" : "1"}
+                    min="1"
                     {...register("quantity", { valueAsNumber: true })}
-                    placeholder={adjustmentType === "set_exact" ? "Enter actual quantity counted" : "1"}
+                    placeholder="Enter quantity"
                   />
                   {errors.quantity && (
                     <p className="text-sm text-destructive">{errors.quantity.message}</p>
@@ -317,60 +371,95 @@ export function StockAdjustmentDialog({
                 {selectedProductId && selectedOutletId && !isLoadingInventory && (
                   <Alert className={calculatedNewStock < 0 ? "border-destructive" : "border-primary"}>
                     <AlertDescription>
-                      {adjustmentType === "set_exact" ? (
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-muted-foreground">System shows:</span>
-                            <span className="font-medium">{currentStock} units</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-muted-foreground">Physical count:</span>
-                            <span className="font-bold text-lg">{quantity} units</span>
-                          </div>
-                          {quantity !== currentStock && (
-                            <div className="flex items-center justify-between pt-1 border-t">
-                              <span className="text-sm font-medium">Adjustment:</span>
-                              <span className={`font-medium ${quantity > currentStock ? "text-success" : "text-destructive"}`}>
-                                {quantity > currentStock ? "+" : ""}{quantity - currentStock} units
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">
-                            New Stock: {calculatedNewStock} units
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">
+                          New Stock: {calculatedNewStock} units
+                        </span>
+                        {calculatedNewStock < 0 && (
+                          <span className="text-xs text-destructive flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            Will result in negative stock!
                           </span>
-                          {calculatedNewStock < 0 && (
-                            <span className="text-xs text-destructive flex items-center gap-1">
-                              <AlertTriangle className="h-3 w-3" />
-                              Will result in negative stock!
-                            </span>
-                          )}
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </AlertDescription>
                   </Alert>
                 )}
 
                 <div className="space-y-2">
                   <Label htmlFor="reason">Reason *</Label>
-                  <Textarea
-                    id="reason"
-                    {...register("reason")}
-                    placeholder={
-                      adjustmentType === "set_exact" 
-                        ? "Physical count, cycle count, stock verification, etc."
-                        : adjustmentType === "increase"
-                        ? "Goods received from supplier, production output, etc."
-                        : "Damaged goods, expiry, shrinkage, etc."
-                    }
-                    rows={6}
-                  />
+                  <Select
+                    value={reason}
+                    onValueChange={(value) => {
+                      setValue("reason", value as "inventory_made" | "damaged" | "return");
+                      if (value !== "damaged") {
+                        removeImage();
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select reason" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {REASON_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   {errors.reason && (
                     <p className="text-sm text-destructive">{errors.reason.message}</p>
                   )}
                 </div>
+
+                {/* Image Upload for Damaged */}
+                {reason === "damaged" && (
+                  <div className="space-y-2">
+                    <Label>
+                      Proof Image <span className="text-destructive">*</span>
+                    </Label>
+                    {!imagePreview ? (
+                      <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4">
+                        <label className="flex flex-col items-center justify-center cursor-pointer">
+                          <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                          <span className="text-sm text-muted-foreground">
+                            Click to upload image
+                          </span>
+                          <span className="text-xs text-muted-foreground mt-1">
+                            Required for damaged items (max 5MB)
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageChange}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <img
+                          src={imagePreview}
+                          alt="Preview"
+                          className="w-full h-32 object-cover rounded-lg"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-2 right-2 h-6 w-6"
+                          onClick={removeImage}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                    {imageError && (
+                      <p className="text-sm text-destructive">{imageError}</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -381,7 +470,7 @@ export function StockAdjustmentDialog({
                 <AlertDescription className="ml-2">
                   <p className="font-semibold mb-2">Large Adjustment Detected</p>
                   <p className="text-sm">
-                    You are about to {adjustmentType} stock by {quantity} units, which is a significant change.
+                    You are about to {adjustmentType === "increase" ? "add" : "remove"} {quantity} units, which is a significant change.
                   </p>
                 </AlertDescription>
               </Alert>
@@ -401,15 +490,14 @@ export function StockAdjustmentDialog({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Adjustment:</span>
-                  <span className={`font-medium ${
-                    adjustmentType === "set_exact" 
-                      ? (quantity > currentStock ? "text-success" : "text-destructive")
-                      : adjustmentType === "increase" ? "text-success" : "text-destructive"
-                  }`}>
-                    {adjustmentType === "set_exact"
-                      ? `${quantity > currentStock ? "+" : ""}${quantity - currentStock}`
-                      : adjustmentType === "increase" ? "+" : "-"
-                    }{adjustmentType !== "set_exact" && quantity} units
+                  <span className={`font-medium ${adjustmentType === "increase" ? "text-green-500" : "text-destructive"}`}>
+                    {adjustmentType === "increase" ? "+" : "-"}{quantity} units
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Reason:</span>
+                  <span className="font-medium">
+                    {REASON_OPTIONS.find(r => r.value === reason)?.label}
                   </span>
                 </div>
                 <div className="flex justify-between pt-2 border-t">
@@ -417,6 +505,13 @@ export function StockAdjustmentDialog({
                   <span className="font-bold text-lg">{calculatedNewStock} units</span>
                 </div>
               </div>
+
+              {imagePreview && (
+                <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Image attached</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -440,6 +535,9 @@ export function StockAdjustmentDialog({
               <>
                 <Button type="button" variant="outline" onClick={() => {
                   reset();
+                  setImageFile(null);
+                  setImagePreview(null);
+                  setImageError(null);
                   onOpenChange(false);
                 }}>
                   Cancel
