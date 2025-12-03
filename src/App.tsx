@@ -276,7 +276,7 @@ const App = () => {
                       <BOMManagement />
                     </Suspense>} />
                   <Route path="automation-history" element={<Suspense fallback={<PageLoader />}>
-                      <AutomationHistory />
+                      <AutomationHistory className="px-[25px] py-[25px]" />
                     </Suspense>} />
                   <Route path="stock-movement-history" element={<Suspense fallback={<PageLoader />}>
                       <StockMovementHistory />
