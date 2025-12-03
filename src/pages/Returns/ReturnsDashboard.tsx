@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Download, ChevronDown, ChevronUp, Edit, Lock, ScanBarcode } from 'lucide-react';
+import { Search, Download, ChevronDown, ChevronUp, Edit, Lock, ScanBarcode, RotateCcw, DollarSign } from 'lucide-react';
+import { PageContainer, PageHeader, StatsCard, StatsGrid } from '@/components/layout';
 import { Switch } from '@/components/ui/switch';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
@@ -837,7 +838,7 @@ const ReturnsDashboard = () => {
   }, []);
 
   return (
-    <div className="p-6 space-y-6 relative">
+    <PageContainer className="relative">
       {/* Hidden Focus Trap Input for Scanner */}
       {scannerModeActive && (
         <input
@@ -1326,7 +1327,7 @@ const ReturnsDashboard = () => {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 };
 export default ReturnsDashboard;

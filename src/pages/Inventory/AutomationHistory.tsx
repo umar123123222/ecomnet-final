@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PageContainer, PageHeader, StatsCard, StatsGrid } from "@/components/layout";
 import { 
   History, 
   TrendingUp, 
@@ -118,20 +119,20 @@ export default function AutomationHistory() {
       return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> Failed</Badge>;
     }
     if (item.po_id) {
-      return <Badge variant="default" className="gap-1 bg-green-500"><CheckCircle2 className="h-3 w-3" /> Success</Badge>;
+      return <Badge variant="default" className="gap-1 bg-success"><CheckCircle2 className="h-3 w-3" /> Success</Badge>;
     }
     return <Badge variant="secondary" className="gap-1"><Clock className="h-3 w-3" /> Pending</Badge>;
   };
 
   const getTriggerTypeBadge = (type: string) => {
     const colors: Record<string, string> = {
-      scheduled: "bg-blue-500",
-      manual: "bg-purple-500",
-      low_stock: "bg-orange-500",
-      emergency: "bg-red-500",
+      scheduled: "bg-info text-info-foreground",
+      manual: "bg-primary text-primary-foreground",
+      low_stock: "bg-warning text-warning-foreground",
+      emergency: "bg-destructive text-destructive-foreground",
     };
     return (
-      <Badge variant="secondary" className={colors[type] || ""}>
+      <Badge className={colors[type] || "bg-secondary text-secondary-foreground"}>
         {type}
       </Badge>
     );
@@ -167,100 +168,69 @@ export default function AutomationHistory() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <History className="h-8 w-8 text-primary" />
-            Automation History
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Monitor smart reordering automation performance and history
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-          <Button variant="outline" size="sm" onClick={exportToCSV}>
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-        </div>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Automation History"
+        description="Monitor smart reordering automation performance and history"
+        icon={History}
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportToCSV}>
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
+          </>
+        }
+      />
 
       {/* Metrics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Runs</CardTitle>
-            <History className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics.totalRuns}</div>
-            <p className="text-xs text-muted-foreground">Automation executions</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Successful POs</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{metrics.successfulPOs}</div>
-            <p className="text-xs text-muted-foreground">
-              {metrics.totalRuns > 0 
-                ? `${((metrics.successfulPOs / metrics.totalRuns) * 100).toFixed(1)}% success rate` 
-                : "No data"}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Failed Runs</CardTitle>
-            <XCircle className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">{metrics.failedRuns}</div>
-            <p className="text-xs text-muted-foreground">
-              {metrics.totalRuns > 0 
-                ? `${((metrics.failedRuns / metrics.totalRuns) * 100).toFixed(1)}% failure rate` 
-                : "No data"}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(metrics.totalValue, currency)}</div>
-            <p className="text-xs text-muted-foreground">Generated PO value</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Processing</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics.avgProcessingTime}ms</div>
-            <p className="text-xs text-muted-foreground">Per automation run</p>
-          </CardContent>
-        </Card>
-      </div>
+      <StatsGrid columns={5}>
+        <StatsCard
+          title="Total Runs"
+          value={metrics.totalRuns}
+          description="Automation executions"
+          icon={History}
+        />
+        <StatsCard
+          title="Successful POs"
+          value={metrics.successfulPOs}
+          description={metrics.totalRuns > 0 
+            ? `${((metrics.successfulPOs / metrics.totalRuns) * 100).toFixed(1)}% success rate` 
+            : "No data"}
+          icon={CheckCircle2}
+          variant="success"
+        />
+        <StatsCard
+          title="Failed Runs"
+          value={metrics.failedRuns}
+          description={metrics.totalRuns > 0 
+            ? `${((metrics.failedRuns / metrics.totalRuns) * 100).toFixed(1)}% failure rate` 
+            : "No data"}
+          icon={XCircle}
+          variant="danger"
+        />
+        <StatsCard
+          title="Total Value"
+          value={formatCurrency(metrics.totalValue, currency)}
+          description="Generated PO value"
+          icon={TrendingUp}
+        />
+        <StatsCard
+          title="Avg Processing"
+          value={`${metrics.avgProcessingTime}ms`}
+          description="Per automation run"
+          icon={Clock}
+        />
+      </StatsGrid>
 
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Filter History</CardTitle>
+          <CardTitle className="text-lg">Filter History</CardTitle>
           <CardDescription>Search and filter automation execution history</CardDescription>
         </CardHeader>
         <CardContent>
@@ -304,7 +274,7 @@ export default function AutomationHistory() {
       {/* History Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Execution History</CardTitle>
+          <CardTitle className="text-lg">Execution History</CardTitle>
           <CardDescription>
             Showing {filteredHistory?.length || 0} of {automationHistory?.length || 0} automation runs
           </CardDescription>
@@ -402,6 +372,6 @@ export default function AutomationHistory() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

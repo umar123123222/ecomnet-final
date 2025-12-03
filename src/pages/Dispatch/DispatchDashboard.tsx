@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, Lock, ScanBarcode, Package, RefreshCw } from 'lucide-react';
+import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, Lock, ScanBarcode, Package, RefreshCw, DollarSign } from 'lucide-react';
+import { PageContainer, PageHeader, StatsCard, StatsGrid } from '@/components/layout';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
 import { addDays, isWithinInterval, parseISO } from 'date-fns';
@@ -1198,7 +1199,7 @@ const metrics = useMemo(() => {
     };
   }, []);
 
-  return <div className="p-6 space-y-6 relative">
+  return <PageContainer className="relative">
       {/* Hidden Focus Trap Input for Scanner */}
       {scannerModeActive && (
         <input
@@ -1828,6 +1829,6 @@ const metrics = useMemo(() => {
           </div>
         </div>
       )}
-    </div>;
+    </PageContainer>;
 };
 export default DispatchDashboard;
