@@ -8,11 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw, Filter, PackagePlus } from "lucide-react";
+import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw, Filter, PackagePlus, SlidersHorizontal } from "lucide-react";
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
 import { SmartReorderSettings } from "@/components/inventory/SmartReorderSettings";
 import { BulkStockAdditionDialog } from "@/components/inventory/BulkStockAdditionDialog";
+import { StockAdjustmentDialog } from "@/components/inventory/StockAdjustmentDialog";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
@@ -32,6 +33,7 @@ const ProductManagement = () => {
   const [reorderSettingsOpen, setReorderSettingsOpen] = useState(false);
   const [reorderProduct, setReorderProduct] = useState<Product | null>(null);
   const [bulkStockDialogOpen, setBulkStockDialogOpen] = useState(false);
+  const [stockAdjustmentDialogOpen, setStockAdjustmentDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(50);
   const [isSyncingShopify, setIsSyncingShopify] = useState(false);
@@ -101,6 +103,20 @@ const ProductManagement = () => {
         .from('suppliers')
         .select('id, name')
         .eq('status', 'active')
+        .order('name');
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  // Fetch outlets for stock adjustment
+  const { data: outlets = [] } = useQuery({
+    queryKey: ['outlets-active'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('outlets')
+        .select('id, name')
+        .eq('is_active', true)
         .order('name');
       if (error) throw error;
       return data;
@@ -255,6 +271,14 @@ const ProductManagement = () => {
           </Button>
           {permissions.canManageProducts && (
             <>
+              <Button
+                onClick={() => setStockAdjustmentDialogOpen(true)}
+                variant="outline"
+                className="gap-2"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                Adjust Stock
+              </Button>
               <Button
                 onClick={() => setBulkStockDialogOpen(true)}
                 variant="outline"
@@ -575,6 +599,13 @@ const ProductManagement = () => {
         open={bulkStockDialogOpen}
         onOpenChange={setBulkStockDialogOpen}
         products={products}
+      />
+
+      <StockAdjustmentDialog
+        open={stockAdjustmentDialogOpen}
+        onOpenChange={setStockAdjustmentDialogOpen}
+        products={products}
+        outlets={outlets}
       />
     </div>
   );
