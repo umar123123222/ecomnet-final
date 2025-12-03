@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw, Filter, PackagePlus, SlidersHorizontal } from "lucide-react";
+import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw, Filter, PackagePlus, SlidersHorizontal, DollarSign, Layers } from "lucide-react";
+import { PageContainer, PageHeader, StatsCard, StatsGrid } from "@/components/layout";
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
 import { SmartReorderSettings } from "@/components/inventory/SmartReorderSettings";
@@ -247,100 +248,81 @@ const ProductManagement = () => {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-            Product Management
-          </h1>
-          <p className="text-muted-foreground">Manage your product catalog</p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            onClick={handleSyncFromShopify}
-            disabled={isSyncingShopify}
-            variant="outline"
-            className="gap-2"
-          >
-            {isSyncingShopify ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
+    <PageContainer>
+      <PageHeader
+        title="Product Management"
+        description="Manage your product catalog"
+        icon={Package}
+        actions={
+          <>
+            <Button
+              onClick={handleSyncFromShopify}
+              disabled={isSyncingShopify}
+              variant="outline"
+              className="gap-2"
+            >
+              {isSyncingShopify ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Sync from Shopify
+            </Button>
+            {permissions.canManageProducts && (
+              <>
+                <Button
+                  onClick={() => setStockAdjustmentDialogOpen(true)}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                  Adjust Stock
+                </Button>
+                <Button
+                  onClick={() => setBulkStockDialogOpen(true)}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <PackagePlus className="h-4 w-4" />
+                  Add Stock
+                </Button>
+                <Button
+                  onClick={() => {
+                    setSelectedProduct(null);
+                    setProductDialogOpen(true);
+                  }}
+                  className="gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Product
+                </Button>
+              </>
             )}
-            Sync from Shopify
-          </Button>
-          {permissions.canManageProducts && (
-            <>
-              <Button
-                onClick={() => setStockAdjustmentDialogOpen(true)}
-                variant="outline"
-                className="gap-2"
-              >
-                <SlidersHorizontal className="h-4 w-4" />
-                Adjust Stock
-              </Button>
-              <Button
-                onClick={() => setBulkStockDialogOpen(true)}
-                variant="outline"
-                className="gap-2"
-              >
-                <PackagePlus className="h-4 w-4" />
-                Add Stock
-              </Button>
-              <Button
-                onClick={() => {
-                  setSelectedProduct(null);
-                  setProductDialogOpen(true);
-                }}
-                className="gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Add Product
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{products?.length || 0}</div>
-            <p className="text-xs text-muted-foreground">{activeProducts} active</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Categories</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {new Set(products?.map(p => p.category)).size}
-            </div>
-            <p className="text-xs text-muted-foreground">Unique categories</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg. Price</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              Rs. {products && products.length > 0 ? Math.round(totalValue / products.length) : 0}
-            </div>
-            <p className="text-xs text-muted-foreground">Average product price</p>
-          </CardContent>
-        </Card>
-      </div>
+      <StatsGrid columns={3}>
+        <StatsCard
+          title="Total Products"
+          value={products?.length || 0}
+          description={`${activeProducts} active`}
+          icon={Package}
+        />
+        <StatsCard
+          title="Categories"
+          value={new Set(products?.map(p => p.category)).size}
+          description="Unique categories"
+          icon={Layers}
+        />
+        <StatsCard
+          title="Avg. Price"
+          value={`Rs. ${products && products.length > 0 ? Math.round(totalValue / products.length) : 0}`}
+          description="Average product price"
+          icon={DollarSign}
+        />
+      </StatsGrid>
 
       {/* Bulk Operations Panel */}
       {selectedProducts.length > 0 && (
@@ -607,7 +589,7 @@ const ProductManagement = () => {
         products={products}
         outlets={outlets}
       />
-    </div>
+    </PageContainer>
   );
 };
 

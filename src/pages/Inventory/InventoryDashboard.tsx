@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2, Settings, X, Save, Filter, PlayCircle, History, FileSpreadsheet, ArrowRight } from "lucide-react";
+import { PageContainer, PageHeader, StatsCard, StatsGrid } from "@/components/layout";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -163,108 +164,91 @@ const InventoryDashboard = () => {
   const outletOptions = outlets?.map(outlet => ({ value: outlet.id, label: outlet.name })) || [];
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-bold text-foreground">
-            Inventory Dashboard
-          </h1>
-          <p className="text-muted-foreground">Track and manage stock levels across outlets</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={handleTriggerAutomation}
-            disabled={triggering}
-            variant="outline"
-            size="sm"
-            className="gap-2"
-          >
-            <PlayCircle className="h-4 w-4" />
-            {triggering ? 'Running...' : 'Run Smart Reorder'}
-          </Button>
-          <Link to="/automation-history">
-            <Button variant="outline" size="sm" className="gap-2">
-              <History className="h-4 w-4" />
-              History
-            </Button>
-          </Link>
-          {permissions.canCreateStockTransfer && (
+    <PageContainer>
+      <PageHeader
+        title="Inventory Dashboard"
+        description="Track and manage stock levels across outlets"
+        icon={Package}
+        actions={
+          <>
             <Button
-              onClick={() => setQuickTransferDialogOpen(true)}
-              variant="secondary"
+              onClick={handleTriggerAutomation}
+              disabled={triggering}
+              variant="outline"
               size="sm"
               className="gap-2"
             >
-              <ArrowRight className="h-4 w-4" />
-              Quick Transfer
+              <PlayCircle className="h-4 w-4" />
+              {triggering ? 'Running...' : 'Run Smart Reorder'}
             </Button>
-          )}
-          {permissions.canBulkAdjustStock && (
-            <Button
-              onClick={() => setBulkAdjustmentDialogOpen(true)}
-              variant="secondary"
-              size="sm"
-              className="gap-2"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Bulk Adjustment
-            </Button>
-          )}
-          {permissions.canAccessInventory && (
-            <Button
-              onClick={() => setAdjustmentDialogOpen(true)}
-              size="sm"
-              className="gap-2"
-            >
-              <Settings className="h-4 w-4" />
-              Stock Adjustment
-            </Button>
-          )}
-        </div>
-      </div>
+            <Link to="/automation-history">
+              <Button variant="outline" size="sm" className="gap-2">
+                <History className="h-4 w-4" />
+                History
+              </Button>
+            </Link>
+            {permissions.canCreateStockTransfer && (
+              <Button
+                onClick={() => setQuickTransferDialogOpen(true)}
+                variant="secondary"
+                size="sm"
+                className="gap-2"
+              >
+                <ArrowRight className="h-4 w-4" />
+                Quick Transfer
+              </Button>
+            )}
+            {permissions.canBulkAdjustStock && (
+              <Button
+                onClick={() => setBulkAdjustmentDialogOpen(true)}
+                variant="secondary"
+                size="sm"
+                className="gap-2"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Bulk Adjustment
+              </Button>
+            )}
+            {permissions.canAccessInventory && (
+              <Button
+                onClick={() => setAdjustmentDialogOpen(true)}
+                size="sm"
+                className="gap-2"
+              >
+                <Settings className="h-4 w-4" />
+                Stock Adjustment
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {/* Inventory Summary */}
       <InventorySummaryWidget />
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="border-l-4 border-l-primary">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Items</CardTitle>
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <Package className="h-4 w-4 text-primary" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">{totalItems.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">Across all outlets</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-info">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Value</CardTitle>
-            <div className="h-8 w-8 rounded-full bg-info/10 flex items-center justify-center">
-              <DollarSign className="h-4 w-4 text-info" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">PKR {totalValue.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">Inventory worth</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-warning">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Low Stock Items</CardTitle>
-            <div className="h-8 w-8 rounded-full bg-warning/10 flex items-center justify-center">
-              <AlertTriangle className="h-4 w-4 text-warning" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-warning">{lowStockCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">Needs attention</p>
-          </CardContent>
-        </Card>
-      </div>
+      <StatsGrid columns={3}>
+        <StatsCard
+          title="Total Items"
+          value={totalItems.toLocaleString()}
+          description="Across all outlets"
+          icon={Package}
+        />
+        <StatsCard
+          title="Total Value"
+          value={`PKR ${totalValue.toLocaleString()}`}
+          description="Inventory worth"
+          icon={DollarSign}
+          variant="info"
+        />
+        <StatsCard
+          title="Low Stock Items"
+          value={lowStockCount}
+          description="Needs attention"
+          icon={AlertTriangle}
+          variant="warning"
+        />
+      </StatsGrid>
 
       {/* Inventory Table with Integrated Filters */}
       <Card>
@@ -616,7 +600,7 @@ const InventoryDashboard = () => {
         products={products || []}
         outlets={outlets || []}
       />
-    </div>
+    </PageContainer>
   );
 };
 

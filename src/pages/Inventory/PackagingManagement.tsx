@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Package, AlertTriangle, Edit, Trash2, PackagePlus } from "lucide-react";
+import { Plus, Search, Package, AlertTriangle, Edit, Trash2, PackagePlus, CheckCircle } from "lucide-react";
+import { PageContainer, PageHeader, StatsCard, StatsGrid } from "@/components/layout";
 import { useToast } from "@/hooks/use-toast";
 import { useBulkOperations } from "@/hooks/useBulkOperations";
 import { bulkDeletePackagingItems } from "@/utils/bulkOperations";
@@ -273,63 +274,48 @@ export default function PackagingManagement() {
   ];
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Packaging Management</h1>
-          <p className="text-muted-foreground">
-            Manage packaging materials like bottles, boxes, and labels
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {permissions.canAdjustPackagingStock && (
-            <Button onClick={() => setAdjustmentDialogOpen(true)} variant="secondary">
-              <PackagePlus className="mr-2 h-4 w-4" />
-              Stock Adjustment
-            </Button>
-          )}
-          {permissions.canManagePackaging && (
-            <Button onClick={handleAddNew}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Packaging Item
-            </Button>
-          )}
-        </div>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Packaging Management"
+        description="Manage packaging materials like bottles, boxes, and labels"
+        icon={Package}
+        actions={
+          <>
+            {permissions.canAdjustPackagingStock && (
+              <Button onClick={() => setAdjustmentDialogOpen(true)} variant="secondary">
+                <PackagePlus className="mr-2 h-4 w-4" />
+                Stock Adjustment
+              </Button>
+            )}
+            {permissions.canManagePackaging && (
+              <Button onClick={handleAddNew}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Packaging Item
+              </Button>
+            )}
+          </>
+        }
+      />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="p-6">
-          <div className="flex items-center gap-2">
-            <Package className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-sm text-muted-foreground">Total Items</p>
-              <p className="text-2xl font-bold">{packagingItems?.length || 0}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-6">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-warning" />
-            <div>
-              <p className="text-sm text-muted-foreground">Low Stock Items</p>
-              <p className="text-2xl font-bold">
-                {packagingItems?.filter(i => i.current_stock <= i.reorder_level).length || 0}
-              </p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-6">
-          <div className="flex items-center gap-2">
-            <Package className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-sm text-muted-foreground">Active Items</p>
-              <p className="text-2xl font-bold">
-                {packagingItems?.filter(i => i.is_active).length || 0}
-              </p>
-            </div>
-          </div>
-        </Card>
-      </div>
+      <StatsGrid columns={3}>
+        <StatsCard
+          title="Total Items"
+          value={packagingItems?.length || 0}
+          icon={Package}
+        />
+        <StatsCard
+          title="Low Stock Items"
+          value={packagingItems?.filter(i => i.current_stock <= i.reorder_level).length || 0}
+          icon={AlertTriangle}
+          variant="warning"
+        />
+        <StatsCard
+          title="Active Items"
+          value={packagingItems?.filter(i => i.is_active).length || 0}
+          icon={CheckCircle}
+          variant="success"
+        />
+      </StatsGrid>
 
       {permissions.canManagePackaging && selectedItems.length > 0 && (
         <BulkOperationsPanel
@@ -786,6 +772,6 @@ export default function PackagingManagement() {
       />
 
       <PackagingRulesManager />
-    </div>
+    </PageContainer>
   );
 }
