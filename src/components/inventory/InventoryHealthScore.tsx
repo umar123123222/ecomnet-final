@@ -170,7 +170,7 @@ export function InventoryHealthScore() {
       <CardContent>
         <div className="space-y-6">
           {/* Overall Score */}
-          <div className="flex items-center justify-between p-4 border rounded-lg bg-slate-200">
+          <div className="flex items-center justify-between p-4 border rounded-lg bg-orange-100">
             <div className="flex items-center gap-3">
               {getStatusIcon(healthMetrics.status)}
               <div>
