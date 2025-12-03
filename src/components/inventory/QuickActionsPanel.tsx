@@ -49,7 +49,7 @@ export function QuickActionsPanel({
       description: 'Adjust stock levels',
       onClick: onStockAdjustment,
       enabled: permissions.canAdjustStock,
-      color: 'bg-muted hover:bg-accent text-foreground border border-border',
+      color: 'bg-muted hover:bg-muted/80 text-foreground border border-border',
       iconBg: 'bg-muted-foreground/10',
     },
     {
@@ -58,7 +58,7 @@ export function QuickActionsPanel({
       description: 'Upload CSV file',
       onClick: onBulkAdjustment,
       enabled: permissions.canBulkAdjustStock,
-      color: 'bg-muted hover:bg-accent text-foreground border border-border',
+      color: 'bg-muted hover:bg-muted/80 text-foreground border border-border',
       iconBg: 'bg-muted-foreground/10',
     },
     {
@@ -67,7 +67,7 @@ export function QuickActionsPanel({
       description: 'Transfer between outlets',
       onClick: onQuickTransfer,
       enabled: permissions.canCreateStockTransfer,
-      color: 'bg-muted hover:bg-accent text-foreground border border-border',
+      color: 'bg-muted hover:bg-muted/80 text-foreground border border-border',
       iconBg: 'bg-muted-foreground/10',
     },
   ];
