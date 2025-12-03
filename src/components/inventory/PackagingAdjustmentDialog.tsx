@@ -11,7 +11,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Upload, X, ImageIcon } from "lucide-react";
+
+const REASON_OPTIONS = [
+  { value: "shipment_received", label: "Shipment Received" },
+  { value: "damaged_items", label: "Damaged Items" },
+  { value: "correction", label: "Correction" },
+  { value: "other", label: "Other" },
+] as const;
 
 const packagingAdjustmentSchema = z.object({
   packaging_item_id: z.string().min(1, "Packaging item is required"),
@@ -19,7 +26,18 @@ const packagingAdjustmentSchema = z.object({
     required_error: "Please select adjustment type",
   }),
   quantity: z.number().int().min(1, "Quantity must be at least 1"),
-  reason: z.string().trim().min(1, "Reason is required").max(500, "Reason must be less than 500 characters"),
+  reason: z.enum(["shipment_received", "damaged_items", "correction", "other"], {
+    required_error: "Please select a reason",
+  }),
+  other_reason: z.string().optional(),
+}).refine((data) => {
+  if (data.reason === "other") {
+    return data.other_reason && data.other_reason.trim().length > 0;
+  }
+  return true;
+}, {
+  message: "Please specify the reason",
+  path: ["other_reason"],
 });
 
 type PackagingAdjustmentFormData = z.infer<typeof packagingAdjustmentSchema>;
@@ -36,6 +54,8 @@ export function PackagingAdjustmentDialog({
   packagingItems,
 }: PackagingAdjustmentDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [proofImage, setProofImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -52,27 +72,98 @@ export function PackagingAdjustmentDialog({
       packaging_item_id: "",
       adjustment_type: "increase",
       quantity: 1,
-      reason: "",
+      reason: undefined,
+      other_reason: "",
     },
   });
 
   const adjustmentType = watch("adjustment_type");
   const selectedPackagingId = watch("packaging_item_id");
+  const selectedReason = watch("reason");
 
-  // Get current stock for selected packaging item
   const selectedPackaging = packagingItems?.find(item => item.id === selectedPackagingId);
   const currentStock = selectedPackaging?.current_stock || 0;
 
+  const isImageRequired = selectedReason === "damaged_items";
+  const showOtherReasonInput = selectedReason === "other";
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Image must be less than 5MB",
+          variant: "destructive",
+        });
+        return;
+      }
+      setProofImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setProofImage(null);
+    setImagePreview(null);
+  };
+
+  const handleClose = () => {
+    reset();
+    setProofImage(null);
+    setImagePreview(null);
+    onOpenChange(false);
+  };
+
   const onSubmit = async (data: PackagingAdjustmentFormData) => {
+    if (isImageRequired && !proofImage) {
+      toast({
+        title: "Image Required",
+        description: "Please upload proof image for damaged items",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      let imageUrl: string | null = null;
+
+      if (proofImage) {
+        const fileExt = proofImage.name.split('.').pop();
+        const fileName = `packaging-adjustment-${Date.now()}.${fileExt}`;
+        const filePath = `packaging-adjustments/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(filePath, proofImage);
+
+        if (uploadError) {
+          console.error('Image upload error:', uploadError);
+        } else {
+          const { data: urlData } = supabase.storage
+            .from('documents')
+            .getPublicUrl(filePath);
+          imageUrl = urlData.publicUrl;
+        }
+      }
+
+      const reasonText = data.reason === "other" 
+        ? `Other: ${data.other_reason}` 
+        : REASON_OPTIONS.find(r => r.value === data.reason)?.label || data.reason;
+
       const { data: result, error } = await supabase.functions.invoke("manage-stock", {
         body: {
           operation: "adjustPackagingStock",
           data: {
             packagingItemId: data.packaging_item_id,
             quantity: data.adjustment_type === "increase" ? data.quantity : -data.quantity,
-            reason: data.reason,
+            reason: reasonText,
+            proofImageUrl: imageUrl,
           },
         },
       });
@@ -87,8 +178,7 @@ export function PackagingAdjustmentDialog({
       });
 
       queryClient.invalidateQueries({ queryKey: ["packaging-items"] });
-      reset();
-      onOpenChange(false);
+      handleClose();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -101,7 +191,7 @@ export function PackagingAdjustmentDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Packaging Stock Adjustment</DialogTitle>
@@ -176,19 +266,93 @@ export function PackagingAdjustmentDialog({
 
           <div className="space-y-2">
             <Label htmlFor="reason">Reason *</Label>
-            <Textarea
-              id="reason"
-              {...register("reason")}
-              placeholder="Received shipment, damaged items, usage correction, etc."
-              rows={3}
-            />
+            <Select
+              value={selectedReason}
+              onValueChange={(value) => setValue("reason", value as any)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select reason" />
+              </SelectTrigger>
+              <SelectContent>
+                {REASON_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {errors.reason && (
               <p className="text-sm text-destructive">{errors.reason.message}</p>
             )}
           </div>
 
+          {showOtherReasonInput && (
+            <div className="space-y-2">
+              <Label htmlFor="other_reason">Specify Reason *</Label>
+              <Textarea
+                id="other_reason"
+                {...register("other_reason")}
+                placeholder="Please describe the reason for adjustment..."
+                rows={2}
+              />
+              {errors.other_reason && (
+                <p className="text-sm text-destructive">{errors.other_reason.message}</p>
+              )}
+            </div>
+          )}
+
+          {(selectedReason === "damaged_items" || selectedReason === "other") && (
+            <div className="space-y-2">
+              <Label>
+                Proof Image {isImageRequired ? "*" : "(Optional)"}
+              </Label>
+              
+              {imagePreview ? (
+                <div className="relative inline-block">
+                  <img
+                    src={imagePreview}
+                    alt="Proof"
+                    className="max-h-32 rounded-md border"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    className="absolute -top-2 -right-2 h-6 w-6"
+                    onClick={removeImage}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Label
+                    htmlFor="proof-image"
+                    className="flex items-center gap-2 px-4 py-2 border border-dashed rounded-md cursor-pointer hover:bg-muted transition-colors"
+                  >
+                    <ImageIcon className="h-4 w-4" />
+                    <span className="text-sm">Upload Image</span>
+                  </Label>
+                  <Input
+                    id="proof-image"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageChange}
+                  />
+                </div>
+              )}
+              
+              {isImageRequired && !proofImage && (
+                <p className="text-sm text-muted-foreground">
+                  Image proof is required for damaged items
+                </p>
+              )}
+            </div>
+          )}
+
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
