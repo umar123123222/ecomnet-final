@@ -17,6 +17,8 @@ interface CourierConfig {
   api_endpoint: string;
   api_key: string;
   api_key_header?: string;
+  api_username?: string;
+  api_password?: string;
   pickup_address_code?: string;
   booking_endpoint: string;
   tracking_endpoint: string;
@@ -53,6 +55,8 @@ export function CourierConfigCard({ courier, onSave, onDelete, onTest }: Props) 
     api_endpoint: '',
     api_key: '',
     api_key_header: '',
+    api_username: '',
+    api_password: '',
     pickup_address_code: '',
     booking_endpoint: '',
     tracking_endpoint: '',
@@ -255,15 +259,37 @@ export function CourierConfigCard({ courier, onSave, onDelete, onTest }: Props) 
           </div>
         )}
 
-        <div className="space-y-2">
-          <Label>API Key / Token</Label>
-          <Input
-            type="password"
-            value={config.api_key}
-            onChange={(e) => setConfig({ ...config, api_key: e.target.value })}
-            placeholder="Enter API key or token"
-          />
-        </div>
+        {config.auth_type === 'basic_auth' ? (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>API Username</Label>
+              <Input
+                value={config.api_username || ''}
+                onChange={(e) => setConfig({ ...config, api_username: e.target.value })}
+                placeholder="Enter username"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>API Password</Label>
+              <Input
+                type="password"
+                value={config.api_password || ''}
+                onChange={(e) => setConfig({ ...config, api_password: e.target.value })}
+                placeholder="Enter password"
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Label>API Key / Token</Label>
+            <Input
+              type="password"
+              value={config.api_key}
+              onChange={(e) => setConfig({ ...config, api_key: e.target.value })}
+              placeholder="Enter API key or token"
+            />
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label>Pickup Address Code (Optional)</Label>
