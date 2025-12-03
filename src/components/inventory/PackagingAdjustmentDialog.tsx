@@ -16,7 +16,6 @@ import { Loader2, Upload, X, ImageIcon } from "lucide-react";
 const REASON_OPTIONS = [
   { value: "shipment_received", label: "Shipment Received" },
   { value: "damaged_items", label: "Damaged Items" },
-  { value: "correction", label: "Correction" },
   { value: "other", label: "Other" },
 ] as const;
 
@@ -26,7 +25,7 @@ const packagingAdjustmentSchema = z.object({
     required_error: "Please select adjustment type",
   }),
   quantity: z.number().int().min(1, "Quantity must be at least 1"),
-  reason: z.enum(["shipment_received", "damaged_items", "correction", "other"], {
+  reason: z.enum(["shipment_received", "damaged_items", "other"], {
     required_error: "Please select a reason",
   }),
   other_reason: z.string().optional(),
