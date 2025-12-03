@@ -275,10 +275,10 @@ serve(async (req) => {
       );
     }
 
-    // Get existing order to fetch current tags and shopify_order_id
+    // Get existing order to fetch current tags, status and shopify_order_id
     const { data: existingOrder } = await supabase
       .from('orders')
-      .select('tags, shopify_order_id')
+      .select('tags, shopify_order_id, status')
       .eq('id', bookingRequest.orderId)
       .single();
 
@@ -291,20 +291,28 @@ serve(async (req) => {
     const filteredTags = existingTags.filter(tag => !tag.startsWith('Ecomnet - Assigned to'));
     const updatedTags = [...filteredTags, ecomnetCourierTag];
 
-    console.log('[BOOKING] Updating order tags:', {
+    // IMPORTANT: Preserve 'dispatched' status if order was already dispatched
+    // Only set to 'booked' for orders that aren't already dispatched
+    const currentStatus = existingOrder?.status;
+    const newStatus = currentStatus === 'dispatched' ? 'dispatched' : 'booked';
+
+    console.log('[BOOKING] Updating order:', {
       old_tags: existingTags,
       new_tags: updatedTags,
-      courier_tag: ecomnetCourierTag
+      courier_tag: ecomnetCourierTag,
+      current_status: currentStatus,
+      new_status: newStatus,
+      preserving_dispatched: currentStatus === 'dispatched'
     });
 
-    // Update order with tracking information and tags (only if label is available)
+    // Update order with tracking information and tags
     // Use retry logic for critical order update
     const orderUpdateResult = await updateOrderWithRetry(
       supabase,
       bookingRequest.orderId,
       {
         tracking_id: trackingId,
-        status: 'booked',
+        status: newStatus,
         courier: courier.code.toLowerCase(),
         tags: updatedTags,
         booked_at: new Date().toISOString(),
