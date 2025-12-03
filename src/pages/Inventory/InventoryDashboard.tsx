@@ -49,14 +49,44 @@ import { useUserRoles } from "@/hooks/useUserRoles";
 import { BundleAvailabilityWidget } from "@/components/inventory/BundleAvailabilityWidget";
 
 const InventoryDashboard = () => {
-  const { user } = useAuth();
-  const { permissions } = useUserRoles();
+  const { user, profile } = useAuth();
+  const { permissions, primaryRole } = useUserRoles();
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
   const [bulkAdjustmentDialogOpen, setBulkAdjustmentDialogOpen] = useState(false);
   const [quickTransferDialogOpen, setQuickTransferDialogOpen] = useState(false);
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [presetName, setPresetName] = useState('');
   const [triggering, setTriggering] = useState(false);
+
+  const isStoreManager = primaryRole === 'store_manager';
+
+  // Fetch the store manager's assigned outlet
+  const { data: userOutlet } = useQuery({
+    queryKey: ["user-assigned-outlet", profile?.id],
+    queryFn: async () => {
+      if (!profile?.id || !isStoreManager) return null;
+      
+      // First check if user is a manager of an outlet
+      const { data: managedOutlet } = await supabase
+        .from("outlets")
+        .select("id, name")
+        .eq("manager_id", profile.id)
+        .eq("is_active", true)
+        .single();
+
+      if (managedOutlet) return managedOutlet;
+
+      // Otherwise check outlet_staff assignment
+      const { data: staffOutlet } = await supabase
+        .from("outlet_staff")
+        .select("outlet:outlets(id, name)")
+        .eq("user_id", profile.id)
+        .single();
+
+      return staffOutlet?.outlet || null;
+    },
+    enabled: !!profile?.id && isStoreManager,
+  });
 
   const handleTriggerAutomation = async () => {
     setTriggering(true);
@@ -92,35 +122,51 @@ const InventoryDashboard = () => {
     },
   });
 
-  // Fetch outlets
+  // Fetch outlets - for store managers, only show their outlet
   const { data: outlets } = useQuery<Outlet[]>({
-    queryKey: ["outlets"],
+    queryKey: ["outlets", isStoreManager, userOutlet?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("outlets")
         .select("*")
         .eq("is_active", true)
         .order("name");
+      
+      // Store managers only see their outlet
+      if (isStoreManager && userOutlet?.id) {
+        query = query.eq("id", userOutlet.id);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data as Outlet[];
     },
+    enabled: !isStoreManager || !!userOutlet,
   });
 
 
-  // Fetch inventory data
+  // Fetch inventory data - filtered by outlet for store managers
   const { data: inventory, isLoading } = useQuery<Inventory[]>({
-    queryKey: ["inventory"],
+    queryKey: ["inventory", isStoreManager, userOutlet?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("inventory")
         .select(`
           *,
           product:products(*),
           outlet:outlets(*)
         `);
+      
+      // Store managers only see their outlet's inventory
+      if (isStoreManager && userOutlet?.id) {
+        query = query.eq("outlet_id", userOutlet.id);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data as Inventory[];
     },
+    enabled: !isStoreManager || !!userOutlet,
   });
 
   // Advanced filtering
