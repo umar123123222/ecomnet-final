@@ -134,6 +134,7 @@ interface DispatchInfo {
   tracking_id: string | null;
   courier: string;
   dispatch_date: string | null;
+  booked_at: string | null;
   estimated_delivery: string | null;
   couriers: {
     name: string;
@@ -219,10 +220,18 @@ export const OrderDetailsModal = ({
 
       // Combine data from both sources
       if (hasDirectBooking || dispatch) {
+        // Get booked_at from order - need to fetch it
+        const { data: orderData } = await supabase
+          .from('orders')
+          .select('booked_at')
+          .eq('id', order.id)
+          .single();
+        
         const combinedInfo = {
           tracking_id: dispatch?.tracking_id || order.tracking_id || null,
           courier: dispatch?.courier || order.courier || '',
-          dispatch_date: dispatch?.dispatch_date || order.created_at,
+          dispatch_date: dispatch?.dispatch_date || null, // Don't use created_at as fallback
+          booked_at: orderData?.booked_at || null,
           estimated_delivery: dispatch?.estimated_delivery || null,
           couriers: dispatch?.couriers || null
         };
@@ -496,13 +505,24 @@ export const OrderDetailsModal = ({
               </div>
 
               <div className="grid grid-cols-2 gap-4 pt-2">
-                {dispatchInfo.dispatch_date && <div className="flex items-center gap-2 text-sm">
+                {/* Show Dispatched date if available, otherwise show Booked date */}
+                {dispatchInfo.dispatch_date ? (
+                  <div className="flex items-center gap-2 text-sm">
                     <Clock className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <div className="text-xs text-muted-foreground">Dispatched</div>
                       <div className="font-medium">{format(new Date(dispatchInfo.dispatch_date), 'MMM d, yyyy hh:mm a')}</div>
                     </div>
-                  </div>}
+                  </div>
+                ) : dispatchInfo.booked_at ? (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <div className="text-xs text-muted-foreground">Booked</div>
+                      <div className="font-medium">{format(new Date(dispatchInfo.booked_at), 'MMM d, yyyy hh:mm a')}</div>
+                    </div>
+                  </div>
+                ) : null}
                 {dispatchInfo.estimated_delivery && <div className="flex items-center gap-2 text-sm">
                     <Package className="h-4 w-4 text-muted-foreground" />
                     <div>
