@@ -276,7 +276,7 @@ useEffect(() => {
     });
   }, [filteredByDate, searchTerm, courierFilter, userFilter]);
 const metrics = useMemo(() => {
-  const totalDispatches = filteredDispatches.length;
+  const totalDispatches = totalDispatchCount ?? filteredByDate.length;
   const worthOfDispatches = filteredDispatches.reduce((total, dispatch) => {
     return total + (dispatch.orders?.total_amount || 2500);
   }, 0);
@@ -293,7 +293,7 @@ const metrics = useMemo(() => {
     worthOfDispatches,
     mostUsedCourier
   };
-}, [filteredDispatches]);
+}, [filteredByDate, filteredDispatches, totalDispatchCount]);
   const handleSelectDispatch = (dispatchId: string) => {
     setSelectedDispatches(prev => prev.includes(dispatchId) ? prev.filter(id => id !== dispatchId) : [...prev, dispatchId]);
   };
