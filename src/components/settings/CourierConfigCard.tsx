@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Save, TestTube, Plus, X } from "lucide-react";
+import { Trash2, Save, TestTube, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface CourierConfig {
@@ -108,6 +108,9 @@ export function CourierConfigCard({ courier, onSave, onDelete, onTest }: Props) 
   const [activeFields, setActiveFields] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const VISIBLE_FIELDS_COUNT = 3;
 
   // Initialize active fields based on existing courier data
   useEffect(() => {
@@ -408,8 +411,30 @@ export function CourierConfigCard({ courier, onSave, onDelete, onTest }: Props) 
         {/* Dynamic fields */}
         {activeFields.length > 0 && (
           <div className="space-y-3 pt-2">
-            <Label className="text-sm text-muted-foreground">Configuration Fields</Label>
-            {activeFields.map(fieldKey => {
+            <div className="flex items-center justify-between">
+              <Label className="text-sm text-muted-foreground">Configuration Fields</Label>
+              {activeFields.length > VISIBLE_FIELDS_COUNT && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="h-7 text-xs text-muted-foreground"
+                >
+                  {isExpanded ? (
+                    <>
+                      <ChevronUp className="h-3 w-3 mr-1" />
+                      Show Less
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-3 w-3 mr-1" />
+                      +{activeFields.length - VISIBLE_FIELDS_COUNT} more
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+            {(isExpanded ? activeFields : activeFields.slice(0, VISIBLE_FIELDS_COUNT)).map(fieldKey => {
               const field = COURIER_FIELDS.find(f => f.key === fieldKey);
               if (!field) return null;
               return renderField(field);
