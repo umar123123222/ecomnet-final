@@ -6,6 +6,97 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Helper function to get notification recipients
+async function getNotificationRecipients(supabaseClient: any, requesterId: string | null) {
+  const recipients: Array<{ id: string; email: string; full_name: string }> = []
+  const recipientIds = new Set<string>()
+
+  // Get requester info
+  if (requesterId) {
+    const { data: requester } = await supabaseClient
+      .from('profiles')
+      .select('id, email, full_name')
+      .eq('id', requesterId)
+      .single()
+    
+    if (requester && !recipientIds.has(requester.id)) {
+      recipientIds.add(requester.id)
+      recipients.push(requester)
+    }
+  }
+
+  // Get super_admin, super_manager, warehouse_manager
+  const { data: managers } = await supabaseClient
+    .from('profiles')
+    .select('id, email, full_name')
+    .in('role', ['super_admin', 'super_manager', 'warehouse_manager'])
+
+  if (managers) {
+    for (const manager of managers) {
+      if (!recipientIds.has(manager.id)) {
+        recipientIds.add(manager.id)
+        recipients.push(manager)
+      }
+    }
+  }
+
+  return recipients
+}
+
+// Helper function to create portal notifications
+async function createPortalNotifications(
+  supabaseClient: any,
+  recipients: Array<{ id: string }>,
+  notification: {
+    title: string
+    message: string
+    type: string
+    priority: string
+    action_url: string
+    metadata: Record<string, any>
+  }
+) {
+  const notifications = recipients.map(recipient => ({
+    user_id: recipient.id,
+    ...notification
+  }))
+
+  if (notifications.length > 0) {
+    const { error } = await supabaseClient.from('notifications').insert(notifications)
+    if (error) {
+      console.error('Error creating portal notifications:', error)
+    } else {
+      console.log(`Created ${notifications.length} portal notifications`)
+    }
+  }
+}
+
+// Helper function to send email notifications via edge function
+async function sendEmailNotifications(
+  supabaseClient: any,
+  transferId: string,
+  notificationType: string,
+  additionalData?: Record<string, any>
+) {
+  try {
+    const { error } = await supabaseClient.functions.invoke('send-transfer-notification', {
+      body: {
+        transfer_id: transferId,
+        notification_type: notificationType,
+        additional_data: additionalData
+      }
+    })
+    
+    if (error) {
+      console.error('Error sending email notifications:', error)
+    } else {
+      console.log(`Email notifications sent for ${notificationType}`)
+    }
+  } catch (err) {
+    console.error('Failed to invoke send-transfer-notification:', err)
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -35,12 +126,11 @@ serve(async (req) => {
 
     switch (action) {
       case 'create': {
-        // Support both old format (single item) and new format (multiple items with packaging)
         const { 
-          product_id, quantity_requested, // Old format
-          items, packaging_items, // New format
+          product_id, quantity_requested,
+          items, packaging_items,
           from_outlet_id, to_outlet_id, notes,
-          fromOutletId, toOutletId // Alternative field names
+          fromOutletId, toOutletId
         } = data
         
         const finalFromOutletId = from_outlet_id || fromOutletId
@@ -69,12 +159,16 @@ serve(async (req) => {
             requested_by: user.id,
             status: 'pending'
           })
-          .select()
+          .select(`
+            *,
+            from_outlet:outlets!stock_transfer_requests_from_outlet_id_fkey(id, name),
+            to_outlet:outlets!stock_transfer_requests_to_outlet_id_fkey(id, name)
+          `)
           .single()
 
         if (error) throw error
 
-        // Handle items - support both old and new format
+        // Handle items
         const productItems = items || (product_id ? [{ product_id, quantity: quantity_requested }] : [])
         
         if (productItems.length > 0) {
@@ -107,9 +201,31 @@ serve(async (req) => {
 
           if (packagingError) {
             console.error('Error inserting packaging items:', packagingError)
-            // Don't throw - packaging table might not exist yet
           }
         }
+
+        // NOTIFICATIONS: Transfer Created
+        const recipients = await getNotificationRecipients(supabaseClient, user.id)
+        const toOutletName = request.to_outlet?.name || 'Unknown Store'
+        const fromOutletName = request.from_outlet?.name || 'Warehouse'
+        const itemCount = productItems.length
+
+        await createPortalNotifications(supabaseClient, recipients, {
+          title: 'New Stock Transfer Request',
+          message: `Transfer request from ${fromOutletName} to ${toOutletName} with ${itemCount} item(s) created`,
+          type: 'info',
+          priority: 'normal',
+          action_url: '/stock-transfer',
+          metadata: {
+            transfer_id: request.id,
+            from_outlet: fromOutletName,
+            to_outlet: toOutletName,
+            item_count: itemCount
+          }
+        })
+
+        // Send email notifications (background)
+        sendEmailNotifications(supabaseClient, request.id, 'created')
 
         return new Response(
           JSON.stringify({ success: true, request }),
@@ -122,7 +238,11 @@ serve(async (req) => {
         
         const { data: request, error: getError } = await supabaseClient
           .from('stock_transfer_requests')
-          .select('*')
+          .select(`
+            *,
+            from_outlet:outlets!stock_transfer_requests_from_outlet_id_fkey(id, name),
+            to_outlet:outlets!stock_transfer_requests_to_outlet_id_fkey(id, name)
+          `)
           .eq('id', transfer_id)
           .single()
 
@@ -162,7 +282,6 @@ serve(async (req) => {
               .eq('id', item.id)
           }
         } else if (quantity_approved) {
-          // Old format - single quantity
           await supabaseClient
             .from('stock_transfer_items')
             .update({ quantity_approved })
@@ -179,6 +298,24 @@ serve(async (req) => {
           }
         }
 
+        // NOTIFICATIONS: Transfer Approved
+        const recipients = await getNotificationRecipients(supabaseClient, request.requested_by)
+        const toOutletName = request.to_outlet?.name || 'Unknown Store'
+
+        await createPortalNotifications(supabaseClient, recipients, {
+          title: 'Stock Transfer Approved',
+          message: `Transfer request to ${toOutletName} has been approved and is ready for dispatch`,
+          type: 'success',
+          priority: 'normal',
+          action_url: '/stock-transfer',
+          metadata: {
+            transfer_id: transfer_id,
+            to_outlet: toOutletName
+          }
+        })
+
+        sendEmailNotifications(supabaseClient, transfer_id, 'approved')
+
         return new Response(
           JSON.stringify({ success: true, message: 'Transfer request approved' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -188,6 +325,18 @@ serve(async (req) => {
       case 'reject': {
         const { transfer_id, rejection_reason } = data
         
+        const { data: request, error: getError } = await supabaseClient
+          .from('stock_transfer_requests')
+          .select(`
+            *,
+            from_outlet:outlets!stock_transfer_requests_from_outlet_id_fkey(id, name),
+            to_outlet:outlets!stock_transfer_requests_to_outlet_id_fkey(id, name)
+          `)
+          .eq('id', transfer_id)
+          .single()
+
+        if (getError) throw getError
+
         const { data: profile } = await supabaseClient
           .from('profiles')
           .select('role')
@@ -212,6 +361,25 @@ serve(async (req) => {
 
         if (error) throw error
 
+        // NOTIFICATIONS: Transfer Rejected
+        const recipients = await getNotificationRecipients(supabaseClient, request.requested_by)
+        const toOutletName = request.to_outlet?.name || 'Unknown Store'
+
+        await createPortalNotifications(supabaseClient, recipients, {
+          title: 'Stock Transfer Rejected',
+          message: `Transfer request to ${toOutletName} was rejected. Reason: ${rejection_reason || 'No reason provided'}`,
+          type: 'warning',
+          priority: 'high',
+          action_url: '/stock-transfer',
+          metadata: {
+            transfer_id: transfer_id,
+            to_outlet: toOutletName,
+            rejection_reason: rejection_reason
+          }
+        })
+
+        sendEmailNotifications(supabaseClient, transfer_id, 'rejected', { rejection_reason })
+
         return new Response(
           JSON.stringify({ success: true, message: 'Transfer request rejected' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -226,6 +394,8 @@ serve(async (req) => {
           .from('stock_transfer_requests')
           .select(`
             *,
+            from_outlet:outlets!stock_transfer_requests_from_outlet_id_fkey(id, name),
+            to_outlet:outlets!stock_transfer_requests_to_outlet_id_fkey(id, name),
             items:stock_transfer_items(*),
             packaging_items:stock_transfer_packaging_items(*)
           `)
@@ -277,7 +447,6 @@ serve(async (req) => {
           for (const packItem of request.packaging_items) {
             const quantity = packItem.quantity_approved || packItem.quantity_requested
 
-            // Create packaging movement (deduct from warehouse)
             const { error: packMovementError } = await supabaseClient
               .from('packaging_movements')
               .insert({
@@ -293,12 +462,10 @@ serve(async (req) => {
               console.error('Error creating packaging movement:', packMovementError)
             }
 
-            // Deduct from packaging_items current_stock
             await supabaseClient.rpc('decrement_packaging_stock', {
               p_packaging_item_id: packItem.packaging_item_id,
               p_quantity: quantity
             }).catch(() => {
-              // If RPC doesn't exist, do direct update
               supabaseClient
                 .from('packaging_items')
                 .update({ current_stock: supabaseClient.raw(`current_stock - ${quantity}`) })
@@ -316,6 +483,28 @@ serve(async (req) => {
           .eq('id', transfer_id)
 
         if (completeError) throw completeError
+
+        // NOTIFICATIONS: Transfer Dispatched
+        const recipients = await getNotificationRecipients(supabaseClient, request.requested_by)
+        const toOutletName = request.to_outlet?.name || 'Unknown Store'
+        const fromOutletName = request.from_outlet?.name || 'Warehouse'
+        const itemCount = request.items?.length || 0
+
+        await createPortalNotifications(supabaseClient, recipients, {
+          title: 'Stock Transfer Dispatched',
+          message: `Inventory has been dispatched from ${fromOutletName} to ${toOutletName} with ${itemCount} item(s)`,
+          type: 'info',
+          priority: 'high',
+          action_url: '/stock-transfer',
+          metadata: {
+            transfer_id: transfer_id,
+            from_outlet: fromOutletName,
+            to_outlet: toOutletName,
+            item_count: itemCount
+          }
+        })
+
+        sendEmailNotifications(supabaseClient, transfer_id, 'dispatched')
 
         return new Response(
           JSON.stringify({ success: true, message: 'Transfer completed successfully' }),
@@ -422,7 +611,12 @@ serve(async (req) => {
               .single()
 
             if (varianceError) throw varianceError
-            variances.push(varianceRecord)
+            variances.push({
+              ...varianceRecord,
+              product: transferItem.product?.name,
+              expected: item.quantity_expected,
+              received: item.quantity_received
+            })
           }
 
           const { error: movementError } = await supabaseClient
@@ -445,13 +639,11 @@ serve(async (req) => {
           const packagingItem = transfer.packaging_items?.find((pi: any) => pi.id === item.transfer_packaging_item_id)
           if (!packagingItem) continue
 
-          // Update received quantity
           await supabaseClient
             .from('stock_transfer_packaging_items')
             .update({ quantity_received: item.quantity_received })
             .eq('id', item.transfer_packaging_item_id)
 
-          // Create packaging movement for received quantity
           const { error: packMovementError } = await supabaseClient
             .from('packaging_movements')
             .insert({
@@ -479,34 +671,47 @@ serve(async (req) => {
 
         if (updateError) throw updateError
 
-        // Send notifications if variances detected
+        // NOTIFICATIONS: Transfer Received (always notify, with or without variance)
+        const recipients = await getNotificationRecipients(supabaseClient, transfer.requested_by)
+        const toOutletName = transfer.to_outlet?.name || 'Unknown Store'
+
         if (variances.length > 0) {
-          const { data: managersToNotify } = await supabaseClient
-            .from('profiles')
-            .select('id, email, full_name')
-            .in('role', ['super_admin', 'super_manager', 'warehouse_manager'])
+          // Notification with variance warning
+          await createPortalNotifications(supabaseClient, recipients, {
+            title: 'Transfer Variance Detected',
+            message: `Transfer to ${toOutletName} has variances. ${variances.length} item(s) with discrepancies detected.`,
+            type: 'warning',
+            priority: 'high',
+            action_url: '/stock-transfer',
+            metadata: {
+              transfer_id: transfer_id,
+              outlet_name: toOutletName,
+              variances: variances.map((v: any) => ({
+                product: v.product,
+                variance: v.variance,
+                severity: v.severity,
+                expected: v.expected,
+                received: v.received
+              }))
+            }
+          })
 
-          if (managersToNotify) {
-            const notifications = managersToNotify.map((manager: any) => ({
-              user_id: manager.id,
-              title: 'Transfer Variance Detected',
-              message: `Transfer to ${transfer.to_outlet?.name} has variances. ${variances.length} item(s) with discrepancies detected.`,
-              type: 'warning',
-              priority: 'high',
-              action_url: `/stock-transfer`,
-              metadata: {
-                transfer_id: transfer_id,
-                outlet_name: transfer.to_outlet?.name,
-                variances: variances.map((v: any) => ({
-                  product: v.product?.name,
-                  variance: v.variance,
-                  severity: v.severity
-                }))
-              }
-            }))
+          sendEmailNotifications(supabaseClient, transfer_id, 'variance', { variances })
+        } else {
+          // Notification for successful receipt
+          await createPortalNotifications(supabaseClient, recipients, {
+            title: 'Stock Transfer Received',
+            message: `Transfer to ${toOutletName} has been received successfully with no discrepancies.`,
+            type: 'success',
+            priority: 'normal',
+            action_url: '/stock-transfer',
+            metadata: {
+              transfer_id: transfer_id,
+              outlet_name: toOutletName
+            }
+          })
 
-            await supabaseClient.from('notifications').insert(notifications)
-          }
+          sendEmailNotifications(supabaseClient, transfer_id, 'received')
         }
 
         return new Response(
