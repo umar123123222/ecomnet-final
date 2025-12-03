@@ -12,6 +12,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, AlertTriangle, TrendingUp, TrendingDown, Info, Upload, X, Image as ImageIcon } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserRoles } from "@/hooks/useUserRoles";
 
 const REASON_OPTIONS = [
   { value: "inventory_made", label: "Inventory Made" },
@@ -46,6 +48,8 @@ export function StockAdjustmentDialog({
   products,
   outlets,
 }: StockAdjustmentDialogProps) {
+  const { profile } = useAuth();
+  const { primaryRole } = useUserRoles();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -53,6 +57,54 @@ export function StockAdjustmentDialog({
   const [imageError, setImageError] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const isStoreManager = primaryRole === 'store_manager';
+
+  // Fetch the store manager's assigned outlet
+  const { data: userOutlet } = useQuery<{ id: string; name: string } | null>({
+    queryKey: ['user-assigned-outlet-adjustment', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return null;
+      
+      // First check if user is a manager of an outlet
+      const { data: managedData } = await (supabase as any)
+        .from('outlets')
+        .select('id, name')
+        .eq('manager_id', profile.id)
+        .eq('is_active', true)
+        .limit(1);
+
+      if (managedData && managedData.length > 0) {
+        return { id: managedData[0].id, name: managedData[0].name };
+      }
+
+      // Otherwise check outlet_staff assignment
+      const { data: staffData } = await (supabase as any)
+        .from('outlet_staff')
+        .select('outlet_id')
+        .eq('user_id', profile.id)
+        .limit(1);
+
+      if (staffData && staffData.length > 0 && staffData[0].outlet_id) {
+        const { data: outletData } = await (supabase as any)
+          .from('outlets')
+          .select('id, name')
+          .eq('id', staffData[0].outlet_id)
+          .limit(1);
+        if (outletData && outletData.length > 0) {
+          return { id: outletData[0].id, name: outletData[0].name };
+        }
+      }
+
+      return null;
+    },
+    enabled: !!profile?.id && isStoreManager,
+  });
+
+  // Get filtered reason options based on role
+  const filteredReasonOptions = isStoreManager 
+    ? REASON_OPTIONS.filter(r => r.value === 'damaged')
+    : REASON_OPTIONS;
 
   const {
     register,
@@ -231,6 +283,19 @@ export function StockAdjustmentDialog({
     }
   }, [open]);
 
+  // Set defaults for store managers when dialog opens
+  useEffect(() => {
+    if (open && isStoreManager) {
+      if (userOutlet?.id) {
+        setValue('outlet_id', userOutlet.id);
+      }
+      // Auto-set reason to damaged for store managers
+      setValue('reason', 'damaged');
+      // Default to decrease for damaged items
+      setValue('adjustment_type', 'decrease');
+    }
+  }, [open, isStoreManager, userOutlet, setValue]);
+
   const selectedProduct = products?.find(p => p.id === selectedProductId);
   const selectedOutlet = outlets?.find(o => o.id === selectedOutletId);
 
@@ -275,21 +340,27 @@ export function StockAdjustmentDialog({
 
                 <div className="space-y-2">
                   <Label htmlFor="outlet_id">Outlet *</Label>
-                  <Select
-                    value={watch("outlet_id")}
-                    onValueChange={(value) => setValue("outlet_id", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select outlet" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {outlets?.map((outlet) => (
-                        <SelectItem key={outlet.id} value={outlet.id}>
-                          {outlet.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {isStoreManager ? (
+                    <div className="flex items-center h-10 px-3 bg-muted rounded-md border text-sm">
+                      {userOutlet?.name || 'Your Store'}
+                    </div>
+                  ) : (
+                    <Select
+                      value={watch("outlet_id")}
+                      onValueChange={(value) => setValue("outlet_id", value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select outlet" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {outlets?.map((outlet) => (
+                          <SelectItem key={outlet.id} value={outlet.id}>
+                            {outlet.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                   {errors.outlet_id && (
                     <p className="text-sm text-destructive">{errors.outlet_id.message}</p>
                   )}
@@ -388,26 +459,32 @@ export function StockAdjustmentDialog({
 
                 <div className="space-y-2">
                   <Label htmlFor="reason">Reason *</Label>
-                  <Select
-                    value={reason}
-                    onValueChange={(value) => {
-                      setValue("reason", value as "inventory_made" | "damaged" | "return");
-                      if (value !== "damaged") {
-                        removeImage();
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select reason" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {REASON_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {isStoreManager ? (
+                    <div className="flex items-center h-10 px-3 bg-muted rounded-md border text-sm">
+                      Damaged
+                    </div>
+                  ) : (
+                    <Select
+                      value={reason}
+                      onValueChange={(value) => {
+                        setValue("reason", value as "inventory_made" | "damaged" | "return");
+                        if (value !== "damaged") {
+                          removeImage();
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select reason" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredReasonOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                   {errors.reason && (
                     <p className="text-sm text-destructive">{errors.reason.message}</p>
                   )}
