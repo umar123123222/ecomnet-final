@@ -564,7 +564,7 @@ const InventoryDashboard = () => {
           onBulkAdjustment={() => setBulkAdjustmentDialogOpen(true)}
           onQuickTransfer={() => setQuickTransferDialogOpen(true)}
           permissions={{
-            canAddProducts: permissions.canAccessInventory,
+            canAddProducts: permissions.canManageProducts,
             canAdjustStock: permissions.canBulkAdjustStock,
             canBulkAdjustStock: permissions.canBulkAdjustStock,
             canCreateStockTransfer: permissions.canCreateStockTransfer,
