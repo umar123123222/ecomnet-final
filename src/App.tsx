@@ -216,7 +216,7 @@ const App = () => {
                       <ShipperAdvice />
                     </Suspense>} />
                   <Route path="returns-not-received" element={<Suspense fallback={<PageLoader />}>
-                      <ReturnsNotReceived className="px-0" />
+                      <ReturnsNotReceived />
                     </Suspense>} />
                   <Route path="inventory" element={<Suspense fallback={<PageLoader />}>
                       <InventoryDashboard />
@@ -276,7 +276,7 @@ const App = () => {
                       <BOMManagement />
                     </Suspense>} />
                   <Route path="automation-history" element={<Suspense fallback={<PageLoader />}>
-                      <AutomationHistory className="px-[25px] py-[25px]" />
+                      <AutomationHistory />
                     </Suspense>} />
                   <Route path="stock-movement-history" element={<Suspense fallback={<PageLoader />}>
                       <StockMovementHistory />
