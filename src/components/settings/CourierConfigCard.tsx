@@ -14,7 +14,9 @@ interface CourierConfig {
   code: string;
   is_active: boolean;
   auth_type: 'bearer_token' | 'api_key_header' | 'basic_auth' | 'custom';
+  api_endpoint: string;
   api_key: string;
+  api_key_header?: string;
   pickup_address_code?: string;
   booking_endpoint: string;
   tracking_endpoint: string;
@@ -48,7 +50,9 @@ export function CourierConfigCard({ courier, onSave, onDelete, onTest }: Props) 
     code: '',
     is_active: true,
     auth_type: 'bearer_token',
+    api_endpoint: '',
     api_key: '',
+    api_key_header: '',
     pickup_address_code: '',
     booking_endpoint: '',
     tracking_endpoint: '',
@@ -80,6 +84,7 @@ export function CourierConfigCard({ courier, onSave, onDelete, onTest }: Props) 
       // Clean all endpoint URLs before saving
       const cleanedConfig = {
         ...config,
+        api_endpoint: cleanEndpointUrl(config.api_endpoint),
         booking_endpoint: cleanEndpointUrl(config.booking_endpoint),
         tracking_endpoint: cleanEndpointUrl(config.tracking_endpoint),
         label_endpoint: config.label_endpoint ? cleanEndpointUrl(config.label_endpoint) : config.label_endpoint,
@@ -223,6 +228,32 @@ export function CourierConfigCard({ courier, onSave, onDelete, onTest }: Props) 
             </SelectContent>
           </Select>
         </div>
+
+        <div className="space-y-2">
+          <Label>API Base URL</Label>
+          <Input
+            value={config.api_endpoint}
+            onChange={(e) => setConfig({ ...config, api_endpoint: e.target.value })}
+            placeholder="https://api.courier.com"
+          />
+          <p className="text-xs text-muted-foreground">
+            The base URL for all API calls (without trailing slash)
+          </p>
+        </div>
+
+        {config.auth_type === 'api_key_header' && (
+          <div className="space-y-2">
+            <Label>API Key Header Name</Label>
+            <Input
+              value={config.api_key_header || ''}
+              onChange={(e) => setConfig({ ...config, api_key_header: e.target.value })}
+              placeholder="e.g., X-API-Key, Api-Key, Authorization"
+            />
+            <p className="text-xs text-muted-foreground">
+              The header name to use for the API key
+            </p>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label>API Key / Token</Label>
