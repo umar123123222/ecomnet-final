@@ -40,8 +40,8 @@ export function QuickActionsPanel({
       description: 'Create new product',
       onClick: onAddProduct,
       enabled: permissions.canAddProducts,
-      color: 'bg-primary hover:bg-primary/90 text-primary-foreground',
-      iconBg: 'bg-primary-foreground/20',
+      color: 'bg-success/10 hover:bg-success/20 text-success border border-success/20',
+      iconBg: 'bg-success/20',
     },
     {
       icon: RefreshCw,
@@ -49,8 +49,8 @@ export function QuickActionsPanel({
       description: 'Adjust stock levels',
       onClick: onStockAdjustment,
       enabled: permissions.canAdjustStock,
-      color: 'bg-secondary hover:bg-secondary/80 text-secondary-foreground',
-      iconBg: 'bg-secondary-foreground/10',
+      color: 'bg-muted hover:bg-accent text-foreground border border-border',
+      iconBg: 'bg-muted-foreground/10',
     },
     {
       icon: FileSpreadsheet,
@@ -58,8 +58,8 @@ export function QuickActionsPanel({
       description: 'Upload CSV file',
       onClick: onBulkAdjustment,
       enabled: permissions.canBulkAdjustStock,
-      color: 'bg-secondary hover:bg-secondary/80 text-secondary-foreground',
-      iconBg: 'bg-secondary-foreground/10',
+      color: 'bg-muted hover:bg-accent text-foreground border border-border',
+      iconBg: 'bg-muted-foreground/10',
     },
     {
       icon: ArrowRightLeft,
@@ -67,8 +67,8 @@ export function QuickActionsPanel({
       description: 'Transfer between outlets',
       onClick: onQuickTransfer,
       enabled: permissions.canCreateStockTransfer,
-      color: 'bg-secondary hover:bg-secondary/80 text-secondary-foreground',
-      iconBg: 'bg-secondary-foreground/10',
+      color: 'bg-muted hover:bg-accent text-foreground border border-border',
+      iconBg: 'bg-muted-foreground/10',
     },
   ];
 
@@ -110,11 +110,11 @@ export function QuickActionsPanel({
   return (
     <Card className="h-full">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-semibold">Quick Actions</CardTitle>
+        <CardTitle className="text-base md:text-lg font-semibold">Quick Actions</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className="space-y-4 md:space-y-5">
         {/* Primary Actions - Responsive Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-2 gap-2 md:gap-2.5">
           {actions.map((action, index) => {
             const Icon = action.icon;
             return (
@@ -124,18 +124,18 @@ export function QuickActionsPanel({
                 onClick={action.onClick}
                 disabled={!action.enabled}
                 className={cn(
-                  "h-auto flex-col items-start p-3 gap-2 rounded-xl border-0 transition-all duration-200",
-                  "hover:scale-[1.02] active:scale-[0.98]",
+                  "h-auto flex-col items-start p-2.5 md:p-3 gap-1.5 md:gap-2 rounded-lg md:rounded-xl transition-all duration-200",
+                  "hover:scale-[1.01] active:scale-[0.99]",
                   action.color,
                   !action.enabled && "opacity-50 cursor-not-allowed hover:scale-100"
                 )}
               >
-                <div className={cn("p-2 rounded-lg", action.iconBg)}>
-                  <Icon className="h-4 w-4" />
+                <div className={cn("p-1.5 md:p-2 rounded-md md:rounded-lg", action.iconBg)}>
+                  <Icon className="h-3.5 w-3.5 md:h-4 md:w-4" />
                 </div>
                 <div className="text-left w-full">
-                  <p className="font-medium text-sm leading-tight">{action.label}</p>
-                  <p className="text-xs opacity-70 font-normal mt-0.5 leading-tight truncate">
+                  <p className="font-medium text-xs md:text-sm leading-tight">{action.label}</p>
+                  <p className="text-[10px] md:text-xs opacity-70 font-normal mt-0.5 leading-tight truncate">
                     {action.description}
                   </p>
                 </div>
@@ -146,8 +146,8 @@ export function QuickActionsPanel({
 
         {/* Quick Links Section */}
         <div>
-          <p className="text-sm font-medium text-muted-foreground mb-2.5">Quick Links</p>
-          <div className="space-y-1">
+          <p className="text-xs md:text-sm font-medium text-muted-foreground mb-2 md:mb-2.5">Quick Links</p>
+          <div className="space-y-0.5 md:space-y-1">
             {quickLinks.map((link, index) => {
               const Icon = link.icon;
               return (
@@ -155,27 +155,27 @@ export function QuickActionsPanel({
                   key={index}
                   href={link.href}
                   className={cn(
-                    "flex items-center gap-3 p-2.5 rounded-xl",
+                    "flex items-center gap-2.5 md:gap-3 p-2 md:p-2.5 rounded-lg md:rounded-xl",
                     "hover:bg-accent/50 transition-all duration-200",
                     "group cursor-pointer"
                   )}
                 >
                   <div className={cn(
-                    "p-2 rounded-lg shrink-0 transition-transform duration-200",
+                    "p-1.5 md:p-2 rounded-md md:rounded-lg shrink-0 transition-transform duration-200",
                     "group-hover:scale-110",
                     link.iconBg
                   )}>
-                    <Icon className={cn("h-4 w-4", link.iconColor)} />
+                    <Icon className={cn("h-3.5 w-3.5 md:h-4 md:w-4", link.iconColor)} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium leading-tight truncate">
+                    <p className="text-xs md:text-sm font-medium leading-tight truncate">
                       {link.label}
                     </p>
-                    <p className="text-xs text-muted-foreground leading-tight truncate">
+                    <p className="text-[10px] md:text-xs text-muted-foreground leading-tight truncate">
                       {link.description}
                     </p>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                  <ChevronRight className="h-3.5 w-3.5 md:h-4 md:w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                 </a>
               );
             })}
