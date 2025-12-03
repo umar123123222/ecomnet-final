@@ -26,7 +26,6 @@ import { CustomerSyncControl } from "@/components/shopify/CustomerSyncControl";
 import { FullSyncControl } from "@/components/shopify/FullSyncControl";
 import { MissingOrdersSync } from "@/components/shopify/MissingOrdersSync";
 import { CourierConfigCard } from "@/components/settings/CourierConfigCard";
-import { AWBGenerationPanel } from "@/components/settings/AWBGenerationPanel";
 const BusinessSettings = () => {
   const {
     hasRole
@@ -698,14 +697,6 @@ const BusinessSettings = () => {
 
                   <Separator />
 
-                  <AWBGenerationPanel couriers={couriers} />
-
-                  <Separator />
-
-                  <div className="space-y-2">
-                    
-                    
-                  </div>
                 </>}
             </CardContent>
           </Card>
