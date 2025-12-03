@@ -1522,7 +1522,7 @@ const metrics = useMemo(() => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Dispatches ({totalDispatchCount ?? filteredDispatches.length})</span>
+            <span>Dispatches ({filteredDispatches.length})</span>
             <div className="flex items-center gap-2">
               <Checkbox checked={selectedDispatches.length === filteredDispatches.length && filteredDispatches.length > 0} onCheckedChange={() => {}} // handleSelectAll
             />
