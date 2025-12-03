@@ -154,14 +154,24 @@ useEffect(() => {
   const fetchDispatches = async () => {
     setLoading(true);
     try {
-      // Count query (no row limit) to get accurate total dispatches for the selected range
+      // Count query (no row limit) to get accurate total dispatches for applied filters
       let countQuery = supabase
         .from('dispatches')
         .select('*', { count: 'exact', head: true });
 
       countQuery = applyDateFilters(countQuery);
+      
+      // Apply courier filter server-side
+      if (courierFilter && courierFilter !== "all") {
+        countQuery = countQuery.ilike('courier', courierFilter);
+      }
+      
+      // Apply user filter server-side
+      if (userFilter && userFilter !== "all") {
+        countQuery = countQuery.eq('dispatched_by', userFilter);
+      }
 
-      // Data query for table view (still subject to 1000-row cap on the backend)
+      // Data query for table view
       let dataQuery = supabase
         .from('dispatches')
         .select(`
@@ -181,7 +191,19 @@ useEffect(() => {
           )
         `);
 
-      dataQuery = applyDateFilters(dataQuery)
+      dataQuery = applyDateFilters(dataQuery);
+      
+      // Apply courier filter server-side
+      if (courierFilter && courierFilter !== "all") {
+        dataQuery = dataQuery.ilike('courier', courierFilter);
+      }
+      
+      // Apply user filter server-side
+      if (userFilter && userFilter !== "all") {
+        dataQuery = dataQuery.eq('dispatched_by', userFilter);
+      }
+      
+      dataQuery = dataQuery
         .order('created_at', { ascending: false })
         .limit(50000);
 
@@ -261,7 +283,7 @@ useEffect(() => {
     clearTimeout(refreshTimeout);
     supabase.removeChannel(channel);
   };
-}, [toast, dateRange]);
+}, [toast, dateRange, courierFilter, userFilter]);
   // Date filtering now happens server-side, so filteredByDate just references dispatches
   const filteredByDate = useMemo(() => {
     return dispatches;
@@ -1522,7 +1544,7 @@ const metrics = useMemo(() => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Dispatches ({filteredDispatches.length})</span>
+            <span>Dispatches ({totalDispatchCount ?? filteredDispatches.length})</span>
             <div className="flex items-center gap-2">
               <Checkbox checked={selectedDispatches.length === filteredDispatches.length && filteredDispatches.length > 0} onCheckedChange={() => {}} // handleSelectAll
             />
