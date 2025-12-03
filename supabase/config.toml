@@ -87,6 +87,9 @@ verify_jwt = true
 [functions.stock-transfer-request]
 verify_jwt = true
 
+[functions.send-transfer-notification]
+verify_jwt = false
+
 [functions.inventory-reports]
 verify_jwt = true
 
