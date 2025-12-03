@@ -216,7 +216,7 @@ const App = () => {
                       <ShipperAdvice />
                     </Suspense>} />
                   <Route path="returns-not-received" element={<Suspense fallback={<PageLoader />}>
-                      <ReturnsNotReceived />
+                      <ReturnsNotReceived className="px-0" />
                     </Suspense>} />
                   <Route path="inventory" element={<Suspense fallback={<PageLoader />}>
                       <InventoryDashboard />
