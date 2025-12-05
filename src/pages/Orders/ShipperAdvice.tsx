@@ -26,30 +26,16 @@ const ShipperAdvice = () => {
     const fetchProblematicOrders = async () => {
       setLoading(true);
       try {
-        // Fetch dispatched orders that may need shipper advice
+        // Fetch dispatched orders with dispatches
         const { data: ordersData, error: ordersError } = await supabase
           .from('orders')
           .select(`
             *,
-            dispatches (
-              *,
-              courier_tracking_history (
-                status,
-                current_location,
-                checked_at,
-                raw_response
-              )
-            )
+            dispatches (*)
           `)
           .eq('status', 'dispatched')
           .not('tracking_id', 'is', null)
           .order('created_at', { ascending: false });
-
-        // Fetch existing shipper advice logs to exclude orders with pending advice
-        const { data: adviceLogs, error: adviceError } = await supabase
-          .from('shipper_advice_logs')
-          .select('order_id, status, advice_type, requested_at')
-          .in('status', ['pending', 'submitted']);
 
         if (ordersError) {
           console.error('Error fetching orders:', ordersError);
@@ -60,6 +46,35 @@ const ShipperAdvice = () => {
           });
           return;
         }
+
+        // Get all dispatch IDs to fetch tracking history separately
+        const dispatchIds = (ordersData || [])
+          .flatMap(o => o.dispatches?.map((d: any) => d.id) || [])
+          .filter(Boolean);
+
+        // Fetch tracking history separately (more reliable)
+        const { data: trackingData, error: trackingError } = await supabase
+          .from('courier_tracking_history')
+          .select('*')
+          .in('dispatch_id', dispatchIds.length > 0 ? dispatchIds : ['00000000-0000-0000-0000-000000000000']);
+
+        if (trackingError) {
+          console.error('Error fetching tracking history:', trackingError);
+        }
+
+        // Create a map of dispatch_id -> tracking history
+        const trackingByDispatch = new Map<string, any[]>();
+        (trackingData || []).forEach((track: any) => {
+          const existing = trackingByDispatch.get(track.dispatch_id) || [];
+          existing.push(track);
+          trackingByDispatch.set(track.dispatch_id, existing);
+        });
+
+        // Fetch existing shipper advice logs to exclude orders with pending advice
+        const { data: adviceLogs } = await supabase
+          .from('shipper_advice_logs')
+          .select('order_id, status, advice_type, requested_at')
+          .in('status', ['pending', 'submitted']);
 
         // Create a set of order IDs that already have pending advice
         const ordersWithPendingAdvice = new Set(
@@ -76,7 +91,8 @@ const ShipperAdvice = () => {
           'incomplete_address',
           'customer_refused',
           'hold',
-          'returned_to_origin'
+          'returned_to_origin',
+          'returned'
         ];
         
         const formattedOrders = (ordersData || [])
@@ -87,8 +103,8 @@ const ShipperAdvice = () => {
             // Exclude orders that already have pending shipper advice
             if (ordersWithPendingAdvice.has(order.id)) return false;
             
-            // Get the latest tracking status
-            const trackingHistory = dispatch.courier_tracking_history || [];
+            // Get tracking history from our map
+            const trackingHistory = trackingByDispatch.get(dispatch.id) || [];
             if (trackingHistory.length === 0) return false;
             
             const latestTracking = [...trackingHistory].sort(
@@ -100,7 +116,7 @@ const ShipperAdvice = () => {
           })
           .map((order) => {
             const dispatch = order.dispatches[0];
-            const trackingHistory = dispatch.courier_tracking_history || [];
+            const trackingHistory = trackingByDispatch.get(dispatch.id) || [];
             
             // Sort tracking history by date
             const sortedHistory = [...trackingHistory].sort(
