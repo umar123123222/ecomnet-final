@@ -234,6 +234,47 @@ serve(async (req) => {
         
         console.log(`[adjustStock] Starting adjustment - Product: ${productId}, Outlet: ${outletId}, Adjustment: ${quantity}`)
         
+        // ========== SERVER-SIDE OUTLET VALIDATION ==========
+        // Get user's role from user_roles table
+        const { data: userRoleData, error: roleError } = await supabaseClient
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .single()
+        
+        const userRole = userRoleData?.role
+        console.log(`[adjustStock] User ${user.id} has role: ${userRole}`)
+        
+        // For warehouse_manager and store_manager, validate outlet assignment
+        if (userRole === 'warehouse_manager' || userRole === 'store_manager') {
+          // Check if user is manager of this outlet
+          const { data: managedOutlet } = await supabaseClient
+            .from('outlets')
+            .select('id')
+            .eq('manager_id', user.id)
+            .eq('id', outletId)
+            .single()
+          
+          // Check if user is staff at this outlet
+          const { data: staffOutlet } = await supabaseClient
+            .from('outlet_staff')
+            .select('outlet_id')
+            .eq('user_id', user.id)
+            .eq('outlet_id', outletId)
+            .single()
+          
+          if (!managedOutlet && !staffOutlet) {
+            console.error(`[adjustStock] Access denied: User ${user.id} (${userRole}) is not assigned to outlet ${outletId}`)
+            return new Response(
+              JSON.stringify({ error: 'You can only adjust stock for your assigned outlet' }),
+              { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+          console.log(`[adjustStock] Outlet access validated for ${userRole}`)
+        }
+        // ========== END OUTLET VALIDATION ==========
+        
         // Fetch current inventory quantity
         const { data: currentInventory, error: fetchError } = await supabaseClient
           .from('inventory')
