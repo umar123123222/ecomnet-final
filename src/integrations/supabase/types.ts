@@ -5542,6 +5542,10 @@ export type Database = {
         Args: { variance_value: number }
         Returns: string
       }
+      deduct_order_packaging: {
+        Args: { p_order_id: string; p_user_id: string }
+        Returns: Json
+      }
       ensure_supplier_role: {
         Args: { target_user_id: string }
         Returns: undefined
