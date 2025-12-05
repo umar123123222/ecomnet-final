@@ -373,21 +373,13 @@ const ProductManagement = () => {
                             </Badge>}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            {permissions.canManageProducts && <Button variant="ghost" size="sm" className="gap-2" onClick={() => {
+                          {permissions.canManageProducts && <Button variant="ghost" size="sm" className="gap-2" onClick={() => {
                       setSelectedProduct(product);
                       setProductDialogOpen(true);
                     }}>
                                 <Edit className="h-3 w-3" />
                                 Edit
                               </Button>}
-                            <Button variant="secondary" size="sm" className="gap-2" onClick={() => {
-                      setReorderProduct(product);
-                      setReorderSettingsOpen(true);
-                    }}>
-                              Smart Reorder
-                            </Button>
-                          </div>
                         </TableCell>
                       </TableRow>) : <TableRow>
                       <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
