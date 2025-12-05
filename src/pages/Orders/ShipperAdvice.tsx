@@ -56,30 +56,34 @@ const ShipperAdvice = () => {
 
         const orderIds = ordersData.map(o => o.id);
 
-        // Step 2: Fetch dispatches separately
-        const { data: dispatchesData, error: dispatchesError } = await supabase
-          .from('dispatches')
-          .select('*')
-          .in('order_id', orderIds);
+        // Step 2: Fetch dispatches in chunks to avoid URL length limits
+        const dispatchByOrderId = new Map<string, any>();
+        const CHUNK_SIZE = 100;
+        
+        for (let i = 0; i < orderIds.length; i += CHUNK_SIZE) {
+          const chunk = orderIds.slice(i, i + CHUNK_SIZE);
+          const { data: dispatchesData, error: dispatchesError } = await supabase
+            .from('dispatches')
+            .select('*')
+            .in('order_id', chunk);
 
-        if (dispatchesError) {
-          console.error('Error fetching dispatches:', dispatchesError);
+          if (dispatchesError) {
+            console.error('Error fetching dispatches chunk:', dispatchesError);
+            continue;
+          }
+
+          (dispatchesData || []).forEach(d => {
+            dispatchByOrderId.set(d.order_id, d);
+          });
         }
 
-        console.log('Step 2 - Dispatches fetched:', dispatchesData?.length || 0);
-
-        // Create dispatch map by order_id
-        const dispatchByOrderId = new Map<string, any>();
-        (dispatchesData || []).forEach(d => {
-          dispatchByOrderId.set(d.order_id, d);
-        });
+        console.log('Step 2 - Dispatches fetched:', dispatchByOrderId.size);
 
         // Step 3: Fetch tracking history using order_id directly (courier_tracking_history has order_id column)
         const trackingByOrderId = new Map<string, any[]>();
         
-        const chunkSize = 100;
-        for (let i = 0; i < orderIds.length; i += chunkSize) {
-          const chunk = orderIds.slice(i, i + chunkSize);
+        for (let i = 0; i < orderIds.length; i += CHUNK_SIZE) {
+          const chunk = orderIds.slice(i, i + CHUNK_SIZE);
           const { data: trackingData, error: trackingError } = await supabase
             .from('courier_tracking_history')
             .select('*')
