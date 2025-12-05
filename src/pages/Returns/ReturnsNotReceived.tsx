@@ -148,8 +148,10 @@ const ReturnsNotReceived = () => {
     link.download = `returns-not-received-${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
-  const handleViewReturn = (returnId: string) => {
-    alert(`Viewing return details for ${returnId}`);
+  const handleViewReturn = (orderNumber: string) => {
+    // Strip any prefix (e.g., "SHOP-") and get just the numeric part
+    const numericOrderNumber = orderNumber.replace(/^[A-Za-z]+-/, '');
+    window.open(`/orders?search=${numericOrderNumber}`, '_blank');
   };
   const handleCallCustomer = (phone: string) => {
     window.open(`tel:${phone}`, '_self');
@@ -243,7 +245,7 @@ const ReturnsNotReceived = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={() => handleViewReturn(returnItem.id)}>
+                            <Button variant="outline" size="sm" onClick={() => handleViewReturn(returnItem.orderNumber)}>
                               <Eye className="h-3 w-3" />
                             </Button>
                             
