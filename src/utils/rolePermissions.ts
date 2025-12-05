@@ -328,19 +328,6 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     });
   }
 
-  // 6.5 PRODUCTION - Manufacturing operations (not for store managers)
-  if (['super_admin', 'super_manager', 'warehouse_manager'].includes(role)) {
-    items.push({
-      label: 'Production',
-      href: '/production',
-      icon: 'Factory',
-      subItems: [
-        { label: 'Production Batches', href: '/production', icon: '' },
-        { label: 'Bill of Materials', href: '/production/bom', icon: '' }
-      ]
-    });
-  }
-
   // 7. PROCUREMENT - Supplier & purchasing operations
   if (permissions.canAccessSuppliers || permissions.canAccessPurchaseOrders || permissions.canAccessReceiving || permissions.canAccessStockAudit || permissions.canAccessVarianceManagement) {
     const procurementSubItems: NavigationItem[] = [];
