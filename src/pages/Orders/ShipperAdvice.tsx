@@ -26,14 +26,13 @@ const ShipperAdvice = () => {
     const fetchProblematicOrders = async () => {
       setLoading(true);
       try {
-        // Fetch dispatched orders with dispatches
+        console.log('=== SHIPPER ADVICE DEBUG START ===');
+        
+        // Step 1: Fetch dispatched orders (WITHOUT nested query)
         const { data: ordersData, error: ordersError } = await supabase
           .from('orders')
-          .select(`
-            *,
-            dispatches (*)
-          `)
-          .eq('status', 'dispatched')
+          .select('*')
+          .in('status', ['dispatched', 'returned'])
           .not('tracking_id', 'is', null)
           .order('created_at', { ascending: false });
 
@@ -47,47 +46,70 @@ const ShipperAdvice = () => {
           return;
         }
 
-        // Get all dispatch IDs to fetch tracking history separately
-        const dispatchIds = (ordersData || [])
-          .flatMap(o => o.dispatches?.map((d: any) => d.id) || [])
-          .filter(Boolean);
+        console.log('Step 1 - Orders fetched:', ordersData?.length || 0);
 
-        // Create a map of dispatch_id -> tracking history
-        const trackingByDispatch = new Map<string, any[]>();
-
-        // Fetch tracking history in chunks to avoid URL length limits
-        if (dispatchIds.length > 0) {
-          const chunkSize = 100;
-          for (let i = 0; i < dispatchIds.length; i += chunkSize) {
-            const chunk = dispatchIds.slice(i, i + chunkSize);
-            const { data: trackingData, error: trackingError } = await supabase
-              .from('courier_tracking_history')
-              .select('*')
-              .in('dispatch_id', chunk);
-
-            if (trackingError) {
-              console.error('Error fetching tracking history chunk:', trackingError);
-              continue;
-            }
-
-            (trackingData || []).forEach((track: any) => {
-              const existing = trackingByDispatch.get(track.dispatch_id) || [];
-              existing.push(track);
-              trackingByDispatch.set(track.dispatch_id, existing);
-            });
-          }
+        if (!ordersData || ordersData.length === 0) {
+          console.log('No dispatched/returned orders found');
+          setOrders([]);
+          return;
         }
 
-        // Fetch existing shipper advice logs to exclude orders with pending advice
+        const orderIds = ordersData.map(o => o.id);
+
+        // Step 2: Fetch dispatches separately
+        const { data: dispatchesData, error: dispatchesError } = await supabase
+          .from('dispatches')
+          .select('*')
+          .in('order_id', orderIds);
+
+        if (dispatchesError) {
+          console.error('Error fetching dispatches:', dispatchesError);
+        }
+
+        console.log('Step 2 - Dispatches fetched:', dispatchesData?.length || 0);
+
+        // Create dispatch map by order_id
+        const dispatchByOrderId = new Map<string, any>();
+        (dispatchesData || []).forEach(d => {
+          dispatchByOrderId.set(d.order_id, d);
+        });
+
+        // Step 3: Fetch tracking history using order_id directly (courier_tracking_history has order_id column)
+        const trackingByOrderId = new Map<string, any[]>();
+        
+        const chunkSize = 100;
+        for (let i = 0; i < orderIds.length; i += chunkSize) {
+          const chunk = orderIds.slice(i, i + chunkSize);
+          const { data: trackingData, error: trackingError } = await supabase
+            .from('courier_tracking_history')
+            .select('*')
+            .in('order_id', chunk);
+
+          if (trackingError) {
+            console.error('Error fetching tracking history:', trackingError);
+            continue;
+          }
+
+          (trackingData || []).forEach((track: any) => {
+            const existing = trackingByOrderId.get(track.order_id) || [];
+            existing.push(track);
+            trackingByOrderId.set(track.order_id, existing);
+          });
+        }
+
+        console.log('Step 3 - Orders with tracking history:', trackingByOrderId.size);
+
+        // Step 4: Fetch existing shipper advice logs
         const { data: adviceLogs } = await supabase
           .from('shipper_advice_logs')
-          .select('order_id, status, advice_type, requested_at')
+          .select('order_id, status')
           .in('status', ['pending', 'submitted']);
 
-        // Create a set of order IDs that already have pending advice
         const ordersWithPendingAdvice = new Set(
           (adviceLogs || []).map(log => log.order_id)
         );
+
+        console.log('Step 4 - Orders with pending advice:', ordersWithPendingAdvice.size);
 
         // Statuses that indicate parcel needs shipper advice
         const needsAdviceStatuses = [
@@ -102,44 +124,61 @@ const ShipperAdvice = () => {
           'returned_to_origin',
           'returned'
         ];
+
+        // Step 5: Filter and format orders
+        let filteredCount = 0;
+        let noTrackingCount = 0;
+        let hasAdviceCount = 0;
+        let wrongStatusCount = 0;
         
-        const formattedOrders = (ordersData || [])
+        const formattedOrders = ordersData
           .filter(order => {
-            const dispatch = order.dispatches?.[0];
-            if (!dispatch || !order.tracking_id) return false;
+            // Must have tracking_id
+            if (!order.tracking_id) {
+              return false;
+            }
             
-            // Exclude orders that already have pending shipper advice
-            if (ordersWithPendingAdvice.has(order.id)) return false;
+            // Check for pending advice
+            if (ordersWithPendingAdvice.has(order.id)) {
+              hasAdviceCount++;
+              return false;
+            }
             
-            // Get tracking history from our map
-            const trackingHistory = trackingByDispatch.get(dispatch.id) || [];
-            if (trackingHistory.length === 0) return false;
+            // Get tracking history
+            const trackingHistory = trackingByOrderId.get(order.id) || [];
+            if (trackingHistory.length === 0) {
+              noTrackingCount++;
+              return false;
+            }
             
             const latestTracking = [...trackingHistory].sort(
               (a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
             )[0];
             
-            // Show orders with problematic statuses that need attention
-            return needsAdviceStatuses.includes(latestTracking.status);
+            // Check if status needs advice
+            if (!needsAdviceStatuses.includes(latestTracking.status)) {
+              wrongStatusCount++;
+              return false;
+            }
+            
+            filteredCount++;
+            return true;
           })
           .map((order) => {
-            const dispatch = order.dispatches[0];
-            const trackingHistory = trackingByDispatch.get(dispatch.id) || [];
+            const dispatch = dispatchByOrderId.get(order.id);
+            const trackingHistory = trackingByOrderId.get(order.id) || [];
             
-            // Sort tracking history by date
             const sortedHistory = [...trackingHistory].sort(
               (a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
             );
             
             const latestTracking = sortedHistory[0];
             
-            // Count actual delivery attempts
             const attemptStatuses = ['out_for_delivery', 'delivery_failed', 'attempted'];
             const attemptCount = trackingHistory.filter(h => 
               attemptStatuses.includes(h.status)
             ).length;
             
-            // Calculate days stuck since last tracking update
             const lastUpdate = new Date(latestTracking.checked_at);
             const daysStuck = Math.floor((Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
             
@@ -153,7 +192,7 @@ const ShipperAdvice = () => {
               city: order.city,
               status: latestTracking.status,
               courier: order.courier || 'Unknown',
-              courierName: dispatch.courier || order.courier,
+              courierName: dispatch?.courier || order.courier,
               attemptDate: latestTracking.checked_at.split('T')[0],
               attemptCount: attemptCount || 1,
               lastAttemptReason: latestTracking.current_location || 'Unknown reason',
@@ -161,6 +200,14 @@ const ShipperAdvice = () => {
               daysStuck: daysStuck
             };
           });
+
+        console.log('=== SHIPPER ADVICE DEBUG RESULTS ===');
+        console.log('Total orders:', ordersData.length);
+        console.log('Orders with no tracking:', noTrackingCount);
+        console.log('Orders with pending advice:', hasAdviceCount);
+        console.log('Orders with wrong status:', wrongStatusCount);
+        console.log('Final filtered orders:', filteredCount);
+        console.log('=== DEBUG END ===');
 
         setOrders(formattedOrders);
       } catch (error) {
