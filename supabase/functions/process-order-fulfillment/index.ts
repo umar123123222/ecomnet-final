@@ -193,47 +193,22 @@ serve(async (req) => {
           throw new Error(`Insufficient stock for: ${insufficientStock.join(', ')}`);
         }
 
-        // Get packaging recommendation and handle packaging
+        // Deduct ALL packaging types using the comprehensive function
         let packagingWarning: string | null = null;
-        const { data: packaging, error: packagingError } = await supabaseClient
-          .rpc('get_order_packaging_recommendation', { p_order_id: data.order_id })
-          .single();
+        const { data: packagingResult, error: packagingError } = await supabaseClient
+          .rpc('deduct_order_packaging', { 
+            p_order_id: data.order_id,
+            p_user_id: user.id
+          });
 
-        if (!packagingError && packaging) {
-          if (packaging.is_available) {
-            // Deduct packaging stock
-            await supabaseClient
-              .from('packaging_items')
-              .update({ current_stock: packaging.current_stock - 1 })
-              .eq('id', packaging.packaging_item_id);
-
-            // Record packaging usage
-            await supabaseClient
-              .from('order_packaging')
-              .insert({
-                order_id: data.order_id,
-                packaging_item_id: packaging.packaging_item_id,
-                quantity: 1,
-                auto_selected: true,
-                selected_by: user.id
-              });
-
-            // Create packaging movement
-            await supabaseClient
-              .from('packaging_movements')
-              .insert({
-                packaging_item_id: packaging.packaging_item_id,
-                movement_type: 'dispatch',
-                quantity: -1,
-                reference_id: data.order_id,
-                created_by: user.id,
-                notes: 'Auto-selected for dispatch'
-              });
-
-            console.log(`Used packaging: ${packaging.packaging_name} for order ${order.order_number}`);
-          } else {
-            packagingWarning = `Low stock: ${packaging.packaging_name}`;
-            console.warn(packagingWarning);
+        if (packagingError) {
+          console.error('Packaging deduction error:', packagingError);
+        } else if (packagingResult) {
+          console.log('Packaging deductions:', packagingResult);
+          const warnings = packagingResult.warnings || [];
+          if (warnings.length > 0) {
+            packagingWarning = warnings.join('; ');
+            console.warn('Packaging warnings:', packagingWarning);
           }
         }
 
@@ -254,7 +229,8 @@ serve(async (req) => {
           action: 'order_dispatched',
           details: {
             outlet_id: data.outlet_id,
-            packaging_warning: packagingWarning
+            packaging_warning: packagingWarning,
+            packaging_deductions: packagingResult?.deductions || []
           }
         });
 
@@ -262,7 +238,8 @@ serve(async (req) => {
           JSON.stringify({ 
             success: true, 
             message: 'Order dispatched and inventory updated successfully',
-            packaging_warning: packagingWarning
+            packaging_warning: packagingWarning,
+            packaging_deductions: packagingResult?.deductions || []
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
