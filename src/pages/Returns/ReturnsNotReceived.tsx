@@ -98,25 +98,20 @@ const ReturnsNotReceived = () => {
       }: any) => {
         const markedDate = new Date(tracking.checked_at);
         const daysSince = Math.floor((Date.now() - markedDate.getTime()) / (1000 * 60 * 60 * 24));
-        
+
         // Extract return reason from multiple sources
         let returnReason = 'Not specified';
         if (order.cancellation_reason) {
           returnReason = order.cancellation_reason;
         } else if (tracking.raw_response) {
           // Try to extract reason from courier's raw response
-          const rawResponse = typeof tracking.raw_response === 'string' 
-            ? JSON.parse(tracking.raw_response) 
-            : tracking.raw_response;
-          returnReason = rawResponse?.reason || rawResponse?.return_reason || rawResponse?.status_reason || 
-                         rawResponse?.packet_data?.reason || rawResponse?.shipment_data?.reason ||
-                         tracking.current_location || order.notes || 'Not specified';
+          const rawResponse = typeof tracking.raw_response === 'string' ? JSON.parse(tracking.raw_response) : tracking.raw_response;
+          returnReason = rawResponse?.reason || rawResponse?.return_reason || rawResponse?.status_reason || rawResponse?.packet_data?.reason || rawResponse?.shipment_data?.reason || tracking.current_location || order.notes || 'Not specified';
         } else if (tracking.current_location) {
           returnReason = tracking.current_location;
         } else if (order.notes) {
           returnReason = order.notes;
         }
-        
         return {
           id: order.id,
           orderNumber: order.order_number,
@@ -228,7 +223,7 @@ const ReturnsNotReceived = () => {
                       <TableHead>Order #</TableHead>
                       <TableHead>Customer</TableHead>
                       <TableHead>Phone</TableHead>
-                      <TableHead>Return Reason</TableHead>
+                      <TableHead>Return Status</TableHead>
                       <TableHead>Courier</TableHead>
                       <TableHead>Tracking ID</TableHead>
                       <TableHead>Marked Date</TableHead>
