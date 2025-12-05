@@ -63,7 +63,7 @@ const COURIER_FIELDS: FieldDefinition[] = [
   { key: 'api_key', label: 'API Key / Token', category: 'Authentication', type: 'password', placeholder: 'Enter API key or token' },
   { key: 'api_key_header', label: 'API Key Header Name', category: 'Authentication', type: 'text', placeholder: 'e.g., X-API-Key', description: 'The header name to use for the API key', dependsOn: { field: 'auth_type', value: 'api_key_header' } },
   { key: 'api_username', label: 'API Username', category: 'Authentication', type: 'text', placeholder: 'Enter username', dependsOn: { field: 'auth_type', value: 'basic_auth' } },
-  { key: 'api_password', label: 'API Password', category: 'Authentication', type: 'password', placeholder: 'Enter password', dependsOn: { field: 'auth_type', value: 'basic_auth' } },
+  { key: 'api_password', label: 'API Password', category: 'Authentication', type: 'password', placeholder: 'Enter password', description: 'Password for API authentication (required by some couriers like Leopard)' },
   { key: 'pickup_address_code', label: 'Pickup Address Code', category: 'Authentication', type: 'text', placeholder: 'e.g., PKC123456', description: 'Required by some couriers for bookings' },
   
   // Endpoints
