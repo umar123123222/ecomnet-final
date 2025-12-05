@@ -67,7 +67,7 @@ const ReturnsNotReceived = () => {
           checked_at,
           current_location,
           dispatch_id,
-          dispatches!inner (
+          dispatches!courier_tracking_history_dispatch_id_fkey (
             courier,
             orders!inner (
               id,
