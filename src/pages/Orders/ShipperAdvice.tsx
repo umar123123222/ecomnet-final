@@ -52,23 +52,31 @@ const ShipperAdvice = () => {
           .flatMap(o => o.dispatches?.map((d: any) => d.id) || [])
           .filter(Boolean);
 
-        // Fetch tracking history separately (more reliable)
-        const { data: trackingData, error: trackingError } = await supabase
-          .from('courier_tracking_history')
-          .select('*')
-          .in('dispatch_id', dispatchIds.length > 0 ? dispatchIds : ['00000000-0000-0000-0000-000000000000']);
-
-        if (trackingError) {
-          console.error('Error fetching tracking history:', trackingError);
-        }
-
         // Create a map of dispatch_id -> tracking history
         const trackingByDispatch = new Map<string, any[]>();
-        (trackingData || []).forEach((track: any) => {
-          const existing = trackingByDispatch.get(track.dispatch_id) || [];
-          existing.push(track);
-          trackingByDispatch.set(track.dispatch_id, existing);
-        });
+
+        // Fetch tracking history in chunks to avoid URL length limits
+        if (dispatchIds.length > 0) {
+          const chunkSize = 100;
+          for (let i = 0; i < dispatchIds.length; i += chunkSize) {
+            const chunk = dispatchIds.slice(i, i + chunkSize);
+            const { data: trackingData, error: trackingError } = await supabase
+              .from('courier_tracking_history')
+              .select('*')
+              .in('dispatch_id', chunk);
+
+            if (trackingError) {
+              console.error('Error fetching tracking history chunk:', trackingError);
+              continue;
+            }
+
+            (trackingData || []).forEach((track: any) => {
+              const existing = trackingByDispatch.get(track.dispatch_id) || [];
+              existing.push(track);
+              trackingByDispatch.set(track.dispatch_id, existing);
+            });
+          }
+        }
 
         // Fetch existing shipper advice logs to exclude orders with pending advice
         const { data: adviceLogs } = await supabase
