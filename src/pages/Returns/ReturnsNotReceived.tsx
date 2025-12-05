@@ -71,7 +71,7 @@ const ReturnsNotReceived = () => {
               notes,
               total_amount,
               status,
-              return_reason
+              cancellation_reason
             )
           )
         `).eq('status', 'returned').eq('dispatches.orders.status', 'dispatched').lt('checked_at', threeDaysAgo.toISOString()).order('checked_at', {
@@ -100,8 +100,8 @@ const ReturnsNotReceived = () => {
         
         // Extract return reason from multiple sources
         let returnReason = 'Not specified';
-        if (order.return_reason) {
-          returnReason = order.return_reason;
+        if (order.cancellation_reason) {
+          returnReason = order.cancellation_reason;
         } else if (tracking.raw_response) {
           // Try to extract reason from courier's raw response
           const rawResponse = typeof tracking.raw_response === 'string' 
