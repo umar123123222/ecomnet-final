@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Package, TrendingUp, AlertCircle } from "lucide-react";
+import { Package, TrendingUp, AlertCircle, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export function ProductStockWidget() {
@@ -69,7 +69,10 @@ export function ProductStockWidget() {
             <p className="text-2xl font-bold">{totals?.totalStock || 0}</p>
           </div>
           <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Committed</p>
+            <p className="text-sm text-muted-foreground flex items-center gap-1">
+              <Lock className="h-3 w-3" />
+              Reserved
+            </p>
             <p className="text-2xl font-bold text-orange-600">{totals?.totalCommitted || 0}</p>
           </div>
           <div className="space-y-1">
