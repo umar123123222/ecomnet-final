@@ -99,7 +99,7 @@ const ActivityLogs = lazy(() => import("@/pages/ActivityLogs/ActivityLogs").then
 const POSMain = lazy(() => import("@/pages/POS/POSMain").then(module => ({
   default: module.default
 })));
-const ConfirmationDashboard = lazy(() => import("@/pages/Confirmations/ConfirmationDashboard").then(module => ({
+const StuckOrdersDashboard = lazy(() => import("@/pages/StuckOrders/StuckOrdersDashboard").then(module => ({
   default: module.default
 })));
 const ProductionDashboard = lazy(() => import("@/pages/Production/ProductionDashboard").then(module => ({
@@ -266,8 +266,8 @@ const App = () => {
                   <Route path="pos" element={<Suspense fallback={<PageLoader />}>
                       <POSMain />
                     </Suspense>} />
-                  <Route path="confirmations" element={<Suspense fallback={<PageLoader />}>
-                      <ConfirmationDashboard />
+                  <Route path="stuck-orders" element={<Suspense fallback={<PageLoader />}>
+                      <StuckOrdersDashboard />
                     </Suspense>} />
                   <Route path="production" element={<Suspense fallback={<PageLoader />}>
                       <ProductionDashboard />
