@@ -406,6 +406,179 @@ export async function bulkDeletePackagingItems(
 }
 
 /**
+ * Bulk update product supplier
+ */
+export async function bulkUpdateProductSupplier(
+  productIds: string[],
+  supplierId: string | null
+): Promise<BulkOperationResult> {
+  let success = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  await processBatch(productIds, BATCH_SIZE, async (batch) => {
+    const { data, error } = await supabase
+      .from('products')
+      .update({ supplier_id: supplierId, updated_at: new Date().toISOString() })
+      .in('id', batch)
+      .select('id');
+
+    if (error) {
+      failed += batch.length;
+      errors.push(error.message);
+    } else {
+      success += data?.length || 0;
+      failed += batch.length - (data?.length || 0);
+    }
+  });
+
+  return { success, failed, errors: errors.length > 0 ? errors : undefined };
+}
+
+/**
+ * Bulk update product reorder level
+ */
+export async function bulkUpdateProductReorderLevel(
+  productIds: string[],
+  reorderLevel: number
+): Promise<BulkOperationResult> {
+  let success = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  await processBatch(productIds, BATCH_SIZE, async (batch) => {
+    const { data, error } = await supabase
+      .from('products')
+      .update({ reorder_level: reorderLevel, updated_at: new Date().toISOString() })
+      .in('id', batch)
+      .select('id');
+
+    if (error) {
+      failed += batch.length;
+      errors.push(error.message);
+    } else {
+      success += data?.length || 0;
+      failed += batch.length - (data?.length || 0);
+    }
+  });
+
+  return { success, failed, errors: errors.length > 0 ? errors : undefined };
+}
+
+/**
+ * Bulk toggle smart reordering
+ */
+export async function bulkToggleSmartReorder(
+  productIds: string[],
+  enabled: boolean
+): Promise<BulkOperationResult> {
+  let success = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  await processBatch(productIds, BATCH_SIZE, async (batch) => {
+    const { data, error } = await supabase
+      .from('products')
+      .update({ auto_reorder_enabled: enabled, updated_at: new Date().toISOString() })
+      .in('id', batch)
+      .select('id');
+
+    if (error) {
+      failed += batch.length;
+      errors.push(error.message);
+    } else {
+      success += data?.length || 0;
+      failed += batch.length - (data?.length || 0);
+    }
+  });
+
+  return { success, failed, errors: errors.length > 0 ? errors : undefined };
+}
+
+/**
+ * Bulk toggle bundle/deal flag
+ */
+export async function bulkToggleBundle(
+  productIds: string[],
+  isBundle: boolean
+): Promise<BulkOperationResult> {
+  let success = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  await processBatch(productIds, BATCH_SIZE, async (batch) => {
+    // If turning off bundle, also clear bundle items
+    if (!isBundle) {
+      await supabase
+        .from('product_bundle_items')
+        .delete()
+        .in('bundle_product_id', batch);
+    }
+
+    const { data, error } = await supabase
+      .from('products')
+      .update({ is_bundle: isBundle, updated_at: new Date().toISOString() })
+      .in('id', batch)
+      .select('id');
+
+    if (error) {
+      failed += batch.length;
+      errors.push(error.message);
+    } else {
+      success += data?.length || 0;
+      failed += batch.length - (data?.length || 0);
+    }
+  });
+
+  return { success, failed, errors: errors.length > 0 ? errors : undefined };
+}
+
+/**
+ * Bulk assign packaging to products
+ */
+export async function bulkAssignPackaging(
+  productIds: string[],
+  packagingItemId: string,
+  quantity: number,
+  requiresPackaging: boolean = true
+): Promise<BulkOperationResult> {
+  let success = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  for (const productId of productIds) {
+    try {
+      // Update product requires_packaging flag
+      await supabase
+        .from('products')
+        .update({ requires_packaging: requiresPackaging, updated_at: new Date().toISOString() })
+        .eq('id', productId);
+
+      // Upsert packaging requirement
+      const { error } = await supabase
+        .from('product_packaging_requirements')
+        .upsert({
+          product_id: productId,
+          packaging_item_id: packagingItemId,
+          quantity_required: quantity
+        }, { onConflict: 'product_id,packaging_item_id' });
+
+      if (error) {
+        failed++;
+        errors.push(`Product ${productId}: ${error.message}`);
+      } else {
+        success++;
+      }
+    } catch (error: any) {
+      failed++;
+      errors.push(`Product ${productId}: ${error.message}`);
+    }
+  }
+
+  return { success, failed, errors: errors.length > 0 ? errors : undefined };
+}
+
+/**
  * Export data to CSV
  */
 export function exportToCSV(data: any[], filename: string): void {

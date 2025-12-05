@@ -8,13 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw, Filter, PackagePlus, SlidersHorizontal, DollarSign, Layers } from "lucide-react";
+import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw, Filter, PackagePlus, SlidersHorizontal, DollarSign, Layers, Pencil } from "lucide-react";
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from "@/components/layout";
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
 import { SmartReorderSettings } from "@/components/inventory/SmartReorderSettings";
 import { BulkStockAdditionDialog } from "@/components/inventory/BulkStockAdditionDialog";
 import { StockAdjustmentDialog } from "@/components/inventory/StockAdjustmentDialog";
+import { BulkEditProductsDialog } from "@/components/products/BulkEditProductsDialog";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
@@ -38,6 +39,7 @@ const ProductManagement = () => {
   const [reorderProduct, setReorderProduct] = useState<Product | null>(null);
   const [bulkStockDialogOpen, setBulkStockDialogOpen] = useState(false);
   const [stockAdjustmentDialogOpen, setStockAdjustmentDialogOpen] = useState(false);
+  const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(50);
   const [isSyncingShopify, setIsSyncingShopify] = useState(false);
@@ -172,6 +174,14 @@ const ProductManagement = () => {
     action: async (ids: string[]) => bulkToggleProducts(ids, false),
     requiresConfirmation: true,
     confirmMessage: 'Are you sure you want to deactivate the selected products? They will no longer be available for orders.'
+  }, {
+    id: 'bulk-edit',
+    label: 'Bulk Edit',
+    icon: Pencil,
+    action: async () => {
+      setBulkEditDialogOpen(true);
+      return { success: 0, failed: 0 };
+    }
   }, {
     id: 'delete',
     label: 'Delete Products',
@@ -442,6 +452,17 @@ const ProductManagement = () => {
       <BulkStockAdditionDialog open={bulkStockDialogOpen} onOpenChange={setBulkStockDialogOpen} products={products} />
 
       <StockAdjustmentDialog open={stockAdjustmentDialogOpen} onOpenChange={setStockAdjustmentDialogOpen} products={products} outlets={outlets} />
+
+      <BulkEditProductsDialog 
+        open={bulkEditDialogOpen} 
+        onOpenChange={setBulkEditDialogOpen} 
+        selectedProductIds={selectedProducts}
+        categories={categories}
+        onComplete={() => {
+          setSelectedProducts([]);
+          queryClient.invalidateQueries({ queryKey: ["products"] });
+        }}
+      />
     </PageContainer>;
 };
 export default ProductManagement;
