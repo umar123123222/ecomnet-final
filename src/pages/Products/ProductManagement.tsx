@@ -340,6 +340,7 @@ const ProductManagement = () => {
                     <TableHead className="text-right">Price</TableHead>
                     <TableHead className="text-right">Current Stock</TableHead>
                     <TableHead className="text-right">Reserved</TableHead>
+                    <TableHead className="text-right">Available</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -365,6 +366,11 @@ const ProductManagement = () => {
                             {inventoryData?.[product.id]?.total_reserved || 0}
                           </span>
                         </TableCell>
+                        <TableCell className="text-right">
+                          <span className="font-medium text-primary">
+                            {(inventoryData?.[product.id]?.total_quantity || 0) - (inventoryData?.[product.id]?.total_reserved || 0)}
+                          </span>
+                        </TableCell>
                         <TableCell>
                           {product.is_active ? <Badge variant="outline" className="border-green-500 text-green-500">
                               Active
@@ -382,7 +388,7 @@ const ProductManagement = () => {
                               </Button>}
                         </TableCell>
                       </TableRow>) : <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                         No products found
                       </TableCell>
                     </TableRow>}
