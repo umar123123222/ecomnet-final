@@ -148,6 +148,11 @@ const BusinessSettings = () => {
       if (config.pickup_address_code) {
         await updateSetting(`${config.code.toUpperCase()}_PICKUP_ADDRESS_CODE`, config.pickup_address_code, `Pickup address code for ${config.name}`);
       }
+
+      // Save API password if provided (needed by Leopard, TCS, etc.)
+      if (config.api_password) {
+        await updateSetting(`${config.code.toUpperCase()}_API_PASSWORD`, config.api_password, `API password for ${config.name}`);
+      }
       await loadCouriers();
       setShowAddCourier(false);
     } catch (error: any) {

@@ -160,10 +160,9 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
     console.log('[LEOPARD] Using POST body authentication for tracking');
     method = 'POST';
     
-    // Read password from courier config first, fallback to api_settings for backwards compatibility
-    const apiPassword = courier.api_password || await getAPISetting('LEOPARD_API_PASSWORD', supabaseClient);
+    const apiPassword = await getAPISetting('LEOPARD_API_PASSWORD', supabaseClient);
     if (!apiPassword) {
-      throw new Error('Leopard API Password not configured. Please add it in Business Settings > Couriers > Leopard > Add Field > API Password.');
+      throw new Error('Leopard API Password not configured. Please re-save your Leopard courier configuration in Business Settings > Couriers.');
     }
     
     body = JSON.stringify({
