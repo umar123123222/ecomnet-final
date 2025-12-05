@@ -115,17 +115,9 @@ const ShipperAdvice = () => {
 
         console.log('Step 4 - Orders with pending advice:', ordersWithPendingAdvice.size);
 
-        // Statuses that indicate parcel needs shipper advice
+        // Statuses that indicate parcel needs shipper advice (matching actual database values)
         const needsAdviceStatuses = [
           'delivery_failed', 
-          'attempted', 
-          'refused', 
-          'customer_not_available',
-          'wrong_address',
-          'incomplete_address',
-          'customer_refused',
-          'hold',
-          'returned_to_origin',
           'returned'
         ];
 
@@ -250,7 +242,11 @@ const ShipperAdvice = () => {
         order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.customerPhone.includes(searchTerm);
       
-      const matchesCourier = courierFilter === 'all' || order.courier === courierFilter;
+      // Compare courier code (lowercase) with filter value (also lowercase)
+      const orderCourierCode = (order.courier || '').toLowerCase();
+      const matchesCourier = courierFilter === 'all' || 
+        orderCourierCode === courierFilter.toLowerCase() ||
+        order.courierName?.toLowerCase() === courierFilter.toLowerCase();
       
       const matchesAttempts = 
         attemptsFilter === 'all' || 

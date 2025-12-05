@@ -234,12 +234,15 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
   // Get dispatch and order info
   const { data: dispatch, error: dispatchError } = await supabaseClient
     .from('dispatches')
-    .select('id, order_id')
+    .select('id, order_id, courier_id')
     .eq('tracking_id', trackingId)
     .single();
 
   if (!dispatchError && dispatch) {
     console.log(`Found dispatch ${dispatch.id} for order ${dispatch.order_id}`);
+    
+    // Use courier.id if dispatch.courier_id is not set
+    const courierId = dispatch.courier_id || courier.id;
     
     // Insert tracking events into courier_tracking_history
     for (const event of trackingData.statusHistory) {
@@ -248,7 +251,7 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
         .upsert({
           dispatch_id: dispatch.id,
           order_id: dispatch.order_id,
-          courier_id: courier.id,
+          courier_id: courierId,
           tracking_id: trackingId,
           status: event.status,
           current_location: event.message || event.location,

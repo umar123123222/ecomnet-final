@@ -114,42 +114,61 @@ serve(async (req) => {
             const statusAction = tracking.status.replace(/-/g, '_');
             const actionDescription = statusDescriptions[tracking.status] || `Status updated: ${tracking.status}`;
 
-            // Log to activity logs only when there's a change
-            await supabase.from('activity_logs').insert({
-              user_id: '00000000-0000-0000-0000-000000000000',
-              entity_type: 'order',
-              entity_id: dispatch.order_id,
-              action: `tracking_${statusAction}`,
-              details: {
-                description: actionDescription,
-                courier: dispatch.courier,
-                tracking_id: dispatch.tracking_id,
-                status: tracking.status,
-                location: tracking.currentLocation,
-                timestamp: new Date().toISOString()
-              }
-            });
+            // Log to activity logs only when there's a change (skip if system user doesn't exist)
+            try {
+              await supabase.from('activity_logs').insert({
+                user_id: '00000000-0000-0000-0000-000000000000',
+                entity_type: 'order',
+                entity_id: dispatch.order_id,
+                action: `tracking_${statusAction}`,
+                details: {
+                  description: actionDescription,
+                  courier: dispatch.courier,
+                  tracking_id: dispatch.tracking_id,
+                  status: tracking.status,
+                  location: tracking.currentLocation,
+                  timestamp: new Date().toISOString()
+                }
+              });
+            } catch (activityLogError) {
+              console.warn('Could not log activity (system user may not exist):', activityLogError);
+            }
+
+            // Get courier_id from couriers table if not available on dispatch
+            let courierId = dispatch.courier_id;
+            if (!courierId && dispatch.courier) {
+              const { data: courierData } = await supabase
+                .from('couriers')
+                .select('id')
+                .eq('code', dispatch.courier.toLowerCase())
+                .single();
+              courierId = courierData?.id || null;
+            }
 
             // Log tracking history only when status or location changes
-            await supabase
-              .from('courier_tracking_history')
-              .insert({
-                dispatch_id: dispatch.id,
-                order_id: dispatch.order_id,
-                courier_id: dispatch.courier_id,
-                tracking_id: dispatch.tracking_id,
-                status: tracking.status,
-                current_location: tracking.currentLocation,
-                raw_response: tracking.raw,
-                checked_at: new Date().toISOString()
-              });
+            if (courierId) {
+              await supabase
+                .from('courier_tracking_history')
+                .insert({
+                  dispatch_id: dispatch.id,
+                  order_id: dispatch.order_id,
+                  courier_id: courierId,
+                  tracking_id: dispatch.tracking_id,
+                  status: tracking.status,
+                  current_location: tracking.currentLocation,
+                  raw_response: tracking.raw,
+                  checked_at: new Date().toISOString()
+                });
+            } else {
+              console.warn(`Skipping tracking history for ${dispatch.tracking_id} - no courier_id found`);
+            }
 
             console.log(`✅ Updated ${dispatch.tracking_id}: ${tracking.status}${tracking.currentLocation ? ` at ${tracking.currentLocation}` : ''}`);
           } else {
             console.log(`⏭️ No change for ${dispatch.tracking_id}: ${tracking.status}`);
           }
 
-          // Update order status if delivered (but NOT for returned - keep dispatched)
+          // Update order status if delivered OR returned
           if (tracking.status === 'delivered') {
             await supabase
               .from('orders')
@@ -158,6 +177,16 @@ serve(async (req) => {
                 delivered_at: new Date().toISOString()
               })
               .eq('id', dispatch.order_id);
+            console.log(`📦 Order ${dispatch.order_id} marked as delivered`);
+          } else if (tracking.status === 'returned') {
+            await supabase
+              .from('orders')
+              .update({
+                status: 'returned',
+                returned_at: new Date().toISOString()
+              })
+              .eq('id', dispatch.order_id);
+            console.log(`↩️ Order ${dispatch.order_id} marked as returned`);
           }
 
           results.updated++;
