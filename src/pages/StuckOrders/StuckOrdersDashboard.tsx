@@ -290,10 +290,12 @@ const StuckOrdersDashboard = () => {
                           </div>
                         </div>
 
-                        <Button variant="outline" size="sm" asChild>
-                          <Link to={`/orders?order=${order.id}`}>
-                            View Order
-                          </Link>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => window.open(`/orders?search=${encodeURIComponent(order.order_number)}`, '_blank')}
+                        >
+                          View Order
                         </Button>
                       </div>
                     </div>
