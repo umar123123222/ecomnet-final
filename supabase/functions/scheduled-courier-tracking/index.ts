@@ -76,6 +76,19 @@ serve(async (req) => {
         if (trackingData?.success && trackingData?.tracking) {
           const tracking = trackingData.tracking;
           
+          // Check if status or location has actually changed from last record
+          const { data: lastRecord } = await supabase
+            .from('courier_tracking_history')
+            .select('status, current_location')
+            .eq('tracking_id', dispatch.tracking_id)
+            .order('checked_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          const statusChanged = !lastRecord || lastRecord.status !== tracking.status;
+          const locationChanged = !lastRecord || lastRecord.current_location !== tracking.currentLocation;
+          const hasChange = statusChanged || locationChanged;
+
           // Update dispatch's last tracking update timestamp
           await supabase
             .from('dispatches')
@@ -85,36 +98,56 @@ serve(async (req) => {
             })
             .eq('id', dispatch.id);
 
-          // Log ALL tracking status changes to activity logs (not just delivered/returned)
-          const statusDescriptions: Record<string, string> = {
-            'booked': `Order booked with ${dispatch.courier}`,
-            'picked_up': `Package picked up by ${dispatch.courier}`,
-            'in_transit': `Order in transit${tracking.currentLocation ? ` at ${tracking.currentLocation}` : ''}`,
-            'out_for_delivery': `Out for delivery${tracking.currentLocation ? ` in ${tracking.currentLocation}` : ''}`,
-            'delivered': 'Order successfully delivered',
-            'returned': `Order returned by ${dispatch.courier}`,
-            'failed_delivery': 'Delivery attempt failed',
-            'on_hold': 'Shipment on hold'
-          };
+          // Only log to activity logs and tracking history if something changed
+          if (hasChange) {
+            const statusDescriptions: Record<string, string> = {
+              'booked': `Order booked with ${dispatch.courier}`,
+              'picked_up': `Package picked up by ${dispatch.courier}`,
+              'in_transit': `Order in transit${tracking.currentLocation ? ` at ${tracking.currentLocation}` : ''}`,
+              'out_for_delivery': `Out for delivery${tracking.currentLocation ? ` in ${tracking.currentLocation}` : ''}`,
+              'delivered': 'Order successfully delivered',
+              'returned': `Order returned by ${dispatch.courier}`,
+              'failed_delivery': 'Delivery attempt failed',
+              'on_hold': 'Shipment on hold'
+            };
 
-          const statusAction = tracking.status.replace(/-/g, '_');
-          const actionDescription = statusDescriptions[tracking.status] || `Status updated: ${tracking.status}`;
+            const statusAction = tracking.status.replace(/-/g, '_');
+            const actionDescription = statusDescriptions[tracking.status] || `Status updated: ${tracking.status}`;
 
-          // Log to activity logs for ALL statuses
-          await supabase.from('activity_logs').insert({
-            user_id: '00000000-0000-0000-0000-000000000000',
-            entity_type: 'order',
-            entity_id: dispatch.order_id,
-            action: `tracking_${statusAction}`,
-            details: {
-              description: actionDescription,
-              courier: dispatch.courier,
-              tracking_id: dispatch.tracking_id,
-              status: tracking.status,
-              location: tracking.currentLocation,
-              timestamp: new Date().toISOString()
-            }
-          });
+            // Log to activity logs only when there's a change
+            await supabase.from('activity_logs').insert({
+              user_id: '00000000-0000-0000-0000-000000000000',
+              entity_type: 'order',
+              entity_id: dispatch.order_id,
+              action: `tracking_${statusAction}`,
+              details: {
+                description: actionDescription,
+                courier: dispatch.courier,
+                tracking_id: dispatch.tracking_id,
+                status: tracking.status,
+                location: tracking.currentLocation,
+                timestamp: new Date().toISOString()
+              }
+            });
+
+            // Log tracking history only when status or location changes
+            await supabase
+              .from('courier_tracking_history')
+              .insert({
+                dispatch_id: dispatch.id,
+                order_id: dispatch.order_id,
+                courier_id: dispatch.courier_id,
+                tracking_id: dispatch.tracking_id,
+                status: tracking.status,
+                current_location: tracking.currentLocation,
+                raw_response: tracking.raw,
+                checked_at: new Date().toISOString()
+              });
+
+            console.log(`✅ Updated ${dispatch.tracking_id}: ${tracking.status}${tracking.currentLocation ? ` at ${tracking.currentLocation}` : ''}`);
+          } else {
+            console.log(`⏭️ No change for ${dispatch.tracking_id}: ${tracking.status}`);
+          }
 
           // Update order status if delivered (but NOT for returned - keep dispatched)
           if (tracking.status === 'delivered') {
@@ -126,25 +159,8 @@ serve(async (req) => {
               })
               .eq('id', dispatch.order_id);
           }
-          // For returned status, only update dispatch status, NOT order status
-          // Order status stays 'dispatched' until warehouse physically receives it
-
-          // Log tracking history
-          await supabase
-            .from('courier_tracking_history')
-            .insert({
-              dispatch_id: dispatch.id,
-              order_id: dispatch.order_id,
-              courier_id: dispatch.courier_id,
-              tracking_id: dispatch.tracking_id,
-              status: tracking.status,
-              current_location: tracking.currentLocation,
-              raw_response: tracking.raw,
-              checked_at: new Date().toISOString()
-            });
 
           results.updated++;
-          console.log(`✅ Updated ${dispatch.tracking_id}: ${tracking.status}`);
         }
       } catch (error: any) {
         console.error(`Error processing dispatch ${dispatch.id}:`, error);
