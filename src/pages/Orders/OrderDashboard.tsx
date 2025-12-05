@@ -2178,23 +2178,59 @@ const OrderDashboard = () => {
                   disabled={isUpdatingAllTracking}
                   onClick={async () => {
                     setIsUpdatingAllTracking(true);
+                    
+                    const aggregatedResults = {
+                      total: 0,
+                      updated: 0,
+                      delivered: 0,
+                      returned: 0,
+                      failed: 0,
+                      noChange: 0,
+                      batchesProcessed: 0
+                    };
+                    
+                    let offset = 0;
+                    const limit = 50;
+                    let hasMore = true;
+                    
                     try {
-                      toast({ description: "Updating tracking for all active orders..." });
+                      toast({ description: "Starting tracking update for all active orders..." });
                       
-                      const { data, error } = await supabase.functions.invoke('nightly-tracking-update', {
-                        body: { trigger: 'manual' }
-                      });
-                      
-                      if (error) throw error;
-                      
-                      if (data?.success) {
-                        const r = data.results;
-                        toast({ 
-                          title: "Tracking Update Complete",
-                          description: `Checked: ${r.total}, Delivered: ${r.delivered}, Returned: ${r.returned}, Failed: ${r.failed}`,
+                      while (hasMore) {
+                        const { data, error } = await supabase.functions.invoke('nightly-tracking-update', {
+                          body: { trigger: 'manual', offset, limit }
                         });
-                        await fetchOrders();
+                        
+                        if (error) throw error;
+                        
+                        if (data?.success) {
+                          const r = data.results;
+                          aggregatedResults.total += r.total;
+                          aggregatedResults.updated += r.updated;
+                          aggregatedResults.delivered += r.delivered;
+                          aggregatedResults.returned += r.returned;
+                          aggregatedResults.failed += r.failed;
+                          aggregatedResults.noChange += r.noChange;
+                          aggregatedResults.batchesProcessed++;
+                          
+                          hasMore = data.hasMore;
+                          offset += limit;
+                          
+                          if (hasMore) {
+                            toast({ 
+                              description: `Processed ${aggregatedResults.total} orders (batch ${aggregatedResults.batchesProcessed})...` 
+                            });
+                          }
+                        } else {
+                          hasMore = false;
+                        }
                       }
+                      
+                      toast({ 
+                        title: "Tracking Update Complete",
+                        description: `Checked: ${aggregatedResults.total}, Delivered: ${aggregatedResults.delivered}, Returned: ${aggregatedResults.returned}, Failed: ${aggregatedResults.failed}`,
+                      });
+                      await fetchOrders();
                     } catch (error: any) {
                       console.error('Tracking update error:', error);
                       toast({ 

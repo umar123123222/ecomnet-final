@@ -14,9 +14,10 @@ serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const trigger = body.trigger || 'manual';
-    const limit = body.limit || 50; // Process max 50 orders per invocation to avoid timeout
+    const offset = body.offset || 0;
+    const limit = body.limit || 50;
     
-    console.log(`🌙 Starting nightly tracking update (trigger: ${trigger}, limit: ${limit})...`);
+    console.log(`🌙 Starting nightly tracking update (trigger: ${trigger}, offset: ${offset}, limit: ${limit})...`);
     
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -37,7 +38,7 @@ serve(async (req) => {
       .not('status', 'in', '("delivered","cancelled","returned")')
       .not('tracking_id', 'is', null)
       .neq('tracking_id', '')
-      .limit(limit);
+      .range(offset, offset + limit - 1);
 
     if (fetchError) {
       console.error('Error fetching active orders:', fetchError);
@@ -137,12 +138,16 @@ serve(async (req) => {
       }
     }
 
-    console.log('✨ Nightly tracking update complete:', results);
+    const hasMore = (activeOrders?.length || 0) === limit;
+    console.log(`✨ Nightly tracking update batch complete:`, { ...results, offset, hasMore });
 
     return new Response(
       JSON.stringify({
         success: true,
         trigger,
+        offset,
+        limit,
+        hasMore,
         results
       }),
       {
