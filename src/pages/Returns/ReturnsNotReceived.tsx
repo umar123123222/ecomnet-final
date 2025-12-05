@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, Eye, Phone, AlertTriangle, Clock, DollarSign, RotateCcw } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -247,8 +248,19 @@ const ReturnsNotReceived = () => {
                           <p className="font-medium text-foreground">{returnItem.customerName}</p>
                         </TableCell>
                         <TableCell className="text-muted-foreground">{returnItem.customerPhone}</TableCell>
-                        <TableCell className="max-w-[120px] truncate text-muted-foreground">
-                          {returnItem.returnReason}
+                        <TableCell className="max-w-[120px]">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="block truncate text-muted-foreground cursor-help">
+                                  {returnItem.returnReason}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-[300px]">{returnItem.returnReason}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </TableCell>
                         <TableCell className="text-foreground">{returnItem.courier}</TableCell>
                         <TableCell className="font-mono text-sm text-muted-foreground">{returnItem.trackingId}</TableCell>
