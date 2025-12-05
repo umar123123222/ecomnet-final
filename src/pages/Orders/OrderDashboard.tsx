@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase, invokeBackfillShopifyFulfillments } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -119,6 +120,16 @@ const OrderDashboard = () => {
   const { user, profile } = useAuth();
   const { progress, executeBulkOperation } = useBulkOperations();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+
+  // Read search param from URL on page load
+  useEffect(() => {
+    const urlSearch = searchParams.get('search');
+    if (urlSearch) {
+      setSearchInput(urlSearch);
+      setFilters(prev => ({ ...prev, search: urlSearch }));
+    }
+  }, []);
 
   /**
    * Maps order status to the corresponding timestamp field
