@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -9,6 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload, Download, CheckCircle, XCircle, AlertTriangle, FileSpreadsheet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import Papa from "papaparse";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserRoles } from "@/hooks/useUserRoles";
 
 interface BulkStockAdjustmentDialogProps {
   open: boolean;
@@ -34,6 +36,8 @@ export function BulkStockAdjustmentDialog({
   open,
   onOpenChange,
 }: BulkStockAdjustmentDialogProps) {
+  const { profile } = useAuth();
+  const { primaryRole } = useUserRoles();
   const [isProcessing, setIsProcessing] = useState(false);
   const [csvData, setCsvData] = useState<CSVRow[]>([]);
   const [results, setResults] = useState<ProcessingResult[]>([]);
@@ -41,14 +45,71 @@ export function BulkStockAdjustmentDialog({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const downloadTemplate = () => {
-    const template = [
-      ["sku", "outlet", "adjustment_type", "quantity", "reason"],
-      ["PROD-001", "Main Warehouse", "increase", "100", "Stock received from supplier"],
-      ["PROD-002", "Retail Store", "decrease", "5", "Damaged items removed"],
-    ];
+  const isStoreManager = primaryRole === 'store_manager';
+  const isWarehouseManager = primaryRole === 'warehouse_manager';
+  const isOutletRestricted = isStoreManager || isWarehouseManager;
 
-    const csv = Papa.unparse(template);
+  // Fetch the user's assigned outlet for restricted roles
+  const { data: userOutlet } = useQuery<{ id: string; name: string } | null>({
+    queryKey: ['user-assigned-outlet-bulk-adjustment', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return null;
+      
+      // First check if user is a manager of an outlet
+      const { data: managedData } = await supabase
+        .from('outlets')
+        .select('id, name')
+        .eq('manager_id', profile.id)
+        .eq('is_active', true)
+        .limit(1);
+
+      if (managedData && managedData.length > 0) {
+        return { id: managedData[0].id, name: managedData[0].name };
+      }
+
+      // Otherwise check outlet_staff assignment
+      const { data: staffData } = await supabase
+        .from('outlet_staff')
+        .select('outlet_id')
+        .eq('user_id', profile.id)
+        .limit(1);
+
+      if (staffData && staffData.length > 0 && staffData[0].outlet_id) {
+        const { data: outletData } = await supabase
+          .from('outlets')
+          .select('id, name')
+          .eq('id', staffData[0].outlet_id)
+          .limit(1);
+        if (outletData && outletData.length > 0) {
+          return { id: outletData[0].id, name: outletData[0].name };
+        }
+      }
+
+      return null;
+    },
+    enabled: !!profile?.id && isOutletRestricted,
+  });
+
+  const downloadTemplate = () => {
+    // For restricted roles, use their assigned outlet name in the template
+    const outletName = isOutletRestricted && userOutlet?.name 
+      ? userOutlet.name 
+      : "Main Warehouse";
+    
+    // Store managers can only decrease with "Damaged" reason
+    const exampleRows = isStoreManager
+      ? [
+          ["sku", "outlet", "adjustment_type", "quantity", "reason"],
+          ["PROD-001", outletName, "decrease", "5", "Damaged"],
+          ["PROD-002", outletName, "decrease", "3", "Damaged"],
+        ]
+      : [
+          ["sku", "outlet", "adjustment_type", "quantity", "reason"],
+          ["PROD-001", outletName, "increase", "100", "Stock received from supplier"],
+          ["PROD-002", outletName, "decrease", "5", "Damaged items removed"],
+        ];
+
+    const csv = Papa.unparse(exampleRows);
     const blob = new Blob([csv], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -59,7 +120,9 @@ export function BulkStockAdjustmentDialog({
 
     toast({
       title: "Template Downloaded",
-      description: "Fill in the template and upload it to perform bulk adjustments",
+      description: isOutletRestricted 
+        ? `Template pre-filled with your outlet: ${outletName}`
+        : "Fill in the template and upload it to perform bulk adjustments",
     });
   };
 
@@ -74,7 +137,7 @@ export function BulkStockAdjustmentDialog({
         const data = result.data as CSVRow[];
         
         // Validate data
-        const validRows = data.filter((row) => {
+        let validRows = data.filter((row) => {
           return (
             row.sku &&
             row.outlet &&
@@ -92,6 +155,35 @@ export function BulkStockAdjustmentDialog({
             variant: "destructive",
           });
           return;
+        }
+
+        // For restricted roles, validate outlet matches their assigned outlet
+        if (isOutletRestricted && userOutlet?.name) {
+          const invalidOutletRows = validRows.filter(
+            row => row.outlet.toLowerCase() !== userOutlet.name.toLowerCase()
+          );
+          
+          if (invalidOutletRows.length > 0) {
+            toast({
+              title: "Invalid Outlet",
+              description: `You can only adjust stock for "${userOutlet.name}". ${invalidOutletRows.length} row(s) have invalid outlets.`,
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+
+        // For store managers, validate adjustment_type is "decrease" and reason is "Damaged"
+        if (isStoreManager) {
+          const invalidTypeRows = validRows.filter(row => row.adjustment_type !== "decrease");
+          if (invalidTypeRows.length > 0) {
+            toast({
+              title: "Invalid Adjustment Type",
+              description: "Store managers can only decrease stock (report damaged items).",
+              variant: "destructive",
+            });
+            return;
+          }
         }
 
         setCsvData(validRows);
@@ -236,7 +328,14 @@ export function BulkStockAdjustmentDialog({
         <DialogHeader>
           <DialogTitle>Bulk Stock Adjustment</DialogTitle>
           <DialogDescription>
-            Upload a CSV file to adjust stock for multiple products at once
+            {isOutletRestricted 
+              ? `Upload a CSV file to adjust stock for ${userOutlet?.name || 'your assigned outlet'}`
+              : "Upload a CSV file to adjust stock for multiple products at once"}
+            {isStoreManager && (
+              <span className="block text-xs mt-1 text-amber-500">
+                Note: Store managers can only report damaged items (decrease stock)
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
 

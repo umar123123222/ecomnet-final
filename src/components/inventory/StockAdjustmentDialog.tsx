@@ -59,8 +59,11 @@ export function StockAdjustmentDialog({
   const queryClient = useQueryClient();
 
   const isStoreManager = primaryRole === 'store_manager';
+  const isWarehouseManager = primaryRole === 'warehouse_manager';
+  // Both store_manager and warehouse_manager are restricted to their assigned outlet
+  const isOutletRestricted = isStoreManager || isWarehouseManager;
 
-  // Fetch the store manager's assigned outlet
+  // Fetch the user's assigned outlet (for both store_manager and warehouse_manager)
   const { data: userOutlet } = useQuery<{ id: string; name: string } | null>({
     queryKey: ['user-assigned-outlet-adjustment', profile?.id],
     queryFn: async () => {
@@ -98,10 +101,11 @@ export function StockAdjustmentDialog({
 
       return null;
     },
-    enabled: !!profile?.id && isStoreManager,
+    enabled: !!profile?.id && isOutletRestricted,
   });
 
   // Get filtered reason options based on role
+  // Store managers can only use "Damaged", warehouse managers can use all reasons
   const filteredReasonOptions = isStoreManager 
     ? REASON_OPTIONS.filter(r => r.value === 'damaged')
     : REASON_OPTIONS;
@@ -283,18 +287,19 @@ export function StockAdjustmentDialog({
     }
   }, [open]);
 
-  // Set defaults for store managers when dialog opens
+  // Set defaults for store managers and warehouse managers when dialog opens
   useEffect(() => {
-    if (open && isStoreManager) {
+    if (open && isOutletRestricted) {
       if (userOutlet?.id) {
         setValue('outlet_id', userOutlet.id);
       }
-      // Auto-set reason to damaged for store managers
-      setValue('reason', 'damaged');
-      // Default to decrease for damaged items
-      setValue('adjustment_type', 'decrease');
+      // Store managers: auto-set reason to damaged and default to decrease
+      if (isStoreManager) {
+        setValue('reason', 'damaged');
+        setValue('adjustment_type', 'decrease');
+      }
     }
-  }, [open, isStoreManager, userOutlet, setValue]);
+  }, [open, isOutletRestricted, isStoreManager, userOutlet, setValue]);
 
   const selectedProduct = products?.find(p => p.id === selectedProductId);
   const selectedOutlet = outlets?.find(o => o.id === selectedOutletId);
@@ -340,9 +345,9 @@ export function StockAdjustmentDialog({
 
                 <div className="space-y-2">
                   <Label htmlFor="outlet_id">Outlet *</Label>
-                  {isStoreManager ? (
+                  {isOutletRestricted ? (
                     <div className="flex items-center h-10 px-3 bg-muted rounded-md border text-sm">
-                      {userOutlet?.name || 'Your Store'}
+                      {userOutlet?.name || (isStoreManager ? 'Your Store' : 'Your Warehouse')}
                     </div>
                   ) : (
                     <Select
