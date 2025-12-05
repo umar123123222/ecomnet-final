@@ -102,6 +102,9 @@ const OrderDashboard = () => {
   const [newOrdersCount, setNewOrdersCount] = useState(0);
   const [showNewOrdersNotification, setShowNewOrdersNotification] = useState(false);
   
+  // Bulk tracking update state
+  const [isUpdatingAllTracking, setIsUpdatingAllTracking] = useState(false);
+  
   // Filter state (replacing useAdvancedFilters)
   const [filters, setFilters] = useState({
     search: '',
@@ -2164,9 +2167,53 @@ const OrderDashboard = () => {
                     <DialogHeader>
                       <DialogTitle>Verify Delivered Orders</DialogTitle>
                     </DialogHeader>
-                    <VerifyDeliveredOrders />
+                <VerifyDeliveredOrders />
                   </DialogContent>
                 </Dialog>
+                
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="gap-2"
+                  disabled={isUpdatingAllTracking}
+                  onClick={async () => {
+                    setIsUpdatingAllTracking(true);
+                    try {
+                      toast({ description: "Updating tracking for all active orders..." });
+                      
+                      const { data, error } = await supabase.functions.invoke('nightly-tracking-update', {
+                        body: { trigger: 'manual' }
+                      });
+                      
+                      if (error) throw error;
+                      
+                      if (data?.success) {
+                        const r = data.results;
+                        toast({ 
+                          title: "Tracking Update Complete",
+                          description: `Checked: ${r.total}, Delivered: ${r.delivered}, Returned: ${r.returned}, Failed: ${r.failed}`,
+                        });
+                        await fetchOrders();
+                      }
+                    } catch (error: any) {
+                      console.error('Tracking update error:', error);
+                      toast({ 
+                        title: "Error",
+                        description: error.message || "Failed to update tracking",
+                        variant: "destructive"
+                      });
+                    } finally {
+                      setIsUpdatingAllTracking(false);
+                    }
+                  }}
+                >
+                  {isUpdatingAllTracking ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Truck className="h-4 w-4" />
+                  )}
+                  Update All Tracking
+                </Button>
                 
                 <Button 
                   variant="outline" 
