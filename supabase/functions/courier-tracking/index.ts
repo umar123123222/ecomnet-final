@@ -287,16 +287,30 @@ function parseLeopardResponse(data: any) {
     };
   }
   
+  // Leopard API returns 'Tracking Detail' as the key
   const trackingDetail = packet['Tracking Detail'] || [];
   
   const statusHistory = trackingDetail.map((event: any) => {
     const mappedStatus = mapLeopardStatus(event.Status);
+    
+    // Leopard API uses underscores in field names: Activity_datetime, Activity_Date, Activity_Time
+    // Build full timestamp from Activity_datetime or combine Activity_Date + Activity_Time
+    let timestamp = event.Activity_datetime;
+    if (!timestamp && event.Activity_Date) {
+      timestamp = event.Activity_Time 
+        ? `${event.Activity_Date} ${event.Activity_Time}`
+        : event.Activity_Date;
+    }
+    if (!timestamp) {
+      timestamp = new Date().toISOString();
+    }
+    
     return {
       status: mappedStatus,
       message: event.Status || 'Status Update',
       location: event.Reason || packet.destination_city_name || '',
-      timestamp: event['Activity Date'] || new Date().toISOString(),
-      receiverName: event['Reciever Name'] || null,
+      timestamp: timestamp,
+      receiverName: event.Reciever_Name || event['Reciever Name'] || null,
       raw: event
     };
   });
@@ -315,18 +329,24 @@ function parseLeopardResponse(data: any) {
 }
 
 function mapLeopardStatus(status: string): string {
+  if (!status) return 'in_transit';
   const normalized = status.toUpperCase();
-  const statusMap: Record<string, string> = {
-    'BOOKED': 'booked',
-    'DISPATCHED': 'in_transit',
-    'IN TRANSIT': 'in_transit',
-    'ON THE WAY': 'in_transit',
-    'OUT FOR DELIVERY': 'out_for_delivery',
-    'DELIVERED': 'delivered',
-    'RETURNED': 'returned',
-    'RETURN': 'returned'
-  };
-  return statusMap[normalized] || 'in_transit';
+  
+  // Check for keywords in status string
+  if (normalized.includes('DELIVERED')) return 'delivered';
+  if (normalized.includes('RETURN TO ORIGIN')) return 'returned';
+  if (normalized.includes('RETURNED')) return 'returned';
+  if (normalized.includes('READY FOR RETURN')) return 'delivery_failed';
+  if (normalized.includes('OUT FOR DELIVERY')) return 'out_for_delivery';
+  if (normalized.includes('ASSIGNED TO COURIER')) return 'out_for_delivery';
+  if (normalized.includes('ARRIVED AT STATION')) return 'at_warehouse';
+  if (normalized.includes('SHIPMENT PICKED')) return 'in_transit';
+  if (normalized.includes('IN TRANSIT')) return 'in_transit';
+  if (normalized.includes('ON THE WAY')) return 'in_transit';
+  if (normalized.includes('DISPATCHED')) return 'in_transit';
+  if (normalized.includes('BOOKED')) return 'booked';
+  
+  return 'in_transit';
 }
 
 // Legacy hardcoded functions removed - all couriers must now use configured tracking_endpoint
