@@ -257,9 +257,9 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       { label: 'Shipper Advice', href: '/shipper-advice', icon: '' }
     ];
     
-    // Add Confirmations for managers
+    // Add Stuck Orders for managers
     if (['super_admin', 'super_manager', 'warehouse_manager'].includes(role)) {
-      orderSubItems.splice(1, 0, { label: 'Confirmations', href: '/confirmations', icon: '' });
+      orderSubItems.splice(1, 0, { label: 'Stuck Orders', href: '/stuck-orders', icon: '' });
     }
     
     items.push({
