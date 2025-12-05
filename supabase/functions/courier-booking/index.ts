@@ -413,6 +413,40 @@ serve(async (req) => {
 
     console.log(`[BOOKING] Success in ${processingTime}ms - Tracking: ${trackingId}`);
 
+    // For Leopard: Auto-call generateLoadSheet to trigger pickup scheduling
+    if (courierCode === 'LEOPARD' && trackingId) {
+      console.log('[LEOPARD] Auto-calling generateLoadSheet to schedule pickup...');
+      try {
+        const apiKey = await getAPISetting('LEOPARD_API_KEY', supabase);
+        const apiPassword = await getAPISetting('LEOPARD_API_PASSWORD', supabase);
+        
+        if (apiKey && apiPassword && courier.load_sheet_endpoint) {
+          const loadSheetResponse = await fetch(courier.load_sheet_endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              api_key: apiKey,
+              api_password: apiPassword,
+              track_numbers: trackingId
+            })
+          });
+          
+          if (loadSheetResponse.ok) {
+            const loadSheetData = await loadSheetResponse.json();
+            console.log('[LEOPARD] generateLoadSheet success:', JSON.stringify(loadSheetData));
+          } else {
+            const errorText = await loadSheetResponse.text();
+            console.warn('[LEOPARD] generateLoadSheet failed:', loadSheetResponse.status, errorText);
+          }
+        } else {
+          console.warn('[LEOPARD] Cannot call generateLoadSheet - missing API credentials or load_sheet_endpoint');
+        }
+      } catch (loadSheetError) {
+        console.error('[LEOPARD] generateLoadSheet error:', loadSheetError);
+        // Don't fail the booking - just log the error
+      }
+    }
+
     // Log dispatch activity
     try {
       await supabase.from('activity_logs').insert({
