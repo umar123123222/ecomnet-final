@@ -68,7 +68,14 @@ const TrackingTimeline = ({
                         <span className="text-muted-foreground truncate">{event.current_location}</span>
                       )}
                       <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">
-                        {format(new Date(event.checked_at), 'MMM d, hh:mm a')}
+                        {format(
+                          new Date(
+                            event.raw_response?.Activity_datetime || 
+                            event.raw_response?.activity_datetime || 
+                            event.checked_at
+                          ), 
+                          'MMM d, hh:mm a'
+                        )}
                       </span>
                     </div>
                   </div>
