@@ -1,15 +1,26 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Search, Clock, Truck, Package, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
+import { AlertTriangle, Search, Clock, Truck, Package, ExternalLink, ChevronLeft, ChevronRight, RefreshCw, XCircle, Send, Loader2 } from 'lucide-react';
 import { formatDistanceToNow, differenceInDays } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { PageContainer, PageHeader, StatsGrid, StatsCard } from '@/components/layout';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface StuckOrder {
   id: string;
@@ -33,33 +44,49 @@ const StuckOrdersDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [stuckType, setStuckType] = useState<string>('all');
   const [page, setPage] = useState(0);
+  const [isProcessing, setIsProcessing] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    operation: string;
+    title: string;
+    description: string;
+    count: number;
+  } | null>(null);
+  
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const twoDaysAgo = new Date();
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
   const twoDaysAgoISO = twoDaysAgo.toISOString();
 
   // Separate count queries for accurate stats
-  const { data: stats } = useQuery({
+  const { data: stats, refetch: refetchStats } = useQuery({
     queryKey: ['stuck-orders-stats'],
     queryFn: async () => {
-      const [totalResult, atOurEndResult, atCourierEndResult] = await Promise.all([
-        // Total stuck orders
+      const [totalResult, atOurEndResult, atCourierEndResult, bookedWithTrackingResult] = await Promise.all([
         supabase
           .from('orders')
           .select('*', { count: 'exact', head: true })
           .not('status', 'in', '(cancelled,returned,delivered)')
           .lt('updated_at', twoDaysAgoISO),
-        // At our end (pending/booked)
         supabase
           .from('orders')
           .select('*', { count: 'exact', head: true })
           .in('status', ['pending', 'booked'])
           .lt('updated_at', twoDaysAgoISO),
-        // At courier end (dispatched)
         supabase
           .from('orders')
           .select('*', { count: 'exact', head: true })
           .eq('status', 'dispatched')
+          .lt('updated_at', twoDaysAgoISO),
+        // Booked orders with tracking (candidates for auto-dispatch)
+        supabase
+          .from('orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'booked')
+          .not('tracking_id', 'is', null)
+          .neq('tracking_id', '')
           .lt('updated_at', twoDaysAgoISO),
       ]);
 
@@ -67,12 +94,13 @@ const StuckOrdersDashboard = () => {
         total: totalResult.count || 0,
         atOurEnd: atOurEndResult.count || 0,
         atCourierEnd: atCourierEndResult.count || 0,
+        bookedWithTracking: bookedWithTrackingResult.count || 0,
       };
     },
   });
 
   // Paginated orders query
-  const { data: ordersData, isLoading } = useQuery({
+  const { data: ordersData, isLoading, refetch: refetchOrders } = useQuery({
     queryKey: ['stuck-orders', stuckType, page, searchQuery],
     queryFn: async () => {
       let query = supabase
@@ -81,39 +109,22 @@ const StuckOrdersDashboard = () => {
         .not('status', 'in', '(cancelled,returned,delivered)')
         .lt('updated_at', twoDaysAgoISO);
 
-      // Filter by stuck type
       if (stuckType === 'our_end') {
         query = query.in('status', ['pending', 'booked']);
       } else if (stuckType === 'courier_end') {
         query = query.eq('status', 'dispatched');
       }
 
-      // Apply search filter
       if (searchQuery.trim()) {
         query = query.or(`order_number.ilike.%${searchQuery}%,customer_name.ilike.%${searchQuery}%,customer_phone.ilike.%${searchQuery}%,city.ilike.%${searchQuery}%`);
       }
 
-      // Get total count for pagination
-      const countQuery = query;
-      const { count } = await supabase
-        .from('orders')
-        .select('*', { count: 'exact', head: true })
-        .not('status', 'in', '(cancelled,returned,delivered)')
-        .lt('updated_at', twoDaysAgoISO)
-        .or(stuckType === 'our_end' 
-          ? 'status.in.(pending,booked)' 
-          : stuckType === 'courier_end' 
-            ? 'status.eq.dispatched' 
-            : 'status.neq.never_match');
-
-      // Apply pagination
       const { data: orders, error } = await query
         .order('updated_at', { ascending: true })
         .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1);
 
       if (error) throw error;
 
-      // Calculate days stuck for each order
       const enrichedOrders: StuckOrder[] = orders?.map(order => {
         const daysStuck = differenceInDays(new Date(), new Date(order.updated_at));
         return {
@@ -132,7 +143,7 @@ const StuckOrdersDashboard = () => {
     enabled: !!stats,
   });
 
-  // Critical count (separate query)
+  // Critical count
   const { data: criticalCount } = useQuery({
     queryKey: ['stuck-orders-critical'],
     queryFn: async () => {
@@ -144,6 +155,23 @@ const StuckOrdersDashboard = () => {
         .select('*', { count: 'exact', head: true })
         .not('status', 'in', '(cancelled,returned,delivered)')
         .lt('updated_at', fiveDaysAgo.toISOString());
+
+      return count || 0;
+    },
+  });
+
+  // Old orders count (30+ days)
+  const { data: oldOrdersCount } = useQuery({
+    queryKey: ['old-orders-count'],
+    queryFn: async () => {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const { count } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .in('status', ['pending', 'booked'])
+        .lt('created_at', thirtyDaysAgo.toISOString());
 
       return count || 0;
     },
@@ -169,12 +197,241 @@ const StuckOrdersDashboard = () => {
     setPage(0);
   };
 
+  const refreshAll = () => {
+    refetchStats();
+    refetchOrders();
+    queryClient.invalidateQueries({ queryKey: ['old-orders-count'] });
+  };
+
+  // Bulk cleanup operations
+  const runBulkOperation = async (operation: string, ageThresholdDays: number = 2) => {
+    setIsProcessing(operation);
+    
+    const aggregatedResults = {
+      processed: 0,
+      success: 0,
+      failed: 0,
+      skipped: 0,
+      batchesProcessed: 0,
+    };
+    
+    let offset = 0;
+    const limit = 50;
+    let hasMore = true;
+    
+    try {
+      toast({ description: `Starting ${operation.replace('_', ' ')}...` });
+      
+      while (hasMore) {
+        const { data, error } = await supabase.functions.invoke('bulk-cleanup-stuck-orders', {
+          body: { operation, ageThresholdDays, limit, offset }
+        });
+        
+        if (error) throw error;
+        
+        if (data?.success) {
+          aggregatedResults.processed += data.processed;
+          aggregatedResults.success += data.success;
+          aggregatedResults.failed += data.failed;
+          aggregatedResults.skipped += data.skipped || 0;
+          aggregatedResults.batchesProcessed++;
+          
+          hasMore = data.hasMore;
+          offset += limit;
+          
+          toast({ 
+            description: `Processed ${aggregatedResults.processed} orders (batch ${aggregatedResults.batchesProcessed})...` 
+          });
+        } else {
+          hasMore = false;
+          if (data?.error) throw new Error(data.error);
+        }
+      }
+      
+      toast({ 
+        title: "Operation Complete",
+        description: `Processed ${aggregatedResults.processed}: ${aggregatedResults.success} success, ${aggregatedResults.failed} failed, ${aggregatedResults.skipped} skipped`
+      });
+      
+      refreshAll();
+      
+    } catch (error: any) {
+      console.error('Bulk operation error:', error);
+      toast({ 
+        title: "Operation Failed",
+        description: error.message || 'An error occurred',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsProcessing(null);
+      setConfirmDialog(null);
+    }
+  };
+
+  // Update all tracking (reuse nightly-tracking-update)
+  const runTrackingUpdate = async () => {
+    setIsProcessing('tracking');
+    
+    const aggregatedResults = {
+      total: 0,
+      updated: 0,
+      delivered: 0,
+      returned: 0,
+      failed: 0,
+      noChange: 0,
+      batchesProcessed: 0,
+    };
+    
+    let offset = 0;
+    const limit = 50;
+    let hasMore = true;
+    
+    try {
+      toast({ description: "Starting tracking update for all dispatched orders..." });
+      
+      while (hasMore) {
+        const { data, error } = await supabase.functions.invoke('nightly-tracking-update', {
+          body: { trigger: 'manual', offset, limit }
+        });
+        
+        if (error) throw error;
+        
+        if (data?.success) {
+          const r = data.results;
+          aggregatedResults.total += r.total;
+          aggregatedResults.updated += r.updated;
+          aggregatedResults.delivered += r.delivered;
+          aggregatedResults.returned += r.returned;
+          aggregatedResults.failed += r.failed;
+          aggregatedResults.noChange += r.noChange;
+          aggregatedResults.batchesProcessed++;
+          
+          hasMore = data.hasMore;
+          offset += limit;
+          
+          toast({ 
+            description: `Checked ${aggregatedResults.total} orders (batch ${aggregatedResults.batchesProcessed})...` 
+          });
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      toast({ 
+        title: "Tracking Update Complete",
+        description: `Checked ${aggregatedResults.total} orders: ${aggregatedResults.delivered} delivered, ${aggregatedResults.returned} returned`
+      });
+      
+      refreshAll();
+      
+    } catch (error: any) {
+      console.error('Tracking update error:', error);
+      toast({ 
+        title: "Tracking Update Failed",
+        description: error.message || 'An error occurred',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsProcessing(null);
+      setConfirmDialog(null);
+    }
+  };
+
+  const openConfirmDialog = (operation: string) => {
+    let title = '';
+    let description = '';
+    let count = 0;
+
+    switch (operation) {
+      case 'dispatch_booked':
+        title = 'Mark Booked Orders as Dispatched';
+        description = `This will create dispatch records and mark ${stats?.bookedWithTracking || 0} booked orders (with tracking) as dispatched. These orders have tracking IDs but were never marked as dispatched.`;
+        count = stats?.bookedWithTracking || 0;
+        break;
+      case 'tracking':
+        title = 'Update All Tracking';
+        description = `This will check courier tracking for ${stats?.atCourierEnd || 0} dispatched orders and auto-update status to delivered/returned based on courier responses.`;
+        count = stats?.atCourierEnd || 0;
+        break;
+      case 'cancel_old':
+        title = 'Cancel Old Orders';
+        description = `This will cancel ${oldOrdersCount || 0} orders that are 30+ days old and still in pending/booked status. These orders will be marked as cancelled with reason "Order too old".`;
+        count = oldOrdersCount || 0;
+        break;
+    }
+
+    setConfirmDialog({ open: true, operation, title, description, count });
+  };
+
+  const handleConfirm = () => {
+    if (!confirmDialog) return;
+    
+    switch (confirmDialog.operation) {
+      case 'dispatch_booked':
+        runBulkOperation('dispatch_booked', 2);
+        break;
+      case 'tracking':
+        runTrackingUpdate();
+        break;
+      case 'cancel_old':
+        runBulkOperation('cancel_old', 30);
+        break;
+    }
+  };
+
   return (
     <PageContainer>
       <PageHeader
         title="Stuck Orders"
         description="Orders with no status or tracking updates for 2+ days"
       />
+
+      {/* Cleanup Actions */}
+      <Card className="p-4 mb-6">
+        <div className="flex flex-wrap gap-3">
+          <Button
+            variant="outline"
+            onClick={() => openConfirmDialog('dispatch_booked')}
+            disabled={isProcessing !== null || !stats?.bookedWithTracking}
+            className="gap-2"
+          >
+            {isProcessing === 'dispatch_booked' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            Mark Booked as Dispatched ({stats?.bookedWithTracking || 0})
+          </Button>
+          
+          <Button
+            variant="outline"
+            onClick={() => openConfirmDialog('tracking')}
+            disabled={isProcessing !== null || !stats?.atCourierEnd}
+            className="gap-2"
+          >
+            {isProcessing === 'tracking' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Update All Tracking ({stats?.atCourierEnd || 0})
+          </Button>
+          
+          <Button
+            variant="outline"
+            onClick={() => openConfirmDialog('cancel_old')}
+            disabled={isProcessing !== null || !oldOrdersCount}
+            className="gap-2 text-destructive hover:text-destructive"
+          >
+            {isProcessing === 'cancel_old' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <XCircle className="h-4 w-4" />
+            )}
+            Cancel Old Orders 30+ days ({oldOrdersCount || 0})
+          </Button>
+        </div>
+      </Card>
 
       {/* Stats Cards */}
       <StatsGrid columns={4}>
@@ -335,6 +592,34 @@ const StuckOrdersDashboard = () => {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={confirmDialog?.open} onOpenChange={(open) => !open && setConfirmDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialog?.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDialog?.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessing !== null}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirm}
+              disabled={isProcessing !== null || confirmDialog?.count === 0}
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Confirm'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageContainer>
   );
 };

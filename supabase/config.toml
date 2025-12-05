@@ -81,6 +81,9 @@ verify_jwt = false
 [functions.nightly-tracking-update]
 verify_jwt = false
 
+[functions.bulk-cleanup-stuck-orders]
+verify_jwt = true
+
 [functions.manage-user]
 verify_jwt = true
 
