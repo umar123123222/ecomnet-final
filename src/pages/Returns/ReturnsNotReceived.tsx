@@ -60,6 +60,7 @@ const ReturnsNotReceived = () => {
           checked_at,
           current_location,
           dispatch_id,
+          raw_response,
           dispatches!courier_tracking_history_dispatch_id_fkey (
             courier,
             orders!inner (
@@ -69,7 +70,8 @@ const ReturnsNotReceived = () => {
               customer_phone,
               notes,
               total_amount,
-              status
+              status,
+              return_reason
             )
           )
         `).eq('status', 'returned').eq('dispatches.orders.status', 'dispatched').lt('checked_at', threeDaysAgo.toISOString()).order('checked_at', {
@@ -95,12 +97,31 @@ const ReturnsNotReceived = () => {
       }: any) => {
         const markedDate = new Date(tracking.checked_at);
         const daysSince = Math.floor((Date.now() - markedDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        // Extract return reason from multiple sources
+        let returnReason = 'Not specified';
+        if (order.return_reason) {
+          returnReason = order.return_reason;
+        } else if (tracking.raw_response) {
+          // Try to extract reason from courier's raw response
+          const rawResponse = typeof tracking.raw_response === 'string' 
+            ? JSON.parse(tracking.raw_response) 
+            : tracking.raw_response;
+          returnReason = rawResponse?.reason || rawResponse?.return_reason || rawResponse?.status_reason || 
+                         rawResponse?.packet_data?.reason || rawResponse?.shipment_data?.reason ||
+                         tracking.current_location || order.notes || 'Not specified';
+        } else if (tracking.current_location) {
+          returnReason = tracking.current_location;
+        } else if (order.notes) {
+          returnReason = order.notes;
+        }
+        
         return {
           id: order.id,
           orderNumber: order.order_number,
           customerName: order.customer_name,
           customerPhone: order.customer_phone,
-          returnReason: order.notes || 'Not specified',
+          returnReason,
           markedReturnedDate: markedDate.toISOString().split('T')[0],
           daysSinceMarked: daysSince,
           courier: dispatch.courier,
