@@ -270,12 +270,16 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
     for (const event of trackingData.statusHistory) {
       // Check for duplicates using raw datetime string from the event
       // This prevents duplicates even if our parsed timestamp changes
-      const rawDatetime = event.raw?.datetime || event.raw?.updatedAt || '';
-      const rawStatus = event.raw?.status || event.status;
+      // Supports all courier formats: TCS (datetime), PostEx (updatedAt), Leopard (Activity_datetime)
+      const rawDatetime = event.raw?.datetime || event.raw?.updatedAt || event.raw?.Activity_datetime || 
+                          event.raw?.transactionDateTime || '';
+      const rawStatus = event.raw?.status || event.raw?.Status || event.raw?.transactionStatusMessage || event.status;
       
       const isDuplicate = existingHistory?.some((existing: any) => {
-        const existingRawDatetime = existing.raw_response?.datetime || existing.raw_response?.updatedAt || '';
-        const existingRawStatus = existing.raw_response?.status || existing.status;
+        const existingRawDatetime = existing.raw_response?.datetime || existing.raw_response?.updatedAt || 
+                                     existing.raw_response?.Activity_datetime || existing.raw_response?.transactionDateTime || '';
+        const existingRawStatus = existing.raw_response?.status || existing.raw_response?.Status || 
+                                   existing.raw_response?.transactionStatusMessage || existing.status;
         return existingRawDatetime === rawDatetime && existingRawStatus === rawStatus;
       });
       
