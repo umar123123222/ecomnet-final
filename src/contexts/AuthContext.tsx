@@ -36,8 +36,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSuspended, setIsSuspended] = useState(false);
+  const [profileFetchedFor, setProfileFetchedFor] = useState<string | null>(null);
 
   const fetchUserProfile = async (userId: string): Promise<boolean> => {
+    // Skip if already fetched for this user
+    if (profileFetchedFor === userId && profile) {
+      setIsLoading(false);
+      return false;
+    }
+    
     try {
       // Combined query: fetch profile and role in a single request using PostgreSQL join
       // Use specific foreign key to avoid ambiguity
@@ -55,6 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Profile fetch error:', profileError);
         setProfile(null);
         setUserRole(null);
+        setProfileFetchedFor(null);
         setIsLoading(false);
         return false;
       }
@@ -68,6 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUserRole(null);
           setUser(null);
           setSession(null);
+          setProfileFetchedFor(null);
           // Sign out the user
           await supabase.auth.signOut();
           setIsLoading(false);
@@ -76,6 +85,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         setIsSuspended(false);
         setProfile(profileData);
+        setProfileFetchedFor(userId);
         // user_roles returns an array, get first element
         const roleData = Array.isArray(profileData.user_roles) ? profileData.user_roles[0] : profileData.user_roles;
         setUserRole(roleData?.role || profileData.role);
@@ -85,15 +95,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Error fetching user profile:', error);
       setProfile(null);
       setUserRole(null);
+      setProfileFetchedFor(null);
       setIsLoading(false);
     }
     return false; // Return false = user is NOT suspended
   };
 
   useEffect(() => {
+    let mounted = true;
+    
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        if (!mounted) return;
+        
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -104,24 +119,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setProfile(null);
           setUserRole(null);
           setIsSuspended(false);
-          setIsLoading(false); // Only set false when no user
+          setProfileFetchedFor(null);
+          setIsLoading(false);
         }
       }
     );
 
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
         fetchUserProfile(session.user.id);
       } else {
-        setIsLoading(false); // Only set false when no session
+        setIsLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
