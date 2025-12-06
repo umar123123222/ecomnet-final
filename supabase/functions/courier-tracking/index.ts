@@ -171,10 +171,11 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
       track_numbers: trackingId
     });
   } else if (courierCode === 'tcs') {
-    // TCS requires POST with consignee array in body
-    console.log('[TCS] Using POST body for tracking');
-    method = 'POST';
+    // TCS requires GET with JSON body (unusual pattern per their API docs page 32)
+    console.log('[TCS] Using GET with body for tracking');
+    method = 'GET';
     headers['Authorization'] = `Bearer ${apiKey}`;
+    headers['Content-Type'] = 'application/json';
     body = JSON.stringify({
       consignee: [trackingId]  // TCS expects array of CN numbers
     });
