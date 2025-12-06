@@ -170,6 +170,15 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
       api_password: apiPassword,
       track_numbers: trackingId
     });
+  } else if (courierCode === 'tcs') {
+    // TCS requires POST with consignee array in body
+    console.log('[TCS] Using POST body for tracking');
+    method = 'POST';
+    headers['Authorization'] = `Bearer ${apiKey}`;
+    body = JSON.stringify({
+      consignee: [trackingId]  // TCS expects array of CN numbers
+    });
+    // Don't replace placeholders in URL for TCS - use the endpoint as-is
   } else {
     // Standard placeholder replacement for other couriers
     url = url.replace('{tracking_id}', trackingId);
@@ -220,6 +229,8 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
     trackingData = parsePostExResponse(data);
   } else if (courier.code.toLowerCase() === 'leopard') {
     trackingData = parseLeopardResponse(data);
+  } else if (courier.code.toLowerCase() === 'tcs') {
+    trackingData = parseTCSResponse(data);
   } else {
     // Generic parsing for other couriers
     trackingData = {
@@ -352,17 +363,55 @@ function mapLeopardStatus(status: string): string {
   return 'in_transit';
 }
 
-// Legacy hardcoded functions removed - all couriers must now use configured tracking_endpoint
-
-function mapTCSStatus(status: string): string {
-  const statusMap: Record<string, string> = {
-    'BOOKED': 'booked',
-    'IN_TRANSIT': 'in_transit',
-    'OUT_FOR_DELIVERY': 'out_for_delivery',
-    'DELIVERED': 'delivered',
-    'RETURNED': 'returned'
+// TCS response parser
+function parseTCSResponse(data: any) {
+  console.log('[TCS] Parsing tracking response:', JSON.stringify(data, null, 2));
+  
+  // TCS returns array of shipments
+  const shipment = data.shipmentinfo?.[0] || data[0] || {};
+  const deliveryInfo = shipment.deliveryinfo || data.deliveryinfo || [];
+  
+  const statusHistory = deliveryInfo.map((event: any) => {
+    const mappedStatus = mapTCSStatus(event.code || event.status);
+    
+    return {
+      status: mappedStatus,
+      message: event.status || event.description || 'Status Update',
+      location: event.station || event.location || '',
+      timestamp: event.datetime || new Date().toISOString(),
+      receivedBy: event.recievedby || event.receivedBy || null,
+      raw: event
+    };
+  });
+  
+  const latestEvent = statusHistory[statusHistory.length - 1];
+  const currentStatus = latestEvent?.status || 'in_transit';
+  
+  console.log(`[TCS] Parsed ${statusHistory.length} events. Current: ${currentStatus}`);
+  
+  return {
+    status: currentStatus,
+    currentLocation: latestEvent?.location || shipment.destination || 'In Transit',
+    statusHistory,
+    estimatedDelivery: null,
+    raw: data
   };
-  return statusMap[status] || 'in_transit';
+}
+
+function mapTCSStatus(codeOrStatus: string): string {
+  if (!codeOrStatus) return 'in_transit';
+  const normalized = codeOrStatus.toUpperCase();
+  
+  // TCS status codes from documentation
+  if (normalized === 'OK' || normalized.includes('DELIVERED')) return 'delivered';
+  if (normalized === 'RO' || normalized.includes('RETURN')) return 'returned';
+  if (normalized === 'SC') return 'at_warehouse';  // Awaiting Receiver Collection
+  if (normalized.includes('OUT FOR DELIVERY') || normalized === 'DL') return 'out_for_delivery';
+  if (normalized.includes('ARRIVED') || normalized.includes('RECEIVED')) return 'at_warehouse';
+  if (normalized === 'PK' || normalized.includes('PICKED')) return 'in_transit';
+  if (normalized.includes('BOOKED')) return 'booked';
+  
+  return 'in_transit';
 }
 
 function mapPostExStatus(status: string): string {
