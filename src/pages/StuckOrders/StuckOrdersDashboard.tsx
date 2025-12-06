@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Search, Clock, Truck, Package, ExternalLink, ChevronLeft, ChevronRight, RefreshCw, XCircle, Send, Loader2, CloudDownload } from 'lucide-react';
+import { AlertTriangle, Search, Clock, Truck, Package, ExternalLink, ChevronLeft, ChevronRight, RefreshCw, XCircle, Send, Loader2, CloudDownload, Wrench } from 'lucide-react';
 import { formatDistanceToNow, differenceInDays } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { PageContainer, PageHeader, StatsGrid, StatsCard } from '@/components/layout';
@@ -387,11 +387,89 @@ const StuckOrdersDashboard = () => {
     }
   });
 
+  // Fix booked orders operation
+  const runFixBookedOrders = async () => {
+    setIsProcessing('fix_booked');
+    const aggregatedResults = {
+      processed: 0,
+      success: 0,
+      failed: 0,
+      courierAssigned: 0,
+      dispatchCreated: 0,
+      batchesProcessed: 0
+    };
+    let offset = 0;
+    const limit = 50;
+    let hasMore = true;
+
+    try {
+      toast({
+        description: "Starting to fix booked orders (auto-detect courier, create dispatches)..."
+      });
+
+      while (hasMore) {
+        const { data, error } = await supabase.functions.invoke('bulk-cleanup-stuck-orders', {
+          body: {
+            operation: 'fix_booked_orders',
+            ageThresholdDays: 2,
+            limit,
+            offset
+          }
+        });
+
+        if (error) throw error;
+
+        if (data?.success) {
+          aggregatedResults.processed += data.processed;
+          aggregatedResults.success += data.success;
+          aggregatedResults.failed += data.failed;
+          aggregatedResults.courierAssigned += data.courierAssigned || 0;
+          aggregatedResults.dispatchCreated += data.dispatchCreated || 0;
+          aggregatedResults.batchesProcessed++;
+          hasMore = data.hasMore;
+          offset += limit;
+
+          toast({
+            description: `Processed ${aggregatedResults.processed} orders (batch ${aggregatedResults.batchesProcessed})...`
+          });
+        } else {
+          hasMore = false;
+          if (data?.error) throw new Error(data.error);
+        }
+      }
+
+      toast({
+        title: "Fix Booked Orders Complete",
+        description: `Fixed ${aggregatedResults.success} orders: ${aggregatedResults.courierAssigned} couriers assigned, ${aggregatedResults.dispatchCreated} dispatches created, ${aggregatedResults.failed} failed`
+      });
+
+      refreshAll();
+    } catch (error: any) {
+      console.error('Fix booked orders error:', error);
+      toast({
+        title: "Fix Booked Orders Failed",
+        description: error.message || 'An error occurred',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsProcessing(null);
+      setConfirmDialog(null);
+    }
+  };
+
   const openConfirmDialog = (operation: string) => {
     let title = '';
     let description = '';
     let count = 0;
     switch (operation) {
+      case 'fix_booked':
+        title = 'Fix Booked Orders';
+        description = `This will process ${stats?.bookedWithTracking || 0} stuck booked orders with tracking IDs:
+• Auto-detect courier from tracking ID format (KI* → Leopard, 173* → TCS, 14-digit → PostEx)
+• Create missing dispatch records
+• Update status from booked to dispatched`;
+        count = stats?.bookedWithTracking || 0;
+        break;
       case 'dispatch_booked':
         title = 'Mark Booked Orders as Dispatched';
         description = `This will create dispatch records and mark ${stats?.bookedWithTracking || 0} booked orders (with tracking) as dispatched. These orders have tracking IDs but were never marked as dispatched.`;
@@ -425,6 +503,9 @@ const StuckOrdersDashboard = () => {
   const handleConfirm = () => {
     if (!confirmDialog) return;
     switch (confirmDialog.operation) {
+      case 'fix_booked':
+        runFixBookedOrders();
+        break;
       case 'dispatch_booked':
         runBulkOperation('dispatch_booked', 2);
         break;
@@ -462,15 +543,15 @@ const StuckOrdersDashboard = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => openConfirmDialog('dispatch_booked')}
+            onClick={() => openConfirmDialog('fix_booked')}
             disabled={isProcessing !== null}
           >
-            {isProcessing === 'dispatch_booked' ? (
+            {isProcessing === 'fix_booked' ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
-              <Send className="h-4 w-4 mr-2" />
+              <Wrench className="h-4 w-4 mr-2" />
             )}
-            Mark Booked as Dispatched ({stats?.bookedWithTracking?.toLocaleString() || 0})
+            Fix Booked Orders ({stats?.bookedWithTracking?.toLocaleString() || 0})
           </Button>
 
           <Button
