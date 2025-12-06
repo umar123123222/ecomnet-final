@@ -542,14 +542,14 @@ const OrderDashboard = () => {
         },
         (payload) => {
           const eventType = (payload as any).eventType;
-          const changedId = (payload as any)?.new?.id || (payload as any)?.old?.id;
           
           if (eventType === 'INSERT') {
             // New order inserted - show notification
             setNewOrdersCount(prev => prev + 1);
             setShowNewOrdersNotification(true);
-          } else if (changedId && orders.some(o => o.id === changedId)) {
-            // Existing order updated - auto-refresh
+          } else if (eventType === 'UPDATE') {
+            // Order updated - just refresh without checking if it's in current list
+            // to avoid stale closure over orders array
             fetchOrders();
           }
         }
@@ -559,7 +559,8 @@ const OrderDashboard = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [page, pageSize, orders]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keyboard shortcuts for pagination
   useEffect(() => {
