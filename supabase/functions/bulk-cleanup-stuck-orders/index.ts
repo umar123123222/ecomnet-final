@@ -6,6 +6,35 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Auto-detect courier from tracking ID format
+function detectCourierFromTrackingId(trackingId: string): string | null {
+  if (!trackingId) return null;
+  
+  const cleaned = trackingId.trim().toUpperCase();
+  
+  // Leopard: starts with "KI" followed by numbers (e.g., KI12345678)
+  if (/^KI\d+$/i.test(cleaned)) {
+    return 'leopard';
+  }
+  
+  // TCS: 12-digit numeric starting with "173" (e.g., 173123456789)
+  if (/^173\d{9}$/.test(cleaned)) {
+    return 'tcs';
+  }
+  
+  // PostEx: 14-digit numeric (e.g., 12345678901234)
+  if (/^\d{14}$/.test(cleaned)) {
+    return 'postex';
+  }
+  
+  // CallCourier: starts with numbers and has a specific format
+  if (/^\d{8,10}$/.test(cleaned) && !cleaned.startsWith('173')) {
+    return 'callcourier';
+  }
+  
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -28,6 +57,8 @@ serve(async (req) => {
       success: 0,
       failed: 0,
       skipped: 0,
+      courierAssigned: 0,
+      dispatchCreated: 0,
       hasMore: false,
       details: [] as any[],
       errors: [] as string[],
@@ -38,6 +69,120 @@ serve(async (req) => {
     const thresholdISO = thresholdDate.toISOString();
 
     switch (operation) {
+      case 'fix_booked_orders': {
+        // Find booked orders with tracking_id - auto-detect courier and create dispatch records
+        const { data: bookedOrders, error: fetchError } = await supabase
+          .from('orders')
+          .select(`
+            id, order_number, tracking_id, courier, booked_at, created_at, status,
+            dispatches!left(id)
+          `)
+          .eq('status', 'booked')
+          .not('tracking_id', 'is', null)
+          .neq('tracking_id', '')
+          .lt('updated_at', thresholdISO)
+          .range(offset, offset + limit - 1);
+
+        if (fetchError) throw fetchError;
+
+        results.hasMore = (bookedOrders?.length || 0) === limit;
+
+        console.log(`Found ${bookedOrders?.length || 0} booked orders with tracking IDs`);
+
+        if (dryRun) {
+          results.processed = bookedOrders?.length || 0;
+          results.details = bookedOrders?.map(o => {
+            const detectedCourier = detectCourierFromTrackingId(o.tracking_id);
+            const hasDispatch = o.dispatches && o.dispatches.length > 0;
+            return {
+              order_number: o.order_number,
+              tracking_id: o.tracking_id,
+              current_courier: o.courier,
+              detected_courier: detectedCourier,
+              has_dispatch: hasDispatch,
+              action: 'would_fix'
+            };
+          }) || [];
+          break;
+        }
+
+        // Fetch courier ID mapping
+        const { data: couriers } = await supabase
+          .from('couriers')
+          .select('id, code, name')
+          .eq('is_active', true);
+
+        const courierCodeToId = new Map<string, string>();
+        couriers?.forEach(c => {
+          courierCodeToId.set(c.code.toLowerCase(), c.id);
+        });
+
+        for (const order of bookedOrders || []) {
+          try {
+            const updates: any = {};
+            const hasDispatch = order.dispatches && order.dispatches.length > 0;
+            let courierToUse = order.courier;
+
+            // Step 1: Auto-detect and assign courier if missing
+            if (!order.courier || order.courier === '' || order.courier === 'Unknown') {
+              const detectedCourier = detectCourierFromTrackingId(order.tracking_id);
+              if (detectedCourier) {
+                courierToUse = detectedCourier;
+                updates.courier = detectedCourier;
+                results.courierAssigned++;
+                console.log(`Order ${order.order_number}: Auto-detected courier ${detectedCourier} from tracking ${order.tracking_id}`);
+              }
+            }
+
+            // Step 2: Create dispatch record if missing
+            if (!hasDispatch) {
+              const courierId = courierCodeToId.get(courierToUse?.toLowerCase() || '');
+              
+              const { error: dispatchError } = await supabase
+                .from('dispatches')
+                .insert({
+                  order_id: order.id,
+                  courier: courierToUse || 'Unknown',
+                  courier_id: courierId || null,
+                  tracking_id: order.tracking_id,
+                  dispatch_date: order.booked_at || new Date().toISOString(),
+                });
+
+              if (dispatchError) {
+                console.error(`Failed to create dispatch for ${order.order_number}:`, dispatchError);
+              } else {
+                results.dispatchCreated++;
+              }
+            }
+
+            // Step 3: Update order status to dispatched
+            updates.status = 'dispatched';
+            updates.dispatched_at = order.booked_at || new Date().toISOString();
+
+            const { error: updateError } = await supabase
+              .from('orders')
+              .update(updates)
+              .eq('id', order.id);
+
+            if (updateError) throw updateError;
+
+            results.success++;
+            results.details.push({
+              order_number: order.order_number,
+              action: 'fixed',
+              tracking_id: order.tracking_id,
+              courier_assigned: updates.courier || null,
+              dispatch_created: !hasDispatch,
+            });
+          } catch (err) {
+            results.failed++;
+            results.errors.push(`${order.order_number}: ${err.message}`);
+          }
+          results.processed++;
+        }
+        break;
+      }
+
       case 'dispatch_booked': {
         // Find booked orders with tracking_id but no dispatch record
         const { data: bookedOrders, error: fetchError } = await supabase
@@ -294,7 +439,7 @@ serve(async (req) => {
         });
     }
 
-    console.log(`Operation complete: ${results.success} success, ${results.failed} failed, ${results.skipped} skipped`);
+    console.log(`Operation complete: ${results.success} success, ${results.failed} failed, ${results.skipped} skipped, ${results.courierAssigned} couriers assigned, ${results.dispatchCreated} dispatches created`);
 
     return new Response(JSON.stringify({ success: true, ...results }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
