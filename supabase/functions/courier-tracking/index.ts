@@ -411,11 +411,36 @@ function parseTCSResponse(data: any) {
 }
 
 // Helper to parse TCS datetime format "Friday Dec 5, 2025 21:05"
+// TCS returns times in PKT (Pakistan Standard Time = UTC+5)
 function parseTCSDateTime(datetime: string): string | null {
   if (!datetime) return null;
   try {
     // TCS format: "Friday Dec 5, 2025 21:05"
-    const date = new Date(datetime.replace(/^[A-Za-z]+ /, '')); // Remove day name
+    // Remove day name first
+    const withoutDay = datetime.replace(/^[A-Za-z]+ /, '');
+    
+    // Parse the components manually to preserve the time as-is
+    // Format: "Dec 5, 2025 21:05"
+    const match = withoutDay.match(/([A-Za-z]+)\s+(\d+),\s+(\d{4})\s+(\d{1,2}):(\d{2})/);
+    if (!match) return datetime;
+    
+    const [, monthStr, day, year, hours, minutes] = match;
+    const months: Record<string, number> = {
+      'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+      'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+    };
+    const month = months[monthStr] ?? 0;
+    
+    // Create date in PKT (UTC+5), subtract 5 hours to get correct UTC time
+    const pktOffsetHours = 5;
+    const date = new Date(Date.UTC(
+      parseInt(year),
+      month,
+      parseInt(day),
+      parseInt(hours) - pktOffsetHours,  // Convert PKT to UTC
+      parseInt(minutes)
+    ));
+    
     if (isNaN(date.getTime())) return datetime;
     return date.toISOString();
   } catch {
