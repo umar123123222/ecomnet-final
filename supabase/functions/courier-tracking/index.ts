@@ -259,8 +259,31 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
     // Use courier.id if dispatch.courier_id is not set
     const courierId = dispatch.courier_id || courier.id;
     
+    // Fetch existing tracking history to check for duplicates using raw datetime
+    const { data: existingHistory } = await supabaseClient
+      .from('courier_tracking_history')
+      .select('id, status, raw_response')
+      .eq('tracking_id', trackingId)
+      .limit(100);
+    
     // Insert tracking events into courier_tracking_history
     for (const event of trackingData.statusHistory) {
+      // Check for duplicates using raw datetime string from the event
+      // This prevents duplicates even if our parsed timestamp changes
+      const rawDatetime = event.raw?.datetime || event.raw?.updatedAt || '';
+      const rawStatus = event.raw?.status || event.status;
+      
+      const isDuplicate = existingHistory?.some((existing: any) => {
+        const existingRawDatetime = existing.raw_response?.datetime || existing.raw_response?.updatedAt || '';
+        const existingRawStatus = existing.raw_response?.status || existing.status;
+        return existingRawDatetime === rawDatetime && existingRawStatus === rawStatus;
+      });
+      
+      if (isDuplicate) {
+        console.log(`Skipping duplicate event: ${event.status} - ${rawDatetime}`);
+        continue;
+      }
+      
       const { error: insertError } = await supabaseClient
         .from('courier_tracking_history')
         .upsert({
