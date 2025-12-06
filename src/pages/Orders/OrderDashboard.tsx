@@ -11,8 +11,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 // Wrapper to avoid passing attributes directly to React.Fragment (fixes dev overlay warnings)
-const Noop: React.FC<{ children: React.ReactNode }> = ({ children }) => <>{children}</>;
-
+const Noop: React.FC<{
+  children: React.ReactNode;
+}> = ({
+  children
+}) => <>{children}</>;
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
@@ -35,7 +38,6 @@ import { BulkOperationsPanel } from '@/components/BulkOperationsPanel';
 import { bulkUpdateOrderStatus, bulkUpdateOrderCourier, bulkAssignOrders, bulkUnassignCouriers, exportToCSV } from '@/utils/bulkOperations';
 import { useToast } from '@/hooks/use-toast';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
-
 import { BulkUploadDialog } from '@/components/orders/BulkUploadDialog';
 import { OrderActivityLog } from '@/components/orders/OrderActivityLog';
 import { QuickActionButtons } from '@/components/orders/QuickActionButtons';
@@ -49,9 +51,14 @@ import { Eye, EyeOff, Bell, ShieldCheck } from 'lucide-react';
 import { AWBDownloadButton } from '@/components/orders/AWBDownloadButton';
 import { FixShopifyFulfilledOrders } from '@/components/orders/FixShopifyFulfilledOrders';
 import { VerifyDeliveredOrders } from '@/components/orders/VerifyDeliveredOrders';
-
 const OrderDashboard = () => {
-  const { isManager, isSeniorStaff, primaryRole, hasAnyRole, permissions } = useUserRoles();
+  const {
+    isManager,
+    isSeniorStaff,
+    primaryRole,
+    hasAnyRole,
+    permissions
+  } = useUserRoles();
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [selectAllPages, setSelectAllPages] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -62,8 +69,8 @@ const OrderDashboard = () => {
   });
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-   const [staffUsers, setStaffUsers] = useState<any[]>([]);
-   const [orderItemsCache, setOrderItemsCache] = useState<Map<string, any[]>>(new Map());
+  const [staffUsers, setStaffUsers] = useState<any[]>([]);
+  const [orderItemsCache, setOrderItemsCache] = useState<Map<string, any[]>>(new Map());
   const [summaryData, setSummaryData] = useState({
     totalOrders: 0,
     booked: 0,
@@ -93,18 +100,21 @@ const OrderDashboard = () => {
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
-  
+
   // Cancellation dialog state
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
-  const [orderToCancel, setOrderToCancel] = useState<{ id: string; orderNumber: string } | null>(null);
-  
+  const [orderToCancel, setOrderToCancel] = useState<{
+    id: string;
+    orderNumber: string;
+  } | null>(null);
+
   // New orders notification
   const [newOrdersCount, setNewOrdersCount] = useState(0);
   const [showNewOrdersNotification, setShowNewOrdersNotification] = useState(false);
-  
+
   // Bulk tracking update state
   const [isUpdatingAllTracking, setIsUpdatingAllTracking] = useState(false);
-  
+
   // Filter state (replacing useAdvancedFilters)
   const [filters, setFilters] = useState({
     search: '',
@@ -112,17 +122,27 @@ const OrderDashboard = () => {
     courier: 'all',
     orderType: 'all',
     verificationStatus: 'all',
-    statusDateRange: null as { from: Date; to?: Date } | null,
+    statusDateRange: null as {
+      from: Date;
+      to?: Date;
+    } | null,
     amountMin: undefined as number | undefined,
-    amountMax: undefined as number | undefined,
+    amountMax: undefined as number | undefined
   });
 
   // Local search input state for debouncing
   const [searchInput, setSearchInput] = useState('');
-
-  const { user, profile } = useAuth();
-  const { progress, executeBulkOperation } = useBulkOperations();
-  const { toast } = useToast();
+  const {
+    user,
+    profile
+  } = useAuth();
+  const {
+    progress,
+    executeBulkOperation
+  } = useBulkOperations();
+  const {
+    toast
+  } = useToast();
   const [searchParams] = useSearchParams();
 
   // Read search param from URL on page load
@@ -130,7 +150,10 @@ const OrderDashboard = () => {
     const urlSearch = searchParams.get('search');
     if (urlSearch) {
       setSearchInput(urlSearch);
-      setFilters(prev => ({ ...prev, search: urlSearch }));
+      setFilters(prev => ({
+        ...prev,
+        search: urlSearch
+      }));
     }
   }, []);
 
@@ -156,18 +179,15 @@ const OrderDashboard = () => {
         return 'created_at';
     }
   };
-
   const fetchOrders = async () => {
     setLoading(true);
     try {
       const effectivePageSize = Math.min(pageSize, 100);
       const offset = page * effectivePageSize;
-      
+
       // Build dynamic query with filters
       // Standard query
-      let query = supabase
-        .from('orders')
-        .select(`
+      let query = supabase.from('orders').select(`
           id,
           order_number,
           shopify_order_number,
@@ -195,48 +215,48 @@ const OrderDashboard = () => {
           comments,
           gpt_score,
           tags
-        `, { count: 'exact' });
-      
+        `, {
+        count: 'exact'
+      });
+
       // Apply search filter
       if (filters.search) {
         query = query.or(`order_number.ilike.%${filters.search}%,shopify_order_number.ilike.%${filters.search}%,customer_name.ilike.%${filters.search}%,customer_phone.ilike.%${filters.search}%,customer_email.ilike.%${filters.search}%,tracking_id.ilike.%${filters.search}%,city.ilike.%${filters.search}%`);
       }
-      
+
       // Apply status filter
       if (filters.status !== 'all') {
         query = query.eq('status', filters.status as any);
       }
-      
+
       // Apply courier filter
       if (filters.courier !== 'all') {
         query = query.eq('courier', filters.courier as any);
       }
-      
+
       // Apply order type filter
       if (filters.orderType !== 'all') {
         query = query.eq('order_type', filters.orderType);
       }
-      
+
       // Apply verification status filter
       if (filters.verificationStatus !== 'all') {
         query = query.eq('verification_status', filters.verificationStatus as any);
       }
-      
+
       // Apply status-based date range filter
       if (filters.statusDateRange?.from) {
         const statusDateField = getStatusDateField(filters.status);
-        
         const startOfDay = new Date(filters.statusDateRange.from);
         startOfDay.setHours(0, 0, 0, 0);
         query = query.gte(statusDateField, startOfDay.toISOString());
-        
         if (filters.statusDateRange.to) {
           const endOfDay = new Date(filters.statusDateRange.to);
           endOfDay.setHours(23, 59, 59, 999);
           query = query.lte(statusDateField, endOfDay.toISOString());
         }
       }
-      
+
       // Apply amount range filter
       if (filters.amountMin !== undefined) {
         query = query.gte('total_amount', filters.amountMin);
@@ -244,15 +264,19 @@ const OrderDashboard = () => {
       if (filters.amountMax !== undefined) {
         query = query.lte('total_amount', filters.amountMax);
       }
-      
+
       // Apply sorting
-      query = query.order('created_at', { ascending: sortOrder === 'oldest' });
-      
+      query = query.order('created_at', {
+        ascending: sortOrder === 'oldest'
+      });
+
       // Apply pagination
       query = query.range(offset, offset + effectivePageSize - 1);
-      
-      const { data: baseOrders, error: ordersError, count } = await query;
-
+      const {
+        data: baseOrders,
+        error: ordersError,
+        count
+      } = await query;
       if (ordersError) {
         console.error('Error fetching orders:', ordersError);
         toast({
@@ -263,20 +287,16 @@ const OrderDashboard = () => {
         setOrders([]);
         return;
       }
-
       if (!baseOrders || baseOrders.length === 0) {
         setOrders([]);
         setTotalCount(0);
         return;
       }
-
       setTotalCount(count || 0);
 
       // 2. Collect IDs for batch fetching related data
       const orderIds = baseOrders.map(o => o.id);
-      const assignedIds = baseOrders
-        .map(o => o.assigned_to)
-        .filter((id): id is string => id != null);
+      const assignedIds = baseOrders.map(o => o.assigned_to).filter((id): id is string => id != null);
 
       // 3. Fetch all user profiles (for both assigned staff and comment authors)
       // Collect unique emails from comments
@@ -302,20 +322,16 @@ const OrderDashboard = () => {
       });
 
       // Fetch profiles for assigned staff
-      const assignedProfilesResult = assignedIds.length > 0
-        ? await supabase
-            .from('profiles')
-            .select('id, full_name, email')
-            .in('id', assignedIds)
-        : ({ data: [], error: null } as any);
+      const assignedProfilesResult = assignedIds.length > 0 ? await supabase.from('profiles').select('id, full_name, email').in('id', assignedIds) : {
+        data: [],
+        error: null
+      } as any;
 
       // Fetch profiles for comment authors by email
-      const commentProfilesResult = commentEmails.size > 0
-        ? await supabase
-            .from('profiles')
-            .select('id, full_name, email')
-            .in('email', Array.from(commentEmails))
-        : ({ data: [], error: null } as any);
+      const commentProfilesResult = commentEmails.size > 0 ? await supabase.from('profiles').select('id, full_name, email').in('email', Array.from(commentEmails)) : {
+        data: [],
+        error: null
+      } as any;
 
       // Build profile lookup map
       const profilesById = new Map<string, any>();
@@ -330,11 +346,9 @@ const OrderDashboard = () => {
       const formattedOrders = baseOrders.map(order => {
         let orderNotes = '';
         let userComments = [];
-        
         if (order.notes && typeof order.notes === 'string') {
           orderNotes = order.notes;
         }
-        
         if (order.comments) {
           try {
             if (typeof order.comments === 'string') {
@@ -346,20 +360,16 @@ const OrderDashboard = () => {
             userComments = [];
           }
         }
-        
+
         // Transform userComments to use full names instead of emails
         userComments = userComments.map(comment => {
           // If addedBy looks like an email, try to find the profile
-          const addedByProfile = Array.from(profilesById.values()).find(
-            profile => profile.email === comment.addedBy
-          );
-          
+          const addedByProfile = Array.from(profilesById.values()).find(profile => profile.email === comment.addedBy);
           return {
             ...comment,
             addedBy: addedByProfile?.full_name || comment.addedBy
           };
         });
-        
         return {
           id: order.id,
           orderNumber: order.order_number,
@@ -391,12 +401,8 @@ const OrderDashboard = () => {
           userComments: userComments,
           tags: (order.tags || []).map((tag: string, index: number) => {
             // System tags from Shopify (e.g., Ecomnet, Shopify, Simple Bundles) cannot be deleted
-            const isSystemTag = tag.startsWith('Ecomnet - ') || 
-                               tag.startsWith('Shopify - ') || 
-                               tag.includes('Simple Bundles') ||
-                               tag === 'cancelled' ||
-                               tag === 'abdullah'; // Add other system tags as needed
-            
+            const isSystemTag = tag.startsWith('Ecomnet - ') || tag.startsWith('Shopify - ') || tag.includes('Simple Bundles') || tag === 'cancelled' || tag === 'abdullah'; // Add other system tags as needed
+
             return {
               id: `tag-${index}`,
               text: tag,
@@ -408,16 +414,16 @@ const OrderDashboard = () => {
           shopify_order_id: order.shopify_order_id
         };
       });
-
       setOrders(formattedOrders);
 
       // Calculate summary data across ALL filtered orders efficiently
       // Helper function to build base query with filters
       const buildBaseCountQuery = () => {
-        let q = supabase
-          .from('orders')
-          .select('*', { count: 'exact', head: true });
-        
+        let q = supabase.from('orders').select('*', {
+          count: 'exact',
+          head: true
+        });
+
         // Apply same filters as main query (except status filter which we'll add per-status)
         if (filters.search) {
           q = q.or(`order_number.ilike.%${filters.search}%,shopify_order_number.ilike.%${filters.search}%,customer_name.ilike.%${filters.search}%,customer_phone.ilike.%${filters.search}%,customer_email.ilike.%${filters.search}%,tracking_id.ilike.%${filters.search}%,city.ilike.%${filters.search}%`);
@@ -461,21 +467,13 @@ const OrderDashboard = () => {
           cancelled: filters.status === 'cancelled' ? statusCount : 0,
           returns: filters.status === 'returned' ? statusCount : 0
         };
-        
         setSummaryData({
           totalOrders: statusCount,
           ...statusCounts
         });
       } else {
         // Get counts for each status in parallel
-        const [bookedResult, dispatchedResult, deliveredResult, cancelledResult, returnedResult] = await Promise.all([
-          buildBaseCountQuery().eq('status', 'booked'),
-          buildBaseCountQuery().eq('status', 'dispatched'),
-          buildBaseCountQuery().eq('status', 'delivered'),
-          buildBaseCountQuery().eq('status', 'cancelled'),
-          buildBaseCountQuery().eq('status', 'returned')
-        ]);
-
+        const [bookedResult, dispatchedResult, deliveredResult, cancelledResult, returnedResult] = await Promise.all([buildBaseCountQuery().eq('status', 'booked'), buildBaseCountQuery().eq('status', 'dispatched'), buildBaseCountQuery().eq('status', 'delivered'), buildBaseCountQuery().eq('status', 'cancelled'), buildBaseCountQuery().eq('status', 'returned')]);
         setSummaryData({
           totalOrders: count || 0,
           booked: bookedResult.count || 0,
@@ -506,22 +504,21 @@ const OrderDashboard = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       if (searchInput !== filters.search) {
-        setFilters(prev => ({ ...prev, search: searchInput }));
+        setFilters(prev => ({
+          ...prev,
+          search: searchInput
+        }));
         setPage(0);
       }
     }, 500);
-
     return () => clearTimeout(timer);
   }, [searchInput]);
-
   const fetchCouriers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('couriers')
-        .select('id, name, code')
-        .eq('is_active', true)
-        .order('name');
-      
+      const {
+        data,
+        error
+      } = await supabase.from('couriers').select('id, name, code').eq('is_active', true).order('name');
       if (error) throw error;
       setCouriers(data || []);
     } catch (error) {
@@ -531,35 +528,27 @@ const OrderDashboard = () => {
 
   // Real-time subscription for order updates
   useEffect(() => {
-    const channel = supabase
-      .channel('order-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to all changes (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'orders'
-        },
-        (payload) => {
-          const eventType = (payload as any).eventType;
-          
-          if (eventType === 'INSERT') {
-            // New order inserted - show notification
-            setNewOrdersCount(prev => prev + 1);
-            setShowNewOrdersNotification(true);
-          } else if (eventType === 'UPDATE') {
-            // Order updated - just refresh without checking if it's in current list
-            // to avoid stale closure over orders array
-            fetchOrders();
-          }
-        }
-      )
-      .subscribe();
-
+    const channel = supabase.channel('order-changes').on('postgres_changes', {
+      event: '*',
+      // Listen to all changes (INSERT, UPDATE, DELETE)
+      schema: 'public',
+      table: 'orders'
+    }, payload => {
+      const eventType = (payload as any).eventType;
+      if (eventType === 'INSERT') {
+        // New order inserted - show notification
+        setNewOrdersCount(prev => prev + 1);
+        setShowNewOrdersNotification(true);
+      } else if (eventType === 'UPDATE') {
+        // Order updated - just refresh without checking if it's in current list
+        // to avoid stale closure over orders array
+        fetchOrders();
+      }
+    }).subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Keyboard shortcuts for pagination
@@ -569,18 +558,15 @@ const OrderDashboard = () => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
-
       if (e.key === 'ArrowLeft' && page > 0) {
         setPage(p => Math.max(0, p - 1));
       } else if (e.key === 'ArrowRight' && (page + 1) * pageSize < totalCount) {
         setPage(p => p + 1);
       }
     };
-
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [page, pageSize, totalCount]);
-
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
     localStorage.setItem('orders_page_size', String(newSize));
@@ -594,12 +580,10 @@ const OrderDashboard = () => {
       localStorage.setItem('orders_page_size', '100');
     }
   }, [pageSize]);
-
   const handleNewOrderCreated = async () => {
     setPage(0);
     await fetchOrders();
   };
-
   const handleRefreshNewOrders = () => {
     setNewOrdersCount(0);
     setShowNewOrdersNotification(false);
@@ -611,17 +595,13 @@ const OrderDashboard = () => {
     try {
       // Only super_admin, super_manager, and warehouse_manager can update dispatched orders
       const canOverrideDispatchLock = hasAnyRole(['super_admin', 'super_manager', 'warehouse_manager']);
-      
+
       // Filter out dispatched orders from selection if user doesn't have override permission
-      const ordersToUpdate = canOverrideDispatchLock 
-        ? Array.from(selectedOrders)
-        : Array.from(selectedOrders).filter(orderId => {
-            const order = orders.find(o => o.id === orderId);
-            return order?.status !== 'dispatched';
-          });
-      
+      const ordersToUpdate = canOverrideDispatchLock ? Array.from(selectedOrders) : Array.from(selectedOrders).filter(orderId => {
+        const order = orders.find(o => o.id === orderId);
+        return order?.status !== 'dispatched';
+      });
       const skippedCount = selectedOrders.size - ordersToUpdate.length;
-      
       if (skippedCount > 0) {
         toast({
           title: "Some Orders Skipped",
@@ -629,7 +609,6 @@ const OrderDashboard = () => {
           variant: "default"
         });
       }
-      
       if (ordersToUpdate.length === 0) {
         toast({
           title: "No Orders to Update",
@@ -638,7 +617,7 @@ const OrderDashboard = () => {
         });
         return;
       }
-      
+
       // Role-based status restrictions - staff can only use pending, confirmed, and cancelled
       if (primaryRole === 'staff') {
         const allowedForStaff = ['pending', 'confirmed', 'cancelled'];
@@ -651,30 +630,27 @@ const OrderDashboard = () => {
           return;
         }
       }
-
       const result = await bulkUpdateOrderStatus(ordersToUpdate, status as any);
-      
       if (result.success > 0) {
         toast({
           title: "Success",
-          description: `Updated ${result.success} order(s) to ${status}`,
+          description: `Updated ${result.success} order(s) to ${status}`
         });
         fetchOrders();
         setSelectedOrders(new Set());
       }
-      
       if (result.failed > 0) {
         toast({
           title: "Partial Success",
           description: `${result.failed} order(s) failed to update`,
-          variant: "destructive",
+          variant: "destructive"
         });
       }
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to update order status",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
@@ -685,35 +661,34 @@ const OrderDashboard = () => {
       // Show loading toast
       toast({
         title: "Processing",
-        description: `Booking ${selectedOrders.size} orders with ${courierName}...`,
+        description: `Booking ${selectedOrders.size} orders with ${courierName}...`
       });
 
       // Call bulk booking edge function
-      const { data, error } = await supabase.functions.invoke('bulk-courier-booking', {
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke('bulk-courier-booking', {
         body: {
           orderIds: Array.from(selectedOrders),
           courierId: courierId
         }
       });
-
       if (error) {
         throw error;
       }
-
       if (!data.success && data.failedCount === data.total) {
         throw new Error(data.error || 'All bookings failed');
       }
 
       // Get successful order IDs for AWB generation
-      const successfulOrderIds = data.results
-        .filter((r: any) => r.success)
-        .map((r: any) => r.orderId);
+      const successfulOrderIds = data.results.filter((r: any) => r.success).map((r: any) => r.orderId);
 
       // Show results
       if (data.successCount > 0) {
         toast({
           title: "Booking Complete",
-          description: `Successfully booked ${data.successCount} of ${data.total} orders. Click to generate AWBs.`,
+          description: `Successfully booked ${data.successCount} of ${data.total} orders. Click to generate AWBs.`
         });
 
         // Auto-generate AWBs after successful booking
@@ -722,26 +697,17 @@ const OrderDashboard = () => {
           handleGenerateAWBs(successfulOrderIds, courierId, courierName);
         }
       }
-
       if (data.failedCount > 0) {
         const failedOrders = data.results.filter((r: any) => !r.success);
-        const errorSummary = failedOrders
-          .slice(0, 3)
-          .map((r: any) => `${r.orderNumber}: ${r.error}`)
-          .join('\n');
-        
+        const errorSummary = failedOrders.slice(0, 3).map((r: any) => `${r.orderNumber}: ${r.error}`).join('\n');
         toast({
           title: `${data.failedCount} Bookings Failed`,
-          description: (
-            <div className="text-xs">
+          description: <div className="text-xs">
               <p className="mb-2">Failed orders:</p>
               <pre className="whitespace-pre-wrap">{errorSummary}</pre>
-              {failedOrders.length > 3 && (
-                <p className="mt-2">...and {failedOrders.length - 3} more</p>
-              )}
-            </div>
-          ),
-          variant: "destructive",
+              {failedOrders.length > 3 && <p className="mt-2">...and {failedOrders.length - 3} more</p>}
+            </div>,
+          variant: "destructive"
         });
       }
 
@@ -750,12 +716,11 @@ const OrderDashboard = () => {
       if (data.successCount > 0) {
         setSelectedOrders(new Set());
       }
-
     } catch (error: any) {
       toast({
         title: "Error",
         description: "Failed to book orders with courier",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
@@ -764,30 +729,24 @@ const OrderDashboard = () => {
   const verifyTrackingIds = async (orderIds: string[], maxAttempts = 5): Promise<string[]> => {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       console.log(`[AWB] Verifying tracking IDs (attempt ${attempt}/${maxAttempts})`);
-      
-      const { data: dispatches, error } = await supabase
-        .from('dispatches')
-        .select('tracking_id, order_id')
-        .in('order_id', orderIds)
-        .not('tracking_id', 'is', null);
-
+      const {
+        data: dispatches,
+        error
+      } = await supabase.from('dispatches').select('tracking_id, order_id').in('order_id', orderIds).not('tracking_id', 'is', null);
       if (error) {
         console.error('[AWB] Error verifying tracking IDs:', error);
         throw error;
       }
-
       const foundTrackingIds = dispatches?.map(d => d.tracking_id) || [];
-      
       if (foundTrackingIds.length === orderIds.length) {
         console.log(`[AWB] All ${foundTrackingIds.length} tracking IDs verified`);
         return foundTrackingIds;
       }
-
       if (attempt < maxAttempts) {
         console.log(`[AWB] Found ${foundTrackingIds.length}/${orderIds.length} tracking IDs, retrying...`);
         toast({
           title: "Waiting for booking records...",
-          description: `Found ${foundTrackingIds.length}/${orderIds.length} orders (${attempt}/${maxAttempts})`,
+          description: `Found ${foundTrackingIds.length}/${orderIds.length} orders (${attempt}/${maxAttempts})`
         });
         await new Promise(resolve => setTimeout(resolve, 1000));
       } else {
@@ -802,90 +761,91 @@ const OrderDashboard = () => {
   // Generate AWBs for booked orders
   const handleGenerateAWBs = async (orderIds: string[], courierId: string, courierName: string) => {
     try {
-      console.log('[AWB] Starting generation for:', { orderIds, courierId, courierName });
-      
+      console.log('[AWB] Starting generation for:', {
+        orderIds,
+        courierId,
+        courierName
+      });
       toast({
         title: "Verifying bookings...",
-        description: `Checking ${orderIds.length} orders`,
+        description: `Checking ${orderIds.length} orders`
       });
 
       // Verify tracking IDs exist with retry logic
       const trackingIds = await verifyTrackingIds(orderIds);
-
       if (trackingIds.length === 0) {
         toast({
           title: "No tracking IDs found",
           description: "Couldn't find booking records for the selected orders. Please try again.",
-          variant: "destructive",
+          variant: "destructive"
         });
         return;
       }
-
       if (trackingIds.length < orderIds.length) {
         toast({
           title: "Partial booking detected",
-          description: `Found ${trackingIds.length} of ${orderIds.length} bookings. Generating AWBs for available orders.`,
+          description: `Found ${trackingIds.length} of ${orderIds.length} bookings. Generating AWBs for available orders.`
         });
       } else {
         toast({
           title: "Generating AWBs...",
-          description: `Processing ${trackingIds.length} labels. This may take a moment...`,
+          description: `Processing ${trackingIds.length} labels. This may take a moment...`
         });
       }
 
       // Get courier code
-      const { data: courier, error: courierError } = await supabase
-        .from('couriers')
-        .select('code')
-        .eq('id', courierId)
-        .single();
-
+      const {
+        data: courier,
+        error: courierError
+      } = await supabase.from('couriers').select('code').eq('id', courierId).single();
       if (courierError || !courier) {
         console.error('[AWB] Courier lookup failed:', courierError);
         throw new Error('Courier not found');
       }
-
-      console.log('[AWB] Calling edge function with:', { courier_code: courier.code, order_ids: orderIds });
-
-      const { data, error } = await supabase.functions.invoke('generate-courier-awbs', {
+      console.log('[AWB] Calling edge function with:', {
+        courier_code: courier.code,
+        order_ids: orderIds
+      });
+      const {
+        data,
+        error
+      } = await supabase.functions.invoke('generate-courier-awbs', {
         body: {
           courier_code: courier.code,
           order_ids: orderIds
         }
       });
-
-      console.log('[AWB] Edge function response:', { data, error });
-
+      console.log('[AWB] Edge function response:', {
+        data,
+        error
+      });
       if (error) {
         console.error('[AWB] Edge function error:', error);
         throw error;
       }
-
       if (!data) {
         throw new Error('No response from AWB generation service');
       }
-
       if (data.success) {
         console.log('[AWB] Generation successful:', data);
-        
         const labelCount = data.tracking_ids?.length || 0;
         const pageCount = Math.ceil(labelCount / 3); // 3 labels per page
-        
+
         toast({
           title: "Generating consolidated AWBs...",
-          description: `Creating ${labelCount} labels (${pageCount} page${pageCount !== 1 ? 's' : ''}, 3 labels per page)`,
+          description: `Creating ${labelCount} labels (${pageCount} page${pageCount !== 1 ? 's' : ''}, 3 labels per page)`
         });
         if (!data.tracking_ids || data.tracking_ids.length === 0) {
           toast({
             title: "No tracking IDs found",
             description: "Couldn’t find labels for the selected orders. Ensure orders are booked and have dispatch records.",
-            variant: "destructive",
+            variant: "destructive"
           });
           return;
         }
         toast({
           title: "AWBs Generation Started",
-          description: `Preparing labels for ${data.tracking_ids.length} orders. This may take a few seconds...`,
+          description: `Preparing labels for ${data.tracking_ids.length} orders. This may take a few seconds...`
         });
 
         // Poll the AWB record until it's completed (handles consolidation time)
@@ -894,20 +854,20 @@ const OrderDashboard = () => {
         const startTime = Date.now();
         let lastStatus: string | undefined = undefined;
         let awbRecord: any = null;
-
         while (Date.now() - startTime < timeoutMs) {
-          const { data: record, error: awbError } = await supabase
-            .from('courier_awbs')
-            .select('id,status,pdf_data,error_message,tracking_ids')
-            .eq('id', data.awb_id)
-            .maybeSingle();
-
+          const {
+            data: record,
+            error: awbError
+          } = await supabase.from('courier_awbs').select('id,status,pdf_data,error_message,tracking_ids').eq('id', data.awb_id).maybeSingle();
           if (awbError) {
             console.error('[AWB] Polling error:', awbError);
             // brief wait and continue; transient errors can happen
           } else if (record) {
             lastStatus = record.status;
-            console.log('[AWB] Poll status:', { status: record.status, hasPdf: !!record.pdf_data });
+            console.log('[AWB] Poll status:', {
+              status: record.status,
+              hasPdf: !!record.pdf_data
+            });
             if (record.status === 'failed') {
               throw new Error(record.error_message || 'AWB generation failed');
             }
@@ -916,10 +876,8 @@ const OrderDashboard = () => {
               break;
             }
           }
-
-          await new Promise((r) => setTimeout(r, pollIntervalMs));
+          await new Promise(r => setTimeout(r, pollIntervalMs));
         }
-
         if (!awbRecord) {
           throw new Error(`No PDF data found. Status: ${lastStatus || 'processing'}. Please wait a moment and try again.`);
         }
@@ -932,17 +890,15 @@ const OrderDashboard = () => {
           startsWithBracket: typeof pdfData === 'string' ? pdfData.startsWith('[') : false,
           preview: typeof pdfData === 'string' ? pdfData.substring(0, 50) : 'not-string'
         });
-        
+
         // Check if it's multiple PDFs (legacy) or single consolidated PDF
         if (typeof pdfData === 'string' && pdfData.startsWith('[')) {
           const pdfArray = JSON.parse(pdfData);
           console.log('[AWB] Downloading multiple PDFs:', pdfArray.length);
-          
           toast({
             title: "Downloading PDFs",
-            description: `Downloading ${pdfArray.length} PDF file(s)...`,
+            description: `Downloading ${pdfArray.length} PDF file(s)...`
           });
-          
           pdfArray.forEach((base64: string, index: number) => {
             setTimeout(() => {
               console.log(`[AWB] Triggering download ${index + 1}/${pdfArray.length}`);
@@ -960,24 +916,20 @@ const OrderDashboard = () => {
           });
         } else {
           console.log('[AWB] Downloading single consolidated PDF');
-          
-          if (!pdfData || (typeof pdfData === 'string' && pdfData.length === 0)) {
+          if (!pdfData || typeof pdfData === 'string' && pdfData.length === 0) {
             throw new Error('PDF data is empty');
           }
-          
           const labelCount = awbRecord.tracking_ids?.length || orderIds.length;
           const pageCount = Math.ceil(labelCount / 3);
-          
           const link = document.createElement('a');
           link.href = `data:application/pdf;base64,${pdfData}`;
           link.download = `awb-${courierName}-${labelCount}labels.pdf`;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          
           toast({
             title: "✅ AWBs Downloaded",
-            description: `${labelCount} label${labelCount !== 1 ? 's' : ''} (${pageCount} page${pageCount !== 1 ? 's' : ''}) • awb-${courierName}-${labelCount}labels.pdf`,
+            description: `${labelCount} label${labelCount !== 1 ? 's' : ''} (${pageCount} page${pageCount !== 1 ? 's' : ''}) • awb-${courierName}-${labelCount}labels.pdf`
           });
         }
       } else {
@@ -989,7 +941,7 @@ const OrderDashboard = () => {
       toast({
         title: "AWB Generation Failed",
         description: error.message || "Failed to generate AWBs. Please try again.",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
@@ -1000,33 +952,31 @@ const OrderDashboard = () => {
       // Show loading toast
       toast({
         title: "Processing",
-        description: `Unassigning couriers from ${selectedOrders.size} orders...`,
+        description: `Unassigning couriers from ${selectedOrders.size} orders...`
       });
 
       // Call bulk unassign function
       const result = await bulkUnassignCouriers(Array.from(selectedOrders));
-
       if (result.success > 0) {
         toast({
           title: "Success",
-          description: `Unassigned ${result.success} order(s) from couriers. Orders cancelled on courier portals.`,
+          description: `Unassigned ${result.success} order(s) from couriers. Orders cancelled on courier portals.`
         });
         fetchOrders();
         setSelectedOrders(new Set());
       }
-
       if (result.failed > 0) {
         toast({
           title: "Partial Success",
           description: `${result.failed} order(s) failed to unassign. ${result.errors?.join(', ')}`,
-          variant: "destructive",
+          variant: "destructive"
         });
       }
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to unassign couriers",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
@@ -1037,40 +987,37 @@ const OrderDashboard = () => {
       if (selectedOrders.size === 0) {
         toast({
           title: "No orders selected",
-          description: "Select booked orders to generate AWBs.",
+          description: "Select booked orders to generate AWBs."
         });
         return;
       }
-
-      const { data: selected, error } = await supabase
-        .from('orders')
-        .select('id,status,courier')
-        .in('id', Array.from(selectedOrders));
-
+      const {
+        data: selected,
+        error
+      } = await supabase.from('orders').select('id,status,courier').in('id', Array.from(selectedOrders));
       if (error) throw error;
-
       const eligible = (selected || []).filter(o => o.status === 'booked' && o.courier);
       const skipped = (selected || []).length - eligible.length;
-
       if (eligible.length === 0) {
         toast({
           title: "No eligible orders",
           description: "Only booked orders with a courier are eligible.",
-          variant: "destructive",
+          variant: "destructive"
         });
         return;
       }
-
       const groups: Record<string, string[]> = {};
       eligible.forEach((o: any) => {
         const code = String(o.courier).toLowerCase();
         groups[code] = groups[code] || [];
         groups[code].push(o.id);
       });
-
-      const courierByCode = new Map<string, { id: string; name: string; code: string }>();
+      const courierByCode = new Map<string, {
+        id: string;
+        name: string;
+        code: string;
+      }>();
       couriers.forEach(c => courierByCode.set(String(c.code).toLowerCase(), c));
-
       for (const code of Object.keys(groups)) {
         const c = courierByCode.get(code);
         if (!c) {
@@ -1079,11 +1026,10 @@ const OrderDashboard = () => {
         }
         await handleGenerateAWBs(groups[code], c.id, c.name);
       }
-
       if (skipped > 0) {
         toast({
           title: "Some orders skipped",
-          description: `${skipped} not eligible (not booked or missing courier)`,
+          description: `${skipped} not eligible (not booked or missing courier)`
         });
       }
     } catch (e: any) {
@@ -1091,7 +1037,7 @@ const OrderDashboard = () => {
       toast({
         title: "AWB generation failed",
         description: e.message || 'Unexpected error',
-        variant: 'destructive',
+        variant: 'destructive'
       });
     }
   };
@@ -1102,65 +1048,100 @@ const OrderDashboard = () => {
     exportToCSV(selectedOrdersData, `orders-${new Date().toISOString().split('T')[0]}`);
     toast({
       title: "Export Complete",
-      description: `Exported ${selectedOrdersData.length} order(s)`,
+      description: `Exported ${selectedOrdersData.length} order(s)`
     });
   };
   const getStatusBadge = (status: string, orderId: string, courierStatus?: string) => {
-    const statusMap: Record<string, { variant: any; label: string; icon?: any }> = {
-      'pending': { variant: 'warning', label: 'Pending', icon: Clock },
-      'confirmed': { variant: 'default', label: 'Confirmed', icon: CheckCircle },
-      'booked': { variant: 'info', label: 'Booked', icon: Package },
-      'dispatched': { variant: 'processing', label: 'Dispatched', icon: Truck },
-      'delivered': { variant: 'success', label: 'Delivered', icon: CheckCircle },
-      'returned': { variant: 'destructive', label: 'Returned', icon: Package },
-      'cancelled': { variant: 'destructive', label: 'Cancelled', icon: X },
+    const statusMap: Record<string, {
+      variant: any;
+      label: string;
+      icon?: any;
+    }> = {
+      'pending': {
+        variant: 'warning',
+        label: 'Pending',
+        icon: Clock
+      },
+      'confirmed': {
+        variant: 'default',
+        label: 'Confirmed',
+        icon: CheckCircle
+      },
+      'booked': {
+        variant: 'info',
+        label: 'Booked',
+        icon: Package
+      },
+      'dispatched': {
+        variant: 'processing',
+        label: 'Dispatched',
+        icon: Truck
+      },
+      'delivered': {
+        variant: 'success',
+        label: 'Delivered',
+        icon: CheckCircle
+      },
+      'returned': {
+        variant: 'destructive',
+        label: 'Returned',
+        icon: Package
+      },
+      'cancelled': {
+        variant: 'destructive',
+        label: 'Cancelled',
+        icon: X
+      }
     };
-    
     const statusInfo = statusMap[status] || statusMap.pending;
     const StatusIcon = statusInfo.icon;
-    
-    const allStatuses = [
-      { value: 'pending', label: 'Pending' },
-      { value: 'confirmed', label: 'Confirmed' },
-      { value: 'booked', label: 'Booked' },
-      { value: 'dispatched', label: 'Dispatched' },
-      { value: 'delivered', label: 'Delivered' },
-      { value: 'returned', label: 'Returned' },
-      { value: 'cancelled', label: 'Cancelled' },
-    ];
-    
+    const allStatuses = [{
+      value: 'pending',
+      label: 'Pending'
+    }, {
+      value: 'confirmed',
+      label: 'Confirmed'
+    }, {
+      value: 'booked',
+      label: 'Booked'
+    }, {
+      value: 'dispatched',
+      label: 'Dispatched'
+    }, {
+      value: 'delivered',
+      label: 'Delivered'
+    }, {
+      value: 'returned',
+      label: 'Returned'
+    }, {
+      value: 'cancelled',
+      label: 'Cancelled'
+    }];
+
     // Filter statuses based on user role - staff can only use pending, confirmed, and cancelled
-    const allowedStatuses = primaryRole === 'staff'
-      ? allStatuses.filter(s => ['pending', 'confirmed', 'cancelled'].includes(s.value))
-      : allStatuses;
-    
+    const allowedStatuses = primaryRole === 'staff' ? allStatuses.filter(s => ['pending', 'confirmed', 'cancelled'].includes(s.value)) : allStatuses;
+
     // If order is dispatched, show locked badge for users without override permission
     const canOverrideDispatchLock = hasAnyRole(['super_admin', 'super_manager', 'warehouse_manager']);
     if (status === 'dispatched' && !canOverrideDispatchLock) {
-      return (
-        <Badge variant={statusInfo.variant} className="gap-1.5">
+      return <Badge variant={statusInfo.variant} className="gap-1.5">
           {StatusIcon && <StatusIcon className="h-3.5 w-3.5" />}
           {statusInfo.label}
           <Lock className="h-3 w-3 ml-1" />
-        </Badge>
-      );
+        </Badge>;
     }
-    
+
     // Check if user has permission to update orders
     const canUpdateStatus = isManager() || isSeniorStaff() || primaryRole === 'staff';
-    
+
     // If user can't update, just show the badge without dropdown
     if (!canUpdateStatus) {
-      return (
-        <Badge variant={statusInfo.variant} className="gap-1.5">
+      return <Badge variant={statusInfo.variant} className="gap-1.5">
           {StatusIcon && <StatusIcon className="h-3.5 w-3.5" />}
           {statusInfo.label}
-        </Badge>
-      );
+        </Badge>;
     }
-    
-    return (
-      <DropdownMenu>
+    return <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="h-auto p-0 hover:bg-transparent">
             <Badge variant={statusInfo.variant} className="gap-1.5 cursor-pointer hover:opacity-80">
@@ -1170,18 +1151,11 @@ const OrderDashboard = () => {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="bg-background">
-          {allowedStatuses.map((statusOption) => (
-            <DropdownMenuItem
-              key={statusOption.value}
-              onClick={() => handleUpdateOrderStatus(orderId, statusOption.value)}
-              className={status === statusOption.value ? 'bg-muted' : ''}
-            >
+          {allowedStatuses.map(statusOption => <DropdownMenuItem key={statusOption.value} onClick={() => handleUpdateOrderStatus(orderId, statusOption.value)} className={status === statusOption.value ? 'bg-muted' : ''}>
               {statusOption.label}
-            </DropdownMenuItem>
-          ))}
+            </DropdownMenuItem>)}
         </DropdownMenuContent>
-      </DropdownMenu>
-    );
+      </DropdownMenu>;
   };
   const summaryCards = [{
     title: 'Total Orders',
@@ -1219,7 +1193,6 @@ const OrderDashboard = () => {
       return next;
     });
   };
-  
   const handleSelectAllCurrentPage = () => {
     if (selectedOrders.size === orders.length) {
       setSelectedOrders(new Set());
@@ -1227,7 +1200,6 @@ const OrderDashboard = () => {
       setSelectedOrders(new Set(orders.map(order => order.id)));
     }
   };
-  
   const handleSelectAllPages = async () => {
     if (selectAllPages) {
       // Deselect all
@@ -1235,13 +1207,12 @@ const OrderDashboard = () => {
       setSelectedOrders(new Set());
       return;
     }
-
     try {
       // Build the same query with filters but fetch ALL IDs
-      let query = supabase
-        .from('orders')
-        .select('id', { count: 'exact' });
-      
+      let query = supabase.from('orders').select('id', {
+        count: 'exact'
+      });
+
       // Apply the same filters as fetchOrders
       if (filters.search) {
         query = query.or(`order_number.ilike.%${filters.search}%,shopify_order_number.ilike.%${filters.search}%,customer_name.ilike.%${filters.search}%,customer_phone.ilike.%${filters.search}%,customer_email.ilike.%${filters.search}%,tracking_id.ilike.%${filters.search}%,city.ilike.%${filters.search}%`);
@@ -1258,46 +1229,44 @@ const OrderDashboard = () => {
       if (filters.verificationStatus !== 'all') {
         query = query.eq('verification_status', filters.verificationStatus as any);
       }
-      
+
       // Apply status-based date range filter
       if (filters.statusDateRange?.from) {
         const statusDateField = getStatusDateField(filters.status);
-        
         const startOfDay = new Date(filters.statusDateRange.from);
         startOfDay.setHours(0, 0, 0, 0);
         query = query.gte(statusDateField, startOfDay.toISOString());
-        
         if (filters.statusDateRange.to) {
           const endOfDay = new Date(filters.statusDateRange.to);
           endOfDay.setHours(23, 59, 59, 999);
           query = query.lte(statusDateField, endOfDay.toISOString());
         }
       }
-      
       if (filters.amountMin !== undefined) {
         query = query.gte('total_amount', filters.amountMin);
       }
       if (filters.amountMax !== undefined) {
         query = query.lte('total_amount', filters.amountMax);
       }
-
-      const { data, error, count } = await query;
-
+      const {
+        data,
+        error,
+        count
+      } = await query;
       if (error) throw error;
-
       if (data && data.length > 0) {
         const allIds = data.map(order => order.id);
         setSelectedOrders(new Set(allIds));
         setSelectAllPages(true);
         toast({
           title: "All Records Selected",
-          description: `Selected ${allIds.length} order(s) matching your filters`,
+          description: `Selected ${allIds.length} order(s) matching your filters`
         });
       } else {
         toast({
           title: "No Records Found",
           description: "No orders match your current filters",
-          variant: "destructive",
+          variant: "destructive"
         });
       }
     } catch (error) {
@@ -1305,11 +1274,10 @@ const OrderDashboard = () => {
       toast({
         title: "Selection Failed",
         description: "Could not select all records. Please try again.",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
-  
   const toggleExpanded = (orderId: string) => {
     setExpandedRows(prev => {
       const next = new Set(prev);
@@ -1331,20 +1299,20 @@ const OrderDashboard = () => {
         toast({
           title: "Error",
           description: "Order not found",
-          variant: "destructive",
+          variant: "destructive"
         });
         return;
       }
 
       // Get current tags as string array from database
       const currentTagStrings = order.tags.map(t => t.text);
-      
+
       // Check if tag already exists
       if (currentTagStrings.includes(tag)) {
         toast({
           title: "Tag already exists",
           description: "This tag is already added to the order",
-          variant: "destructive",
+          variant: "destructive"
         });
         return;
       }
@@ -1353,30 +1321,34 @@ const OrderDashboard = () => {
       const updatedTagStrings = [...currentTagStrings, tag];
 
       // Update database
-      const { error: dbError } = await supabase
-        .from('orders')
-        .update({ tags: updatedTagStrings })
-        .eq('id', orderId);
-
+      const {
+        error: dbError
+      } = await supabase.from('orders').update({
+        tags: updatedTagStrings
+      }).eq('id', orderId);
       if (dbError) throw dbError;
 
       // Sync with Shopify if order has shopify_order_id
       if (order.shopify_order_id) {
         try {
-          const { data, error: shopifyError } = await supabase.functions.invoke('update-shopify-order', {
+          const {
+            data,
+            error: shopifyError
+          } = await supabase.functions.invoke('update-shopify-order', {
             body: {
               order_id: orderId,
               action: 'update_tags',
-              data: { tags: updatedTagStrings }
+              data: {
+                tags: updatedTagStrings
+              }
             }
           });
-
           if (shopifyError) {
             console.error('Shopify sync error:', shopifyError);
             toast({
               title: "Tag added locally",
               description: "Tag added but failed to sync with Shopify. It will sync on next update.",
-              variant: "default",
+              variant: "default"
             });
           }
         } catch (shopifyError) {
@@ -1385,22 +1357,19 @@ const OrderDashboard = () => {
       }
 
       // Update local state with new tag object
-      setOrders(prevOrders => prevOrders.map(o => 
-        o.id === orderId ? {
-          ...o,
-          tags: [...o.tags, {
-            id: `tag_${Date.now()}`,
-            text: tag,
-            addedBy: profile?.full_name || user?.email || 'Current User',
-            addedAt: new Date().toISOString(),
-            canDelete: true
-          }]
-        } : o
-      ));
-
+      setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? {
+        ...o,
+        tags: [...o.tags, {
+          id: `tag_${Date.now()}`,
+          text: tag,
+          addedBy: profile?.full_name || user?.email || 'Current User',
+          addedAt: new Date().toISOString(),
+          canDelete: true
+        }]
+      } : o));
       toast({
         title: "Tag added",
-        description: "Tag has been added and synced with Shopify",
+        description: "Tag has been added and synced with Shopify"
       });
 
       // Log activity
@@ -1408,14 +1377,16 @@ const OrderDashboard = () => {
         action: 'order_updated',
         entityType: 'order',
         entityId: orderId,
-        details: { tag_added: tag },
+        details: {
+          tag_added: tag
+        }
       });
     } catch (error) {
       console.error('Error adding tag:', error);
       toast({
         title: "Error",
         description: "Failed to add tag",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
@@ -1423,7 +1394,6 @@ const OrderDashboard = () => {
     try {
       const order = orders.find(o => o.id === orderId);
       const currentComments = order?.userComments || [];
-      
       const newComment = {
         id: `comment_${Date.now()}`,
         text: note,
@@ -1431,37 +1401,35 @@ const OrderDashboard = () => {
         addedAt: new Date().toISOString(),
         canDelete: true
       };
-      
       const updatedComments = [...currentComments, newComment];
-      
+
       // Save to comments field (not notes!)
-      const { error } = await supabase
-        .from('orders')
-        .update({ comments: updatedComments })
-        .eq('id', orderId);
-      
+      const {
+        error
+      } = await supabase.from('orders').update({
+        comments: updatedComments
+      }).eq('id', orderId);
       if (error) throw error;
-      
+
       // Update local state
-      setOrders(prevOrders => prevOrders.map(o => 
-        o.id === orderId ? {
-          ...o,
-          userComments: updatedComments
-        } : o
-      ));
-      
+      setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? {
+        ...o,
+        userComments: updatedComments
+      } : o));
+
       // Log activity
       await logActivity({
         action: 'order_updated',
         entityType: 'order',
         entityId: orderId,
-        details: { comment: note },
+        details: {
+          comment: note
+        }
       });
     } catch (error) {
       console.error('Error adding comment:', error);
     }
   };
-  
   const handleDeleteTag = async (orderId: string, tagId: string) => {
     try {
       const order = orders.find(o => o.id === orderId);
@@ -1469,7 +1437,7 @@ const OrderDashboard = () => {
         toast({
           title: "Error",
           description: "Order not found",
-          variant: "destructive",
+          variant: "destructive"
         });
         return;
       }
@@ -1480,7 +1448,7 @@ const OrderDashboard = () => {
         toast({
           title: "Error",
           description: "Tag not found",
-          variant: "destructive",
+          variant: "destructive"
         });
         return;
       }
@@ -1490,41 +1458,43 @@ const OrderDashboard = () => {
         toast({
           title: "Cannot delete tag",
           description: "This tag is synced from Shopify and cannot be deleted here",
-          variant: "destructive",
+          variant: "destructive"
         });
         return;
       }
 
       // Remove tag from array
-      const updatedTagStrings = order.tags
-        .filter(t => t.id !== tagId)
-        .map(t => t.text);
+      const updatedTagStrings = order.tags.filter(t => t.id !== tagId).map(t => t.text);
 
       // Update database
-      const { error: dbError } = await supabase
-        .from('orders')
-        .update({ tags: updatedTagStrings })
-        .eq('id', orderId);
-
+      const {
+        error: dbError
+      } = await supabase.from('orders').update({
+        tags: updatedTagStrings
+      }).eq('id', orderId);
       if (dbError) throw dbError;
 
       // Sync with Shopify if order has shopify_order_id
       if (order.shopify_order_id) {
         try {
-          const { data, error: shopifyError } = await supabase.functions.invoke('update-shopify-order', {
+          const {
+            data,
+            error: shopifyError
+          } = await supabase.functions.invoke('update-shopify-order', {
             body: {
               order_id: orderId,
               action: 'update_tags',
-              data: { tags: updatedTagStrings }
+              data: {
+                tags: updatedTagStrings
+              }
             }
           });
-
           if (shopifyError) {
             console.error('Shopify sync error:', shopifyError);
             toast({
               title: "Tag deleted locally",
               description: "Tag deleted but failed to sync with Shopify. It will sync on next update.",
-              variant: "default",
+              variant: "default"
             });
           }
         } catch (shopifyError) {
@@ -1533,16 +1503,13 @@ const OrderDashboard = () => {
       }
 
       // Update local state
-      setOrders(prevOrders => prevOrders.map(o => 
-        o.id === orderId ? {
-          ...o,
-          tags: o.tags.filter(t => t.id !== tagId)
-        } : o
-      ));
-
+      setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? {
+        ...o,
+        tags: o.tags.filter(t => t.id !== tagId)
+      } : o));
       toast({
         title: "Tag deleted",
-        description: "Tag has been deleted and synced with Shopify",
+        description: "Tag has been deleted and synced with Shopify"
       });
 
       // Log activity
@@ -1550,38 +1517,37 @@ const OrderDashboard = () => {
         action: 'order_updated',
         entityType: 'order',
         entityId: orderId,
-        details: { tag_deleted: tagToDelete.text },
+        details: {
+          tag_deleted: tagToDelete.text
+        }
       });
     } catch (error) {
       console.error('Error deleting tag:', error);
       toast({
         title: "Error",
         description: "Failed to delete tag",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
-  
   const handleDeleteNote = async (orderId: string, noteId: string) => {
     try {
       const order = orders.find(o => o.id === orderId);
       const updatedComments = order?.userComments.filter(c => c.id !== noteId) || [];
-      
+
       // Save to comments field
-      const { error } = await supabase
-        .from('orders')
-        .update({ comments: updatedComments })
-        .eq('id', orderId);
-      
+      const {
+        error
+      } = await supabase.from('orders').update({
+        comments: updatedComments
+      }).eq('id', orderId);
       if (error) throw error;
-      
+
       // Update local state
-      setOrders(prevOrders => prevOrders.map(o => 
-        o.id === orderId ? {
-          ...o,
-          userComments: updatedComments
-        } : o
-      ));
+      setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? {
+        ...o,
+        userComments: updatedComments
+      } : o));
     } catch (error) {
       console.error('Error deleting comment:', error);
     }
@@ -1624,12 +1590,11 @@ const OrderDashboard = () => {
   useEffect(() => {
     const toFetch = Array.from(expandedRows).filter(id => !orderItemsCache.has(id));
     if (toFetch.length === 0) return;
-
     (async () => {
-      const { data, error } = await supabase
-        .from('order_items')
-        .select('item_name, quantity, price, order_id')
-        .in('order_id', toFetch);
+      const {
+        data,
+        error
+      } = await supabase.from('order_items').select('item_name, quantity, price, order_id').in('order_id', toFetch);
       if (error) {
         console.error('Error fetching order items:', error);
         return;
@@ -1640,69 +1605,59 @@ const OrderDashboard = () => {
         newMap.get(item.order_id)!.push(item);
       });
       setOrderItemsCache(newMap);
-      setOrders(prev => prev.map(o => newMap.has(o.id) ? { ...o, items: newMap.get(o.id) } : o));
+      setOrders(prev => prev.map(o => newMap.has(o.id) ? {
+        ...o,
+        items: newMap.get(o.id)
+      } : o));
     })();
   }, [expandedRows]);
   const handleAssignStaff = async (orderId: string, staffId: string | null) => {
     try {
-      const { data: currentOrder } = await supabase
-        .from('orders')
-        .select('assigned_to')
-        .eq('id', orderId)
-        .single();
-
-      const { error } = await supabase
-        .from('orders')
-        .update({ assigned_to: staffId === 'unassigned' ? null : staffId })
-        .eq('id', orderId);
-      
+      const {
+        data: currentOrder
+      } = await supabase.from('orders').select('assigned_to').eq('id', orderId).single();
+      const {
+        error
+      } = await supabase.from('orders').update({
+        assigned_to: staffId === 'unassigned' ? null : staffId
+      }).eq('id', orderId);
       if (error) throw error;
-      
+
       // Update local state
-      setOrders(prevOrders =>
-        prevOrders.map(order =>
-          order.id === orderId
-            ? {
-                ...order,
-                assignedTo: staffId === 'unassigned' ? null : staffId,
-                assignedToProfile: staffId === 'unassigned' 
-                  ? null 
-                  : staffUsers.find(u => u.id === staffId)
-              }
-            : order
-        )
-      );
-      
+      setOrders(prevOrders => prevOrders.map(order => order.id === orderId ? {
+        ...order,
+        assignedTo: staffId === 'unassigned' ? null : staffId,
+        assignedToProfile: staffId === 'unassigned' ? null : staffUsers.find(u => u.id === staffId)
+      } : order));
+
       // Log activity
       await logActivity({
         action: 'order_assigned',
         entityType: 'order',
         entityId: orderId,
-        details: { 
+        details: {
           previous_assignee: currentOrder?.assigned_to,
           new_assignee: staffId === 'unassigned' ? null : staffId
-        },
+        }
       });
-
       toast({
         title: "Order assigned",
-        description: "Order has been assigned successfully",
+        description: "Order has been assigned successfully"
       });
     } catch (error) {
       console.error('Error assigning staff:', error);
       toast({
         title: "Error",
         description: "Failed to assign order",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
-
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string, additionalData?: Record<string, any>) => {
     try {
       // Get current order status
       const order = orders.find(o => o.id === orderId);
-      
+
       // Block manual status changes for dispatched orders (unless user has override permission)
       const canOverrideDispatchLock = hasAnyRole(['super_admin', 'super_manager', 'warehouse_manager']);
       if (order?.status === 'dispatched' && !canOverrideDispatchLock) {
@@ -1713,17 +1668,19 @@ const OrderDashboard = () => {
         });
         return;
       }
-      
+
       // Special handling for cancellation - show confirmation dialog
       if (newStatus === 'cancelled') {
-        setOrderToCancel({ id: orderId, orderNumber: order?.orderNumber || '' });
+        setOrderToCancel({
+          id: orderId,
+          orderNumber: order?.orderNumber || ''
+        });
         setCancelDialogOpen(true);
         return;
       }
 
       // Validate status is a valid enum value
       const validStatuses = ['pending', 'confirmed', 'booked', 'dispatched', 'delivered', 'returned', 'cancelled'];
-      
       if (!validStatuses.includes(newStatus)) {
         console.error('[ORDER UPDATE] Invalid status value:', {
           orderId,
@@ -1750,20 +1707,15 @@ const OrderDashboard = () => {
           return;
         }
       }
-
-      const { data: currentOrder, error: fetchError } = await supabase
-        .from('orders')
-        .select('status, order_number')
-        .eq('id', orderId)
-        .single();
-
+      const {
+        data: currentOrder,
+        error: fetchError
+      } = await supabase.from('orders').select('status, order_number').eq('id', orderId).single();
       if (fetchError) throw fetchError;
-
-      const updateData: Record<string, any> = { 
+      const updateData: Record<string, any> = {
         status: newStatus,
-        ...additionalData 
+        ...additionalData
       };
-
       console.log('[ORDER UPDATE] Attempting update:', {
         orderId,
         orderNumber: currentOrder?.order_number,
@@ -1771,12 +1723,9 @@ const OrderDashboard = () => {
         newStatus,
         additionalData
       });
-
-      const { error } = await supabase
-        .from('orders')
-        .update(updateData)
-        .eq('id', orderId);
-
+      const {
+        error
+      } = await supabase.from('orders').update(updateData).eq('id', orderId);
       if (error) {
         console.error('[ORDER UPDATE] Failed:', {
           orderId,
@@ -1790,7 +1739,6 @@ const OrderDashboard = () => {
         });
         throw error;
       }
-
       console.log('[ORDER UPDATE] Success:', {
         orderId,
         orderNumber: currentOrder?.order_number,
@@ -1807,36 +1755,32 @@ const OrderDashboard = () => {
           field: 'status',
           old_value: currentOrder?.status,
           new_value: newStatus,
-          ...additionalData,
-        },
+          ...additionalData
+        }
       });
 
       // Update local state
-      setOrders(prevOrders =>
-        prevOrders.map(order =>
-          order.id === orderId
-            ? { ...order, status: newStatus, ...additionalData }
-            : order
-        )
-      );
-
+      setOrders(prevOrders => prevOrders.map(order => order.id === orderId ? {
+        ...order,
+        status: newStatus,
+        ...additionalData
+      } : order));
       toast({
         title: "Status Updated",
-        description: `Order status changed to ${newStatus}`,
+        description: `Order status changed to ${newStatus}`
       });
-
       fetchOrders();
 
       // Trigger sync queue processing to update Shopify immediately
-      supabase.functions.invoke('process-sync-queue')
-        .then(({ error }) => {
-          if (error) {
-            console.error('Error processing Shopify sync queue:', error);
-          }
-        })
-        .catch(err => {
-          console.error('Unexpected error invoking process-sync-queue:', err);
-        });
+      supabase.functions.invoke('process-sync-queue').then(({
+        error
+      }) => {
+        if (error) {
+          console.error('Error processing Shopify sync queue:', error);
+        }
+      }).catch(err => {
+        console.error('Unexpected error invoking process-sync-queue:', err);
+      });
     } catch (error: any) {
       console.error('[ORDER UPDATE] Exception:', {
         error: error.message,
@@ -1847,7 +1791,7 @@ const OrderDashboard = () => {
       toast({
         title: "Error",
         description: error.message || "Failed to update order status",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
@@ -1855,37 +1799,28 @@ const OrderDashboard = () => {
   // Handle confirmed order cancellation with reason
   const handleConfirmCancellation = async (reason: string) => {
     if (!orderToCancel) return;
-
     try {
-      const { data: currentOrder, error: fetchError } = await supabase
-        .from('orders')
-        .select('status, order_number')
-        .eq('id', orderToCancel.id)
-        .single();
-
+      const {
+        data: currentOrder,
+        error: fetchError
+      } = await supabase.from('orders').select('status, order_number').eq('id', orderToCancel.id).single();
       if (fetchError) throw fetchError;
-
       const updateData = {
         status: 'cancelled' as const,
-        cancellation_reason: reason,
+        cancellation_reason: reason
       };
-
       console.log('[ORDER CANCELLATION] Attempting cancellation:', {
         orderId: orderToCancel.id,
         orderNumber: currentOrder?.order_number,
-        reason,
+        reason
       });
-
-      const { error } = await supabase
-        .from('orders')
-        .update(updateData)
-        .eq('id', orderToCancel.id);
-
+      const {
+        error
+      } = await supabase.from('orders').update(updateData).eq('id', orderToCancel.id);
       if (error) {
         console.error('[ORDER CANCELLATION] Failed:', error);
         throw error;
       }
-
       console.log('[ORDER CANCELLATION] Success');
 
       // Log the activity
@@ -1897,57 +1832,52 @@ const OrderDashboard = () => {
           field: 'status',
           old_value: currentOrder?.status,
           new_value: 'cancelled',
-          cancellation_reason: reason,
-        },
+          cancellation_reason: reason
+        }
       });
 
       // Update local state
-      setOrders(prevOrders =>
-        prevOrders.map(order =>
-          order.id === orderToCancel.id
-            ? { ...order, status: 'cancelled', cancellation_reason: reason }
-            : order
-        )
-      );
-
+      setOrders(prevOrders => prevOrders.map(order => order.id === orderToCancel.id ? {
+        ...order,
+        status: 'cancelled',
+        cancellation_reason: reason
+      } : order));
       toast({
         title: "Order Cancelled",
-        description: `Order ${orderToCancel.orderNumber} has been cancelled`,
+        description: `Order ${orderToCancel.orderNumber} has been cancelled`
       });
-
       fetchOrders();
 
       // Trigger sync queue processing to update Shopify immediately
-      supabase.functions.invoke('process-sync-queue')
-        .then(({ error }) => {
-          if (error) {
-            console.error('Error processing Shopify sync queue:', error);
-          }
-        })
-        .catch(err => {
-          console.error('Unexpected error invoking process-sync-queue:', err);
-        });
+      supabase.functions.invoke('process-sync-queue').then(({
+        error
+      }) => {
+        if (error) {
+          console.error('Error processing Shopify sync queue:', error);
+        }
+      }).catch(err => {
+        console.error('Unexpected error invoking process-sync-queue:', err);
+      });
     } catch (error: any) {
       console.error('[ORDER CANCELLATION] Exception:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to cancel order",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
 
   // Quick action handlers
   const handleQuickMarkDispatched = async (orderId: string) => {
-    await handleUpdateOrderStatus(orderId, 'dispatched', { dispatched_at: new Date().toISOString() });
+    await handleUpdateOrderStatus(orderId, 'dispatched', {
+      dispatched_at: new Date().toISOString()
+    });
   };
-
   const handleQuickGenerateLabel = (orderId: string) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
-
     const courierName = order.courier && order.courier !== 'N/A' ? order.courier.toUpperCase() : 'COURIER';
-    
     const labelHTML = `
       <!DOCTYPE html>
       <html>
@@ -1989,8 +1919,9 @@ const OrderDashboard = () => {
       </body>
       </html>
     `;
-
-    const blob = new Blob([labelHTML], { type: 'text/html' });
+    const blob = new Blob([labelHTML], {
+      type: 'text/html'
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -1999,13 +1930,11 @@ const OrderDashboard = () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-
     toast({
       title: "Label Downloaded",
-      description: `Shipping label for order ${order.orderNumber} downloaded`,
+      description: `Shipping label for order ${order.orderNumber} downloaded`
     });
   };
-
   const handleQuickViewActivity = (orderId: string) => {
     // Find the full order object from the orders array
     const order = orders.find(o => o.id === orderId);
@@ -2014,7 +1943,6 @@ const OrderDashboard = () => {
       setDetailsModalOpen(true);
     }
   };
-
   const handleQuickViewDetails = (order: any) => {
     setSelectedOrder(order);
     setDetailsModalOpen(true);
@@ -2027,9 +1955,8 @@ const OrderDashboard = () => {
       resetFilters();
       return;
     }
-
     setActivePreset(preset.id);
-    
+
     // Apply preset filters
     if (preset.filters.status) {
       updateFilter('status', preset.filters.status);
@@ -2052,22 +1979,26 @@ const OrderDashboard = () => {
       toast({
         title: "Invalid page number",
         description: `Please enter a number between 1 and ${totalPages}`,
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
 
   // Advanced filtering
   const updateFilter = (key: string, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
     setPage(0); // Reset to first page when filters change
   };
-
   const updateCustomFilter = (key: string, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
     setPage(0);
   };
-
   const resetFilters = () => {
     setFilters({
       search: '',
@@ -2077,12 +2008,11 @@ const OrderDashboard = () => {
       verificationStatus: 'all',
       statusDateRange: null,
       amountMin: undefined,
-      amountMax: undefined,
+      amountMax: undefined
     });
     setSearchInput(''); // Clear search input as well
     setPage(0);
   };
-
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (filters.search) count++;
@@ -2104,7 +2034,6 @@ const OrderDashboard = () => {
       resetFilters();
     } else {
       setQuickFilter(filterType);
-      
       switch (filterType) {
         case 'needsConfirmation':
           setCombinedStatus('pending_order');
@@ -2124,7 +2053,6 @@ const OrderDashboard = () => {
       }
     }
   };
-
   const effectivePageSize = Math.min(pageSize, 100);
   const start = page * effectivePageSize + 1;
   const end = Math.min((page + 1) * effectivePageSize, totalCount);
@@ -2140,8 +2068,7 @@ const OrderDashboard = () => {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {(isManager || primaryRole === 'super_admin') && (
-              <>
+            {(isManager || primaryRole === 'super_admin') && <>
                 <Dialog>
                   <DialogTrigger asChild>
                     <Button variant="outline" size="sm" className="gap-2">
@@ -2159,10 +2086,7 @@ const OrderDashboard = () => {
                 
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <ShieldCheck className="h-4 w-4" />
-                      Verify Delivered
-                    </Button>
+                    
                   </DialogTrigger>
                   <DialogContent className="max-w-2xl">
                     <DialogHeader>
@@ -2172,138 +2096,11 @@ const OrderDashboard = () => {
                   </DialogContent>
                 </Dialog>
                 
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="gap-2"
-                  disabled={isUpdatingAllTracking}
-                  onClick={async () => {
-                    setIsUpdatingAllTracking(true);
-                    
-                    const aggregatedResults = {
-                      total: 0,
-                      updated: 0,
-                      delivered: 0,
-                      returned: 0,
-                      failed: 0,
-                      noChange: 0,
-                      batchesProcessed: 0
-                    };
-                    
-                    let offset = 0;
-                    const limit = 50;
-                    let hasMore = true;
-                    
-                    try {
-                      toast({ description: "Starting tracking update for all active orders..." });
-                      
-                      while (hasMore) {
-                        const { data, error } = await supabase.functions.invoke('nightly-tracking-update', {
-                          body: { trigger: 'manual', offset, limit }
-                        });
-                        
-                        if (error) throw error;
-                        
-                        if (data?.success) {
-                          const r = data.results;
-                          aggregatedResults.total += r.total;
-                          aggregatedResults.updated += r.updated;
-                          aggregatedResults.delivered += r.delivered;
-                          aggregatedResults.returned += r.returned;
-                          aggregatedResults.failed += r.failed;
-                          aggregatedResults.noChange += r.noChange;
-                          aggregatedResults.batchesProcessed++;
-                          
-                          hasMore = data.hasMore;
-                          offset += limit;
-                          
-                          if (hasMore) {
-                            toast({ 
-                              description: `Processed ${aggregatedResults.total} orders (batch ${aggregatedResults.batchesProcessed})...` 
-                            });
-                          }
-                        } else {
-                          hasMore = false;
-                        }
-                      }
-                      
-                      toast({ 
-                        title: "Tracking Update Complete",
-                        description: `Checked: ${aggregatedResults.total}, Delivered: ${aggregatedResults.delivered}, Returned: ${aggregatedResults.returned}, Failed: ${aggregatedResults.failed}`,
-                      });
-                      await fetchOrders();
-                    } catch (error: any) {
-                      console.error('Tracking update error:', error);
-                      toast({ 
-                        title: "Error",
-                        description: error.message || "Failed to update tracking",
-                        variant: "destructive"
-                      });
-                    } finally {
-                      setIsUpdatingAllTracking(false);
-                    }
-                  }}
-                >
-                  {isUpdatingAllTracking ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Truck className="h-4 w-4" />
-                  )}
-                  Update All Tracking
-                </Button>
                 
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="gap-2"
-                  onClick={async () => {
-                    console.log('Sync Tracking button clicked');
-                    try {
-                      toast({ description: "Starting backfill of Shopify fulfillments from Nov 29th..." });
-                      console.log('Calling backfill function...');
-                      
-                      const { data, error } = await invokeBackfillShopifyFulfillments();
-                      
-                      console.log('Backfill response:', { data, error });
-                      
-                      if (error) {
-                        console.error('Backfill error:', error);
-                        throw error;
-                      }
-                      
-                      if (data) {
-                        console.log('Backfill completed successfully:', data);
-                        toast({ 
-                          title: "Backfill Complete",
-                          description: `Updated: ${data.updated || 0}, Skipped: ${data.skipped || 0}, Errors: ${data.errors || 0}`,
-                        });
-                        await fetchOrders(); // Refresh the orders list
-                      } else {
-                        toast({ 
-                          description: "Backfill completed but no data returned"
-                        });
-                      }
-                    } catch (error: any) {
-                      console.error('Backfill error:', error);
-                      toast({ 
-                        variant: "destructive",
-                        title: "Backfill Failed",
-                        description: error.message || 'Unknown error occurred'
-                      });
-                    }
-                  }}
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Sync Tracking
-                </Button>
-              </>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowKPIPanel(!showKPIPanel)}
-              className="gap-2"
-            >
+                
+                
+              </>}
+            <Button variant="outline" size="sm" onClick={() => setShowKPIPanel(!showKPIPanel)} className="gap-2">
               {showKPIPanel ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               {showKPIPanel ? 'Hide' : 'Show'} KPIs
             </Button>
@@ -2316,37 +2113,18 @@ const OrderDashboard = () => {
               <Upload className="h-4 w-4 mr-2" />
               Bulk Upload
             </Button>
-            <BulkUploadDialog 
-              open={showBulkUpload} 
-              onOpenChange={setShowBulkUpload}
-              onSuccess={handleNewOrderCreated}
-            />
+            <BulkUploadDialog open={showBulkUpload} onOpenChange={setShowBulkUpload} onSuccess={handleNewOrderCreated} />
           </div>
         </div>
 
         {/* KPI Panel */}
-        <OrderKPIPanel 
-          isVisible={showKPIPanel} 
-        />
+        <OrderKPIPanel isVisible={showKPIPanel} />
 
         {/* Filter Presets */}
-        <FilterPresets
-          activePreset={activePreset}
-          onPresetSelect={handlePresetSelect}
-        />
+        <FilterPresets activePreset={activePreset} onPresetSelect={handlePresetSelect} />
 
         {/* Bulk Operations */}
-        <BulkOperationsPanel
-          selectedCount={selectedOrders.size}
-          onStatusChange={handleBulkStatusChange}
-          onCourierAssign={handleBulkCourierAssign}
-          onCourierUnassign={handleBulkCourierUnassign}
-          onExport={handleExport}
-          onGenerateAWBs={handleBulkGenerateAWBs}
-          progress={progress}
-          couriers={couriers}
-          userRole={primaryRole}
-        />
+        <BulkOperationsPanel selectedCount={selectedOrders.size} onStatusChange={handleBulkStatusChange} onCourierAssign={handleBulkCourierAssign} onCourierUnassign={handleBulkCourierUnassign} onExport={handleExport} onGenerateAWBs={handleBulkGenerateAWBs} progress={progress} couriers={couriers} userRole={primaryRole} />
       </div>
 
       {/* Summary Cards */}
@@ -2373,7 +2151,7 @@ const OrderDashboard = () => {
             {/* Page Size Selector */}
             <div className="flex items-center gap-2">
               <Label className="text-sm whitespace-nowrap">Rows:</Label>
-              <Select value={String(pageSize)} onValueChange={(val) => handlePageSizeChange(Number(val))}>
+              <Select value={String(pageSize)} onValueChange={val => handlePageSizeChange(Number(val))}>
                 <SelectTrigger className="w-[90px] h-9">
                   <SelectValue />
                 </SelectTrigger>
@@ -2386,41 +2164,30 @@ const OrderDashboard = () => {
             
             {/* Search */}
             <div className="flex-1 min-w-[200px]">
-              <Input
-                placeholder="Search orders, tracking ID, customer..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className="h-9"
-              />
+              <Input placeholder="Search orders, tracking ID, customer..." value={searchInput} onChange={e => setSearchInput(e.target.value)} className="h-9" />
             </div>
             
             {/* Active filters badge */}
-            {activeFiltersCount > 0 && (
-              <Badge variant="secondary" className="h-9 px-3">
+            {activeFiltersCount > 0 && <Badge variant="secondary" className="h-9 px-3">
                 {activeFiltersCount} filters active
-              </Badge>
-            )}
+              </Badge>}
           </div>
           
           {/* Right side - Unified filters button */}
           <div className="flex gap-2">
-            {activeFiltersCount > 0 && (
-              <Button variant="ghost" size="sm" onClick={resetFilters}>
+            {activeFiltersCount > 0 && <Button variant="ghost" size="sm" onClick={resetFilters}>
                 <X className="h-4 w-4 mr-1" />
                 Clear All
-              </Button>
-            )}
+              </Button>}
             
             <Sheet>
               <SheetTrigger asChild>
                 <Button variant="outline" size="sm">
                   <Filter className="h-4 w-4 mr-1" />
                   Filters
-                  {activeFiltersCount > 0 && (
-                    <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                  {activeFiltersCount > 0 && <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
                       {activeFiltersCount}
-                    </Badge>
-                  )}
+                    </Badge>}
                 </Button>
               </SheetTrigger>
               <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
@@ -2435,18 +2202,15 @@ const OrderDashboard = () => {
                   {/* Quick Filters Section */}
                   <div className="space-y-3">
                     <Label className="text-base font-semibold">Quick Filters</Label>
-                    <Select 
-                      value={quickFilter || 'none'} 
-                      onValueChange={(value) => {
-                        if (value === 'none') {
-                          setQuickFilter(null);
-                          setCombinedStatus('all');
-                          resetFilters();
-                        } else {
-                          applyQuickFilter(value);
-                        }
-                      }}
-                    >
+                    <Select value={quickFilter || 'none'} onValueChange={value => {
+                    if (value === 'none') {
+                      setQuickFilter(null);
+                      setCombinedStatus('all');
+                      resetFilters();
+                    } else {
+                      applyQuickFilter(value);
+                    }
+                  }}>
                       <SelectTrigger className="bg-background">
                         <SelectValue placeholder="Select quick filter" />
                       </SelectTrigger>
@@ -2477,36 +2241,32 @@ const OrderDashboard = () => {
                   {/* Status & Verification Filter */}
                   <div className="space-y-3">
                     <Label className="text-base font-semibold">Order Status</Label>
-                    <Select 
-                      value={combinedStatus} 
-                      onValueChange={(value) => {
-                        setCombinedStatus(value);
-                        setQuickFilter(null);
-                        
-                        if (value === 'all') {
-                          updateFilter('status', 'all');
-                          updateCustomFilter('verificationStatus', 'all');
-                        } else if (value === 'pending_order') {
-                          updateFilter('status', 'pending');
-                          updateCustomFilter('verificationStatus', 'all');
-                        } else if (value === 'pending_address') {
-                          updateFilter('status', 'all');
-                          updateCustomFilter('verificationStatus', 'pending');
-                        } else if (value === 'pending_verification') {
-                          updateFilter('status', 'all');
-                          updateCustomFilter('verificationStatus', 'pending');
-                        } else if (value === 'approved_verification') {
-                          updateFilter('status', 'all');
-                          updateCustomFilter('verificationStatus', 'approved');
-                        } else if (value === 'disapproved_verification') {
-                          updateFilter('status', 'all');
-                          updateCustomFilter('verificationStatus', 'disapproved');
-                        } else {
-                          updateFilter('status', value);
-                          updateCustomFilter('verificationStatus', 'all');
-                        }
-                      }}
-                    >
+                    <Select value={combinedStatus} onValueChange={value => {
+                    setCombinedStatus(value);
+                    setQuickFilter(null);
+                    if (value === 'all') {
+                      updateFilter('status', 'all');
+                      updateCustomFilter('verificationStatus', 'all');
+                    } else if (value === 'pending_order') {
+                      updateFilter('status', 'pending');
+                      updateCustomFilter('verificationStatus', 'all');
+                    } else if (value === 'pending_address') {
+                      updateFilter('status', 'all');
+                      updateCustomFilter('verificationStatus', 'pending');
+                    } else if (value === 'pending_verification') {
+                      updateFilter('status', 'all');
+                      updateCustomFilter('verificationStatus', 'pending');
+                    } else if (value === 'approved_verification') {
+                      updateFilter('status', 'all');
+                      updateCustomFilter('verificationStatus', 'approved');
+                    } else if (value === 'disapproved_verification') {
+                      updateFilter('status', 'all');
+                      updateCustomFilter('verificationStatus', 'disapproved');
+                    } else {
+                      updateFilter('status', value);
+                      updateCustomFilter('verificationStatus', 'all');
+                    }
+                  }}>
                       <SelectTrigger className="bg-background">
                         <SelectValue placeholder="Select status" />
                       </SelectTrigger>
@@ -2538,20 +2298,15 @@ const OrderDashboard = () => {
                     </p>
                     
                     {/* Show helpful hint when a specific status is selected */}
-                    {filters.status !== 'all' && (
-                      <div className="flex items-start gap-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded-md">
+                    {filters.status !== 'all' && <div className="flex items-start gap-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded-md">
                         <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                         <span className="text-xs text-foreground/80">
                           Shows all orders that reached "{filters.status}" status during the selected date range, 
                           regardless of their current status.
                         </span>
-                      </div>
-                    )}
+                      </div>}
                     
-                    <DatePickerWithRange
-                      date={filters.statusDateRange}
-                      setDate={(date) => updateFilter('statusDateRange', date)}
-                    />
+                    <DatePickerWithRange date={filters.statusDateRange} setDate={date => updateFilter('statusDateRange', date)} />
                   </div>
                   
                   {/* Amount Range */}
@@ -2560,21 +2315,11 @@ const OrderDashboard = () => {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <Label className="text-sm text-muted-foreground">Min Amount</Label>
-                        <Input
-                          type="number"
-                          placeholder="0"
-                          value={filters.amountMin || ''}
-                          onChange={(e) => updateFilter('amountMin', e.target.value ? parseFloat(e.target.value) : undefined)}
-                        />
+                        <Input type="number" placeholder="0" value={filters.amountMin || ''} onChange={e => updateFilter('amountMin', e.target.value ? parseFloat(e.target.value) : undefined)} />
                       </div>
                       <div>
                         <Label className="text-sm text-muted-foreground">Max Amount</Label>
-                        <Input
-                          type="number"
-                          placeholder="999999"
-                          value={filters.amountMax || ''}
-                          onChange={(e) => updateFilter('amountMax', e.target.value ? parseFloat(e.target.value) : undefined)}
-                        />
+                        <Input type="number" placeholder="999999" value={filters.amountMax || ''} onChange={e => updateFilter('amountMax', e.target.value ? parseFloat(e.target.value) : undefined)} />
                       </div>
                     </div>
                   </div>
@@ -2582,10 +2327,7 @@ const OrderDashboard = () => {
                    {/* Courier */}
                   <div className="space-y-3">
                     <Label className="text-base font-semibold">Courier</Label>
-                    <Select
-                      value={filters.courier}
-                      onValueChange={(value) => updateFilter('courier', value)}
-                    >
+                    <Select value={filters.courier} onValueChange={value => updateFilter('courier', value)}>
                       <SelectTrigger className="bg-background">
                         <SelectValue placeholder="All Couriers" />
                       </SelectTrigger>
@@ -2601,10 +2343,7 @@ const OrderDashboard = () => {
                   {/* Order Type */}
                   <div className="space-y-3">
                     <Label className="text-base font-semibold">Order Type</Label>
-                    <Select
-                      value={filters.orderType}
-                      onValueChange={(value) => updateFilter('orderType', value)}
-                    >
+                    <Select value={filters.orderType} onValueChange={value => updateFilter('orderType', value)}>
                       <SelectTrigger className="bg-background">
                         <SelectValue placeholder="All Types" />
                       </SelectTrigger>
@@ -2619,10 +2358,7 @@ const OrderDashboard = () => {
                   {/* Sort Order */}
                   <div className="space-y-3">
                     <Label className="text-base font-semibold">Sort Order</Label>
-                    <Select
-                      value={sortOrder}
-                      onValueChange={(value: 'latest' | 'oldest') => setSortOrder(value)}
-                    >
+                    <Select value={sortOrder} onValueChange={(value: 'latest' | 'oldest') => setSortOrder(value)}>
                       <SelectTrigger className="bg-background">
                         <SelectValue placeholder="Sort order" />
                       </SelectTrigger>
@@ -2644,11 +2380,9 @@ const OrderDashboard = () => {
           <CardTitle className="flex items-center justify-between">
             <div className="flex flex-col gap-1">
               <span>Orders {start}–{end} of {totalCount.toLocaleString()}</span>
-              {activeFiltersCount > 0 && (
-                <span className="text-xs text-muted-foreground font-normal">
+              {activeFiltersCount > 0 && <span className="text-xs text-muted-foreground font-normal">
                   {activeFiltersCount} active filter{activeFiltersCount > 1 ? 's' : ''}
-                </span>
-              )}
+                </span>}
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
@@ -2694,14 +2428,10 @@ const OrderDashboard = () => {
                       <span className="text-sm text-muted-foreground">No orders found</span>
                     </div>
                   </TableCell>
-                </TableRow> : orders.map(order => (
-                  <Noop key={order.id}>
+                </TableRow> : orders.map(order => <Noop key={order.id}>
                   <TableRow className="hover:bg-muted/50">
                     <TableCell>
-                      <Checkbox 
-                        checked={selectedOrders.has(order.id)} 
-                        onCheckedChange={() => handleSelectOrder(order.id)} 
-                      />
+                      <Checkbox checked={selectedOrders.has(order.id)} onCheckedChange={() => handleSelectOrder(order.id)} />
                     </TableCell>
                     
                     <TableCell className="font-mono text-sm font-medium">
@@ -2710,12 +2440,10 @@ const OrderDashboard = () => {
                           <div className="flex items-center gap-2">
                             <span>{(order.orderNumber || order.shopify_order_id || order.id.slice(0, 8)).replace(/^SHOP-/, '')}</span>
                           </div>
-                          {order.fraudIndicators?.isHighRisk && (
-                            <Badge variant="destructive" className="gap-1 w-fit text-xs">
+                          {order.fraudIndicators?.isHighRisk && <Badge variant="destructive" className="gap-1 w-fit text-xs">
                               <Shield className="h-3 w-3" />
                               Risk: {order.fraudIndicators.riskScore}%
-                            </Badge>
-                          )}
+                            </Badge>}
                         </div>
                         <OrderAlertIndicators order={order} />
                       </div>
@@ -2736,61 +2464,33 @@ const OrderDashboard = () => {
                     <TableCell>
                       <div className="flex flex-col gap-1.5">
                         {getStatusBadge(order.status, order.id)}
-                        {order.status === 'dispatched' && order.courier && order.courier !== 'N/A' && (
-                          <span className="text-xs text-muted-foreground">
+                        {order.status === 'dispatched' && order.courier && order.courier !== 'N/A' && <span className="text-xs text-muted-foreground">
                             Via {order.courier.toUpperCase()}
-                          </span>
-                        )}
+                          </span>}
                       </div>
                     </TableCell>
                     
                     <TableCell>
-                      {permissions.canAssignCouriers ? (
-                        <InlineCourierAssign 
-                          orderId={order.id}
-                          currentCourier={order.courier}
-                          trackingId={order.trackingId}
-                          couriers={couriers}
-                          orderDetails={{
-                            orderNumber: order.orderNumber,
-                            customer: order.customer,
-                            phone: order.phone,
-                            address: order.address,
-                            city: order.city,
-                            items: order.items,
-                            totalPrice: order.totalPrice
-                          }}
-                          onAssigned={fetchOrders}
-                        />
-                      ) : (
-                        <span className="text-sm text-muted-foreground">
+                      {permissions.canAssignCouriers ? <InlineCourierAssign orderId={order.id} currentCourier={order.courier} trackingId={order.trackingId} couriers={couriers} orderDetails={{
+                      orderNumber: order.orderNumber,
+                      customer: order.customer,
+                      phone: order.phone,
+                      address: order.address,
+                      city: order.city,
+                      items: order.items,
+                      totalPrice: order.totalPrice
+                    }} onAssigned={fetchOrders} /> : <span className="text-sm text-muted-foreground">
                           {order.courier !== 'N/A' ? order.courier : 'Not assigned'}
-                        </span>
-                      )}
+                        </span>}
                     </TableCell>
                     
                     <TableCell>
-                      <QuickActionButtons 
-                        orderId={order.id}
-                        orderStatus={order.status}
-                        onMarkDispatched={handleQuickMarkDispatched}
-                        onGenerateLabel={handleQuickGenerateLabel}
-                        onViewActivity={handleQuickViewActivity}
-                      />
+                      <QuickActionButtons orderId={order.id} orderStatus={order.status} onMarkDispatched={handleQuickMarkDispatched} onGenerateLabel={handleQuickGenerateLabel} onViewActivity={handleQuickViewActivity} />
                     </TableCell>
                     
                     <TableCell>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => toggleExpanded(order.id)}
-                        className="h-8 w-8 p-0"
-                      >
-                        {expandedRows.has(order.id) ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
+                      <Button variant="ghost" size="sm" onClick={() => toggleExpanded(order.id)} className="h-8 w-8 p-0">
+                        {expandedRows.has(order.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -2822,40 +2522,32 @@ const OrderDashboard = () => {
                                     </div>
                                     
                                     {/* Customer Phone */}
-                                    {order.phone && order.phone !== 'N/A' && (
-                                      <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                    {order.phone && order.phone !== 'N/A' && <div className="flex items-start gap-3 pt-3 border-t border-border/50">
                                         <Phone className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
                                         <div className="flex-1">
                                           <div className="text-xs text-muted-foreground mb-0.5">Phone Number</div>
                                           <div className="font-medium">{order.phone}</div>
                                         </div>
-                                      </div>
-                                    )}
+                                      </div>}
                                     
                                     {/* Customer Email */}
-                                    {order.email && order.email !== 'N/A' && (
-                                      <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                    {order.email && order.email !== 'N/A' && <div className="flex items-start gap-3 pt-3 border-t border-border/50">
                                         <Mail className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
                                         <div className="flex-1">
                                           <div className="text-xs text-muted-foreground mb-0.5">Email Address</div>
                                           <div className="font-medium">{order.email}</div>
                                         </div>
-                                      </div>
-                                    )}
+                                      </div>}
                                     
                                     {/* Customer Address */}
-                                    {order.address && order.address !== 'N/A' && (
-                                      <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                    {order.address && order.address !== 'N/A' && <div className="flex items-start gap-3 pt-3 border-t border-border/50">
                                         <MapPin className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
                                         <div className="flex-1">
                                           <div className="text-xs text-muted-foreground mb-0.5">Delivery Address</div>
                                           <div className="font-medium">{order.address}</div>
-                                          {order.city && order.city !== 'N/A' && (
-                                            <div className="text-sm text-muted-foreground mt-1">{order.city}</div>
-                                          )}
+                                          {order.city && order.city !== 'N/A' && <div className="text-sm text-muted-foreground mt-1">{order.city}</div>}
                                         </div>
-                                      </div>
-                                    )}
+                                      </div>}
                                   </div>
                                 </CardContent>
                               </Card>
@@ -2873,37 +2565,31 @@ const OrderDashboard = () => {
                                     
                                     <div className="space-y-4">
                                       {/* Shopify Order ID */}
-                                      {order.shopify_order_id && order.shopify_order_id !== 'N/A' && (
-                                        <div className="flex items-start gap-3">
+                                      {order.shopify_order_id && order.shopify_order_id !== 'N/A' && <div className="flex items-start gap-3">
                                           <Package className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
                                           <div className="flex-1">
                                             <div className="text-xs text-muted-foreground mb-0.5">Shopify Order ID</div>
                                             <div className="font-medium">{order.shopify_order_id}</div>
                                           </div>
-                                        </div>
-                                      )}
+                                        </div>}
                                       
                                       {/* Order Date */}
-                                      {order.createdAtISO && (
-                                        <div className={`flex items-start gap-3 ${order.shopify_order_id && order.shopify_order_id !== 'N/A' ? 'pt-3 border-t border-border/50' : ''}`}>
+                                      {order.createdAtISO && <div className={`flex items-start gap-3 ${order.shopify_order_id && order.shopify_order_id !== 'N/A' ? 'pt-3 border-t border-border/50' : ''}`}>
                                           <Calendar className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
                                           <div className="flex-1">
                                             <div className="text-xs text-muted-foreground mb-0.5">Order Date</div>
                                             <div className="font-medium">{new Date(order.createdAtISO).toLocaleDateString()}</div>
                                           </div>
-                                        </div>
-                                      )}
+                                        </div>}
                                       
                                       {/* Order Type */}
-                                      {order.orderType && order.orderType !== 'N/A' && (
-                                        <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                      {order.orderType && order.orderType !== 'N/A' && <div className="flex items-start gap-3 pt-3 border-t border-border/50">
                                           <ShoppingBag className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
                                           <div className="flex-1">
                                             <div className="text-xs text-muted-foreground mb-0.5">Order Type</div>
                                             <div className="font-medium">{order.orderType}</div>
                                           </div>
-                                        </div>
-                                      )}
+                                        </div>}
                                       
                                       {/* Courier & Tracking ID */}
                                       <div className="flex items-start gap-3 pt-3 border-t border-border/50">
@@ -2912,259 +2598,200 @@ const OrderDashboard = () => {
                                           <div>
                                             <div className="text-xs text-muted-foreground mb-0.5">Courier</div>
                                             <div className="font-medium">
-                                              {order.courier && order.courier !== 'N/A' ? (
-                                                order.courier.toUpperCase()
-                                              ) : (
-                                                <span className="text-muted-foreground">Not assigned</span>
-                                              )}
+                                              {order.courier && order.courier !== 'N/A' ? order.courier.toUpperCase() : <span className="text-muted-foreground">Not assigned</span>}
                                             </div>
                                           </div>
                                           <div>
                                             <div className="text-xs text-muted-foreground mb-0.5">Tracking ID</div>
-                                            {order.trackingId && order.trackingId !== 'N/A' ? (
-                                                <div className="flex items-center gap-2">
+                                            {order.trackingId && order.trackingId !== 'N/A' ? <div className="flex items-center gap-2">
                                                   <code className="font-mono text-sm font-medium bg-muted px-2 py-1 rounded">{order.trackingId}</code>
-                                                  <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    className="h-7 w-7 p-0"
-                                                    onClick={async () => {
-                                                      await navigator.clipboard.writeText(order.trackingId);
-                                                      toast({ description: "Tracking ID copied to clipboard" });
-                                                    }}
-                                                  >
+                                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={async () => {
+                                          await navigator.clipboard.writeText(order.trackingId);
+                                          toast({
+                                            description: "Tracking ID copied to clipboard"
+                                          });
+                                        }}>
                                                     <Copy className="h-3 w-3" />
                                                   </Button>
-                                                  <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="h-7 text-xs"
-                                                    onClick={async () => {
-                                                      const toastId = toast({ description: "Downloading label..." });
-                                                      
-                                                      try {
-                                                        // Fetch dispatch record
-                                                        const { data: dispatch, error: dispatchError } = await supabase
-                                                          .from('dispatches')
-                                                          .select('label_url, label_data, label_format, courier, tracking_id, id')
-                                                          .eq('order_id', order.id)
-                                                          .order('created_at', { ascending: false })
-                                                          .limit(1)
-                                                          .single();
-                                                        
-                                                        if (dispatchError || !dispatch) {
-                                                          console.error('Dispatch fetch error:', dispatchError);
-                                                          toast({
-                                                            description: "No dispatch record found",
-                                                            variant: "destructive"
-                                                          });
-                                                          return;
-                                                        }
-                                                        
-                                                        console.log('Dispatch record:', dispatch);
-                                                        
-                                                        // If label exists, download it
-                                                        if (dispatch.label_url || dispatch.label_data) {
-                                                          await downloadCourierLabel(
-                                                            dispatch.label_data,
-                                                            dispatch.label_url,
-                                                            dispatch.label_format || 'pdf',
-                                                            order.trackingId
-                                                          );
-                                                          toast({ description: "Label downloaded successfully" });
-                                                        } else {
-                                                          // Label missing - attempt to fetch it for Postex
-                                                          if (dispatch.courier?.toUpperCase() === 'POSTEX' && dispatch.tracking_id) {
-                                                            console.log('Attempting to fetch Postex label for:', dispatch.tracking_id);
-                                                            toast({ description: "Fetching label from Postex..." });
-                                                            
-                                                            // Get Postex API key from settings
-                                                            const { data: apiSettings, error: keyError } = await supabase
-                                                              .from('api_settings')
-                                                              .select('setting_value')
-                                                              .eq('setting_key', 'POSTEX_API_KEY')
-                                                              .single();
-                                                            
-                                                            if (keyError || !apiSettings?.setting_value) {
-                                                              console.error('API key fetch error:', keyError);
-                                                              toast({
-                                                                description: "Postex API key not configured in settings",
-                                                                variant: "destructive"
-                                                              });
-                                                              return;
-                                                            }
-                                                            
-                                                            console.log('Fetching label from Postex API...');
-                                                            
-                                                            // Fetch label from Postex
-                                                            const labelResponse = await fetch('https://api.postex.pk/services/integration/api/order/v1/get-label', {
-                                                              method: 'POST',
-                                                              headers: {
-                                                                'token': apiSettings.setting_value,
-                                                                'Content-Type': 'application/json',
-                                                              },
-                                                              body: JSON.stringify({ trackingNumber: dispatch.tracking_id })
-                                                            });
-                                                            
-                                                            console.log('Postex API response status:', labelResponse.status);
-                                                            
-                                                            if (!labelResponse.ok) {
-                                                              const errorText = await labelResponse.text();
-                                                              console.error('Postex API error response:', errorText);
-                                                              
-                                                              // Try to parse error message
-                                                              let errorMessage = 'Failed to fetch label from Postex';
-                                                              try {
-                                                                const errorJson = JSON.parse(errorText);
-                                                                errorMessage = errorJson.message || errorJson.statusMessage || errorMessage;
-                                                              } catch {}
-                                                              
-                                                              toast({
-                                                                description: `${errorMessage} (Status: ${labelResponse.status}). The label might not be ready yet - wait a few minutes and try again.`,
-                                                                variant: "destructive",
-                                                                duration: 6000
-                                                              });
-                                                              return;
-                                                            }
-                                                            
-                                                            const labelData = await labelResponse.json();
-                                                            console.log('Postex label response:', labelData);
-                                                            
-                                                            if (labelData.dist?.pdfData || labelData.dist?.labelUrl) {
-                                                              // Update dispatch with label data
-                                                              const { error: updateError } = await supabase
-                                                                .from('dispatches')
-                                                                .update({
-                                                                  label_data: labelData.dist.pdfData,
-                                                                  label_url: labelData.dist.labelUrl,
-                                                                  label_format: 'pdf'
-                                                                })
-                                                                .eq('id', dispatch.id);
-                                                              
-                                                              if (updateError) {
-                                                                console.error('Dispatch update error:', updateError);
-                                                              }
-                                                              
-                                                              // Download the label
-                                                              await downloadCourierLabel(
-                                                                labelData.dist.pdfData,
-                                                                labelData.dist.labelUrl,
-                                                                'pdf',
-                                                                dispatch.tracking_id
-                                                              );
-                                                              toast({ description: "Label downloaded successfully" });
-                                                            } else {
-                                                              console.warn('No label data in response:', labelData);
-                                                              toast({
-                                                                description: "Label not ready yet. Postex labels are available after the order is processed (usually within a few minutes). Please try again shortly.",
-                                                                variant: "destructive",
-                                                                duration: 6000
-                                                              });
-                                                            }
-                                                          } else {
-                                                            toast({
-                                                              description: "No label available for this order",
-                                                              variant: "destructive"
-                                                            });
-                                                          }
-                                                        }
-                                                      } catch (error: any) {
-                                                        console.error('Label download error:', error);
-                                                        toast({
-                                                          description: error.message || "Failed to download label. Check console for details.",
-                                                          variant: "destructive",
-                                                          duration: 5000
-                                                        });
-                                                      }
-                                                    }}
-                                                  >
+                                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={async () => {
+                                          const toastId = toast({
+                                            description: "Downloading label..."
+                                          });
+                                          try {
+                                            // Fetch dispatch record
+                                            const {
+                                              data: dispatch,
+                                              error: dispatchError
+                                            } = await supabase.from('dispatches').select('label_url, label_data, label_format, courier, tracking_id, id').eq('order_id', order.id).order('created_at', {
+                                              ascending: false
+                                            }).limit(1).single();
+                                            if (dispatchError || !dispatch) {
+                                              console.error('Dispatch fetch error:', dispatchError);
+                                              toast({
+                                                description: "No dispatch record found",
+                                                variant: "destructive"
+                                              });
+                                              return;
+                                            }
+                                            console.log('Dispatch record:', dispatch);
+
+                                            // If label exists, download it
+                                            if (dispatch.label_url || dispatch.label_data) {
+                                              await downloadCourierLabel(dispatch.label_data, dispatch.label_url, dispatch.label_format || 'pdf', order.trackingId);
+                                              toast({
+                                                description: "Label downloaded successfully"
+                                              });
+                                            } else {
+                                              // Label missing - attempt to fetch it for Postex
+                                              if (dispatch.courier?.toUpperCase() === 'POSTEX' && dispatch.tracking_id) {
+                                                console.log('Attempting to fetch Postex label for:', dispatch.tracking_id);
+                                                toast({
+                                                  description: "Fetching label from Postex..."
+                                                });
+
+                                                // Get Postex API key from settings
+                                                const {
+                                                  data: apiSettings,
+                                                  error: keyError
+                                                } = await supabase.from('api_settings').select('setting_value').eq('setting_key', 'POSTEX_API_KEY').single();
+                                                if (keyError || !apiSettings?.setting_value) {
+                                                  console.error('API key fetch error:', keyError);
+                                                  toast({
+                                                    description: "Postex API key not configured in settings",
+                                                    variant: "destructive"
+                                                  });
+                                                  return;
+                                                }
+                                                console.log('Fetching label from Postex API...');
+
+                                                // Fetch label from Postex
+                                                const labelResponse = await fetch('https://api.postex.pk/services/integration/api/order/v1/get-label', {
+                                                  method: 'POST',
+                                                  headers: {
+                                                    'token': apiSettings.setting_value,
+                                                    'Content-Type': 'application/json'
+                                                  },
+                                                  body: JSON.stringify({
+                                                    trackingNumber: dispatch.tracking_id
+                                                  })
+                                                });
+                                                console.log('Postex API response status:', labelResponse.status);
+                                                if (!labelResponse.ok) {
+                                                  const errorText = await labelResponse.text();
+                                                  console.error('Postex API error response:', errorText);
+
+                                                  // Try to parse error message
+                                                  let errorMessage = 'Failed to fetch label from Postex';
+                                                  try {
+                                                    const errorJson = JSON.parse(errorText);
+                                                    errorMessage = errorJson.message || errorJson.statusMessage || errorMessage;
+                                                  } catch {}
+                                                  toast({
+                                                    description: `${errorMessage} (Status: ${labelResponse.status}). The label might not be ready yet - wait a few minutes and try again.`,
+                                                    variant: "destructive",
+                                                    duration: 6000
+                                                  });
+                                                  return;
+                                                }
+                                                const labelData = await labelResponse.json();
+                                                console.log('Postex label response:', labelData);
+                                                if (labelData.dist?.pdfData || labelData.dist?.labelUrl) {
+                                                  // Update dispatch with label data
+                                                  const {
+                                                    error: updateError
+                                                  } = await supabase.from('dispatches').update({
+                                                    label_data: labelData.dist.pdfData,
+                                                    label_url: labelData.dist.labelUrl,
+                                                    label_format: 'pdf'
+                                                  }).eq('id', dispatch.id);
+                                                  if (updateError) {
+                                                    console.error('Dispatch update error:', updateError);
+                                                  }
+
+                                                  // Download the label
+                                                  await downloadCourierLabel(labelData.dist.pdfData, labelData.dist.labelUrl, 'pdf', dispatch.tracking_id);
+                                                  toast({
+                                                    description: "Label downloaded successfully"
+                                                  });
+                                                } else {
+                                                  console.warn('No label data in response:', labelData);
+                                                  toast({
+                                                    description: "Label not ready yet. Postex labels are available after the order is processed (usually within a few minutes). Please try again shortly.",
+                                                    variant: "destructive",
+                                                    duration: 6000
+                                                  });
+                                                }
+                                              } else {
+                                                toast({
+                                                  description: "No label available for this order",
+                                                  variant: "destructive"
+                                                });
+                                              }
+                                            }
+                                          } catch (error: any) {
+                                            console.error('Label download error:', error);
+                                            toast({
+                                              description: error.message || "Failed to download label. Check console for details.",
+                                              variant: "destructive",
+                                              duration: 5000
+                                            });
+                                          }
+                                        }}>
                                                     <Download className="h-3 w-3 mr-1" />
                                                     Label
                                                   </Button>
-                                                  <AWBDownloadButton 
-                                                    orderId={order.id} 
-                                                    courierCode={order.courier}
-                                                  />
-                                                </div>
-                                              ) : (
-                                                <span className="text-muted-foreground">Not assigned</span>
-                                              )}
+                                                  <AWBDownloadButton orderId={order.id} courierCode={order.courier} />
+                                                </div> : <span className="text-muted-foreground">Not assigned</span>}
                                             </div>
                                           </div>
                                         </div>
                                       
                                       {/* Dispatched At */}
-                                      {order.dispatchedAt && order.dispatchedAt !== 'N/A' && (
-                                        <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                      {order.dispatchedAt && order.dispatchedAt !== 'N/A' && <div className="flex items-start gap-3 pt-3 border-t border-border/50">
                                           <Clock className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
                                           <div className="flex-1">
                                             <div className="text-xs text-muted-foreground mb-0.5">Dispatched At</div>
                                             <div className="font-medium">{order.dispatchedAt}</div>
                                           </div>
-                                        </div>
-                                      )}
+                                        </div>}
                                       
                                       {/* Delivered At */}
-                                      {order.deliveredAt && order.deliveredAt !== 'N/A' && (
-                                        <div className="flex items-start gap-3 pt-3 border-t border-border/50">
+                                      {order.deliveredAt && order.deliveredAt !== 'N/A' && <div className="flex items-start gap-3 pt-3 border-t border-border/50">
                                           <Clock className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
                                           <div className="flex-1">
                                             <div className="text-xs text-muted-foreground mb-0.5">Delivered At</div>
                                             <div className="font-medium">{order.deliveredAt}</div>
                                           </div>
-                                        </div>
-                                      )}
+                                        </div>}
                                     </div>
                                     
                                     {/* Manual Verification Buttons */}
-                                    {(order.status === 'pending_confirmation' || order.status === 'pending_address') && (
-                                      <div className="mt-4 flex flex-col gap-2">
-                                        {order.status === 'pending_confirmation' && (
-                                          <Button
-                                            size="sm"
-                                            variant="default"
-                                            onClick={() => handleUpdateOrderStatus(order.id, 'booked', { 
-                                              verified_at: new Date().toISOString(),
-                                              verified_by: user?.id
-                                            })}
-                                            className="w-full"
-                                          >
+                                    {(order.status === 'pending_confirmation' || order.status === 'pending_address') && <div className="mt-4 flex flex-col gap-2">
+                                        {order.status === 'pending_confirmation' && <Button size="sm" variant="default" onClick={() => handleUpdateOrderStatus(order.id, 'booked', {
+                                  verified_at: new Date().toISOString(),
+                                  verified_by: user?.id
+                                })} className="w-full">
                                             <CheckCircle className="h-4 w-4 mr-2" />
                                             Verify Order
-                                          </Button>
-                                        )}
+                                          </Button>}
                                         
-                                        {order.status === 'pending_address' && (
-                                          <Button
-                                            size="sm"
-                                            variant="default"
-                                            onClick={() => handleUpdateOrderStatus(order.id, 'booked', {
-                                              verification_status: 'verified',
-                                              verified_at: new Date().toISOString(),
-                                              verified_by: user?.id
-                                            })}
-                                            className="w-full"
-                                          >
+                                        {order.status === 'pending_address' && <Button size="sm" variant="default" onClick={() => handleUpdateOrderStatus(order.id, 'booked', {
+                                  verification_status: 'verified',
+                                  verified_at: new Date().toISOString(),
+                                  verified_by: user?.id
+                                })} className="w-full">
                                             <MapPin className="h-4 w-4 mr-2" />
                                             Verify Address
-                                          </Button>
-                                        )}
-                                      </div>
-                                    )}
+                                          </Button>}
+                                      </div>}
                                     
-                                    {order.status === 'booked' && (
-                                      <Button
-                                        size="sm"
-                                        onClick={() => {
-                                          setDispatchOrderId(order.id);
-                                          setIsDispatchDialogOpen(true);
-                                        }}
-                                        className="mt-3 w-full"
-                                      >
+                                    {order.status === 'booked' && <Button size="sm" onClick={() => {
+                                setDispatchOrderId(order.id);
+                                setIsDispatchDialogOpen(true);
+                              }} className="mt-3 w-full">
                                         <Truck className="h-4 w-4 mr-2" />
                                         Quick Dispatch
-                                      </Button>
-                                    )}
+                                      </Button>}
                                   </CardContent>
                                 </Card>
                                 
@@ -3178,38 +2805,41 @@ const OrderDashboard = () => {
                                     
                                     <div className="space-y-2">
                                       {(() => {
-                                        // Normalize items from either order_items table or inline JSON on orders
-                                        const rawItems = order.items || [];
-                                        if (!Array.isArray(rawItems) || rawItems.length === 0) {
-                                          return (
-                                            <p className="text-sm text-muted-foreground italic">No items available</p>
-                                          );
-                                        }
+                                  // Normalize items from either order_items table or inline JSON on orders
+                                  const rawItems = order.items || [];
+                                  if (!Array.isArray(rawItems) || rawItems.length === 0) {
+                                    return <p className="text-sm text-muted-foreground italic">No items available</p>;
+                                  }
+                                  type NormItem = {
+                                    name: string;
+                                    quantity: number;
+                                    price: number;
+                                  };
+                                  const normalized: NormItem[] = rawItems.map((it: any) => ({
+                                    name: it.item_name || it.name || it.title || 'Item',
+                                    quantity: Number(it.quantity ?? 1) || 1,
+                                    price: Number(it.price ?? it.unit_price ?? 0) || 0
+                                  }));
 
-                                        type NormItem = { name: string; quantity: number; price: number };
-                                        const normalized: NormItem[] = rawItems.map((it: any) => ({
-                                          name: it.item_name || it.name || it.title || 'Item',
-                                          quantity: Number(it.quantity ?? 1) || 1,
-                                          price: Number(it.price ?? it.unit_price ?? 0) || 0,
-                                        }));
-
-                                        // Merge duplicates by name
-                                        const map = new Map<string, NormItem & { total: number }>();
-                                        normalized.forEach((i) => {
-                                          const key = i.name.trim();
-                                          if (map.has(key)) {
-                                            const cur = map.get(key)!;
-                                            cur.quantity += i.quantity;
-                                            cur.total += i.price * i.quantity;
-                                          } else {
-                                            map.set(key, { ...i, total: i.price * i.quantity });
-                                          }
-                                        });
-
-                                        const merged = Array.from(map.values());
-
-                                        return merged.map((item, idx) => (
-                                          <div key={idx} className="bg-muted/30 rounded-xl p-3.5 hover:bg-muted/40 transition-colors">
+                                  // Merge duplicates by name
+                                  const map = new Map<string, NormItem & {
+                                    total: number;
+                                  }>();
+                                  normalized.forEach(i => {
+                                    const key = i.name.trim();
+                                    if (map.has(key)) {
+                                      const cur = map.get(key)!;
+                                      cur.quantity += i.quantity;
+                                      cur.total += i.price * i.quantity;
+                                    } else {
+                                      map.set(key, {
+                                        ...i,
+                                        total: i.price * i.quantity
+                                      });
+                                    }
+                                  });
+                                  const merged = Array.from(map.values());
+                                  return merged.map((item, idx) => <div key={idx} className="bg-muted/30 rounded-xl p-3.5 hover:bg-muted/40 transition-colors">
                                             <div className="flex items-start justify-between gap-3">
                                               <div className="flex-1">
                                                 <div className="font-semibold text-foreground">{item.name}</div>
@@ -3219,9 +2849,8 @@ const OrderDashboard = () => {
                                               </div>
                                               <div className="font-semibold text-foreground">PKR {item.total.toLocaleString()}</div>
                                             </div>
-                                          </div>
-                                        ));
-                                      })()}
+                                          </div>);
+                                })()}
                                     </div>
                                     
                                     <div className="mt-4 pt-4 border-t border-border">
@@ -3242,16 +2871,7 @@ const OrderDashboard = () => {
                                       <FileText className="h-5 w-5 text-primary" />
                                       <h4 className="text-lg font-semibold">Internal Notes</h4>
                                     </div>
-                                    <TagsNotes
-                                      itemId={order.id}
-                                      orderNotes={order.orderNotes}
-                                      tags={order.tags}
-                                      notes={order.userComments}
-                                      onAddTag={(tag) => handleAddTag(order.id, tag)}
-                                      onDeleteTag={(tagId) => handleDeleteTag(order.id, tagId)}
-                                      onAddNote={(note) => handleAddNote(order.id, note)}
-                                      onDeleteNote={(noteId) => handleDeleteNote(order.id, noteId)}
-                                    />
+                                    <TagsNotes itemId={order.id} orderNotes={order.orderNotes} tags={order.tags} notes={order.userComments} onAddTag={tag => handleAddTag(order.id, tag)} onDeleteTag={tagId => handleDeleteTag(order.id, tagId)} onAddNote={note => handleAddNote(order.id, note)} onDeleteNote={noteId => handleDeleteNote(order.id, noteId)} />
                                   </CardContent>
                                 </Card>
                               </div>
@@ -3259,8 +2879,7 @@ const OrderDashboard = () => {
                          </Tabs>
                       </TableCell>
                     </TableRow>}
-                 </Noop>
-                ))}
+                 </Noop>)}
             </TableBody>
           </Table>
           </div>
@@ -3268,18 +2887,11 @@ const OrderDashboard = () => {
       </Card>
       
       {/* Enhanced Pagination */}
-      {totalCount > pageSize && (
-        <Card className="mt-4">
+      {totalCount > pageSize && <Card className="mt-4">
           <CardContent className="pt-6">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.max(0, p - 1))}
-                  disabled={page === 0}
-                  className="gap-2"
-                >
+                <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="gap-2">
                   <ChevronDown className="h-4 w-4 rotate-90" />
                   Previous
                 </Button>
@@ -3294,13 +2906,7 @@ const OrderDashboard = () => {
                   </span>
                 </div>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => p + 1)}
-                  disabled={(page + 1) * pageSize >= totalCount}
-                  className="gap-2"
-                >
+                <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={(page + 1) * pageSize >= totalCount} className="gap-2">
                   Next
                   <ChevronDown className="h-4 w-4 -rotate-90" />
                 </Button>
@@ -3311,27 +2917,12 @@ const OrderDashboard = () => {
                 <Label htmlFor="jump-page" className="text-sm text-muted-foreground whitespace-nowrap">
                   Jump to:
                 </Label>
-                <Input
-                  id="jump-page"
-                  type="number"
-                  min="1"
-                  max={totalPages}
-                  value={jumpToPage}
-                  onChange={(e) => setJumpToPage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleJumpToPage();
-                    }
-                  }}
-                  placeholder="Page"
-                  className="w-20 h-9"
-                />
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleJumpToPage}
-                  disabled={!jumpToPage}
-                >
+                <Input id="jump-page" type="number" min="1" max={totalPages} value={jumpToPage} onChange={e => setJumpToPage(e.target.value)} onKeyDown={e => {
+              if (e.key === 'Enter') {
+                handleJumpToPage();
+              }
+            }} placeholder="Page" className="w-20 h-9" />
+                <Button variant="secondary" size="sm" onClick={handleJumpToPage} disabled={!jumpToPage}>
                   Go
                 </Button>
               </div>
@@ -3342,93 +2933,58 @@ const OrderDashboard = () => {
               </div>
             </div>
           </CardContent>
-        </Card>
-      )}
+        </Card>}
       
       {/* New Dispatch Dialog */}
-      <NewDispatchDialog 
-        open={isDispatchDialogOpen}
-        onOpenChange={setIsDispatchDialogOpen}
-        preSelectedOrderId={dispatchOrderId}
-      />
+      <NewDispatchDialog open={isDispatchDialogOpen} onOpenChange={setIsDispatchDialogOpen} preSelectedOrderId={dispatchOrderId} />
 
-      <BulkUploadDialog 
-        open={showBulkUpload} 
-        onOpenChange={setShowBulkUpload}
-      />
+      <BulkUploadDialog open={showBulkUpload} onOpenChange={setShowBulkUpload} />
 
-      {activityLogOrderId && (
-        <OrderActivityLog
-          orderId={activityLogOrderId}
-          open={!!activityLogOrderId}
-          onOpenChange={(open) => !open && setActivityLogOrderId(null)}
-        />
-      )}
+      {activityLogOrderId && <OrderActivityLog orderId={activityLogOrderId} open={!!activityLogOrderId} onOpenChange={open => !open && setActivityLogOrderId(null)} />}
 
       {/* Order Details Modal */}
-      <OrderDetailsModal 
-        order={selectedOrder ? {
-          id: selectedOrder.id,
-          order_number: selectedOrder.orderNumber,
-          shopify_order_number: selectedOrder.shopifyOrderNumber,
-          customer_name: selectedOrder.customer || '',
-          customer_phone: selectedOrder.phone || '',
-          customer_address: selectedOrder.address || '',
-          customer_email: selectedOrder.email !== 'N/A' ? selectedOrder.email : '',
-          city: selectedOrder.city || '',
-          total_amount: selectedOrder.totalPrice || 0,
-          status: selectedOrder.status || 'pending',
-          courier: selectedOrder.courier !== 'N/A' ? selectedOrder.courier : null,
-          tracking_id: selectedOrder.trackingId !== 'N/A' ? selectedOrder.trackingId : null,
-          items: selectedOrder.items || [],
-          created_at: selectedOrder.createdAtISO || selectedOrder.date,
-          customer_id: selectedOrder.customerId !== 'N/A' ? selectedOrder.customerId : null
-        } : null}
-        open={detailsModalOpen}
-        onOpenChange={setDetailsModalOpen}
-      />
+      <OrderDetailsModal order={selectedOrder ? {
+      id: selectedOrder.id,
+      order_number: selectedOrder.orderNumber,
+      shopify_order_number: selectedOrder.shopifyOrderNumber,
+      customer_name: selectedOrder.customer || '',
+      customer_phone: selectedOrder.phone || '',
+      customer_address: selectedOrder.address || '',
+      customer_email: selectedOrder.email !== 'N/A' ? selectedOrder.email : '',
+      city: selectedOrder.city || '',
+      total_amount: selectedOrder.totalPrice || 0,
+      status: selectedOrder.status || 'pending',
+      courier: selectedOrder.courier !== 'N/A' ? selectedOrder.courier : null,
+      tracking_id: selectedOrder.trackingId !== 'N/A' ? selectedOrder.trackingId : null,
+      items: selectedOrder.items || [],
+      created_at: selectedOrder.createdAtISO || selectedOrder.date,
+      customer_id: selectedOrder.customerId !== 'N/A' ? selectedOrder.customerId : null
+    } : null} open={detailsModalOpen} onOpenChange={setDetailsModalOpen} />
 
       {/* Cancel Order Dialog */}
-      <CancelOrderDialog
-        open={cancelDialogOpen}
-        onOpenChange={setCancelDialogOpen}
-        onConfirm={handleConfirmCancellation}
-        orderNumber={orderToCancel?.orderNumber}
-      />
+      <CancelOrderDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen} onConfirm={handleConfirmCancellation} orderNumber={orderToCancel?.orderNumber} />
 
       {/* New Orders Notification */}
-      {showNewOrdersNotification && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-5 duration-300">
+      {showNewOrdersNotification && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-5 duration-300">
           <Card className="shadow-lg border-primary/20">
             <CardContent className="flex items-center gap-4 p-4">
               <Bell className="h-5 w-5 text-primary" />
               <span className="font-medium text-foreground">
                 {newOrdersCount} New Order{newOrdersCount !== 1 ? 's' : ''}
               </span>
-              <Button 
-                onClick={handleRefreshNewOrders}
-                variant="default"
-                size="sm"
-              >
+              <Button onClick={handleRefreshNewOrders} variant="default" size="sm">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
               </Button>
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowNewOrdersNotification(false);
-                }}
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 flex-shrink-0"
-                aria-label="Close notification"
-              >
+              <Button onClick={e => {
+            e.stopPropagation();
+            setShowNewOrdersNotification(false);
+          }} variant="ghost" size="sm" className="h-8 w-8 p-0 flex-shrink-0" aria-label="Close notification">
                 <X className="h-4 w-4" />
               </Button>
             </CardContent>
           </Card>
-        </div>
-      )}
+        </div>}
     </div>;
 };
 export default OrderDashboard;
