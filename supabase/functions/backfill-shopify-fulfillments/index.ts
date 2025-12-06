@@ -18,6 +18,25 @@ function mapShopifyTrackingCompanyToCourier(trackingCompany: string): string {
   return trackingCompany;
 }
 
+// Map Shopify order financial/fulfillment status to ERP status
+function mapShopifyStatusToErp(shopifyOrder: any): string | null {
+  // Check if order is cancelled in Shopify
+  if (shopifyOrder.cancelled_at) {
+    return 'cancelled';
+  }
+  
+  // Check fulfillment status
+  const fulfillmentStatus = shopifyOrder.fulfillment_status;
+  
+  if (fulfillmentStatus === 'fulfilled') {
+    // Has fulfillment - should be at least booked
+    return 'booked';
+  }
+  
+  // No fulfillment yet - keep pending
+  return null;
+}
+
 // Helper function to retry with exponential backoff
 async function fetchWithRetry(url: string, options: any, maxRetries = 3): Promise<Response> {
   let lastError: Error | null = null;
@@ -62,10 +81,12 @@ Deno.serve(async (req) => {
 
     // Parse request body for batch parameters
     const body = await req.json().catch(() => ({}));
-    const limit = body.limit || 10; // Process 10 orders at a time to avoid timeouts
+    const limit = body.limit || 50;
     const offset = body.offset || 0;
+    const includeAllPending = body.includeAllPending !== false; // Default true - include all pending orders
+    const checkCancelled = body.checkCancelled !== false; // Default true - check for cancelled orders
 
-    console.log(`Starting backfill batch: limit=${limit}, offset=${offset}`);
+    console.log(`Starting Shopify sync batch: limit=${limit}, offset=${offset}, includeAllPending=${includeAllPending}`);
 
     // Get Shopify credentials
     const { data: settings } = await supabaseAdmin
@@ -73,7 +94,7 @@ Deno.serve(async (req) => {
       .select('setting_key, setting_value')
       .in('setting_key', ['SHOPIFY_STORE_URL', 'SHOPIFY_ADMIN_API_TOKEN', 'SHOPIFY_API_VERSION']);
 
-    if (!settings || settings.length < 3) {
+    if (!settings || settings.length < 2) {
       throw new Error('Shopify credentials not configured');
     }
 
@@ -85,34 +106,32 @@ Deno.serve(async (req) => {
       throw new Error('Incomplete Shopify credentials');
     }
 
-    console.log('Fetching orders to backfill from Nov 29, 2024...');
+    console.log('Fetching pending orders to sync from Shopify...');
 
-    // First, get total count
-    const { count: totalCount } = await supabaseAdmin
+    // Build query for pending orders with shopify_order_id
+    let countQuery = supabaseAdmin
       .from('orders')
       .select('id', { count: 'exact', head: true })
       .not('shopify_order_id', 'is', null)
-      .is('tracking_id', null)
-      .in('status', ['pending', 'confirmed', 'booked'])
-      .gte('created_at', '2024-11-29T00:00:00Z');
+      .in('status', ['pending', 'confirmed', 'booked']);
 
-    // Fetch orders from Nov 29, 2024 onwards that:
-    // 1. Have shopify_order_id (synced from Shopify)
-    // 2. Don't have tracking_id in ERP
-    // 3. Have status pending, confirmed, or booked
-    const { data: ordersToBackfill, error: fetchError } = await supabaseAdmin
+    let ordersQuery = supabaseAdmin
       .from('orders')
       .select('id, order_number, shopify_order_id, status, courier, tracking_id')
       .not('shopify_order_id', 'is', null)
-      .is('tracking_id', null)
       .in('status', ['pending', 'confirmed', 'booked'])
-      .gte('created_at', '2024-11-29T00:00:00Z')
       .order('created_at', { ascending: true })
       .range(offset, offset + limit - 1);
 
+    // Get total count
+    const { count: totalCount } = await countQuery;
+
+    // Fetch orders
+    const { data: ordersToSync, error: fetchError } = await ordersQuery;
+
     if (fetchError) throw fetchError;
 
-    if (!ordersToBackfill || ordersToBackfill.length === 0) {
+    if (!ordersToSync || ordersToSync.length === 0) {
       console.log('No orders found in this batch');
       return new Response(
         JSON.stringify({ 
@@ -121,24 +140,29 @@ Deno.serve(async (req) => {
           total: totalCount || 0,
           processed: 0,
           remaining: 0,
-          hasMore: false
+          hasMore: false,
+          updated: 0,
+          skipped: 0,
+          cancelled: 0,
+          errors: 0
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Found ${ordersToBackfill.length} orders in this batch (${offset + 1}-${offset + ordersToBackfill.length} of ${totalCount} total)`);
+    console.log(`Found ${ordersToSync.length} orders in this batch (${offset + 1}-${offset + ordersToSync.length} of ${totalCount} total)`);
 
     let updatedCount = 0;
     let skippedCount = 0;
+    let cancelledCount = 0;
     let errorCount = 0;
 
-    // Process orders in batches to avoid rate limits
-    for (const order of ordersToBackfill) {
+    // Process orders
+    for (const order of ordersToSync) {
       try {
         console.log(`Processing order ${order.order_number} (Shopify ID: ${order.shopify_order_id})`);
 
-        // Fetch order from Shopify to get fulfillment data (with retry logic)
+        // Fetch order from Shopify
         const shopifyResponse = await fetchWithRetry(
           `${storeUrl}/admin/api/${apiVersion}/orders/${order.shopify_order_id}.json`,
           {
@@ -150,6 +174,11 @@ Deno.serve(async (req) => {
         );
 
         if (!shopifyResponse.ok) {
+          if (shopifyResponse.status === 404) {
+            console.log(`Order ${order.order_number} not found in Shopify (may be deleted)`);
+            skippedCount++;
+            continue;
+          }
           console.error(`Failed to fetch Shopify order ${order.shopify_order_id}: ${shopifyResponse.status}`);
           errorCount++;
           continue;
@@ -157,6 +186,46 @@ Deno.serve(async (req) => {
 
         const shopifyData = await shopifyResponse.json();
         const shopifyOrder = shopifyData.order;
+
+        // Check if order is cancelled in Shopify
+        if (checkCancelled && shopifyOrder.cancelled_at) {
+          console.log(`Order ${order.order_number} is cancelled in Shopify, updating ERP...`);
+          
+          const { error: updateError } = await supabaseAdmin
+            .from('orders')
+            .update({
+              status: 'cancelled',
+              cancellation_reason: shopifyOrder.cancel_reason || 'Cancelled in Shopify',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', order.id);
+
+          if (updateError) {
+            console.error(`Failed to cancel order ${order.order_number}:`, updateError);
+            errorCount++;
+            continue;
+          }
+
+          // Log activity
+          await supabaseAdmin.from('activity_logs').insert({
+            action: 'shopify_sync_cancelled',
+            entity_type: 'order',
+            entity_id: order.id,
+            details: {
+              order_number: order.order_number,
+              previous_status: order.status,
+              new_status: 'cancelled',
+              cancel_reason: shopifyOrder.cancel_reason,
+              source: 'shopify_fulfillment_sync',
+            },
+            user_id: '00000000-0000-0000-0000-000000000000',
+          });
+
+          cancelledCount++;
+          console.log(`✓ Cancelled order ${order.order_number}`);
+          await new Promise(resolve => setTimeout(resolve, 600));
+          continue;
+        }
 
         // Check if order has fulfillments
         if (!shopifyOrder.fulfillments || shopifyOrder.fulfillments.length === 0) {
@@ -169,8 +238,9 @@ Deno.serve(async (req) => {
         const trackingNumber = fulfillment.tracking_number;
         const trackingCompany = fulfillment.tracking_company;
 
-        if (!trackingNumber) {
-          console.log(`Order ${order.order_number} fulfillment has no tracking number, skipping`);
+        // If order already has same tracking, skip unless status needs update
+        if (order.tracking_id === trackingNumber && order.status !== 'pending') {
+          console.log(`Order ${order.order_number} already has same tracking ID, skipping`);
           skippedCount++;
           continue;
         }
@@ -180,21 +250,31 @@ Deno.serve(async (req) => {
           ? mapShopifyTrackingCompanyToCourier(trackingCompany)
           : order.courier || 'unknown';
 
-        // Determine new status
+        // Determine new status - only update to booked if currently pending
         const newStatus = order.status === 'pending' ? 'booked' : order.status;
+
+        const updateData: any = {
+          updated_at: new Date().toISOString(),
+        };
+
+        // Only update tracking if we have a new one
+        if (trackingNumber && trackingNumber !== order.tracking_id) {
+          updateData.tracking_id = trackingNumber;
+          updateData.courier = courierCode;
+        }
+
+        // Update status if changing
+        if (newStatus !== order.status) {
+          updateData.status = newStatus;
+          updateData.booked_at = new Date().toISOString();
+        }
 
         console.log(`Updating order ${order.order_number}: tracking=${trackingNumber}, courier=${courierCode}, status=${newStatus}`);
 
         // Update order in ERP
         const { error: updateError } = await supabaseAdmin
           .from('orders')
-          .update({
-            tracking_id: trackingNumber,
-            courier: courierCode,
-            status: newStatus,
-            booked_at: newStatus === 'booked' ? new Date().toISOString() : null,
-            updated_at: new Date().toISOString(),
-          })
+          .update(updateData)
           .eq('id', order.id);
 
         if (updateError) {
@@ -204,27 +284,25 @@ Deno.serve(async (req) => {
         }
 
         // Log activity
-        await supabaseAdmin
-          .from('activity_logs')
-          .insert({
-            action: 'backfill_fulfillment',
-            entity_type: 'order',
-            entity_id: order.id,
-            details: {
-              order_number: order.order_number,
-              tracking_id: trackingNumber,
-              courier: courierCode,
-              previous_status: order.status,
-              new_status: newStatus,
-              source: 'shopify_fulfillment_backfill',
-            },
-            user_id: '00000000-0000-0000-0000-000000000000', // System user
-          });
+        await supabaseAdmin.from('activity_logs').insert({
+          action: 'shopify_sync_fulfillment',
+          entity_type: 'order',
+          entity_id: order.id,
+          details: {
+            order_number: order.order_number,
+            tracking_id: trackingNumber,
+            courier: courierCode,
+            previous_status: order.status,
+            new_status: newStatus,
+            source: 'shopify_fulfillment_sync',
+          },
+          user_id: '00000000-0000-0000-0000-000000000000',
+        });
 
         updatedCount++;
         console.log(`✓ Successfully updated order ${order.order_number}`);
 
-        // Add delay to stay under Shopify rate limits (600ms = ~100 requests/minute, safely under 2/sec limit)
+        // Add delay to stay under Shopify rate limits
         await new Promise(resolve => setTimeout(resolve, 600));
 
       } catch (error: any) {
@@ -233,24 +311,25 @@ Deno.serve(async (req) => {
       }
     }
 
-    const processedCount = offset + ordersToBackfill.length;
+    const processedCount = offset + ordersToSync.length;
     const hasMore = (totalCount || 0) > processedCount;
     
     const summary = {
       success: true,
-      message: hasMore ? 'Batch completed, more orders remaining' : 'Backfill completed',
+      message: hasMore ? 'Batch completed, more orders remaining' : 'Sync completed',
       total: totalCount || 0,
       processed: processedCount,
       remaining: Math.max(0, (totalCount || 0) - processedCount),
-      batch_size: ordersToBackfill.length,
+      batch_size: ordersToSync.length,
       updated: updatedCount,
       skipped: skippedCount,
+      cancelled: cancelledCount,
       errors: errorCount,
       hasMore: hasMore,
       nextOffset: hasMore ? processedCount : null
     };
 
-    console.log(`Batch complete: ${updatedCount} updated, ${skippedCount} skipped, ${errorCount} errors`);
+    console.log(`Batch complete: ${updatedCount} updated, ${cancelledCount} cancelled, ${skippedCount} skipped, ${errorCount} errors`);
 
     return new Response(
       JSON.stringify(summary),
@@ -258,7 +337,7 @@ Deno.serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('Error in backfill function:', error);
+    console.error('Error in sync function:', error);
     return new Response(
       JSON.stringify({ 
         success: false,

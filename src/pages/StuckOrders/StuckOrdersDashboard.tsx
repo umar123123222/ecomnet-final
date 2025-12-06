@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Search, Clock, Truck, Package, ExternalLink, ChevronLeft, ChevronRight, RefreshCw, XCircle, Send, Loader2 } from 'lucide-react';
+import { AlertTriangle, Search, Clock, Truck, Package, ExternalLink, ChevronLeft, ChevronRight, RefreshCw, XCircle, Send, Loader2, CloudDownload } from 'lucide-react';
 import { formatDistanceToNow, differenceInDays } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { PageContainer, PageHeader, StatsGrid, StatsCard } from '@/components/layout';
@@ -307,6 +307,86 @@ const StuckOrdersDashboard = () => {
       setConfirmDialog(null);
     }
   };
+  // Sync from Shopify
+  const runShopifySync = async () => {
+    setIsProcessing('shopify_sync');
+    const aggregatedResults = {
+      total: 0,
+      processed: 0,
+      updated: 0,
+      cancelled: 0,
+      skipped: 0,
+      errors: 0,
+      batchesProcessed: 0
+    };
+    let offset = 0;
+    const limit = 50;
+    let hasMore = true;
+
+    try {
+      toast({
+        description: "Starting Shopify sync for pending orders..."
+      });
+
+      while (hasMore) {
+        const { data, error } = await supabase.functions.invoke('backfill-shopify-fulfillments', {
+          body: { offset, limit, includeAllPending: true, checkCancelled: true }
+        });
+
+        if (error) throw error;
+
+        if (data?.success) {
+          aggregatedResults.total = data.total;
+          aggregatedResults.processed = data.processed;
+          aggregatedResults.updated += data.updated;
+          aggregatedResults.cancelled += data.cancelled;
+          aggregatedResults.skipped += data.skipped;
+          aggregatedResults.errors += data.errors;
+          aggregatedResults.batchesProcessed++;
+          hasMore = data.hasMore;
+          offset = data.nextOffset || offset + limit;
+
+          toast({
+            description: `Processed ${data.processed} of ${data.total} orders (batch ${aggregatedResults.batchesProcessed})...`
+          });
+        } else {
+          hasMore = false;
+          if (data?.error) throw new Error(data.error);
+        }
+      }
+
+      toast({
+        title: "Shopify Sync Complete",
+        description: `Processed ${aggregatedResults.processed}: ${aggregatedResults.updated} updated, ${aggregatedResults.cancelled} cancelled, ${aggregatedResults.skipped} skipped`
+      });
+
+      refreshAll();
+    } catch (error: any) {
+      console.error('Shopify sync error:', error);
+      toast({
+        title: "Shopify Sync Failed",
+        description: error.message || 'An error occurred',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsProcessing(null);
+      setConfirmDialog(null);
+    }
+  };
+
+  // Get pending orders count for shopify sync
+  const { data: pendingOrdersCount } = useQuery({
+    queryKey: ['pending-orders-count'],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .not('shopify_order_id', 'is', null)
+        .in('status', ['pending', 'confirmed', 'booked']);
+      return count || 0;
+    }
+  });
+
   const openConfirmDialog = (operation: string) => {
     let title = '';
     let description = '';
@@ -327,6 +407,11 @@ const StuckOrdersDashboard = () => {
         description = `This will cancel ${oldOrdersCount || 0} orders that are 30+ days old and still in pending/booked status. These orders will be marked as cancelled with reason "Order too old".`;
         count = oldOrdersCount || 0;
         break;
+      case 'shopify_sync':
+        title = 'Sync from Shopify';
+        description = `This will check ${pendingOrdersCount || 0} pending orders against Shopify to sync fulfillment data (tracking ID, courier) and cancelled status. Orders fulfilled in Shopify will be updated to "booked" with tracking info.`;
+        count = pendingOrdersCount || 0;
+        break;
     }
     setConfirmDialog({
       open: true,
@@ -336,6 +421,7 @@ const StuckOrdersDashboard = () => {
       count
     });
   };
+
   const handleConfirm = () => {
     if (!confirmDialog) return;
     switch (confirmDialog.operation) {
@@ -348,12 +434,76 @@ const StuckOrdersDashboard = () => {
       case 'cancel_old':
         runBulkOperation('cancel_old', 30);
         break;
+      case 'shopify_sync':
+        runShopifySync();
+        break;
     }
   };
   return <PageContainer>
       <PageHeader title="Stuck Orders" description="Orders with no status or tracking updates for 2+ days" />
 
       {/* Cleanup Actions */}
+      <Card className="p-4">
+        <div className="flex flex-wrap gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openConfirmDialog('shopify_sync')}
+            disabled={isProcessing !== null}
+          >
+            {isProcessing === 'shopify_sync' ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <CloudDownload className="h-4 w-4 mr-2" />
+            )}
+            Sync from Shopify ({pendingOrdersCount?.toLocaleString() || 0})
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openConfirmDialog('dispatch_booked')}
+            disabled={isProcessing !== null}
+          >
+            {isProcessing === 'dispatch_booked' ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4 mr-2" />
+            )}
+            Mark Booked as Dispatched ({stats?.bookedWithTracking?.toLocaleString() || 0})
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openConfirmDialog('tracking')}
+            disabled={isProcessing !== null}
+          >
+            {isProcessing === 'tracking' ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Update All Tracking ({stats?.atCourierEnd?.toLocaleString() || 0})
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openConfirmDialog('cancel_old')}
+            disabled={isProcessing !== null}
+            className="text-destructive hover:text-destructive"
+          >
+            {isProcessing === 'cancel_old' ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <XCircle className="h-4 w-4 mr-2" />
+            )}
+            Cancel Old Orders ({oldOrdersCount?.toLocaleString() || 0})
+          </Button>
+        </div>
+      </Card>
+
       
 
       {/* Stats Cards */}
