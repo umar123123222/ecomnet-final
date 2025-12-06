@@ -371,25 +371,33 @@ function mapLeopardStatus(status: string): string {
 function parseTCSResponse(data: any) {
   console.log('[TCS] Parsing tracking response:', JSON.stringify(data, null, 2));
   
-  // TCS returns array of shipments
-  const shipment = data.shipmentinfo?.[0] || data[0] || {};
-  const deliveryInfo = shipment.deliveryinfo || data.deliveryinfo || [];
+  // TCS returns shipmentinfo and checkpoints at root level
+  const shipment = data.shipmentinfo?.[0] || {};
   
-  const statusHistory = deliveryInfo.map((event: any) => {
-    const mappedStatus = mapTCSStatus(event.code || event.status);
+  // TCS tracking events are in 'checkpoints' array, NOT 'deliveryinfo'
+  const checkpoints = data.checkpoints || [];
+  
+  const statusHistory = checkpoints.map((event: any) => {
+    const mappedStatus = mapTCSStatus(event.status);
     
     return {
       status: mappedStatus,
-      message: event.status || event.description || 'Status Update',
-      location: event.station || event.location || '',
-      timestamp: event.datetime || new Date().toISOString(),
-      receivedBy: event.recievedby || event.receivedBy || null,
+      message: event.status || 'Status Update',
+      location: event.recievedby || '',  // TCS uses recievedby for location/receiver
+      timestamp: parseTCSDateTime(event.datetime) || new Date().toISOString(),
+      receivedBy: event.recievedby,
       raw: event
     };
   });
   
+  // TCS returns checkpoints in reverse order (latest first), reverse for chronological
+  statusHistory.reverse();
+  
   const latestEvent = statusHistory[statusHistory.length - 1];
   const currentStatus = latestEvent?.status || 'in_transit';
+  
+  // Parse estimated delivery from shipmentsummary
+  const estimatedDelivery = parseEstimatedDelivery(data.shipmentsummary);
   
   console.log(`[TCS] Parsed ${statusHistory.length} events. Current: ${currentStatus}`);
   
@@ -397,9 +405,30 @@ function parseTCSResponse(data: any) {
     status: currentStatus,
     currentLocation: latestEvent?.location || shipment.destination || 'In Transit',
     statusHistory,
-    estimatedDelivery: null,
+    estimatedDelivery,
     raw: data
   };
+}
+
+// Helper to parse TCS datetime format "Friday Dec 5, 2025 21:05"
+function parseTCSDateTime(datetime: string): string | null {
+  if (!datetime) return null;
+  try {
+    // TCS format: "Friday Dec 5, 2025 21:05"
+    const date = new Date(datetime.replace(/^[A-Za-z]+ /, '')); // Remove day name
+    if (isNaN(date.getTime())) return datetime;
+    return date.toISOString();
+  } catch {
+    return datetime;
+  }
+}
+
+// Parse estimated delivery from shipmentsummary
+function parseEstimatedDelivery(summary: string): string | null {
+  if (!summary) return null;
+  // Extract date from "Expected Delivery Date : 06-DEC-25 between 9 AM to 6 PM"
+  const match = summary.match(/(\d{2}-[A-Z]{3}-\d{2})/);
+  return match ? match[1] : null;
 }
 
 function mapTCSStatus(codeOrStatus: string): string {
