@@ -35,14 +35,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isFetching, setIsFetching] = useState(false);
   const [isSuspended, setIsSuspended] = useState(false);
 
   const fetchUserProfile = async (userId: string): Promise<boolean> => {
-    // Prevent concurrent fetches
-    if (isFetching) return false;
-    
-    setIsFetching(true);
     try {
       // Combined query: fetch profile and role in a single request using PostgreSQL join
       // Use specific foreign key to avoid ambiguity
@@ -58,7 +53,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (profileError) {
         console.error('Profile fetch error:', profileError);
-        throw profileError;
+        setProfile(null);
+        setUserRole(null);
+        setIsLoading(false);
+        return false;
       }
       
       if (profileData) {
@@ -72,6 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSession(null);
           // Sign out the user
           await supabase.auth.signOut();
+          setIsLoading(false);
           return true; // Return true = user is suspended
         }
         
@@ -81,12 +80,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const roleData = Array.isArray(profileData.user_roles) ? profileData.user_roles[0] : profileData.user_roles;
         setUserRole(roleData?.role || profileData.role);
       }
+      setIsLoading(false);
     } catch (error) {
       console.error('Error fetching user profile:', error);
       setProfile(null);
       setUserRole(null);
-    } finally {
-      setIsFetching(false);
       setIsLoading(false);
     }
     return false; // Return false = user is NOT suspended
