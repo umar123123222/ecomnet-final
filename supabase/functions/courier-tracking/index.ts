@@ -171,15 +171,18 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
       track_numbers: trackingId
     });
   } else if (courierCode === 'tcs') {
-    // TCS requires GET with JSON body (unusual pattern per their API docs page 32)
-    console.log('[TCS] Using GET with body for tracking');
+    // TCS docs show GET with body, but Deno fetch doesn't allow body on GET
+    // Send consignee as query parameter instead
+    console.log('[TCS] Using GET with query parameter for tracking');
     method = 'GET';
     headers['Authorization'] = `Bearer ${apiKey}`;
     headers['Content-Type'] = 'application/json';
-    body = JSON.stringify({
-      consignee: [trackingId]  // TCS expects array of CN numbers
-    });
-    // Don't replace placeholders in URL for TCS - use the endpoint as-is
+    
+    // Append consignee as query parameter
+    url = `${url}?consignee=${trackingId}`;
+    
+    // No body for GET request
+    body = null;
   } else {
     // Standard placeholder replacement for other couriers
     url = url.replace('{tracking_id}', trackingId);
