@@ -201,52 +201,7 @@ useEffect(() => {
         countQuery = countQuery.eq('dispatched_by', userFilter);
       }
 
-      // Data query for table view
-      let dataQuery = supabase
-        .from('dispatches')
-        .select(`
-          *,
-          orders:orders!dispatches_order_id_fkey (
-            order_number,
-            customer_name,
-            customer_phone,
-            customer_address,
-            city,
-            total_amount,
-            status,
-            order_packaging (
-              id,
-              packaging_items (name, sku)
-            )
-          )
-        `);
-
-      // Apply date range filters using proper gte/lte on created_at
-      if (dateFromISO) {
-        dataQuery = dataQuery.gte('created_at', dateFromISO);
-      }
-      if (dateToISO) {
-        dataQuery = dataQuery.lte('created_at', dateToISO);
-      }
-      
-      // Apply courier filter server-side
-      if (courierFilter && courierFilter !== "all") {
-        dataQuery = dataQuery.ilike('courier', courierFilter);
-      }
-      
-      // Apply user filter server-side
-      if (userFilter && userFilter !== "all") {
-        dataQuery = dataQuery.eq('dispatched_by', userFilter);
-      }
-      
-      dataQuery = dataQuery
-        .order('created_at', { ascending: false })
-        .range(0, 49999);
-
-      const [{ count, error: countError }, { data, error }] = await Promise.all([
-        countQuery,
-        dataQuery,
-      ] as const);
+      const { count, error: countError } = await countQuery;
 
       if (countError) {
         console.error('Error fetching dispatch count:', countError);
@@ -254,18 +209,73 @@ useEffect(() => {
         setTotalDispatchCount(count);
       }
 
-      if (error) {
-        console.error('Error fetching dispatches:', error);
-        toast({
-          title: "Error",
-          description: "Failed to fetch dispatches",
-          variant: "destructive"
-        });
-        return;
+      // Fetch data in chunks of 1000 to bypass Supabase row limit
+      const CHUNK_SIZE = 1000;
+      const totalCount = count || 0;
+      const chunks = Math.ceil(totalCount / CHUNK_SIZE);
+      let allData: any[] = [];
+
+      for (let i = 0; i < chunks; i++) {
+        let dataQuery = supabase
+          .from('dispatches')
+          .select(`
+            *,
+            orders:orders!dispatches_order_id_fkey (
+              order_number,
+              customer_name,
+              customer_phone,
+              customer_address,
+              city,
+              total_amount,
+              status,
+              order_packaging (
+                id,
+                packaging_items (name, sku)
+              )
+            )
+          `);
+
+        // Apply date range filters
+        if (dateFromISO) {
+          dataQuery = dataQuery.gte('created_at', dateFromISO);
+        }
+        if (dateToISO) {
+          dataQuery = dataQuery.lte('created_at', dateToISO);
+        }
+        
+        // Apply courier filter server-side
+        if (courierFilter && courierFilter !== "all") {
+          dataQuery = dataQuery.ilike('courier', courierFilter);
+        }
+        
+        // Apply user filter server-side
+        if (userFilter && userFilter !== "all") {
+          dataQuery = dataQuery.eq('dispatched_by', userFilter);
+        }
+        
+        dataQuery = dataQuery
+          .order('created_at', { ascending: false })
+          .range(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE - 1);
+
+        const { data, error } = await dataQuery;
+
+        if (error) {
+          console.error('Error fetching dispatches chunk:', error);
+          toast({
+            title: "Error",
+            description: "Failed to fetch dispatches",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        if (data) {
+          allData = [...allData, ...data];
+        }
       }
 
       // Fetch profiles separately for dispatched_by users
-      const userIds = [...new Set(data?.filter(d => d.dispatched_by).map(d => d.dispatched_by) || [])];
+      const userIds = [...new Set(allData?.filter(d => d.dispatched_by).map(d => d.dispatched_by) || [])];
       let profilesById: Record<string, any> = {};
 
       if (userIds.length > 0) {
@@ -282,7 +292,7 @@ useEffect(() => {
         }
       }
 
-      const enrichedDispatches = data?.map(dispatch => ({
+      const enrichedDispatches = allData?.map(dispatch => ({
         ...dispatch,
         dispatched_by_user: dispatch.dispatched_by ? profilesById[dispatch.dispatched_by] : null,
       })) || [];
