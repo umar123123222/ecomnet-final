@@ -5551,6 +5551,10 @@ export type Database = {
         Args: { p_outlet_id: string; p_product_id: string }
         Returns: number
       }
+      calculate_reserved_quantity_with_bundles: {
+        Args: { p_outlet_id: string; p_product_id: string }
+        Returns: number
+      }
       calculate_variance_severity: {
         Args: { variance_value: number }
         Returns: string
