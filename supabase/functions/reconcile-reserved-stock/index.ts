@@ -30,6 +30,66 @@ serve(async (req) => {
     const { action, autoFix = false } = await req.json();
     console.log(`[Reconcile Reserved Stock] Action: ${action}, Auto-fix: ${autoFix}`);
 
+    // Helper function to calculate reserved quantity including bundle expansion
+    async function calculateExpectedReserved(productId: string): Promise<{ reserved: number, relatedOrders: any[] }> {
+      // Direct reservations from order_items
+      const { data: directOrderItems } = await supabaseClient
+        .from('order_items')
+        .select('quantity, order:orders!inner(id, order_number, status)')
+        .eq('product_id', productId)
+        .in('order.status', ['pending', 'confirmed', 'booked']);
+
+      let reserved = 0;
+      const relatedOrders: any[] = [];
+
+      if (directOrderItems) {
+        for (const item of directOrderItems) {
+          reserved += item.quantity;
+          relatedOrders.push({
+            order_number: item.order?.order_number,
+            status: item.order?.status,
+            quantity: item.quantity,
+            type: 'direct'
+          });
+        }
+      }
+
+      // Bundle reservations - when a bundle is ordered, reserve component products
+      // Find all bundles that contain this product as a component
+      const { data: bundleComponents } = await supabaseClient
+        .from('product_bundle_items')
+        .select('bundle_product_id, quantity')
+        .eq('component_product_id', productId);
+
+      if (bundleComponents && bundleComponents.length > 0) {
+        for (const component of bundleComponents) {
+          // Find orders containing this bundle
+          const { data: bundleOrderItems } = await supabaseClient
+            .from('order_items')
+            .select('quantity, order:orders!inner(id, order_number, status), product:products(name)')
+            .eq('product_id', component.bundle_product_id)
+            .in('order.status', ['pending', 'confirmed', 'booked']);
+
+          if (bundleOrderItems) {
+            for (const item of bundleOrderItems) {
+              // Each bundle order reserves (bundle_qty * component_qty) of this product
+              const bundleReserved = item.quantity * component.quantity;
+              reserved += bundleReserved;
+              relatedOrders.push({
+                order_number: item.order?.order_number,
+                status: item.order?.status,
+                quantity: bundleReserved,
+                type: 'bundle',
+                bundle_name: item.product?.name
+              });
+            }
+          }
+        }
+      }
+
+      return { reserved, relatedOrders };
+    }
+
     switch (action) {
       case 'analyze': {
         // Get all inventory records
@@ -41,28 +101,9 @@ serve(async (req) => {
 
         const discrepancies: any[] = [];
 
-        // For each inventory record, calculate expected reserved quantity using product_id
+        // For each inventory record, calculate expected reserved quantity
         for (const inv of inventoryRecords || []) {
-          // Calculate expected reserved using proper product_id join
-          const { data: orderItemsData } = await supabaseClient
-            .from('order_items')
-            .select('quantity, order:orders!inner(id, order_number, status)')
-            .eq('product_id', inv.product_id)
-            .in('order.status', ['pending', 'booked', 'pending_confirmation', 'pending_address', 'pending_dispatch']);
-
-          let expectedReserved = 0;
-          const relatedOrders: any[] = [];
-
-          if (orderItemsData) {
-            for (const item of orderItemsData) {
-              expectedReserved += item.quantity;
-              relatedOrders.push({
-                order_number: item.order?.order_number,
-                status: item.order?.status,
-                quantity: item.quantity
-              });
-            }
-          }
+          const { reserved: expectedReserved, relatedOrders } = await calculateExpectedReserved(inv.product_id);
 
           // Calculate what available_quantity should be
           const expectedAvailable = inv.quantity - expectedReserved;
@@ -113,19 +154,7 @@ serve(async (req) => {
         const fixedRecords: any[] = [];
 
         for (const inv of inventoryRecords || []) {
-          // Calculate expected reserved using product_id join (proper way)
-          const { data: orderItemsData } = await supabaseClient
-            .from('order_items')
-            .select('quantity, order:orders!inner(status)')
-            .eq('product_id', inv.product_id)
-            .in('order.status', ['pending', 'booked', 'pending_confirmation', 'pending_address', 'pending_dispatch']);
-
-          let expectedReserved = 0;
-          if (orderItemsData) {
-            for (const item of orderItemsData) {
-              expectedReserved += item.quantity;
-            }
-          }
+          const { reserved: expectedReserved } = await calculateExpectedReserved(inv.product_id);
 
           // Fix if different
           if (inv.reserved_quantity !== expectedReserved) {
