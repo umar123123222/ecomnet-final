@@ -468,16 +468,48 @@ Deno.serve(async (req) => {
         throw orderError;
       }
 
-      // Create order items
+      // Create order items with product_id lookup
       if (newOrder && order.line_items.length > 0) {
-        const orderItems = order.line_items.map(item => ({
-          order_id: newOrder.id,
-          item_name: item.name,
-          quantity: item.quantity,
-          price: parseFloat(item.price),
-        }));
+        // Fetch all products for matching
+        const { data: products } = await supabase
+          .from('products')
+          .select('id, name, shopify_product_id');
+        
+        const orderItems = order.line_items.map(item => {
+          // Match by Shopify product ID first (most reliable)
+          let matchedProduct = products?.find(p => 
+            p.shopify_product_id && p.shopify_product_id === item.product_id
+          );
+          
+          // Fallback to exact name match
+          if (!matchedProduct) {
+            matchedProduct = products?.find(p => 
+              p.name.toLowerCase().trim() === item.name.toLowerCase().trim()
+            );
+          }
+          
+          // Fallback to partial name match
+          if (!matchedProduct) {
+            matchedProduct = products?.find(p => 
+              item.name.toLowerCase().includes(p.name.toLowerCase())
+            );
+          }
+          
+          return {
+            order_id: newOrder.id,
+            item_name: item.name,
+            quantity: item.quantity,
+            price: parseFloat(item.price),
+            product_id: matchedProduct?.id || null,
+            shopify_product_id: item.product_id || null,
+            shopify_variant_id: item.variant_id || null,
+          };
+        });
 
         await supabase.from('order_items').insert(orderItems);
+        
+        const matchedCount = orderItems.filter(i => i.product_id).length;
+        console.log(`Created ${orderItems.length} order items, ${matchedCount} matched to products`);
       }
 
       console.log('Created new order:', newOrder?.id);

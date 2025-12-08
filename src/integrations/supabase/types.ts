@@ -1859,6 +1859,8 @@ export type Database = {
           price: number
           product_id: string | null
           quantity: number
+          shopify_product_id: number | null
+          shopify_variant_id: number | null
           variant_id: string | null
         }
         Insert: {
@@ -1869,6 +1871,8 @@ export type Database = {
           price: number
           product_id?: string | null
           quantity?: number
+          shopify_product_id?: number | null
+          shopify_variant_id?: number | null
           variant_id?: string | null
         }
         Update: {
@@ -1879,6 +1883,8 @@ export type Database = {
           price?: number
           product_id?: string | null
           quantity?: number
+          shopify_product_id?: number | null
+          shopify_variant_id?: number | null
           variant_id?: string | null
         }
         Relationships: [
@@ -5627,6 +5633,10 @@ export type Database = {
       }
       mark_expired_confirmations: { Args: never; Returns: number }
       match_barcode_to_product: { Args: { p_barcode: string }; Returns: string }
+      match_order_item_to_product: {
+        Args: { p_item_name: string; p_shopify_product_id?: number }
+        Returns: string
+      }
       merge_duplicate_customers: { Args: never; Returns: undefined }
       merge_duplicate_customers_final: { Args: never; Returns: undefined }
       normalize_phone: { Args: { p_phone: string }; Returns: string }

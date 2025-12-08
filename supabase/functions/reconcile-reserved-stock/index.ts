@@ -41,35 +41,31 @@ serve(async (req) => {
 
         const discrepancies: any[] = [];
 
-        // For each inventory record, calculate expected reserved quantity
+        // For each inventory record, calculate expected reserved quantity using product_id
         for (const inv of inventoryRecords || []) {
-          // Find all pending/booked orders containing this product
-          const { data: orders } = await supabaseClient
-            .from('orders')
-            .select('id, order_number, status, order_items!inner(item_name, quantity)')
-            .in('status', ['pending', 'booked', 'pending_confirmation', 'pending_address', 'pending_dispatch']);
+          // Calculate expected reserved using proper product_id join
+          const { data: orderItemsData } = await supabaseClient
+            .from('order_items')
+            .select('quantity, order:orders!inner(id, order_number, status)')
+            .eq('product_id', inv.product_id)
+            .in('order.status', ['pending', 'booked', 'pending_confirmation', 'pending_address', 'pending_dispatch']);
 
           let expectedReserved = 0;
           const relatedOrders: any[] = [];
 
-          if (orders) {
-            for (const order of orders) {
-              for (const item of order.order_items) {
-                // Try to match order item to product
-                if (inv.product?.name && item.item_name.toLowerCase().includes(inv.product.name.toLowerCase())) {
-                  expectedReserved += item.quantity;
-                  relatedOrders.push({
-                    order_number: order.order_number,
-                    status: order.status,
-                    quantity: item.quantity
-                  });
-                }
-              }
+          if (orderItemsData) {
+            for (const item of orderItemsData) {
+              expectedReserved += item.quantity;
+              relatedOrders.push({
+                order_number: item.order?.order_number,
+                status: item.order?.status,
+                quantity: item.quantity
+              });
             }
           }
 
           // Calculate what available_quantity should be
-          const expectedAvailable = inv.quantity - inv.reserved_quantity;
+          const expectedAvailable = inv.quantity - expectedReserved;
           const availableDiscrepancy = inv.available_quantity !== expectedAvailable;
 
           // Check if reserved quantity matches expected
@@ -117,21 +113,17 @@ serve(async (req) => {
         const fixedRecords: any[] = [];
 
         for (const inv of inventoryRecords || []) {
-          // Find all pending orders containing this product
-          const { data: orders } = await supabaseClient
-            .from('orders')
-            .select('order_items!inner(item_name, quantity)')
-            .in('status', ['pending', 'booked', 'pending_confirmation', 'pending_address', 'pending_dispatch']);
+          // Calculate expected reserved using product_id join (proper way)
+          const { data: orderItemsData } = await supabaseClient
+            .from('order_items')
+            .select('quantity, order:orders!inner(status)')
+            .eq('product_id', inv.product_id)
+            .in('order.status', ['pending', 'booked', 'pending_confirmation', 'pending_address', 'pending_dispatch']);
 
           let expectedReserved = 0;
-
-          if (orders) {
-            for (const order of orders) {
-              for (const item of order.order_items) {
-                if (inv.product?.name && item.item_name.toLowerCase().includes(inv.product.name.toLowerCase())) {
-                  expectedReserved += item.quantity;
-                }
-              }
+          if (orderItemsData) {
+            for (const item of orderItemsData) {
+              expectedReserved += item.quantity;
             }
           }
 
