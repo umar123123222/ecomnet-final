@@ -281,25 +281,46 @@ serve(async (req) => {
           .select('quantity, reserved_quantity')
           .eq('product_id', productId)
           .eq('outlet_id', outletId)
-          .single()
+          .maybeSingle()
 
-        if (fetchError) {
+        // If no inventory record exists, create one with 0 quantity
+        let inventoryRecord = currentInventory
+        if (!inventoryRecord) {
+          console.log(`[adjustStock] No inventory record found, creating new record for product ${productId} at outlet ${outletId}`)
+          
+          const { data: newInventory, error: insertError } = await supabaseClient
+            .from('inventory')
+            .insert({
+              product_id: productId,
+              outlet_id: outletId,
+              quantity: 0,
+              reserved_quantity: 0
+            })
+            .select('quantity, reserved_quantity')
+            .single()
+          
+          if (insertError) {
+            console.error('[adjustStock] Error creating inventory record:', insertError)
+            throw insertError
+          }
+          
+          inventoryRecord = newInventory
+          console.log(`[adjustStock] Created new inventory record with quantity 0`)
+        }
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
           console.error('[adjustStock] Error fetching inventory:', fetchError)
           throw fetchError
         }
 
-        if (!currentInventory) {
-          throw new Error('Inventory record not found for this product and outlet')
-        }
-
         // Calculate new quantity (current + adjustment)
-        const newQuantity = currentInventory.quantity + quantity
+        const newQuantity = inventoryRecord.quantity + quantity
         
-        console.log(`[adjustStock] Current: ${currentInventory.quantity}, Adjustment: ${quantity}, New: ${newQuantity}`)
+        console.log(`[adjustStock] Current: ${inventoryRecord.quantity}, Adjustment: ${quantity}, New: ${newQuantity}`)
 
         // Validate: prevent negative stock
         if (newQuantity < 0) {
-          const error = `Cannot adjust stock: would result in negative quantity (${newQuantity}). Current stock: ${currentInventory.quantity}, Adjustment: ${quantity}`
+          const error = `Cannot adjust stock: would result in negative quantity (${newQuantity}). Current stock: ${inventoryRecord.quantity}, Adjustment: ${quantity}`
           console.error(`[adjustStock] ${error}`)
           return new Response(
             JSON.stringify({ error }),
@@ -339,12 +360,12 @@ serve(async (req) => {
           throw movementError
         }
 
-        console.log(`[adjustStock] Success - Stock adjusted from ${currentInventory.quantity} to ${newQuantity}`)
+        console.log(`[adjustStock] Success - Stock adjusted from ${inventoryRecord.quantity} to ${newQuantity}`)
 
         return new Response(
           JSON.stringify({ 
             success: true, 
-            previousQuantity: currentInventory.quantity,
+            previousQuantity: inventoryRecord.quantity,
             newQuantity: newQuantity,
             adjustment: quantity
           }),
