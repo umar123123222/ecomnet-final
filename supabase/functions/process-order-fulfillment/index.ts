@@ -51,9 +51,7 @@ serve(async (req) => {
           throw new Error('Order already dispatched or delivered');
         }
 
-        // Verify stock availability and deduct
-        const insufficientStock: string[] = [];
-        
+        // Deduct inventory (allow negative)
         for (const item of order.order_items) {
           // Try to find product by name match
           const { data: product } = await supabaseClient
@@ -82,17 +80,15 @@ serve(async (req) => {
 
             if (bundleError) {
               console.error(`Error fetching bundle components:`, bundleError);
-              insufficientStock.push(`${item.item_name} (bundle components not found)`);
               continue;
             }
 
             if (!bundleItems || bundleItems.length === 0) {
               console.error(`Bundle ${product.name} has no components`);
-              insufficientStock.push(`${item.item_name} (no components defined)`);
               continue;
             }
 
-            // Process each component
+            // Process each component - allow negative inventory
             for (const bundleItem of bundleItems) {
               const deductQty = bundleItem.quantity * item.quantity;
               
@@ -105,19 +101,11 @@ serve(async (req) => {
                 .single();
 
               if (invError || !inventory) {
-                insufficientStock.push(`${bundleItem.component?.name || 'Unknown'} (for bundle ${item.item_name})`);
+                console.log(`No inventory record for ${bundleItem.component?.name}`);
                 continue;
               }
 
-              // Check if sufficient component stock
-              if (inventory.available_quantity < deductQty) {
-                insufficientStock.push(
-                  `${bundleItem.component?.name} (for bundle ${item.item_name}) - need: ${deductQty}, available: ${inventory.available_quantity}`
-                );
-                continue;
-              }
-
-              // Deduct component inventory
+              // Deduct component inventory (allow negative)
               await supabaseClient
                 .from('inventory')
                 .update({
@@ -142,7 +130,7 @@ serve(async (req) => {
                 });
             }
           } else {
-            // REGULAR PRODUCT: Existing deduction logic
+            // REGULAR PRODUCT: Deduct inventory (allow negative)
             const { data: inventory, error: invError } = await supabaseClient
               .from('inventory')
               .select('id, quantity, reserved_quantity, available_quantity')
@@ -151,18 +139,13 @@ serve(async (req) => {
               .single();
 
             if (invError || !inventory) {
-              insufficientStock.push(item.item_name);
+              console.log(`No inventory record for ${item.item_name}`);
               continue;
             }
 
-            // Check if sufficient stock
             const requiredQty = item.quantity;
-            if (inventory.available_quantity < requiredQty) {
-              insufficientStock.push(`${item.item_name} (need: ${requiredQty}, available: ${inventory.available_quantity})`);
-              continue;
-            }
 
-            // Deduct from inventory (available_quantity auto-calculated by DB trigger)
+            // Deduct from inventory (allow negative)
             await supabaseClient
               .from('inventory')
               .update({
@@ -186,11 +169,6 @@ serve(async (req) => {
                 notes: `Order dispatch: ${order.order_number}`
               });
           }
-        }
-
-        // If there's insufficient stock, throw error
-        if (insufficientStock.length > 0) {
-          throw new Error(`Insufficient stock for: ${insufficientStock.join(', ')}`);
         }
 
         // Deduct ALL packaging types using the comprehensive function
