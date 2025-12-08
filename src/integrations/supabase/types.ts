@@ -5667,16 +5667,27 @@ export type Database = {
       merge_duplicate_customers: { Args: never; Returns: undefined }
       merge_duplicate_customers_final: { Args: never; Returns: undefined }
       normalize_phone: { Args: { p_phone: string }; Returns: string }
-      rapid_dispatch_order: {
-        Args: {
-          p_courier_code?: string
-          p_courier_id?: string
-          p_courier_name?: string
-          p_entry: string
-          p_user_id: string
-        }
-        Returns: Json
-      }
+      rapid_dispatch_order:
+        | {
+            Args: {
+              p_courier_code?: string
+              p_courier_id?: string
+              p_courier_name?: string
+              p_entry: string
+              p_user_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_courier_code: string
+              p_courier_id: string
+              p_courier_name: string
+              p_entry: string
+              p_user_id: string
+            }
+            Returns: Json
+          }
       trigger_smart_reorder_now: { Args: never; Returns: Json }
       user_has_role: {
         Args: {
