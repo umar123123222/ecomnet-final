@@ -12,6 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useBulkOperations } from "@/hooks/useBulkOperations";
 import { bulkDeletePackagingItems } from "@/utils/bulkOperations";
 import { BulkOperationsPanelLegacy as BulkOperationsPanel } from "@/components/BulkOperationsPanelLegacy";
+import { useReservationDateFilter } from "@/hooks/useReservationDateFilter";
+import { ReservationDateFilter } from "@/components/ReservationDateFilter";
 import {
   Table,
   TableBody,
@@ -78,6 +80,16 @@ export default function PackagingManagement() {
   const queryClient = useQueryClient();
   const { permissions } = useUserRoles();
   const { progress, executeBulkOperation, resetProgress } = useBulkOperations();
+  
+  // Date filter for reserved quantities
+  const {
+    dateRange,
+    setDateRange,
+    isFiltered: isDateFiltered,
+    packagingReservations: filteredReservations,
+    isLoadingPackaging: isLoadingReservations,
+    clearDateFilter
+  } = useReservationDateFilter();
 
   const { data: packagingItems, isLoading } = useQuery({
     queryKey: ["packaging-items"],
@@ -332,13 +344,19 @@ export default function PackagingManagement() {
       )}
 
       <Card className="p-6">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
           <Search className="h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search packaging items..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="max-w-sm"
+          />
+          <ReservationDateFilter
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            onClear={clearDateFilter}
+            isLoading={isLoadingReservations}
           />
         </div>
 
@@ -412,10 +430,24 @@ export default function PackagingManagement() {
                       <span className="font-medium">{item.current_stock}</span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <span className="text-orange-600">{item.reserved_quantity || 0}</span>
+                      {isDateFiltered ? (
+                        <span className="text-primary font-medium">
+                          {filteredReservations?.get(item.id) || 0}
+                        </span>
+                      ) : (
+                        <span className="text-orange-600">{item.reserved_quantity || 0}</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <span className="font-medium text-green-600">{item.current_stock - (item.reserved_quantity || 0)}</span>
+                      {isDateFiltered ? (
+                        <span className="font-medium text-green-600">
+                          {item.current_stock - (filteredReservations?.get(item.id) || 0)}
+                        </span>
+                      ) : (
+                        <span className="font-medium text-green-600">
+                          {item.current_stock - (item.reserved_quantity || 0)}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="text-muted-foreground">{item.reorder_level}</span>

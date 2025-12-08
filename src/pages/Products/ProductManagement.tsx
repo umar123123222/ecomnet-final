@@ -24,6 +24,9 @@ import { bulkToggleProducts, bulkUpdateProductCategory, exportToCSV, bulkDeleteP
 import { useToast } from '@/hooks/use-toast';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useReservationDateFilter } from "@/hooks/useReservationDateFilter";
+import { ReservationDateFilter } from "@/components/ReservationDateFilter";
+
 const ProductManagement = () => {
   const {
     toast
@@ -47,6 +50,16 @@ const ProductManagement = () => {
     progress,
     executeBulkOperation
   } = useBulkOperations();
+  
+  // Date filter for reserved quantities
+  const {
+    dateRange,
+    setDateRange,
+    isFiltered: isDateFiltered,
+    productReservations: filteredReservations,
+    isLoadingProducts: isLoadingReservations,
+    clearDateFilter
+  } = useReservationDateFilter();
 
   // Fetch products with pagination
   const {
@@ -294,7 +307,7 @@ const ProductManagement = () => {
           </div>
           
           {/* Search and Filter Bar */}
-          <div className="flex items-center gap-4 mt-4">
+          <div className="flex items-center gap-4 mt-4 flex-wrap">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search by name, SKU, category..." value={filters.search || ''} onChange={e => updateFilter('search', e.target.value)} className="pl-10" />
@@ -317,6 +330,13 @@ const ProductManagement = () => {
                 <SelectItem value="inactive">Inactive Only</SelectItem>
               </SelectContent>
             </Select>
+
+            <ReservationDateFilter
+              dateRange={dateRange}
+              onDateRangeChange={setDateRange}
+              onClear={clearDateFilter}
+              isLoading={isLoadingReservations}
+            />
 
             {activeFiltersCount > 0 && <Button variant="ghost" size="sm" onClick={resetFilters} className="gap-2">
                 <XCircle className="h-4 w-4" />
@@ -362,14 +382,26 @@ const ProductManagement = () => {
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
-                          <span className="text-muted-foreground">
-                            {inventoryData?.[product.id]?.total_reserved || 0}
-                          </span>
+                          {isDateFiltered ? (
+                            <span className="text-primary font-medium">
+                              {filteredReservations?.get(product.id) || 0}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">
+                              {inventoryData?.[product.id]?.total_reserved || 0}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <span className="font-medium text-primary">
-                            {(inventoryData?.[product.id]?.total_quantity || 0) - (inventoryData?.[product.id]?.total_reserved || 0)}
-                          </span>
+                          {isDateFiltered ? (
+                            <span className="font-medium text-primary">
+                              {(inventoryData?.[product.id]?.total_quantity || 0) - (filteredReservations?.get(product.id) || 0)}
+                            </span>
+                          ) : (
+                            <span className="font-medium text-primary">
+                              {(inventoryData?.[product.id]?.total_quantity || 0) - (inventoryData?.[product.id]?.total_reserved || 0)}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell>
                           {product.is_active ? <Badge variant="outline" className="border-green-500 text-green-500">

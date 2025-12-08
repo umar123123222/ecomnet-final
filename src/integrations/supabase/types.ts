@@ -5551,6 +5551,15 @@ export type Database = {
         Args: { p_outlet_id: string; p_product_id: string }
         Returns: number
       }
+      calculate_reserved_quantity_by_date: {
+        Args: {
+          p_end_date?: string
+          p_outlet_id: string
+          p_product_id: string
+          p_start_date?: string
+        }
+        Returns: number
+      }
       calculate_reserved_quantity_with_bundles: {
         Args: { p_outlet_id: string; p_product_id: string }
         Returns: number
@@ -5570,6 +5579,13 @@ export type Database = {
       generate_receipt_number: { Args: never; Returns: string }
       generate_sale_number: { Args: never; Returns: string }
       generate_session_number: { Args: never; Returns: string }
+      get_all_product_reservations_by_date: {
+        Args: { p_end_date?: string; p_start_date?: string }
+        Returns: {
+          product_id: string
+          reserved_quantity: number
+        }[]
+      }
       get_current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
@@ -5604,6 +5620,13 @@ export type Database = {
         Returns: {
           packaging_item_id: string
           reserved_count: number
+        }[]
+      }
+      get_packaging_reservations_by_date: {
+        Args: { p_end_date?: string; p_start_date?: string }
+        Returns: {
+          packaging_item_id: string
+          reserved_quantity: number
         }[]
       }
       get_product_lifecycle: {
