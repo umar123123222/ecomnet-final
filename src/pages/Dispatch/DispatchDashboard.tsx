@@ -978,18 +978,24 @@ const metrics = useMemo(() => {
       successSound.currentTime = 0;
       successSound.play().catch(e => console.log('Audio play failed:', e));
 
-      const successMsg = `${data.order.order_number} via ${data.courier}`;
+      // Data is returned at top level from rapid_dispatch_order function
+      const orderNumber = data.order_number || data.order?.order_number || trimmedValue;
+      const customerName = data.customer_name || data.order?.customer_name || '';
+      const totalAmount = data.total_amount || data.order?.total_amount || 0;
+      const courierName = data.courier || 'Unknown';
+      
+      const successMsg = `${orderNumber} via ${courierName}`;
 
       setScannerStats(prev => ({ ...prev, success: prev.success + 1 }));
       setRecentScans(prev => prev.map(scan => 
         scan.orderId === processingId 
           ? { 
               ...scan, 
-              type: data.matchType, 
+              type: data.matchType || data.match_type, 
               status: 'success' as const, 
               message: successMsg, 
-              orderId: data.order.order_number, 
-              courier: data.courier 
+              orderId: orderNumber, 
+              courier: courierName 
             }
           : scan
       ));
@@ -997,14 +1003,14 @@ const metrics = useMemo(() => {
       setScanHistoryForExport(prev => [...prev, {
         timestamp: new Date().toISOString(),
         entry: trimmedValue,
-        orderNumber: data.order.order_number,
-        customerName: data.order.customer_name,
-        amount: data.order.total_amount,
-        courier: data.courier,
-        trackingId: data.tracking_id,
+        orderNumber: orderNumber,
+        customerName: customerName,
+        amount: totalAmount,
+        courier: courierName,
+        trackingId: data.tracking_id || '',
         status: 'success',
         processingTime: `${processingTime}ms`,
-        matchType: data.matchType
+        matchType: data.matchType || data.match_type || 'unknown'
       }]);
 
       toast({
