@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, Lock, ScanBarcode, Package, RefreshCw, DollarSign } from 'lucide-react';
+import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, Lock, ScanBarcode, Package, RefreshCw, DollarSign, ArrowUp } from 'lucide-react';
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from '@/components/layout';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
@@ -49,6 +49,8 @@ const DispatchDashboard = () => {
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [bulkErrors, setBulkErrors] = useState<Array<{ entry: string; error: string; errorCode?: string }>>([]);
+  const [visibleCount, setVisibleCount] = useState(100);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   
   // Scanner Mode States
   const [scannerModeActive, setScannerModeActive] = useState(false);
@@ -98,6 +100,23 @@ const DispatchDashboard = () => {
     successSound.load();
     errorSound.load();
   }, [successSound, errorSound]);
+
+  // Scroll to top button visibility
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 400);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleShowMore = () => {
+    setVisibleCount(prev => prev + 100);
+  };
   
   // Fetch all couriers from business settings
   const { data: couriers = [], isLoading: couriersLoading } = useQuery({
@@ -1623,7 +1642,7 @@ const metrics = useMemo(() => {
                   <TableCell colSpan={6} className="text-center">Loading...</TableCell>
                 </TableRow> : filteredDispatches.length === 0 ? <TableRow>
                   <TableCell colSpan={6} className="text-center">No dispatches found</TableCell>
-                </TableRow> : filteredDispatches.map(dispatch => {
+                </TableRow> : filteredDispatches.slice(0, visibleCount).map(dispatch => {
                   // Extract just the order number without SHOP- prefix
                   const orderNumber = dispatch.orders?.order_number?.replace('SHOP-', '') || 'N/A';
                   const dispatchDate = dispatch.dispatch_date 
@@ -1662,8 +1681,33 @@ const metrics = useMemo(() => {
                 })}
             </TableBody>
           </Table>
+          
+          {/* Show More Button */}
+          {!loading && filteredDispatches.length > visibleCount && (
+            <div className="flex justify-center mt-4 pt-4 border-t">
+              <Button 
+                variant="outline" 
+                onClick={handleShowMore}
+                className="gap-2"
+              >
+                <ChevronDown className="h-4 w-4" />
+                Show More ({filteredDispatches.length - visibleCount} remaining)
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Floating Back to Top Button */}
+      {showScrollTop && (
+        <Button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-40 rounded-full w-12 h-12 shadow-lg"
+          size="icon"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </Button>
+      )}
 
       {/* Scanner Mode Floating Panel */}
       {scannerModeActive && (
