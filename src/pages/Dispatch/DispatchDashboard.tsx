@@ -241,7 +241,7 @@ useEffect(() => {
       
       dataQuery = dataQuery
         .order('created_at', { ascending: false })
-        .limit(50000);
+        .range(0, 49999);
 
       const [{ count, error: countError }, { data, error }] = await Promise.all([
         countQuery,
