@@ -136,31 +136,37 @@ const DispatchDashboard = () => {
     }
   });
 useEffect(() => {
-  const applyDateFilters = (query: any) => {
-    if (dateRange?.from) {
-      const fromDate = dateRange.from.toISOString();
-      query = query.or(`dispatch_date.gte.${fromDate},and(dispatch_date.is.null,created_at.gte.${fromDate})`);
-    }
-
-    if (dateRange?.to) {
-      const endOfDay = new Date(dateRange.to);
-      endOfDay.setHours(23, 59, 59, 999);
-      const toDate = endOfDay.toISOString();
-      query = query.or(`dispatch_date.lte.${toDate},and(dispatch_date.is.null,created_at.lte.${toDate})`);
-    }
-
-    return query;
-  };
-
   const fetchDispatches = async () => {
     setLoading(true);
     try {
+      // Build date filter conditions
+      let dateFromISO = '';
+      let dateToISO = '';
+      
+      if (dateRange?.from) {
+        const fromDate = new Date(dateRange.from);
+        fromDate.setHours(0, 0, 0, 0);
+        dateFromISO = fromDate.toISOString();
+      }
+
+      if (dateRange?.to) {
+        const toDate = new Date(dateRange.to);
+        toDate.setHours(23, 59, 59, 999);
+        dateToISO = toDate.toISOString();
+      }
+
       // Count query (no row limit) to get accurate total dispatches for applied filters
       let countQuery = supabase
         .from('dispatches')
         .select('*', { count: 'exact', head: true });
 
-      countQuery = applyDateFilters(countQuery);
+      // Apply date range filters using proper gte/lte on created_at
+      if (dateFromISO) {
+        countQuery = countQuery.gte('created_at', dateFromISO);
+      }
+      if (dateToISO) {
+        countQuery = countQuery.lte('created_at', dateToISO);
+      }
       
       // Apply courier filter server-side
       if (courierFilter && courierFilter !== "all") {
@@ -192,7 +198,13 @@ useEffect(() => {
           )
         `);
 
-      dataQuery = applyDateFilters(dataQuery);
+      // Apply date range filters using proper gte/lte on created_at
+      if (dateFromISO) {
+        dataQuery = dataQuery.gte('created_at', dateFromISO);
+      }
+      if (dateToISO) {
+        dataQuery = dataQuery.lte('created_at', dateToISO);
+      }
       
       // Apply courier filter server-side
       if (courierFilter && courierFilter !== "all") {
