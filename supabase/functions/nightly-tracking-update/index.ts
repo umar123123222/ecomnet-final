@@ -15,7 +15,8 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const trigger = body.trigger || 'manual';
     const offset = body.offset || 0;
-    const limit = body.limit || 50;
+    // Reduced batch size to 20 to avoid WORKER_LIMIT errors
+    const limit = Math.min(body.limit || 20, 20);
     
     console.log(`🌙 Starting nightly tracking update (trigger: ${trigger}, offset: ${offset}, limit: ${limit})...`);
     
@@ -25,7 +26,6 @@ serve(async (req) => {
     );
 
     // Get orders that are NOT in terminal states and have tracking
-    // Terminal states: delivered, cancelled, returned
     const { data: activeOrders, error: fetchError } = await supabase
       .from('orders')
       .select(`
@@ -57,74 +57,95 @@ serve(async (req) => {
       errors: [] as any[]
     };
 
-    // Process orders SEQUENTIALLY to avoid resource limits
+    // Process orders SEQUENTIALLY with longer delays to avoid resource limits
     for (const order of activeOrders || []) {
       try {
         console.log(`🔍 Tracking order ${order.order_number} - ${order.courier} - ${order.tracking_id}`);
         
-        // Call the courier-tracking function
-        const { data: trackingData, error: trackingError } = await supabase.functions.invoke(
-          'courier-tracking',
-          {
-            body: {
-              trackingId: order.tracking_id,
-              courierCode: order.courier
+        // Call the courier-tracking function with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout per order
+        
+        try {
+          const { data: trackingData, error: trackingError } = await supabase.functions.invoke(
+            'courier-tracking',
+            {
+              body: {
+                trackingId: order.tracking_id,
+                courierCode: order.courier
+              }
             }
-          }
-        );
-
-        if (trackingError) {
-          console.error(`Failed to track ${order.tracking_id}:`, trackingError);
-          results.failed++;
-          results.errors.push({
-            order_id: order.id,
-            order_number: order.order_number,
-            tracking_id: order.tracking_id,
-            error: trackingError.message
-          });
-          continue;
-        }
-
-        if (trackingData?.success && trackingData?.tracking) {
-          const tracking = trackingData.tracking;
+          );
           
-          // Update order status based on tracking status
-          if (tracking.status === 'delivered') {
-            await supabase
-              .from('orders')
-              .update({
-                status: 'delivered',
-                delivered_at: new Date().toISOString()
-              })
-              .eq('id', order.id);
+          clearTimeout(timeoutId);
+
+          if (trackingError) {
+            console.error(`Failed to track ${order.tracking_id}:`, trackingError);
+            results.failed++;
+            results.errors.push({
+              order_id: order.id,
+              order_number: order.order_number,
+              tracking_id: order.tracking_id,
+              error: trackingError.message
+            });
+            continue;
+          }
+
+          if (trackingData?.success && trackingData?.tracking) {
+            const tracking = trackingData.tracking;
             
-            results.delivered++;
-            results.updated++;
-            console.log(`✅ Order ${order.order_number} marked as DELIVERED`);
-            
-          } else if (tracking.status === 'returned') {
-            await supabase
-              .from('orders')
-              .update({
-                status: 'returned',
-                returned_at: new Date().toISOString()
-              })
-              .eq('id', order.id);
-            
-            results.returned++;
-            results.updated++;
-            console.log(`↩️ Order ${order.order_number} marked as RETURNED`);
-            
+            // Update order status based on tracking status
+            if (tracking.status === 'delivered') {
+              await supabase
+                .from('orders')
+                .update({
+                  status: 'delivered',
+                  delivered_at: new Date().toISOString()
+                })
+                .eq('id', order.id);
+              
+              results.delivered++;
+              results.updated++;
+              console.log(`✅ Order ${order.order_number} marked as DELIVERED`);
+              
+            } else if (tracking.status === 'returned') {
+              await supabase
+                .from('orders')
+                .update({
+                  status: 'returned',
+                  returned_at: new Date().toISOString()
+                })
+                .eq('id', order.id);
+              
+              results.returned++;
+              results.updated++;
+              console.log(`↩️ Order ${order.order_number} marked as RETURNED`);
+              
+            } else {
+              results.noChange++;
+              console.log(`⏭️ Order ${order.order_number}: ${tracking.status} (no status change needed)`);
+            }
           } else {
             results.noChange++;
-            console.log(`⏭️ Order ${order.order_number}: ${tracking.status} (no status change needed)`);
           }
-        } else {
-          results.noChange++;
+        } catch (invokeError: any) {
+          clearTimeout(timeoutId);
+          if (invokeError.name === 'AbortError') {
+            console.error(`Timeout tracking ${order.tracking_id}`);
+            results.failed++;
+            results.errors.push({
+              order_id: order.id,
+              order_number: order.order_number,
+              tracking_id: order.tracking_id,
+              error: 'Tracking request timed out'
+            });
+          } else {
+            throw invokeError;
+          }
         }
         
-        // Small delay between requests to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Longer delay between requests to reduce resource pressure
+        await new Promise(resolve => setTimeout(resolve, 500));
         
       } catch (error: any) {
         console.error(`Error processing order ${order.order_number}:`, error);
