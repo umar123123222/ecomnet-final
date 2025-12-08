@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Download, ChevronDown, ChevronUp, Edit, Lock, ScanBarcode, RotateCcw, DollarSign } from 'lucide-react';
+import { Search, Download, ChevronDown, ChevronUp, Edit, Lock, ScanBarcode, RotateCcw, DollarSign, ArrowUp } from 'lucide-react';
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from '@/components/layout';
 import { Switch } from '@/components/ui/switch';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
@@ -60,6 +60,8 @@ const ReturnsDashboard = () => {
   const [scanBuffer, setScanBuffer] = useState('');
   const scannerInputRef = React.useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(100);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   
   // Performance Metrics
   const [performanceMetrics, setPerformanceMetrics] = useState({
@@ -83,38 +85,81 @@ const ReturnsDashboard = () => {
       bulkEntries: ''
     }
   });
+  // Scroll to top button visibility
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 400);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleShowMore = () => {
+    setVisibleCount(prev => prev + 500);
+  };
+
+  const handleShowAll = () => {
+    setVisibleCount(filteredReturns.length);
+  };
+
   useEffect(() => {
     const fetchReturns = async () => {
       setLoading(true);
       try {
-        const {
-          data,
-          error
-        } = await supabase.from('returns').select(`
-            *,
-            orders!returns_order_id_fkey (
-              order_number,
-              customer_name,
-              customer_phone,
-              customer_email
-            ),
-            received_by_profile:profiles(
-              full_name,
-              email
-            )
-          `).order('created_at', {
-          ascending: false
-        });
-        if (error) {
-          console.error('Error fetching returns:', error);
-          toast({
-            title: "Error",
-            description: "Failed to fetch returns",
-            variant: "destructive"
-          });
-        } else {
-          setReturns(data || []);
+        // First get the count
+        const { count, error: countError } = await supabase
+          .from('returns')
+          .select('*', { count: 'exact', head: true });
+
+        if (countError) {
+          console.error('Error fetching returns count:', countError);
         }
+
+        const totalCount = count || 0;
+        const CHUNK_SIZE = 1000;
+        const chunks = Math.ceil(totalCount / CHUNK_SIZE);
+        let allData: any[] = [];
+
+        // Fetch in chunks to bypass 1000 row limit
+        for (let i = 0; i < chunks; i++) {
+          const { data, error } = await supabase
+            .from('returns')
+            .select(`
+              *,
+              orders!returns_order_id_fkey (
+                order_number,
+                customer_name,
+                customer_phone,
+                customer_email
+              ),
+              received_by_profile:profiles(
+                full_name,
+                email
+              )
+            `)
+            .order('created_at', { ascending: false })
+            .range(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE - 1);
+
+          if (error) {
+            console.error('Error fetching returns chunk:', error);
+            toast({
+              title: "Error",
+              description: "Failed to fetch returns",
+              variant: "destructive"
+            });
+            return;
+          }
+
+          if (data) {
+            allData = [...allData, ...data];
+          }
+        }
+
+        setReturns(allData);
       } catch (error) {
         console.error('Error:', error);
       } finally {
@@ -1079,7 +1124,18 @@ const ReturnsDashboard = () => {
           <CardContent>
             <div className="text-2xl font-bold">{metrics.returnedWorth}</div>
           </CardContent>
-        </Card>
+      </Card>
+
+      {/* Floating Back to Top Button */}
+      {showScrollTop && (
+        <Button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-40 rounded-full w-12 h-12 shadow-lg"
+          size="icon"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </Button>
+      )}
       </div>
 
       {/* Returns Table with integrated filters */}
@@ -1121,7 +1177,7 @@ const ReturnsDashboard = () => {
                   <TableCell colSpan={10} className="text-center">Loading...</TableCell>
                 </TableRow> : filteredReturns.length === 0 ? <TableRow>
                   <TableCell colSpan={10} className="text-center">No returns found</TableCell>
-                </TableRow> : filteredReturns.map(returnItem => <React.Fragment key={returnItem.id}>
+                </TableRow> : filteredReturns.slice(0, visibleCount).map(returnItem => <React.Fragment key={returnItem.id}>
                     <TableRow>
                       <TableCell className="font-medium">{returnItem.orders?.order_number || 'N/A'}</TableCell>
                       <TableCell>{returnItem.tracking_id || 'N/A'}</TableCell>
@@ -1158,6 +1214,34 @@ const ReturnsDashboard = () => {
                   </React.Fragment>)}
             </TableBody>
           </Table>
+
+          {/* Record Count & Pagination Controls */}
+          {!loading && filteredReturns.length > 0 && (
+            <div className="flex flex-col items-center gap-3 mt-4 pt-4 border-t">
+              <span className="text-sm text-muted-foreground">
+                Showing {Math.min(visibleCount, filteredReturns.length).toLocaleString()} of {filteredReturns.length.toLocaleString()} records
+              </span>
+              {filteredReturns.length > visibleCount && (
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleShowMore}
+                    className="gap-2"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                    Show More (+500)
+                  </Button>
+                  <Button 
+                    variant="secondary" 
+                    onClick={handleShowAll}
+                    className="gap-2"
+                  >
+                    Show All ({(filteredReturns.length - visibleCount).toLocaleString()} remaining)
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
