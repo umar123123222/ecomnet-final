@@ -230,7 +230,9 @@ const OrderDashboard = () => {
       }
 
       // Apply courier filter
-      if (filters.courier !== 'all') {
+      if (filters.courier === 'none') {
+        query = query.is('courier', null);
+      } else if (filters.courier !== 'all') {
         query = query.eq('courier', filters.courier as any);
       }
 
@@ -428,7 +430,9 @@ const OrderDashboard = () => {
         if (filters.search) {
           q = q.or(`order_number.ilike.%${filters.search}%,shopify_order_number.ilike.%${filters.search}%,customer_name.ilike.%${filters.search}%,customer_phone.ilike.%${filters.search}%,customer_email.ilike.%${filters.search}%,tracking_id.ilike.%${filters.search}%,city.ilike.%${filters.search}%`);
         }
-        if (filters.courier !== 'all') {
+        if (filters.courier === 'none') {
+          q = q.is('courier', null);
+        } else if (filters.courier !== 'all') {
           q = q.eq('courier', filters.courier as any);
         }
         if (filters.orderType !== 'all') {
@@ -2333,6 +2337,7 @@ const OrderDashboard = () => {
                       </SelectTrigger>
                       <SelectContent className="bg-background z-50">
                         <SelectItem value="all">All Couriers</SelectItem>
+                        <SelectItem value="none">No Courier</SelectItem>
                         <SelectItem value="leopard">Leopard</SelectItem>
                         <SelectItem value="postex">PostEx</SelectItem>
                         <SelectItem value="tcs">TCS</SelectItem>
