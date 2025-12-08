@@ -115,7 +115,11 @@ const DispatchDashboard = () => {
   };
 
   const handleShowMore = () => {
-    setVisibleCount(prev => prev + 100);
+    setVisibleCount(prev => prev + 500);
+  };
+
+  const handleShowAll = () => {
+    setVisibleCount(filteredDispatches.length);
   };
   
   // Fetch all couriers from business settings
@@ -1682,17 +1686,31 @@ const metrics = useMemo(() => {
             </TableBody>
           </Table>
           
-          {/* Show More Button */}
-          {!loading && filteredDispatches.length > visibleCount && (
-            <div className="flex justify-center mt-4 pt-4 border-t">
-              <Button 
-                variant="outline" 
-                onClick={handleShowMore}
-                className="gap-2"
-              >
-                <ChevronDown className="h-4 w-4" />
-                Show More ({filteredDispatches.length - visibleCount} remaining)
-              </Button>
+          {/* Record Count & Pagination Controls */}
+          {!loading && filteredDispatches.length > 0 && (
+            <div className="flex flex-col items-center gap-3 mt-4 pt-4 border-t">
+              <span className="text-sm text-muted-foreground">
+                Showing {Math.min(visibleCount, filteredDispatches.length).toLocaleString()} of {filteredDispatches.length.toLocaleString()} records
+              </span>
+              {filteredDispatches.length > visibleCount && (
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleShowMore}
+                    className="gap-2"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                    Show More (+500)
+                  </Button>
+                  <Button 
+                    variant="secondary" 
+                    onClick={handleShowAll}
+                    className="gap-2"
+                  >
+                    Show All ({(filteredDispatches.length - visibleCount).toLocaleString()} remaining)
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
