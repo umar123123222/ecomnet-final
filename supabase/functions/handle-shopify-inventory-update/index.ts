@@ -6,6 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-shopify-hmac-sha256, x-shopify-topic',
 };
 
+// Maximum reasonable inventory value - anything above this is likely a Shopify placeholder
+const MAX_REASONABLE_INVENTORY = 100000;
+
 function verifyWebhook(body: string, hmacHeader: string, secret: string): boolean {
   const hash = createHmac('sha256', secret)
     .update(body, 'utf8')
@@ -45,7 +48,8 @@ Deno.serve(async (req) => {
     }
 
     const inventoryLevel = JSON.parse(bodyText);
-    console.log(`Received inventory update webhook for item ${inventoryLevel.inventory_item_id}`);
+    const availableQuantity = inventoryLevel.available || 0;
+    console.log(`Received inventory update webhook for item ${inventoryLevel.inventory_item_id}, quantity: ${availableQuantity}`);
 
     // Update webhook registry
     await supabase
@@ -53,10 +57,36 @@ Deno.serve(async (req) => {
       .update({ last_triggered: new Date().toISOString() })
       .eq('topic', topic || 'inventory_levels/update');
 
-    // Find product by shopify_inventory_item_id
+    // Sanity check: reject unreasonably large inventory values
+    if (availableQuantity > MAX_REASONABLE_INVENTORY) {
+      console.warn(`SKIPPED: Unreasonable inventory value ${availableQuantity} for item ${inventoryLevel.inventory_item_id} (exceeds ${MAX_REASONABLE_INVENTORY})`);
+      
+      // Log the skipped sync
+      await supabase.from('shopify_sync_log').insert({
+        sync_type: 'inventory_update_webhook',
+        status: 'skipped',
+        records_processed: 0,
+        details: {
+          shopify_inventory_item_id: inventoryLevel.inventory_item_id,
+          available: availableQuantity,
+          reason: `Inventory value ${availableQuantity} exceeds maximum reasonable limit of ${MAX_REASONABLE_INVENTORY}`,
+        },
+      });
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Skipped - unreasonable inventory value',
+        skipped: true 
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Find product by shopify_inventory_item_id - also fetch is_bundle and name
     const { data: product, error: productError } = await supabase
       .from('products')
-      .select('id')
+      .select('id, name, is_bundle')
       .eq('shopify_inventory_item_id', inventoryLevel.inventory_item_id)
       .single();
 
@@ -68,8 +98,40 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Check if product is a bundle - bundles use calculated availability, not Shopify inventory
+    const isBundleProduct = product.is_bundle || 
+      product.name?.toLowerCase().includes('bundle') || 
+      product.name?.toLowerCase().includes('deal') ||
+      product.name?.toLowerCase().includes('combo');
+
+    if (isBundleProduct) {
+      console.log(`SKIPPED: Product ${product.id} (${product.name}) is a bundle - inventory managed by component availability`);
+      
+      // Log the skipped sync
+      await supabase.from('shopify_sync_log').insert({
+        sync_type: 'inventory_update_webhook',
+        status: 'skipped',
+        records_processed: 0,
+        details: {
+          shopify_inventory_item_id: inventoryLevel.inventory_item_id,
+          product_id: product.id,
+          product_name: product.name,
+          available: availableQuantity,
+          reason: 'Bundle products use calculated availability from components',
+        },
+      });
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Skipped - bundle product',
+        skipped: true 
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Update inventory for this product
-    // Note: We need to decide which outlet to update. For now, update the first one found
     const { data: inventory, error: inventoryError } = await supabase
       .from('inventory')
       .select('id')
@@ -81,12 +143,12 @@ Deno.serve(async (req) => {
       await supabase
         .from('inventory')
         .update({
-          quantity: inventoryLevel.available || 0,
+          quantity: availableQuantity,
           last_shopify_sync: new Date().toISOString(),
         })
         .eq('id', inventory.id);
 
-      console.log(`Updated inventory for product ${product.id} to ${inventoryLevel.available}`);
+      console.log(`Updated inventory for product ${product.id} (${product.name}) to ${availableQuantity}`);
     }
 
     // Log the sync
@@ -97,7 +159,8 @@ Deno.serve(async (req) => {
       details: {
         shopify_inventory_item_id: inventoryLevel.inventory_item_id,
         product_id: product.id,
-        available: inventoryLevel.available,
+        product_name: product.name,
+        available: availableQuantity,
       },
     });
 
