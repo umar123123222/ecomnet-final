@@ -7,8 +7,9 @@ const corsHeaders = {
 };
 
 const BATCH_SIZE = 20;
-const BATCH_DELAY_MS = 2000; // 2 seconds between batches
-const MAX_RUNTIME_MS = 50 * 60 * 1000; // 50 minutes max runtime
+const BATCH_DELAY_MS = 500; // 500ms between batches
+const MAX_BATCHES_PER_INVOCATION = 3; // Process max 3 batches per call (60 orders)
+const MAX_RUNTIME_MS = 45 * 1000; // 45 seconds max runtime (edge function limit is ~60s)
 const STALE_JOB_HOURS = 2; // Mark jobs as failed if stuck for 2+ hours
 
 serve(async (req) => {
@@ -127,7 +128,7 @@ serve(async (req) => {
     let hasMore = true;
     let batchesProcessed = 0;
 
-    while (hasMore) {
+    while (hasMore && batchesProcessed < MAX_BATCHES_PER_INVOCATION) {
       // Check if we're approaching timeout
       const elapsed = Date.now() - startTime;
       if (elapsed > MAX_RUNTIME_MS) {
@@ -148,16 +149,17 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({
             success: true,
-            message: 'Job paused due to timeout, will resume next run',
+            message: `Processed ${batchesProcessed} batches, paused for next invocation`,
             job_id: job.id,
-            progress: {
-              offset,
-              total_orders: totalOrders,
+            totalOrders,
+            hasMore: true,
+            results: {
+              totalProcessed: offset,
               delivered: deliveredCount,
               returned: returnedCount,
               failed: failedCount,
-              no_change: noChangeCount,
-              batches_processed: batchesProcessed
+              noChange: noChangeCount,
+              batchesProcessed
             }
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -226,22 +228,53 @@ serve(async (req) => {
       }
 
       // Delay between batches to avoid rate limits
-      if (hasMore) {
+      if (hasMore && batchesProcessed < MAX_BATCHES_PER_INVOCATION) {
         await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
       }
     }
 
-    // Step 6: Mark job as complete
+    // Save progress after processing batches
+    await supabase
+      .from('tracking_update_jobs')
+      .update({
+        last_processed_offset: offset,
+        delivered_count: deliveredCount,
+        returned_count: returnedCount,
+        failed_count: failedCount,
+        no_change_count: noChangeCount
+      })
+      .eq('id', job.id);
+
+    // Check if there's more to process
+    if (hasMore) {
+      console.log(`📤 Batch limit reached at offset ${offset}, returning for next invocation...`);
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Processed ${batchesProcessed} batches (${offset} orders), more remaining`,
+          job_id: job.id,
+          totalOrders,
+          hasMore: true,
+          results: {
+            totalProcessed: offset,
+            delivered: deliveredCount,
+            returned: returnedCount,
+            failed: failedCount,
+            noChange: noChangeCount,
+            batchesProcessed
+          }
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Step 6: Mark job as complete (only if no more to process)
     await supabase
       .from('tracking_update_jobs')
       .update({
         status: 'completed',
         completed_at: new Date().toISOString(),
-        last_processed_offset: offset,
-        delivered_count: deliveredCount,
-        returned_count: returnedCount,
-        failed_count: failedCount,
-        no_change_count: noChangeCount,
         error_message: null
       })
       .eq('id', job.id);
@@ -255,14 +288,16 @@ serve(async (req) => {
         message: 'Tracking update completed',
         job_id: job.id,
         resumed: resuming,
+        totalOrders,
+        hasMore: false,
         results: {
-          total_orders: totalOrders,
+          totalProcessed: offset,
           delivered: deliveredCount,
           returned: returnedCount,
           failed: failedCount,
-          no_change: noChangeCount,
-          batches_processed: batchesProcessed,
-          duration_seconds: totalTime
+          noChange: noChangeCount,
+          batchesProcessed,
+          durationSeconds: totalTime
         }
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
