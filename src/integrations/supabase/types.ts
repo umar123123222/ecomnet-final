@@ -5091,6 +5091,54 @@ export type Database = {
         }
         Relationships: []
       }
+      tracking_update_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          delivered_count: number | null
+          error_message: string | null
+          failed_count: number | null
+          id: string
+          last_processed_offset: number | null
+          no_change_count: number | null
+          returned_count: number | null
+          started_at: string
+          status: string
+          total_orders: number
+          trigger_type: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          delivered_count?: number | null
+          error_message?: string | null
+          failed_count?: number | null
+          id?: string
+          last_processed_offset?: number | null
+          no_change_count?: number | null
+          returned_count?: number | null
+          started_at?: string
+          status?: string
+          total_orders?: number
+          trigger_type?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          delivered_count?: number | null
+          error_message?: string | null
+          failed_count?: number | null
+          id?: string
+          last_processed_offset?: number | null
+          no_change_count?: number | null
+          returned_count?: number | null
+          started_at?: string
+          status?: string
+          total_orders?: number
+          trigger_type?: string | null
+        }
+        Relationships: []
+      }
       transfer_receipt_items: {
         Row: {
           created_at: string | null
@@ -5568,6 +5616,7 @@ export type Database = {
         Args: { variance_value: number }
         Returns: string
       }
+      cleanup_old_tracking_jobs: { Args: never; Returns: undefined }
       deduct_order_packaging: {
         Args: { p_order_id: string; p_user_id: string }
         Returns: Json
