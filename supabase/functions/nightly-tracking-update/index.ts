@@ -35,7 +35,7 @@ serve(async (req) => {
         courier,
         tracking_id
       `)
-      .not('status', 'in', '("delivered","cancelled","returned")')
+      .eq('status', 'dispatched')
       .not('tracking_id', 'is', null)
       .neq('tracking_id', '')
       .range(offset, offset + limit - 1);
