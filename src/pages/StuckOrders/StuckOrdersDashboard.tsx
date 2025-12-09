@@ -241,59 +241,38 @@ const StuckOrdersDashboard = () => {
     }
   };
 
-  // Update all tracking (reuse nightly-tracking-update)
+  // Update all tracking using the orchestrator
   const runTrackingUpdate = async () => {
     setIsProcessing('tracking');
-    const aggregatedResults = {
-      total: 0,
-      updated: 0,
-      delivered: 0,
-      returned: 0,
-      failed: 0,
-      noChange: 0,
-      batchesProcessed: 0
-    };
-    let offset = 0;
-    const limit = 50;
-    let hasMore = true;
     try {
       toast({
-        description: "Starting tracking update for all dispatched orders..."
+        description: "Starting tracking update orchestrator for all orders..."
       });
-      while (hasMore) {
-        const {
-          data,
-          error
-        } = await supabase.functions.invoke('nightly-tracking-update', {
-          body: {
-            trigger: 'manual',
-            offset,
-            limit
-          }
+      
+      const { data, error } = await supabase.functions.invoke('nightly-tracking-orchestrator', {
+        body: { trigger: 'manual' }
+      });
+      
+      if (error) throw error;
+      
+      if (data?.success) {
+        const results = data.results || {};
+        toast({
+          title: "Tracking Update Complete",
+          description: `Processed ${results.totalProcessed || 0} of ${data.totalOrders || 0} orders: ${results.delivered || 0} delivered, ${results.returned || 0} returned`
         });
-        if (error) throw error;
-        if (data?.success) {
-          const r = data.results;
-          aggregatedResults.total += r.total;
-          aggregatedResults.updated += r.updated;
-          aggregatedResults.delivered += r.delivered;
-          aggregatedResults.returned += r.returned;
-          aggregatedResults.failed += r.failed;
-          aggregatedResults.noChange += r.noChange;
-          aggregatedResults.batchesProcessed++;
-          hasMore = data.hasMore;
-          offset += limit;
-          toast({
-            description: `Checked ${aggregatedResults.total} orders (batch ${aggregatedResults.batchesProcessed})...`
-          });
-        } else {
-          hasMore = false;
-        }
+      } else if (data?.message?.includes('resumed')) {
+        toast({
+          title: "Tracking Update Resumed",
+          description: data.message
+        });
+      } else {
+        toast({
+          title: "Tracking Update",
+          description: data?.message || 'Update completed'
+        });
       }
-      toast({
-        title: "Tracking Update Complete",
-        description: `Checked ${aggregatedResults.total} orders: ${aggregatedResults.delivered} delivered, ${aggregatedResults.returned} returned`
-      });
+      
       refreshAll();
     } catch (error: any) {
       console.error('Tracking update error:', error);
