@@ -12,10 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Package, Plus, Trash2, Box, ShoppingBag, Gift, Search, Minus, X, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Loader2, Package, Plus, Trash2, Box, ShoppingBag, Gift, Search, Minus, X, ArrowRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const transferSchema = z.object({
@@ -37,7 +36,6 @@ interface SelectedProduct {
 interface PackagingItem {
   packaging_item_id: string;
   quantity: number;
-  is_auto_calculated: boolean;
   name: string;
   sku: string;
   current_stock: number;
@@ -58,7 +56,7 @@ export function StockTransferDialog({
 }: StockTransferDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<Record<string, number>>({});
-  const [extraPackaging, setExtraPackaging] = useState<PackagingItem[]>([]);
+  const [packagingItems, setPackagingItems] = useState<PackagingItem[]>([]);
   const [productSearch, setProductSearch] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -69,13 +67,13 @@ export function StockTransferDialog({
     (outlet) => outlet.outlet_type === 'warehouse' && outlet.name.toLowerCase().includes('main')
   ) || outlets?.find((outlet) => outlet.outlet_type === 'warehouse');
 
-  // Fetch packaging items
-  const { data: packagingItems } = useQuery({
+  // Fetch packaging items from database
+  const { data: availablePackaging } = useQuery({
     queryKey: ["packaging-items-for-transfer"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("packaging_items")
-        .select("id, name, sku, current_stock, allocation_type, linked_product_ids")
+        .select("id, name, sku, current_stock")
         .eq("is_active", true);
       if (error) throw error;
       return data || [];
@@ -129,69 +127,12 @@ export function StockTransferDialog({
     );
   }, [products, productSearch]);
 
-  // Calculate auto-packaging based on selected products
-  const autoCalculatedPackaging = useMemo(() => {
-    if (!packagingItems || Object.keys(selectedProducts).length === 0) return [];
-
-    const result: PackagingItem[] = [];
-    const selectedProductIds = Object.keys(selectedProducts);
-    const totalQuantity = Object.values(selectedProducts).reduce((sum, qty) => sum + qty, 0);
-
-    // Per-product packaging (applies to all perfumes)
-    const perProductPackaging = packagingItems.filter(
-      (p) => p.allocation_type === "per_product"
-    );
-
-    perProductPackaging.forEach((packaging) => {
-      result.push({
-        packaging_item_id: packaging.id,
-        quantity: totalQuantity,
-        is_auto_calculated: true,
-        name: packaging.name,
-        sku: packaging.sku,
-        current_stock: packaging.current_stock,
-      });
-    });
-
-    // Product-specific packaging
-    const productSpecificPackaging = packagingItems.filter(
-      (p) => p.allocation_type === "product_specific" && p.linked_product_ids
-    );
-
-    productSpecificPackaging.forEach((packaging) => {
-      const linkedIds = packaging.linked_product_ids as string[];
-      let matchedQuantity = 0;
-
-      selectedProductIds.forEach((productId) => {
-        if (linkedIds.includes(productId)) {
-          matchedQuantity += selectedProducts[productId];
-        }
-      });
-
-      if (matchedQuantity > 0) {
-        result.push({
-          packaging_item_id: packaging.id,
-          quantity: matchedQuantity,
-          is_auto_calculated: true,
-          name: packaging.name,
-          sku: packaging.sku,
-          current_stock: packaging.current_stock,
-        });
-      }
-    });
-
-    return result;
-  }, [selectedProducts, packagingItems]);
-
-  // Available packaging for extra selection (exclude already auto-calculated)
-  const availableExtraPackaging = useMemo(() => {
-    if (!packagingItems) return [];
-    const autoIds = new Set(autoCalculatedPackaging.map((p) => p.packaging_item_id));
-    const extraIds = new Set(extraPackaging.map((p) => p.packaging_item_id));
-    return packagingItems.filter(
-      (p) => !autoIds.has(p.id) && !extraIds.has(p.id)
-    );
-  }, [packagingItems, autoCalculatedPackaging, extraPackaging]);
+  // Available packaging for selection (exclude already added)
+  const selectablePackaging = useMemo(() => {
+    if (!availablePackaging) return [];
+    const addedIds = new Set(packagingItems.map((p) => p.packaging_item_id));
+    return availablePackaging.filter((p) => !addedIds.has(p.id));
+  }, [availablePackaging, packagingItems]);
 
   const addProduct = (productId: string) => {
     setSelectedProducts((prev) => ({
@@ -231,15 +172,14 @@ export function StockTransferDialog({
     }
   };
 
-  const addExtraPackaging = (packagingId: string) => {
-    const packaging = packagingItems?.find((p) => p.id === packagingId);
+  const addPackaging = (packagingId: string) => {
+    const packaging = availablePackaging?.find((p) => p.id === packagingId);
     if (packaging) {
-      setExtraPackaging((prev) => [
+      setPackagingItems((prev) => [
         ...prev,
         {
           packaging_item_id: packaging.id,
           quantity: 1,
-          is_auto_calculated: false,
           name: packaging.name,
           sku: packaging.sku,
           current_stock: packaging.current_stock,
@@ -248,8 +188,8 @@ export function StockTransferDialog({
     }
   };
 
-  const updateExtraPackagingQuantity = (packagingId: string, quantity: number) => {
-    setExtraPackaging((prev) =>
+  const updatePackagingQuantity = (packagingId: string, quantity: number) => {
+    setPackagingItems((prev) =>
       prev.map((p) =>
         p.packaging_item_id === packagingId
           ? { ...p, quantity: Math.max(1, quantity) }
@@ -258,8 +198,8 @@ export function StockTransferDialog({
     );
   };
 
-  const removeExtraPackaging = (packagingId: string) => {
-    setExtraPackaging((prev) =>
+  const removePackaging = (packagingId: string) => {
+    setPackagingItems((prev) =>
       prev.filter((p) => p.packaging_item_id !== packagingId)
     );
   };
@@ -282,19 +222,12 @@ export function StockTransferDialog({
         quantity,
       }));
 
-      // Combine auto-calculated and extra packaging
-      const allPackaging = [
-        ...autoCalculatedPackaging.map((p) => ({
-          packaging_item_id: p.packaging_item_id,
-          quantity: p.quantity,
-          is_auto_calculated: true,
-        })),
-        ...extraPackaging.map((p) => ({
-          packaging_item_id: p.packaging_item_id,
-          quantity: p.quantity,
-          is_auto_calculated: false,
-        })),
-      ];
+      // All packaging is manually selected
+      const allPackaging = packagingItems.map((p) => ({
+        packaging_item_id: p.packaging_item_id,
+        quantity: p.quantity,
+        is_auto_calculated: false,
+      }));
 
       const { data: result, error } = await supabase.functions.invoke(
         "stock-transfer-request",
@@ -320,7 +253,7 @@ export function StockTransferDialog({
       queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
       reset();
       setSelectedProducts({});
-      setExtraPackaging([]);
+      setPackagingItems([]);
       setProductSearch("");
       onOpenChange(false);
     } catch (error: any) {
@@ -338,7 +271,7 @@ export function StockTransferDialog({
   useEffect(() => {
     if (!open) {
       setSelectedProducts({});
-      setExtraPackaging([]);
+      setPackagingItems([]);
       setProductSearch("");
     }
   }, [open]);
@@ -353,6 +286,13 @@ export function StockTransferDialog({
   const getProductStock = (productId: string) => {
     const stock = warehouseInventory?.[productId];
     return stock?.available_quantity ?? stock?.quantity ?? 0;
+  };
+
+  const getPackagingIcon = (name: string) => {
+    if (name.toLowerCase().includes("box")) return <Box className="h-4 w-4 text-muted-foreground" />;
+    if (name.toLowerCase().includes("bag")) return <ShoppingBag className="h-4 w-4 text-muted-foreground" />;
+    if (name.toLowerCase().includes("gift")) return <Gift className="h-4 w-4 text-muted-foreground" />;
+    return <Package className="h-4 w-4 text-muted-foreground" />;
   };
 
   return (
@@ -538,56 +478,22 @@ export function StockTransferDialog({
                     )}
                   </div>
 
-                  {/* Auto-Calculated Packaging */}
-                  {autoCalculatedPackaging.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <CheckCircle2 className="h-4 w-4 text-primary" />
-                        <Label className="text-sm font-medium">Auto-included Packaging</Label>
-                      </div>
-                      <Card className="bg-primary/5 border-primary/20">
-                        <div className="divide-y divide-primary/10">
-                          {autoCalculatedPackaging.map((item) => (
-                            <div
-                              key={item.packaging_item_id}
-                              className="p-3 flex items-center justify-between"
-                            >
-                              <div className="flex items-center gap-2">
-                                {item.name.toLowerCase().includes("box") ? (
-                                  <Box className="h-4 w-4 text-primary" />
-                                ) : item.name.toLowerCase().includes("bag") ? (
-                                  <ShoppingBag className="h-4 w-4 text-primary" />
-                                ) : item.name.toLowerCase().includes("gift") ? (
-                                  <Gift className="h-4 w-4 text-primary" />
-                                ) : (
-                                  <Package className="h-4 w-4 text-primary" />
-                                )}
-                                <span className="text-sm">{item.name}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="secondary">×{item.quantity}</Badge>
-                                {item.current_stock < item.quantity && (
-                                  <Badge variant="destructive" className="text-xs">
-                                    Low ({item.current_stock})
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </Card>
-                    </div>
-                  )}
-
-                  {/* Extra Packaging */}
+                  {/* Packaging Items - Fully Manual Selection */}
                   <div>
-                    <Label className="text-sm font-medium mb-2 block">Extra Packaging</Label>
+                    <Label className="text-sm font-medium mb-2 block">Packaging Items</Label>
                     <div className="space-y-2">
-                      {extraPackaging.map((item) => (
+                      {packagingItems.map((item) => (
                         <Card key={item.packaging_item_id} className="p-3 flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Package className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm">{item.name}</span>
+                            {getPackagingIcon(item.name)}
+                            <div>
+                              <span className="text-sm">{item.name}</span>
+                              {item.current_stock < item.quantity && (
+                                <Badge variant="destructive" className="text-xs ml-2">
+                                  Low stock ({item.current_stock})
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                           <div className="flex items-center gap-2">
                             <Input
@@ -595,7 +501,7 @@ export function StockTransferDialog({
                               min="1"
                               value={item.quantity}
                               onChange={(e) =>
-                                updateExtraPackagingQuantity(
+                                updatePackagingQuantity(
                                   item.packaging_item_id,
                                   parseInt(e.target.value) || 1
                                 )
@@ -607,7 +513,7 @@ export function StockTransferDialog({
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7"
-                              onClick={() => removeExtraPackaging(item.packaging_item_id)}
+                              onClick={() => removePackaging(item.packaging_item_id)}
                             >
                               <Trash2 className="h-3 w-3 text-destructive" />
                             </Button>
@@ -615,19 +521,27 @@ export function StockTransferDialog({
                         </Card>
                       ))}
 
-                      {availableExtraPackaging.length > 0 && (
-                        <Select onValueChange={addExtraPackaging}>
+                      {selectablePackaging.length > 0 && (
+                        <Select onValueChange={addPackaging}>
                           <SelectTrigger className="border-dashed">
-                            <SelectValue placeholder="+ Add extra packaging..." />
+                            <SelectValue placeholder="+ Add packaging item..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {availableExtraPackaging.map((packaging) => (
+                            {selectablePackaging.map((packaging) => (
                               <SelectItem key={packaging.id} value={packaging.id}>
                                 {packaging.name} (Stock: {packaging.current_stock})
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                      )}
+
+                      {packagingItems.length === 0 && selectablePackaging.length === 0 && (
+                        <Card className="p-4 text-center border-dashed">
+                          <p className="text-sm text-muted-foreground">
+                            No packaging items available
+                          </p>
+                        </Card>
                       )}
                     </div>
                   </div>
