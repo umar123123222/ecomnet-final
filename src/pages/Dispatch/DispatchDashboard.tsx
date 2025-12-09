@@ -8,10 +8,11 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DialogTrigger } from '@/components/ui/dialog';
-import { Form } from '@/components/ui/form';
-import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, ScanBarcode, Package, RefreshCw, DollarSign, ArrowUp } from 'lucide-react';
-import BulkDispatchDialog from '@/components/dispatch/BulkDispatchDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, Lock, ScanBarcode, Package, RefreshCw, DollarSign, ArrowUp } from 'lucide-react';
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from '@/components/layout';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
@@ -1336,27 +1337,221 @@ const metrics = useMemo(() => {
             {scannerModeActive ? 'Scanner Active...' : 'Scan to Dispatch'}
           </Button>
 
-          <Button variant="outline" disabled={scannerModeActive} onClick={() => setIsManualEntryOpen(true)}>
-            <Edit className="h-4 w-4 mr-2" />
-            Bulk Entry
-          </Button>
-
-          <BulkDispatchDialog
-            isOpen={isManualEntryOpen}
-            onOpenChange={setIsManualEntryOpen}
-            form={form}
-            onSubmit={handleManualEntry}
-            allowManualEntry={allowManualEntry}
-            setAllowManualEntry={setAllowManualEntry}
-            entryType={entryType}
-            setEntryType={setEntryType}
-            selectedCourier={selectedCourier}
-            setSelectedCourier={setSelectedCourier}
-            couriers={couriers}
-            isProcessing={isProcessing}
-            bulkErrors={bulkErrors}
-            scannerConnected={scanner.isConnected}
-          />
+          <Dialog open={isManualEntryOpen} onOpenChange={(open) => {
+            if (!isProcessing || !open) {
+              setIsManualEntryOpen(open);
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button variant="outline" disabled={scannerModeActive}>
+                <Edit className="h-4 w-4 mr-2" />
+                Bulk Entry
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Mark Orders as Dispatched</DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleManualEntry)} className="space-y-4">
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
+                    <div className="flex items-center gap-2">
+                      <Lock className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">Allow Manual Entry</p>
+                        <p className="text-xs text-muted-foreground">Enable keyboard typing (scanners work regardless)</p>
+                      </div>
+                    </div>
+                    <Switch 
+                      checked={allowManualEntry}
+                      onCheckedChange={setAllowManualEntry}
+                    />
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-6">
+                      <FormLabel>Search By:</FormLabel>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            value="tracking_id"
+                            checked={entryType === 'tracking_id'}
+                            onChange={(e) => {
+                              setEntryType('tracking_id');
+                              localStorage.setItem('dispatch_entry_type', 'tracking_id');
+                            }}
+                            className="w-4 h-4 text-primary"
+                          />
+                          <span className="text-sm">Tracking ID</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            value="order_number"
+                            checked={entryType === 'order_number'}
+                            onChange={(e) => {
+                              setEntryType('order_number');
+                              localStorage.setItem('dispatch_entry_type', 'order_number');
+                            }}
+                            className="w-4 h-4 text-primary"
+                          />
+                          <span className="text-sm">Order Number</span>
+                        </label>
+                      </div>
+                    </div>
+                    
+                    {/* Courier Selection */}
+                    <div className="space-y-2">
+                      <FormLabel>
+                        Courier Assignment (Optional)
+                        <span className="text-xs text-muted-foreground ml-2">
+                          Select if all orders are for a specific courier
+                        </span>
+                      </FormLabel>
+                      <Select 
+                        value={selectedCourier || "none"} 
+                        onValueChange={(value) => setSelectedCourier(value === "none" ? null : value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="No specific courier (Manual Entry)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">
+                            <div className="flex items-center gap-2">
+                              <Truck className="h-4 w-4 text-muted-foreground" />
+                              <span>No specific courier</span>
+                            </div>
+                          </SelectItem>
+                          {couriers.map((courier) => (
+                            <SelectItem key={courier.id} value={courier.id}>
+                              <div className="flex items-center gap-2">
+                                <Truck className={`h-4 w-4 ${courier.is_active ? 'text-primary' : 'text-muted-foreground'}`} />
+                                <span className={courier.is_active ? '' : 'text-muted-foreground'}>
+                                  {courier.name} ({courier.code})
+                                  {!courier.is_active && ' - Inactive'}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedCourier && (
+                        <Badge variant="outline" className="text-xs">
+                          All orders will be assigned to {couriers.find(c => c.id === selectedCourier)?.name}
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    <FormField control={form.control} name="bulkEntries" render={({
+                    field
+                  }) => <FormItem>
+                          <FormLabel>Bulk Entry</FormLabel>
+                          {!allowManualEntry && !scanner.isConnected && (
+                            <div className="p-2 mt-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+                              <Lock className="h-4 w-4 inline mr-1" />
+                              Scanner not connected. Connect scanner or enable manual entry.
+                            </div>
+                          )}
+                          {!allowManualEntry && scanner.isConnected && (
+                            <Badge variant="secondary" className="ml-2">
+                              <Lock className="h-3 w-3 mr-1" />
+                              Scanner Mode
+                            </Badge>
+                          )}
+                          <FormControl>
+                            <Textarea 
+                              {...field}
+                              placeholder={`${!allowManualEntry ? 'Scan' : 'Enter'} ${entryType === 'tracking_id' ? 'tracking IDs' : 'order numbers'} (one per line)...`}
+                              className="min-h-[150px] font-mono text-sm" 
+                              readOnly={!allowManualEntry}
+                              disabled={!allowManualEntry && !scanner.isConnected}
+                            />
+                          </FormControl>
+                          {isProcessing && (
+                            <div className="mt-2 p-3 bg-primary/5 border border-primary/20 rounded-md text-sm text-primary flex items-center gap-2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
+                              <span className="font-medium">Processing entries, please wait...</span>
+                            </div>
+                          )}
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {entryType === 'tracking_id' 
+                              ? 'Enter courier tracking numbers (e.g., TRK123456789)'
+                              : 'Enter order numbers (e.g., ORD-12345)'}
+                          </p>
+                          <FormMessage />
+                        </FormItem>} />
+                        
+                        {/* Bulk Errors Display */}
+                        {bulkErrors.length > 0 && (
+                          <div className="mt-4 border rounded-lg p-4 bg-destructive/5 max-h-64 overflow-y-auto">
+                            <p className="font-semibold text-destructive mb-3 flex items-center gap-2">
+                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-destructive/20 text-destructive text-xs font-bold">
+                                {bulkErrors.length}
+                              </span>
+                              Failed Entries
+                            </p>
+                            <div className="space-y-2">
+                              {bulkErrors.map((e, i) => {
+                                const getErrorIcon = (code?: string) => {
+                                  if (code === 'NOT_FOUND') return '🔍';
+                                  if (code === 'ALREADY_DISPATCHED') return '🔄';
+                                  if (code === 'NO_COURIER') return '📦';
+                                  if (code === 'INVALID_FORMAT') return '⚠️';
+                                  return '❌';
+                                };
+                                
+                                const getErrorBg = (code?: string) => {
+                                  if (code === 'NOT_FOUND') return 'bg-amber-50 border-amber-200 text-amber-900';
+                                  if (code === 'ALREADY_DISPATCHED') return 'bg-blue-50 border-blue-200 text-blue-900';
+                                  if (code === 'NO_COURIER') return 'bg-orange-50 border-orange-200 text-orange-900';
+                                  if (code === 'INVALID_FORMAT') return 'bg-yellow-50 border-yellow-200 text-yellow-900';
+                                  return 'bg-red-50 border-red-200 text-red-900';
+                                };
+                                
+                                return (
+                                  <div key={i} className={`text-sm p-3 border rounded ${getErrorBg(e.errorCode)}`}>
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-base">{getErrorIcon(e.errorCode)}</span>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-mono font-semibold break-all">{e.entry}</p>
+                                        <p className="text-xs mt-1 opacity-90">{e.error}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setIsManualEntryOpen(false)}
+                      disabled={isProcessing}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      disabled={isProcessing || (!allowManualEntry && !scanner.isConnected)}
+                    >
+                      {isProcessing ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-background border-t-transparent mr-2" />
+                          Processing...
+                        </>
+                      ) : (
+                        'Process Entries'
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
