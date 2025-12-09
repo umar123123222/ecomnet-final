@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Package, Plus, Trash2, Box, ShoppingBag, Gift, Search, Minus, X, ArrowRight } from "lucide-react";
+import { Loader2, Package, Plus, Trash2, Box, ShoppingBag, Gift, Search, Minus, X, ArrowRight, FileText } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const transferSchema = z.object({
@@ -295,21 +295,23 @@ export function StockTransferDialog({
     return <Package className="h-4 w-4 text-muted-foreground" />;
   };
 
+  const destinationOutlets = outlets?.filter((outlet) => outlet.id !== mainWarehouse?.id) || [];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b bg-muted/30">
+      <DialogContent className="max-w-4xl h-[85vh] overflow-hidden flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b bg-muted/30 shrink-0">
           <DialogTitle className="text-xl">New Stock Transfer</DialogTitle>
           <DialogDescription>
             Transfer products and packaging from warehouse to outlets
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-hidden flex flex-col">
-          <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x">
+        <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-hidden flex flex-col min-h-0">
+          <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-2 min-h-0">
             {/* Left Panel - Product Selection */}
-            <div className="flex flex-col overflow-hidden">
-              <div className="p-4 border-b bg-background">
+            <div className="flex flex-col overflow-hidden border-r">
+              <div className="p-4 border-b bg-background shrink-0">
                 <Label className="text-sm font-medium mb-2 block">Select Products</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -322,12 +324,15 @@ export function StockTransferDialog({
                 </div>
               </div>
               
-              <ScrollArea className="flex-1">
+              <ScrollArea className="flex-1 min-h-0">
                 <div className="p-2 space-y-1">
                   {filteredProducts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground p-4 text-center">
-                      {productSearch ? "No products found" : "No products available"}
-                    </p>
+                    <div className="p-8 text-center">
+                      <Package className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
+                      <p className="text-sm text-muted-foreground">
+                        {productSearch ? "No products found" : "No products available"}
+                      </p>
+                    </div>
                   ) : (
                     filteredProducts.map((product) => {
                       const isSelected = !!selectedProducts[product.id];
@@ -360,7 +365,7 @@ export function StockTransferDialog({
                           </div>
                           
                           {isSelected ? (
-                            <div className="flex items-center gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1 ml-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                               <Button
                                 type="button"
                                 variant="outline"
@@ -395,7 +400,7 @@ export function StockTransferDialog({
                               </Button>
                             </div>
                           ) : !isOutOfStock ? (
-                            <Button type="button" variant="ghost" size="sm" className="h-7 ml-2">
+                            <Button type="button" variant="ghost" size="sm" className="h-7 ml-2 shrink-0">
                               <Plus className="h-4 w-4" />
                             </Button>
                           ) : null}
@@ -408,59 +413,64 @@ export function StockTransferDialog({
             </div>
 
             {/* Right Panel - Transfer Details */}
-            <div className="flex flex-col overflow-hidden bg-muted/20">
-              <div className="p-4 border-b bg-background">
-                <Label className="text-sm font-medium mb-2 block">Transfer To</Label>
-                <Select
-                  value={watch("to_outlet_id")}
-                  onValueChange={(value) => setValue("to_outlet_id", value)}
-                >
-                  <SelectTrigger className={errors.to_outlet_id ? "border-destructive" : ""}>
-                    <SelectValue placeholder="Select destination..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {outlets
-                      ?.filter((outlet) => outlet.id !== mainWarehouse?.id)
-                      ?.map((outlet) => (
-                        <SelectItem key={outlet.id} value={outlet.id}>
-                          {outlet.name} ({outlet.outlet_type === "warehouse" ? "Warehouse" : "Outlet"})
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                {errors.to_outlet_id && (
-                  <p className="text-xs text-destructive mt-1">{errors.to_outlet_id.message}</p>
-                )}
-              </div>
+            <div className="flex flex-col overflow-hidden bg-muted/10">
+              <ScrollArea className="flex-1 min-h-0">
+                <div className="p-4 space-y-5">
+                  {/* Destination Selection */}
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">Transfer To</Label>
+                    <Select
+                      value={watch("to_outlet_id")}
+                      onValueChange={(value) => setValue("to_outlet_id", value)}
+                    >
+                      <SelectTrigger className={`w-full ${errors.to_outlet_id ? "border-destructive" : ""}`}>
+                        <SelectValue placeholder="Select destination outlet..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover z-50">
+                        {destinationOutlets.length === 0 ? (
+                          <div className="p-2 text-sm text-muted-foreground text-center">
+                            No outlets available
+                          </div>
+                        ) : (
+                          destinationOutlets.map((outlet) => (
+                            <SelectItem key={outlet.id} value={outlet.id}>
+                              {outlet.name} ({outlet.outlet_type === "warehouse" ? "Warehouse" : "Outlet"})
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {errors.to_outlet_id && (
+                      <p className="text-xs text-destructive mt-1">{errors.to_outlet_id.message}</p>
+                    )}
+                  </div>
 
-              <ScrollArea className="flex-1">
-                <div className="p-4 space-y-4">
                   {/* Selected Products Summary */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <Label className="text-sm font-medium">Selected Items</Label>
                       {selectedProductsList.length > 0 && (
-                        <Badge variant="secondary">
+                        <Badge variant="secondary" className="text-xs">
                           {selectedProductsList.length} products • {totalProducts} units
                         </Badge>
                       )}
                     </div>
                     
                     {selectedProductsList.length === 0 ? (
-                      <Card className="p-6 text-center border-dashed">
-                        <Package className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                      <Card className="p-6 text-center border-dashed bg-background">
+                        <Package className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
                         <p className="text-sm text-muted-foreground">
                           Select products from the left panel
                         </p>
                       </Card>
                     ) : (
-                      <Card className="divide-y">
+                      <Card className="divide-y bg-background">
                         {selectedProductsList.map((productId) => (
-                          <div key={productId} className="p-3 flex items-center justify-between">
+                          <div key={productId} className="p-3 flex items-center justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">{getProductName(productId)}</p>
                             </div>
-                            <div className="flex items-center gap-2 ml-2">
+                            <div className="flex items-center gap-2 shrink-0">
                               <Badge variant="outline">×{selectedProducts[productId]}</Badge>
                               <Button
                                 type="button"
@@ -478,83 +488,99 @@ export function StockTransferDialog({
                     )}
                   </div>
 
-                  {/* Packaging Items - Fully Manual Selection */}
+                  {/* Packaging Items */}
                   <div>
                     <Label className="text-sm font-medium mb-2 block">Packaging Items</Label>
                     <div className="space-y-2">
-                      {packagingItems.map((item) => (
-                        <Card key={item.packaging_item_id} className="p-3 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {getPackagingIcon(item.name)}
-                            <div>
-                              <span className="text-sm">{item.name}</span>
-                              {item.current_stock < item.quantity && (
-                                <Badge variant="destructive" className="text-xs ml-2">
-                                  Low stock ({item.current_stock})
-                                </Badge>
-                              )}
+                      {packagingItems.length > 0 && (
+                        <Card className="divide-y bg-background">
+                          {packagingItems.map((item) => (
+                            <div key={item.packaging_item_id} className="p-3 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                {getPackagingIcon(item.name)}
+                                <div className="min-w-0">
+                                  <span className="text-sm truncate block">{item.name}</span>
+                                  {item.current_stock < item.quantity && (
+                                    <Badge variant="destructive" className="text-xs mt-1">
+                                      Low stock ({item.current_stock})
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={item.quantity}
+                                  onChange={(e) =>
+                                    updatePackagingQuantity(
+                                      item.packaging_item_id,
+                                      parseInt(e.target.value) || 1
+                                    )
+                                  }
+                                  className="w-16 h-7 text-center"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => removePackaging(item.packaging_item_id)}
+                                >
+                                  <Trash2 className="h-3 w-3 text-destructive" />
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="number"
-                              min="1"
-                              value={item.quantity}
-                              onChange={(e) =>
-                                updatePackagingQuantity(
-                                  item.packaging_item_id,
-                                  parseInt(e.target.value) || 1
-                                )
-                              }
-                              className="w-16 h-7 text-center"
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => removePackaging(item.packaging_item_id)}
-                            >
-                              <Trash2 className="h-3 w-3 text-destructive" />
-                            </Button>
-                          </div>
+                          ))}
                         </Card>
-                      ))}
+                      )}
 
-                      {selectablePackaging.length > 0 && (
-                        <Select onValueChange={addPackaging}>
-                          <SelectTrigger className="border-dashed">
-                            <SelectValue placeholder="+ Add packaging item..." />
+                      {selectablePackaging.length > 0 ? (
+                        <Select onValueChange={addPackaging} value="">
+                          <SelectTrigger className="border-dashed bg-background">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Plus className="h-4 w-4" />
+                              <span>Add packaging item...</span>
+                            </div>
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-popover z-50">
                             {selectablePackaging.map((packaging) => (
                               <SelectItem key={packaging.id} value={packaging.id}>
-                                {packaging.name} (Stock: {packaging.current_stock})
+                                <div className="flex items-center justify-between gap-4">
+                                  <span>{packaging.name}</span>
+                                  <Badge variant="outline" className="text-xs">
+                                    Stock: {packaging.current_stock}
+                                  </Badge>
+                                </div>
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                      )}
-
-                      {packagingItems.length === 0 && selectablePackaging.length === 0 && (
-                        <Card className="p-4 text-center border-dashed">
+                      ) : packagingItems.length === 0 ? (
+                        <Card className="p-4 text-center border-dashed bg-background">
+                          <Box className="h-6 w-6 mx-auto text-muted-foreground/50 mb-2" />
                           <p className="text-sm text-muted-foreground">
                             No packaging items available
                           </p>
                         </Card>
-                      )}
+                      ) : null}
                     </div>
                   </div>
 
                   {/* Notes */}
                   <div>
-                    <Label htmlFor="notes" className="text-sm font-medium mb-2 block">Notes</Label>
+                    <Label htmlFor="notes" className="text-sm font-medium mb-2 block">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        Notes
+                      </div>
+                    </Label>
                     <Textarea
                       id="notes"
                       {...register("notes")}
-                      placeholder="Optional notes..."
-                      rows={2}
-                      className="resize-none"
+                      placeholder="Optional notes for this transfer..."
+                      rows={3}
+                      className="resize-none bg-background"
                     />
                   </div>
                 </div>
@@ -562,12 +588,12 @@ export function StockTransferDialog({
             </div>
           </div>
 
-          <DialogFooter className="px-6 py-4 border-t bg-muted/30">
-            <div className="flex items-center justify-between w-full">
+          <DialogFooter className="px-6 py-4 border-t bg-muted/30 shrink-0">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-3">
               <div className="text-sm text-muted-foreground">
                 From: <span className="font-medium text-foreground">{mainWarehouse?.name || "Main Warehouse"}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                   Cancel
                 </Button>
