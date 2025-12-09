@@ -70,7 +70,7 @@ serve(async (req) => {
     const { count: totalOrders, error: countError } = await supabase
       .from('orders')
       .select('*', { count: 'exact', head: true })
-      .not('status', 'in', '("delivered","cancelled","returned")')
+      .eq('status', 'dispatched')
       .not('tracking_id', 'is', null)
       .neq('tracking_id', '');
 
