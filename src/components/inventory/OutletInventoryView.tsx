@@ -93,7 +93,7 @@ export const OutletInventoryView = () => {
     enabled: !!userOutlet?.id,
   });
 
-  // Fetch recent stock movements
+  // Fetch all stock movements for the user's outlet
   const { data: movements, isLoading: movementsLoading } = useQuery<StockMovement[]>({
     queryKey: ["outlet-movements", userOutlet?.id],
     queryFn: async () => {
@@ -110,8 +110,7 @@ export const OutletInventoryView = () => {
           created_by:profiles(full_name)
         `)
         .eq("outlet_id", userOutlet.id)
-        .order("created_at", { ascending: false })
-        .limit(10);
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data as any;
@@ -443,8 +442,8 @@ export const OutletInventoryView = () => {
       {/* Recent Movements */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Stock Movements</CardTitle>
-          <CardDescription>Last 10 inventory transactions</CardDescription>
+          <CardTitle>Stock Movements</CardTitle>
+          <CardDescription>All inventory transactions at your outlet</CardDescription>
         </CardHeader>
         <CardContent>
           {movementsLoading ? (
