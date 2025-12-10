@@ -748,6 +748,40 @@ serve(async (req) => {
             })
           }
 
+          // Update actual inventory at destination outlet
+          const { data: existingInventory } = await supabaseClient
+            .from('inventory')
+            .select('id, quantity')
+            .eq('product_id', transferItem.product_id)
+            .eq('outlet_id', transfer.to_outlet_id)
+            .single()
+
+          if (existingInventory) {
+            // Update existing inventory
+            const { error: invError } = await supabaseClient
+              .from('inventory')
+              .update({ quantity: existingInventory.quantity + item.quantity_received })
+              .eq('id', existingInventory.id)
+            
+            if (invError) {
+              console.error('Error updating inventory:', invError)
+            }
+          } else {
+            // Create new inventory record
+            const { error: invError } = await supabaseClient
+              .from('inventory')
+              .insert({
+                product_id: transferItem.product_id,
+                outlet_id: transfer.to_outlet_id,
+                quantity: item.quantity_received,
+                reserved_quantity: 0
+              })
+            
+            if (invError) {
+              console.error('Error creating inventory:', invError)
+            }
+          }
+
           const { error: movementError } = await supabaseClient
             .from('stock_movements')
             .insert({
