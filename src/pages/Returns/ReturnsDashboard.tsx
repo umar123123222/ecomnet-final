@@ -171,8 +171,10 @@ const ReturnsDashboard = () => {
   const filteredByDate = useMemo(() => {
     if (!dateRange?.from) return returns;
     return returns.filter(returnItem => {
-      if (!returnItem.date) return false;
-      const returnDate = parseISO(returnItem.date);
+      // Use received_at or created_at for date filtering
+      const dateStr = returnItem.received_at || returnItem.created_at;
+      if (!dateStr) return false;
+      const returnDate = parseISO(dateStr);
       if (dateRange.to) {
         return isWithinInterval(returnDate, {
           start: dateRange.from,
@@ -491,26 +493,40 @@ const ReturnsDashboard = () => {
         duration: 1500,
       });
 
-      // Refresh data
+      // Refresh data using chunked fetch
       queryClient.invalidateQueries({ queryKey: ['returns'] });
-      const { data: refreshedReturns } = await supabase
-        .from('returns')
-        .select(`
-          *,
-          orders!returns_order_id_fkey (
-            order_number,
-            customer_name,
-            customer_phone,
-            customer_email
-          ),
-          received_by_profile:profiles(
-            full_name,
-            email
-          )
-        `)
-        .order('created_at', { ascending: false });
       
-      if (refreshedReturns) setReturns(refreshedReturns);
+      const { count: totalCount } = await supabase
+        .from('returns')
+        .select('*', { count: 'exact', head: true });
+
+      const CHUNK_SIZE = 1000;
+      const chunks = Math.ceil((totalCount || 0) / CHUNK_SIZE);
+      let allData: any[] = [];
+
+      for (let i = 0; i < chunks; i++) {
+        const { data } = await supabase
+          .from('returns')
+          .select(`
+            *,
+            orders!returns_order_id_fkey (
+              order_number,
+              customer_name,
+              customer_phone,
+              customer_email
+            ),
+            received_by_profile:profiles(
+              full_name,
+              email
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .range(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE - 1);
+
+        if (data) allData = [...allData, ...data];
+      }
+      
+      setReturns(allData);
 
     } catch (error: any) {
       console.error('Error processing scan:', error);
@@ -722,21 +738,38 @@ const ReturnsDashboard = () => {
         variant: successCount > 0 ? "default" : "destructive",
       });
 
-      // Refresh the returns list
-      const { data: refreshedReturns } = await supabase
+      // Refresh the returns list using chunked fetch like initial load
+      const { count: totalCount } = await supabase
         .from('returns')
-        .select(`
-          *,
-          orders!returns_order_id_fkey (
-            order_number,
-            customer_name,
-            customer_phone,
-            customer_email
-          )
-        `)
-        .order('created_at', { ascending: false });
+        .select('*', { count: 'exact', head: true });
 
-      if (refreshedReturns) setReturns(refreshedReturns);
+      const CHUNK_SIZE = 1000;
+      const chunks = Math.ceil((totalCount || 0) / CHUNK_SIZE);
+      let allData: any[] = [];
+
+      for (let i = 0; i < chunks; i++) {
+        const { data } = await supabase
+          .from('returns')
+          .select(`
+            *,
+            orders!returns_order_id_fkey (
+              order_number,
+              customer_name,
+              customer_phone,
+              customer_email
+            ),
+            received_by_profile:profiles(
+              full_name,
+              email
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .range(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE - 1);
+
+        if (data) allData = [...allData, ...data];
+      }
+
+      setReturns(allData);
     } catch (error) {
       console.error('Error processing bulk entries:', error);
       toast({
