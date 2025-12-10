@@ -319,6 +319,9 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     if (permissions.canAccessStockTransfer) {
       inventorySubItems.push({ label: 'Stock Transfers', href: '/stock-transfer', icon: '' });
     }
+    if (permissions.canViewStockMovements) {
+      inventorySubItems.push({ label: 'Stock Movements', href: '/stock-movement-history', icon: '' });
+    }
 
     items.push({
       label: 'Inventory',
