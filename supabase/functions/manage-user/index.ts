@@ -354,10 +354,10 @@ serve(async (req) => {
           const { data: portalUrlSetting } = await supabaseAdmin
             .from('api_settings')
             .select('setting_value')
-            .eq('setting_key', 'company_portal_url')
+            .eq('setting_key', 'portal_url')
             .maybeSingle();
           
-          const portalUrl = portalUrlSetting?.setting_value || `${Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '.lovable.app') || 'https://your-portal.com'}/auth`;
+          const portalUrl = portalUrlSetting?.setting_value || 'https://your-portal.com';
           
           console.log('Sending credentials email to:', email, 'with portal URL:', portalUrl);
           

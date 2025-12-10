@@ -37,10 +37,10 @@ async function getPortalUrl(supabase: any): Promise<string> {
   const { data: portalUrlSetting } = await supabase
     .from('api_settings')
     .select('setting_value')
-    .eq('setting_key', 'company_portal_url')
+    .eq('setting_key', 'portal_url')
     .maybeSingle();
   
-  return portalUrlSetting?.setting_value || `${Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '.lovable.app') || 'https://your-portal.com'}/auth`;
+  return portalUrlSetting?.setting_value || 'https://your-portal.com';
 }
 
 serve(async (req) => {
