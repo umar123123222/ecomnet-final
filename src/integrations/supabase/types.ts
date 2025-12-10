@@ -2258,6 +2258,58 @@ export type Database = {
           },
         ]
       }
+      outlet_packaging_inventory: {
+        Row: {
+          created_at: string | null
+          id: string
+          last_restocked_at: string | null
+          outlet_id: string
+          packaging_item_id: string
+          quantity: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          last_restocked_at?: string | null
+          outlet_id: string
+          packaging_item_id: string
+          quantity?: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          last_restocked_at?: string | null
+          outlet_id?: string
+          packaging_item_id?: string
+          quantity?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outlet_packaging_inventory_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlet_stock_summary"
+            referencedColumns: ["outlet_id"]
+          },
+          {
+            foreignKeyName: "outlet_packaging_inventory_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outlet_packaging_inventory_packaging_item_id_fkey"
+            columns: ["packaging_item_id"]
+            isOneToOne: false
+            referencedRelation: "packaging_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outlet_staff: {
         Row: {
           assigned_by: string | null
@@ -5730,6 +5782,14 @@ export type Database = {
         Returns: Json
       }
       trigger_smart_reorder_now: { Args: never; Returns: Json }
+      upsert_outlet_packaging_inventory: {
+        Args: {
+          p_outlet_id: string
+          p_packaging_item_id: string
+          p_quantity_change: number
+        }
+        Returns: undefined
+      }
       user_has_role: {
         Args: {
           check_role: Database["public"]["Enums"]["user_role"]

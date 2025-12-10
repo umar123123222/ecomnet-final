@@ -136,23 +136,43 @@ export const OutletInventoryView = () => {
   // Fetch outlets for stock adjustment dialog (user's outlet only)
   const outlets = userOutlet ? [{ id: userOutlet.id, name: userOutlet.name }] : [];
 
-  // Fetch packaging items for packaging adjustment dialog and display
+  // Fetch outlet-specific packaging inventory
   const { data: packagingItems = [], isLoading: packagingLoading } = useQuery({
-    queryKey: ["packaging-items-for-outlet", packagingSearchQuery],
+    queryKey: ["outlet-packaging-inventory", userOutlet?.id, packagingSearchQuery],
     queryFn: async () => {
-      let query = supabase
-        .from("packaging_items")
-        .select("id, name, sku, current_stock, reorder_level")
-        .eq("is_active", true);
+      if (!userOutlet?.id) return [];
       
+      const { data, error } = await supabase
+        .from("outlet_packaging_inventory")
+        .select(`
+          id,
+          quantity,
+          packaging_item:packaging_items(id, name, sku, reorder_level)
+        `)
+        .eq("outlet_id", userOutlet.id);
+      
+      if (error) throw error;
+      
+      // Filter by search query and transform data
+      let filtered = data || [];
       if (packagingSearchQuery) {
-        query = query.or(`name.ilike.%${packagingSearchQuery}%,sku.ilike.%${packagingSearchQuery}%`);
+        const searchLower = packagingSearchQuery.toLowerCase();
+        filtered = filtered.filter(item => 
+          item.packaging_item?.name?.toLowerCase().includes(searchLower) ||
+          item.packaging_item?.sku?.toLowerCase().includes(searchLower)
+        );
       }
       
-      const { data, error } = await query.order("name");
-      if (error) throw error;
-      return data;
+      return filtered.map(item => ({
+        id: item.id,
+        packaging_item_id: item.packaging_item?.id,
+        name: item.packaging_item?.name || 'Unknown',
+        sku: item.packaging_item?.sku || '',
+        current_stock: item.quantity,
+        reorder_level: item.packaging_item?.reorder_level || 0
+      }));
     },
+    enabled: !!userOutlet?.id,
   });
 
   const lowPackagingCount = packagingItems.filter(item => 
