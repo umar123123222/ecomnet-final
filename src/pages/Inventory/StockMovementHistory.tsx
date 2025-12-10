@@ -71,11 +71,10 @@ export default function StockMovementHistory() {
           movement_type,
           notes,
           created_at,
+          created_by,
+          outlet_id,
           product:products(name, sku),
-          from_outlet:outlets!stock_movements_from_outlet_id_fkey(name),
-          to_outlet:outlets!stock_movements_to_outlet_id_fkey(name),
-          outlet:outlets!stock_movements_outlet_id_fkey(name),
-          performed_by_profile:profiles!stock_movements_performed_by_fkey(full_name, email)
+          outlet:outlets(name)
         `)
         .order("created_at", { ascending: false })
         .limit(200);
@@ -94,6 +93,23 @@ export default function StockMovementHistory() {
 
       const { data, error } = await query;
       if (error) throw error;
+      
+      // Fetch user names for created_by
+      if (data && data.length > 0) {
+        const userIds = [...new Set(data.map((m: any) => m.created_by).filter(Boolean))];
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .in('id', userIds);
+          
+          const profileMap = new Map(profiles?.map((p: any) => [p.id, p]) || []);
+          return data.map((m: any) => ({
+            ...m,
+            performed_by_profile: profileMap.get(m.created_by) || null
+          }));
+        }
+      }
       return data;
     },
     enabled: permissions.canViewStockMovements,
@@ -111,8 +127,8 @@ export default function StockMovementHistory() {
           movement_type,
           notes,
           created_at,
-          packaging_item:packaging_items(name, sku),
-          profile:profiles(full_name, email)
+          created_by,
+          packaging_item:packaging_items(name, sku)
         `)
         .order("created_at", { ascending: false })
         .limit(200);
@@ -131,6 +147,23 @@ export default function StockMovementHistory() {
 
       const { data, error } = await query;
       if (error) throw error;
+      
+      // Fetch user names for created_by
+      if (data && data.length > 0) {
+        const userIds = [...new Set(data.map((m: any) => m.created_by).filter(Boolean))];
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .in('id', userIds);
+          
+          const profileMap = new Map(profiles?.map((p: any) => [p.id, p]) || []);
+          return data.map((m: any) => ({
+            ...m,
+            profile: profileMap.get(m.created_by) || null
+          }));
+        }
+      }
       return data;
     },
     enabled: permissions.canViewStockMovements,
@@ -191,8 +224,8 @@ export default function StockMovementHistory() {
         created_at: m.created_at,
         performed_by: m.performed_by_profile?.full_name || m.performed_by_profile?.email || 'System',
         outlet_name: m.outlet?.name || '-',
-        from_outlet: m.from_outlet?.name,
-        to_outlet: m.to_outlet?.name,
+        from_outlet: undefined,
+        to_outlet: undefined,
       };
     }),
     ...(packagingMovements || []).map((m: any) => {
