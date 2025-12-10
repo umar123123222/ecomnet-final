@@ -322,6 +322,11 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     if (permissions.canViewStockMovements) {
       inventorySubItems.push({ label: 'Stock Movements', href: '/stock-movement-history', icon: '' });
     }
+    
+    // Store managers see only their outlet inventory
+    if (role === 'store_manager') {
+      inventorySubItems.unshift({ label: 'My Outlet', href: '/outlet-inventory', icon: '' });
+    }
 
     items.push({
       label: 'Inventory',
