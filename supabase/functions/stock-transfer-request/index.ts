@@ -599,8 +599,7 @@ serve(async (req) => {
         const { error: completeError } = await supabaseClient
           .from('stock_transfer_requests')
           .update({
-            status: 'completed',
-            completed_at: new Date().toISOString()
+            status: 'completed'
           })
           .eq('id', transfer_id)
 
@@ -794,8 +793,7 @@ serve(async (req) => {
         const { error: updateError } = await supabaseClient
           .from('stock_transfer_requests')
           .update({ 
-            status: status,
-            completed_at: new Date().toISOString()
+            status: status
           })
           .eq('id', transfer_id)
 
