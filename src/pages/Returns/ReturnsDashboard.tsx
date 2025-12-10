@@ -683,20 +683,27 @@ const ReturnsDashboard = () => {
           continue;
         }
 
-        if (!result.success) {
-          const errorMessage = result.errorCode === 'NOT_FOUND' 
-            ? 'Order not found in database'
-            : result.errorCode === 'ALREADY_RETURNED'
-            ? 'Order already marked as returned'
-            : result.message || 'Unknown error';
+        if (!result || !result.success) {
+          const errorMessage = result?.errorCode === 'NOT_FOUND' 
+            ? 'Order Not Found'
+            : result?.errorCode === 'ALREADY_RETURNED'
+            ? 'Return Already Marked'
+            : result?.errorCode === 'ALREADY_RECEIVED'
+            ? 'Return Already Marked'
+            : result?.error || 'Unknown error';
           
           errors.push(`${errorMessage}: ${entry}`);
-          bulkErrorsList.push({ entry, error: errorMessage, errorCode: result.errorCode });
+          bulkErrorsList.push({ entry, error: errorMessage, errorCode: result?.errorCode || 'UNKNOWN' });
           errorCount++;
           continue;
         }
 
+        // Success
         successCount++;
+        toast({
+          title: "Return Marked Successfully",
+          description: `Order ${result.order?.order_number || entry} marked as returned`,
+        });
       }
 
       // Show results
