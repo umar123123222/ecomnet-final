@@ -171,6 +171,7 @@ const ReturnsDashboard = () => {
   const filteredByDate = useMemo(() => {
     if (!dateRange?.from) return returns;
     return returns.filter(returnItem => {
+      if (!returnItem.date) return false;
       const returnDate = parseISO(returnItem.date);
       if (dateRange.to) {
         return isWithinInterval(returnDate, {
