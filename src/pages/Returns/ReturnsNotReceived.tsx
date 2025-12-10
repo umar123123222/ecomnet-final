@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Eye, AlertTriangle, Clock, DollarSign, RotateCcw, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { Search, Eye, AlertTriangle, Clock, DollarSign, RotateCcw, ChevronLeft, ChevronRight, Download, ArrowUp } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -460,6 +460,16 @@ const ReturnsNotReceived = () => {
           </Card>
         </>
       )}
+
+      {/* Scroll to Top Button */}
+      <Button
+        variant="outline"
+        size="icon"
+        className="fixed bottom-6 left-6 z-50 rounded-full shadow-lg bg-background hover:bg-muted"
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      >
+        <ArrowUp className="h-4 w-4" />
+      </Button>
     </PageContainer>
   );
 };
