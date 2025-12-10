@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { AlertCircle, CheckCircle, Loader2, Package, PackageCheck, AlertTriangle, ArrowLeft } from "lucide-react";
+import { AlertCircle, CheckCircle, Loader2, Package, PackageCheck, AlertTriangle, ArrowLeft, Camera, X, ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -36,13 +36,16 @@ interface TransferReceiveDialogProps {
 }
 
 const VARIANCE_REASONS = [
-  { value: "damaged", label: "Damaged during transit" },
-  { value: "missing", label: "Items missing from shipment" },
-  { value: "short_shipment", label: "Short shipment from warehouse" },
-  { value: "wrong_items", label: "Wrong items received" },
-  { value: "packaging_damage", label: "Packaging damage (items intact)" },
-  { value: "other", label: "Other" },
+  { value: "damaged", label: "Damaged during transit", requiresImage: true },
+  { value: "missing", label: "Items missing from shipment", requiresImage: false },
+  { value: "short_shipment", label: "Short shipment from warehouse", requiresImage: false },
+  { value: "wrong_items", label: "Wrong items received", requiresImage: true },
+  { value: "packaging_damage", label: "Packaging damage (items intact)", requiresImage: true },
+  { value: "other", label: "Other", requiresImage: false },
 ];
+
+// Reasons that require image proof
+const REASONS_REQUIRING_IMAGE = ["damaged", "wrong_items", "packaging_damage"];
 
 type ReceiveStep = "choice" | "details";
 
@@ -51,8 +54,12 @@ export const TransferReceiveDialog = ({ open, onOpenChange, transfer }: Transfer
   const [receivedQuantities, setReceivedQuantities] = useState<Record<string, number>>({});
   const [varianceReasons, setVarianceReasons] = useState<Record<string, string>>({});
   const [varianceNotes, setVarianceNotes] = useState<Record<string, string>>({});
+  const [varianceImages, setVarianceImages] = useState<Record<string, File | null>>({});
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<Record<string, string>>({});
   const [generalNotes, setGeneralNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -77,10 +84,78 @@ export const TransferReceiveDialog = ({ open, onOpenChange, transfer }: Transfer
 
   const handleVarianceReasonChange = (itemId: string, reason: string) => {
     setVarianceReasons(prev => ({ ...prev, [itemId]: reason }));
+    // Clear image if switching to a reason that doesn't require image
+    if (!REASONS_REQUIRING_IMAGE.includes(reason)) {
+      setVarianceImages(prev => ({ ...prev, [itemId]: null }));
+      if (imagePreviewUrls[itemId]) {
+        URL.revokeObjectURL(imagePreviewUrls[itemId]);
+        setImagePreviewUrls(prev => {
+          const updated = { ...prev };
+          delete updated[itemId];
+          return updated;
+        });
+      }
+    }
   };
 
   const handleVarianceNoteChange = (itemId: string, note: string) => {
     setVarianceNotes(prev => ({ ...prev, [itemId]: note }));
+  };
+
+  const handleImageChange = (itemId: string, file: File | null) => {
+    // Revoke old preview URL if exists
+    if (imagePreviewUrls[itemId]) {
+      URL.revokeObjectURL(imagePreviewUrls[itemId]);
+    }
+
+    if (file) {
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Image must be less than 5MB",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setImagePreviewUrls(prev => ({ ...prev, [itemId]: previewUrl }));
+      setVarianceImages(prev => ({ ...prev, [itemId]: file }));
+    } else {
+      setImagePreviewUrls(prev => {
+        const updated = { ...prev };
+        delete updated[itemId];
+        return updated;
+      });
+      setVarianceImages(prev => ({ ...prev, [itemId]: null }));
+    }
+  };
+
+  const uploadImage = async (file: File, itemId: string): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${transfer?.id}/${itemId}_${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('transfer-variance-proofs')
+        .upload(fileName, file);
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        return null;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('transfer-variance-proofs')
+        .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+      return null;
+    }
   };
 
   const calculateVariance = (item: TransferItem) => {
@@ -182,6 +257,20 @@ export const TransferReceiveDialog = ({ open, onOpenChange, transfer }: Transfer
       return;
     }
 
+    // Validate image proof for reasons that require it
+    const missingImages = itemsWithVariances.filter(
+      item => REASONS_REQUIRING_IMAGE.includes(varianceReasons[item.id]) && !varianceImages[item.id]
+    );
+    if (missingImages.length > 0) {
+      const productNames = missingImages.map(item => item.product?.name).join(', ');
+      toast({
+        title: "Image Proof Required",
+        description: `Please upload proof images for: ${productNames}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!generalNotes.trim()) {
       toast({
         title: "Notes Required",
@@ -193,18 +282,32 @@ export const TransferReceiveDialog = ({ open, onOpenChange, transfer }: Transfer
 
     setIsSubmitting(true);
     try {
+      // Upload all images first
+      const imageUrls: Record<string, string> = {};
+      for (const item of itemsWithVariances) {
+        if (varianceImages[item.id]) {
+          setIsUploadingImage(true);
+          const url = await uploadImage(varianceImages[item.id]!, item.id);
+          if (url) {
+            imageUrls[item.id] = url;
+          }
+        }
+      }
+      setIsUploadingImage(false);
+
       const receiptItems = items.map(item => {
         const variance = calculateVariance(item);
         const reasonKey = varianceReasons[item.id];
         const reasonLabel = VARIANCE_REASONS.find(r => r.value === reasonKey)?.label || reasonKey;
         const note = varianceNotes[item.id] || "";
+        const imageUrl = imageUrls[item.id] || "";
         
         return {
           transfer_item_id: item.id,
           quantity_expected: getExpectedQty(item),
           quantity_received: receivedQuantities[item.id],
           variance_reason: variance !== 0 
-            ? `${reasonLabel}${note ? `: ${note}` : ""}`
+            ? `${reasonLabel}${note ? `: ${note}` : ""}${imageUrl ? ` [Proof: ${imageUrl}]` : ""}`
             : null,
         };
       });
@@ -240,11 +343,16 @@ export const TransferReceiveDialog = ({ open, onOpenChange, transfer }: Transfer
   };
 
   const handleClose = () => {
+    // Cleanup preview URLs
+    Object.values(imagePreviewUrls).forEach(url => URL.revokeObjectURL(url));
+    
     onOpenChange(false);
     setStep("choice");
     setReceivedQuantities({});
     setVarianceReasons({});
     setVarianceNotes({});
+    setVarianceImages({});
+    setImagePreviewUrls({});
     setGeneralNotes("");
   };
 
@@ -398,21 +506,66 @@ export const TransferReceiveDialog = ({ open, onOpenChange, transfer }: Transfer
                         </TableCell>
                         <TableCell>
                           {hasVariance && item.id in receivedQuantities && (
-                            <Select
-                              value={varianceReasons[item.id] || ""}
-                              onValueChange={(value) => handleVarianceReasonChange(item.id, value)}
-                            >
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue placeholder="Select reason..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {VARIANCE_REASONS.map((reason) => (
-                                  <SelectItem key={reason.value} value={reason.value}>
-                                    {reason.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="space-y-2">
+                              <Select
+                                value={varianceReasons[item.id] || ""}
+                                onValueChange={(value) => handleVarianceReasonChange(item.id, value)}
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue placeholder="Select reason..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {VARIANCE_REASONS.map((reason) => (
+                                    <SelectItem key={reason.value} value={reason.value}>
+                                      {reason.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              
+                              {/* Image upload for reasons requiring proof */}
+                              {REASONS_REQUIRING_IMAGE.includes(varianceReasons[item.id]) && (
+                                <div className="space-y-1">
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    ref={el => fileInputRefs.current[item.id] = el}
+                                    onChange={(e) => handleImageChange(item.id, e.target.files?.[0] || null)}
+                                  />
+                                  
+                                  {imagePreviewUrls[item.id] ? (
+                                    <div className="relative">
+                                      <img 
+                                        src={imagePreviewUrls[item.id]} 
+                                        alt="Proof" 
+                                        className="w-full h-16 object-cover rounded border"
+                                      />
+                                      <Button
+                                        type="button"
+                                        variant="destructive"
+                                        size="icon"
+                                        className="absolute -top-1 -right-1 h-5 w-5"
+                                        onClick={() => handleImageChange(item.id, null)}
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="w-full h-8 text-xs gap-1"
+                                      onClick={() => fileInputRefs.current[item.id]?.click()}
+                                    >
+                                      <Camera className="h-3 w-3" />
+                                      Upload Proof *
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           )}
                         </TableCell>
                       </TableRow>
@@ -421,6 +574,16 @@ export const TransferReceiveDialog = ({ open, onOpenChange, transfer }: Transfer
                 </TableBody>
               </Table>
             </div>
+
+            {/* Image requirement notice */}
+            {Object.values(varianceReasons).some(r => REASONS_REQUIRING_IMAGE.includes(r)) && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border text-sm">
+                <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground">
+                  Proof images are required for damaged items, wrong items, and packaging damage.
+                </span>
+              </div>
+            )}
 
             {/* Variance Notes for "Other" reasons */}
             {Object.entries(varianceReasons)
@@ -476,9 +639,15 @@ export const TransferReceiveDialog = ({ open, onOpenChange, transfer }: Transfer
               <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
                 Cancel
               </Button>
-              <Button onClick={handleSubmitWithVariances} disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Confirm Receipt
+              <Button onClick={handleSubmitWithVariances} disabled={isSubmitting || isUploadingImage}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {isUploadingImage ? "Uploading images..." : "Submitting..."}
+                  </>
+                ) : (
+                  "Confirm Receipt"
+                )}
               </Button>
             </div>
           </div>
