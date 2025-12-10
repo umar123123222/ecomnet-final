@@ -665,90 +665,32 @@ const ReturnsDashboard = () => {
           continue;
         }
         
-        let returnRecord;
-        
-        if (entryType === 'tracking_id') {
-          // Search by tracking ID
-          const { data, error: returnError } = await supabase
-            .from('returns')
-            .select('id, order_id')
-            .eq('tracking_id', entry)
-            .maybeSingle();
-          returnRecord = data;
-          
-          if (!returnRecord) {
-            errors.push(`Return not found for tracking ID: ${entry}`);
-            bulkErrorsList.push({ entry, error: 'Return not found in database', errorCode: 'NOT_FOUND' });
-            errorCount++;
-            continue;
-          }
-        } else {
-          // Search by order number - try exact match first, then partial
-          let order;
-          const { data: exactMatch } = await supabase
-            .from('orders')
-            .select('id')
-            .eq('order_number', entry)
-            .maybeSingle();
-          
-          if (exactMatch) {
-            order = exactMatch;
-          } else {
-            // Try with prefix or partial match
-            const { data: partialMatch } = await supabase
-              .from('orders')
-              .select('id')
-              .or(`order_number.eq.SHOP-${entry},order_number.ilike.%${entry}%,shopify_order_number.eq.${entry}`)
-              .limit(1)
-              .maybeSingle();
-            order = partialMatch;
-          }
-          
-          if (order) {
-            const { data } = await supabase
-              .from('returns')
-              .select('id, order_id')
-              .eq('order_id', order.id)
-              .maybeSingle();
-            returnRecord = data;
-          }
-          
-          if (!returnRecord) {
-            errors.push(`Return not found for order number: ${entry}`);
-            bulkErrorsList.push({ entry, error: 'Return not found in database', errorCode: 'NOT_FOUND' });
-            errorCount++;
-            continue;
-          }
-        }
+        // Call the rapid-return edge function which handles:
+        // - Finding existing return records
+        // - Creating new return records if order exists but no return
+        // - Updating return status to 'received'
+        // - Updating order status to 'returned'
+        // - Logging activity
+        const { data: result, error: fnError } = await supabase.functions.invoke('rapid-return', {
+          body: { entry, userId: user.id }
+        });
 
-        // Update return status to received
-        const { error: updateReturnError } = await supabase
-          .from('returns')
-          .update({
-            return_status: 'received',
-            received_at: new Date().toISOString(),
-            received_by: user.id
-          })
-          .eq('id', returnRecord.id);
-
-        if (updateReturnError) {
-          errors.push(`Failed to update return for ${entryType === 'tracking_id' ? 'tracking ID' : 'order number'}: ${entry}: ${updateReturnError.message}`);
-          bulkErrorsList.push({ entry, error: 'Database error occurred', errorCode: 'DATABASE_ERROR' });
+        if (fnError) {
+          errors.push(`System error for ${entry}: ${fnError.message}`);
+          bulkErrorsList.push({ entry, error: 'System error occurred', errorCode: 'SYSTEM_ERROR' });
           errorCount++;
           continue;
         }
 
-        // Update order status to 'returned'
-        const { error: updateOrderError } = await supabase
-          .from('orders')
-          .update({
-            status: 'returned'
-          })
-          .eq('id', returnRecord.order_id);
-
-        if (updateOrderError) {
-          errors.push(`Failed to update order status for ${entryType === 'tracking_id' ? 'tracking ID' : 'order number'}: ${entry}: ${updateOrderError.message}`);
-          bulkErrorsList.push({ entry, error: 'Failed to update order status', errorCode: 'DATABASE_ERROR' });
+        if (!result.success) {
+          const errorMessage = result.errorCode === 'NOT_FOUND' 
+            ? 'Order not found in database'
+            : result.errorCode === 'ALREADY_RETURNED'
+            ? 'Order already marked as returned'
+            : result.message || 'Unknown error';
+          
+          errors.push(`${errorMessage}: ${entry}`);
+          bulkErrorsList.push({ entry, error: errorMessage, errorCode: result.errorCode });
           errorCount++;
           continue;
         }
