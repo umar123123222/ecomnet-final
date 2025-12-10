@@ -14,8 +14,6 @@ import { PackagingAdjustmentDialog } from "./PackagingAdjustmentDialog";
 interface InventoryItem {
   id: string;
   quantity: number;
-  reserved_quantity: number;
-  available_quantity: number;
   product: {
     name: string;
     sku: string;
@@ -79,8 +77,6 @@ export const OutletInventoryView = () => {
         .select(`
           id,
           quantity,
-          reserved_quantity,
-          available_quantity,
           product:products(name, sku, reorder_level)
         `)
         .eq("outlet_id", userOutlet.id);
@@ -154,7 +150,7 @@ export const OutletInventoryView = () => {
   });
 
   const lowStockCount = inventory?.filter(item => 
-    item.available_quantity <= (item.product?.reorder_level || 0)
+    item.quantity <= (item.product?.reorder_level || 0)
   ).length || 0;
 
   const getMovementBadge = (type: string, quantity: number) => {
@@ -283,16 +279,14 @@ export const OutletInventoryView = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Product</TableHead>
-                    <TableHead className="text-right">Total Qty</TableHead>
-                    <TableHead className="text-right">Reserved</TableHead>
-                    <TableHead className="text-right">Available</TableHead>
+                    <TableHead className="text-right">Stock Qty</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {inventory && inventory.length > 0 ? (
                     inventory.map((item) => {
-                      const isLowStock = item.available_quantity <= (item.product?.reorder_level || 0);
+                      const isLowStock = item.quantity <= (item.product?.reorder_level || 0);
                       return (
                         <TableRow key={item.id}>
                           <TableCell>
@@ -302,8 +296,6 @@ export const OutletInventoryView = () => {
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-medium">{item.quantity}</TableCell>
-                          <TableCell className="text-right text-orange-600">{item.reserved_quantity}</TableCell>
-                          <TableCell className="text-right font-bold">{item.available_quantity}</TableCell>
                           <TableCell>
                             {isLowStock ? (
                               <Badge variant="outline" className="border-yellow-500 text-yellow-500 gap-1">
@@ -321,7 +313,7 @@ export const OutletInventoryView = () => {
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
                         No inventory found
                       </TableCell>
                     </TableRow>
