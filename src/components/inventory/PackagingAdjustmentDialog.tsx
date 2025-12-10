@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -58,6 +58,23 @@ export function PackagingAdjustmentDialog({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Get user profile to check role
+  const { data: profile } = useQuery({
+    queryKey: ["user-profile"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, role")
+        .eq("id", user.id)
+        .single();
+      return data;
+    },
+  });
+
+  const isStoreManager = profile?.role === "store_manager";
+
   const {
     register,
     handleSubmit,
@@ -69,7 +86,7 @@ export function PackagingAdjustmentDialog({
     resolver: zodResolver(packagingAdjustmentSchema),
     defaultValues: {
       packaging_item_id: "",
-      adjustment_type: "increase",
+      adjustment_type: isStoreManager ? "decrease" : "increase",
       quantity: 1,
       reason: undefined,
       other_reason: "",
@@ -82,6 +99,31 @@ export function PackagingAdjustmentDialog({
 
   const selectedPackaging = packagingItems?.find(item => item.id === selectedPackagingId);
   const currentStock = selectedPackaging?.current_stock || 0;
+
+  // Filter reason options for store managers
+  const filteredReasonOptions = isStoreManager
+    ? (adjustmentType === "decrease"
+        ? REASON_OPTIONS.filter(r => r.value === "damaged_items")
+        : REASON_OPTIONS.filter(r => r.value === "shipment_received"))
+    : REASON_OPTIONS;
+
+  // Auto-select reason for store managers when adjustment type changes
+  useEffect(() => {
+    if (isStoreManager && open) {
+      setValue("adjustment_type", "decrease");
+      setValue("reason", "damaged_items");
+    }
+  }, [isStoreManager, open, setValue]);
+
+  useEffect(() => {
+    if (isStoreManager) {
+      if (adjustmentType === "decrease") {
+        setValue("reason", "damaged_items");
+      } else {
+        setValue("reason", "shipment_received");
+      }
+    }
+  }, [adjustmentType, isStoreManager, setValue]);
 
   const isImageRequired = selectedReason === "damaged_items";
   const showOtherReasonInput = selectedReason === "other";
@@ -273,7 +315,7 @@ export function PackagingAdjustmentDialog({
                 <SelectValue placeholder="Select reason" />
               </SelectTrigger>
               <SelectContent>
-                {REASON_OPTIONS.map((option) => (
+                {filteredReasonOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
