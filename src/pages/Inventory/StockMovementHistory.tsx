@@ -393,6 +393,7 @@ export default function StockMovementHistory() {
                 <TableHead>Date & Time</TableHead>
                 <TableHead>Stock Name</TableHead>
                 <TableHead>Category</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Change</TableHead>
                 <TableHead>Reason</TableHead>
                 <TableHead>Performed By</TableHead>
@@ -401,7 +402,7 @@ export default function StockMovementHistory() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
+                  <TableCell colSpan={8} className="text-center py-8">
                     Loading movements...
                   </TableCell>
                 </TableRow>
@@ -450,6 +451,11 @@ export default function StockMovementHistory() {
                           </Badge>
                         </TableCell>
                         <TableCell>
+                          <Badge variant="outline" className="capitalize">
+                            {movement.movement_type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
                           <div className="flex items-center gap-1">
                             {movement.quantity > 0 ? (
                               <TrendingUp className="h-4 w-4 text-success" />
@@ -473,7 +479,7 @@ export default function StockMovementHistory() {
                       </TableRow>
                       {isExpanded && hasDetails && (
                         <TableRow key={`${movement.id}-details`}>
-                          <TableCell colSpan={7} className="bg-muted/30 p-4">
+                          <TableCell colSpan={8} className="bg-muted/30 p-4">
                             <div className="space-y-3">
                               {movement.notes && (
                                 <div>
@@ -513,7 +519,7 @@ export default function StockMovementHistory() {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
+                  <TableCell colSpan={8} className="text-center py-8">
                     <div className="flex flex-col items-center gap-2">
                       <Package className="h-12 w-12 text-muted-foreground" />
                       <p className="text-muted-foreground">No stock movements found</p>
