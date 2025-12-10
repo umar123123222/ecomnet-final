@@ -463,9 +463,8 @@ const ReturnsNotReceived = () => {
 
       {/* Scroll to Top Button */}
       <Button
-        variant="outline"
         size="icon"
-        className="fixed bottom-6 left-6 z-50 rounded-full shadow-lg bg-background hover:bg-muted"
+        className="fixed bottom-6 right-6 z-50 rounded-full shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground"
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
       >
         <ArrowUp className="h-4 w-4" />
