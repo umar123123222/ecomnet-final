@@ -106,8 +106,8 @@ const StockTransferDashboard = () => {
 
   const pendingCount = transfers?.filter(t => t.status === 'pending').length || 0;
   const approvedCount = transfers?.filter(t => t.status === 'approved').length || 0;
-  const dispatchedCount = transfers?.filter(t => t.status as string === 'dispatched').length || 0;
-  const completedCount = transfers?.filter(t => t.status === 'completed' || t.status as string === 'received').length || 0;
+  const inTransitCount = transfers?.filter(t => t.status === 'in_transit').length || 0;
+  const completedCount = transfers?.filter(t => t.status === 'completed').length || 0;
 
   const handleApprove = async (transferId: string) => {
     try {
@@ -165,20 +165,20 @@ const StockTransferDashboard = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { className: string; icon: typeof Clock }> = {
-      pending: { className: "bg-yellow-100 text-yellow-800 border-yellow-300", icon: Clock },
-      approved: { className: "bg-blue-100 text-blue-800 border-blue-300", icon: CheckCircle },
-      dispatched: { className: "bg-purple-100 text-purple-800 border-purple-300", icon: Truck },
-      completed: { className: "bg-green-100 text-green-800 border-green-300", icon: CheckCircle },
-      received: { className: "bg-green-100 text-green-800 border-green-300", icon: CheckCircle },
-      rejected: { className: "bg-red-100 text-red-800 border-red-300", icon: XCircle },
+    const variants: Record<string, { className: string; icon: typeof Clock; label: string }> = {
+      pending: { className: "bg-yellow-100 text-yellow-800 border-yellow-300", icon: Clock, label: "Pending" },
+      approved: { className: "bg-blue-100 text-blue-800 border-blue-300", icon: CheckCircle, label: "Approved" },
+      in_transit: { className: "bg-purple-100 text-purple-800 border-purple-300", icon: Truck, label: "Dispatched" },
+      completed: { className: "bg-green-100 text-green-800 border-green-300", icon: CheckCircle, label: "Completed" },
+      rejected: { className: "bg-red-100 text-red-800 border-red-300", icon: XCircle, label: "Rejected" },
+      cancelled: { className: "bg-gray-100 text-gray-800 border-gray-300", icon: XCircle, label: "Cancelled" },
     };
     const config = variants[status] || variants.pending;
     const Icon = config.icon;
     return (
       <Badge variant="outline" className={`${config.className} border gap-1`}>
         <Icon className="h-3 w-3" />
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {config.label}
       </Badge>
     );
   };
@@ -239,12 +239,12 @@ const StockTransferDashboard = () => {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Dispatched</CardTitle>
+            <CardTitle className="text-sm font-medium">In Transit</CardTitle>
             <Truck className="h-4 w-4 text-purple-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{dispatchedCount}</div>
-            <p className="text-xs text-muted-foreground">In transit</p>
+            <div className="text-2xl font-bold">{inTransitCount}</div>
+            <p className="text-xs text-muted-foreground">Awaiting receipt</p>
           </CardContent>
         </Card>
         <Card>
@@ -277,14 +277,21 @@ const StockTransferDashboard = () => {
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 mb-4 flex-wrap">
-            {['all', 'pending', 'approved', 'dispatched', 'completed', 'rejected'].map(status => (
+            {[
+              { value: 'all', label: 'All' },
+              { value: 'pending', label: 'Pending' },
+              { value: 'approved', label: 'Approved' },
+              { value: 'in_transit', label: 'Dispatched' },
+              { value: 'completed', label: 'Completed' },
+              { value: 'rejected', label: 'Rejected' }
+            ].map(status => (
               <Button
-                key={status}
-                variant={filterStatus === status ? "default" : "outline"}
+                key={status.value}
+                variant={filterStatus === status.value ? "default" : "outline"}
                 size="sm"
-                onClick={() => setFilterStatus(status)}
+                onClick={() => setFilterStatus(status.value)}
               >
-                {status.charAt(0).toUpperCase() + status.slice(1)}
+                {status.label}
               </Button>
             ))}
           </div>
@@ -371,8 +378,8 @@ const StockTransferDashboard = () => {
                               </Button>
                             )}
 
-                            {/* Dispatched: Store manager can receive */}
-                            {transfer.status as string === 'dispatched' && isStoreManager && (
+                            {/* In Transit: Store manager can receive */}
+                            {transfer.status === 'in_transit' && isStoreManager && (
                               <Button
                                 variant="default"
                                 size="sm"

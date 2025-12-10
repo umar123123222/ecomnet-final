@@ -52,10 +52,10 @@ export function TransferDetailsDialog({ open, onOpenChange, transfer }: Transfer
     const configs: Record<string, { color: string; icon: typeof Clock; label: string }> = {
       pending: { color: "bg-yellow-100 text-yellow-800 border-yellow-300", icon: Clock, label: "Pending Approval" },
       approved: { color: "bg-blue-100 text-blue-800 border-blue-300", icon: CheckCircle, label: "Approved" },
-      dispatched: { color: "bg-purple-100 text-purple-800 border-purple-300", icon: Truck, label: "Dispatched" },
+      in_transit: { color: "bg-purple-100 text-purple-800 border-purple-300", icon: Truck, label: "Dispatched" },
       completed: { color: "bg-green-100 text-green-800 border-green-300", icon: CheckCircle, label: "Completed" },
-      received: { color: "bg-green-100 text-green-800 border-green-300", icon: CheckCircle, label: "Received" },
       rejected: { color: "bg-red-100 text-red-800 border-red-300", icon: XCircle, label: "Rejected" },
+      cancelled: { color: "bg-gray-100 text-gray-800 border-gray-300", icon: XCircle, label: "Cancelled" },
     };
     return configs[status] || configs.pending;
   };
@@ -182,15 +182,20 @@ export function TransferDetailsDialog({ open, onOpenChange, transfer }: Transfer
           <div className="space-y-3">
             <h4 className="font-semibold">Workflow Status</h4>
             <div className="flex items-center gap-2 text-sm">
-              {['pending', 'approved', 'dispatched', 'completed'].map((step, index) => {
-                const isActive = step === transfer.status || 
-                  (transfer.status === 'received' && step === 'completed');
-                const isPast = ['pending', 'approved', 'dispatched', 'completed'].indexOf(transfer.status) > index ||
-                  (transfer.status === 'received' && index < 3);
-                const isRejected = transfer.status === 'rejected' && step === 'pending';
+              {[
+                { value: 'pending', label: 'Pending' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'in_transit', label: 'Dispatched' },
+                { value: 'completed', label: 'Completed' }
+              ].map((step, index) => {
+                const statusOrder = ['pending', 'approved', 'in_transit', 'completed'];
+                const currentIndex = statusOrder.indexOf(transfer.status);
+                const isActive = step.value === transfer.status;
+                const isPast = currentIndex > index;
+                const isRejected = transfer.status === 'rejected' && step.value === 'pending';
                 
                 return (
-                  <div key={step} className="flex items-center gap-2">
+                  <div key={step.value} className="flex items-center gap-2">
                     <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                       isRejected ? 'bg-destructive/10 text-destructive' :
                       isActive ? 'bg-primary text-primary-foreground' :
@@ -198,7 +203,7 @@ export function TransferDetailsDialog({ open, onOpenChange, transfer }: Transfer
                       'bg-muted text-muted-foreground'
                     }`}>
                       {isPast && !isActive ? <CheckCircle className="h-3 w-3" /> : null}
-                      {step.charAt(0).toUpperCase() + step.slice(1)}
+                      {step.label}
                     </div>
                     {index < 3 && (
                       <div className={`w-6 h-0.5 ${isPast ? 'bg-green-400' : 'bg-muted'}`} />
