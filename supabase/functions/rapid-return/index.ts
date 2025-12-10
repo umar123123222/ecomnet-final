@@ -123,23 +123,132 @@ serve(async (req) => {
     }
 
     if (!returnRecord) {
-      // Search for similar tracking IDs to suggest possible matches
-      const { data: similar } = await supabase
+      // No return record exists - try to find the order directly and create return
+      let foundOrder: any = null;
+
+      // Try finding order by tracking_id
+      const { data: orderByTracking } = await supabase
+        .from('orders')
+        .select('id, order_number, customer_name, tracking_id, total_amount, status')
+        .eq('tracking_id', entry)
+        .maybeSingle();
+
+      if (orderByTracking) {
+        foundOrder = orderByTracking;
+      } else {
+        // Try finding by order_number
+        const { data: orderByNumber } = await supabase
+          .from('orders')
+          .select('id, order_number, customer_name, tracking_id, total_amount, status')
+          .or(`order_number.eq.${entry},order_number.eq.SHOP-${entry},order_number.ilike.%${entry}%,shopify_order_number.eq.${entry}`)
+          .limit(1)
+          .maybeSingle();
+
+        if (orderByNumber) {
+          foundOrder = orderByNumber;
+        }
+      }
+
+      // If no order found at all
+      if (!foundOrder) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Order not found in database',
+            errorCode: 'NOT_FOUND',
+            searchedEntry: entry,
+            suggestion: 'Verify the tracking ID or order number is correct.',
+            processingTime: Date.now() - startTime
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Check if order is already returned
+      if (foundOrder.status === 'returned') {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Order already returned',
+            errorCode: 'ALREADY_RETURNED',
+            order: { order_number: foundOrder.order_number, customer_name: foundOrder.customer_name },
+            suggestion: 'This order was already marked as returned.',
+            processingTime: Date.now() - startTime
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Create new return record
+      const now = new Date().toISOString();
+      const { data: newReturn, error: createError } = await supabase
         .from('returns')
-        .select('tracking_id, orders!returns_order_id_fkey(order_number)')
-        .ilike('tracking_id', `${entry.slice(0, -2)}%`)
-        .limit(3);
+        .insert({
+          order_id: foundOrder.id,
+          tracking_id: foundOrder.tracking_id || entry,
+          return_status: 'received',
+          worth: foundOrder.total_amount || 0,
+          reason: 'Scanned at warehouse',
+          received_by: userId,
+          received_at: now,
+          created_at: now
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Create return error:', createError);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Failed to create return: ${createError.message}`,
+            errorCode: 'DATABASE_ERROR',
+            processingTime: Date.now() - startTime
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Update order status to returned
+      await supabase
+        .from('orders')
+        .update({ 
+          status: 'returned',
+          returned_at: now
+        })
+        .eq('id', foundOrder.id);
+
+      const processingTime = Date.now() - startTime;
+
+      // Log activity
+      await supabase
+        .from('activity_logs')
+        .insert({
+          action: 'return_received',
+          entity_type: 'return',
+          entity_id: newReturn.id,
+          details: {
+            order_number: foundOrder.order_number,
+            customer_name: foundOrder.customer_name,
+            tracking_id: foundOrder.tracking_id || entry,
+            match_type: 'order_direct',
+            scanned_entry: entry,
+            processing_time_ms: processingTime,
+            auto_created: true
+          },
+          user_id: userId,
+        });
 
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Return not found in database',
-          errorCode: 'NOT_FOUND',
-          searchedEntry: entry,
-          suggestion: similar?.length 
-            ? `Did you mean: ${similar.map(s => s.tracking_id || s.orders?.order_number).filter(Boolean).join(', ')}?`
-            : 'Verify the tracking ID or order number. Check if return exists.',
-          processingTime: Date.now() - startTime
+        JSON.stringify({
+          success: true,
+          order: {
+            order_number: foundOrder.order_number,
+            customer_name: foundOrder.customer_name
+          },
+          tracking_id: foundOrder.tracking_id || entry,
+          matchType: 'order_direct',
+          processingTime
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
