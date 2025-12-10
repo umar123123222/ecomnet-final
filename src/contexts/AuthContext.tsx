@@ -186,21 +186,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     setIsLoading(true);
     
-    // Log logout before signing out
+    // Log logout before signing out (ignore errors if session is already invalid)
     if (user) {
-      await logActivity({
-        action: 'user_logout',
-        entityType: 'user',
-        entityId: user.id,
-        details: {
-          email: user.email,
-          timestamp: new Date().toISOString(),
-        },
-        userId: user.id,
-      });
+      try {
+        await logActivity({
+          action: 'user_logout',
+          entityType: 'user',
+          entityId: user.id,
+          details: {
+            email: user.email,
+            timestamp: new Date().toISOString(),
+          },
+          userId: user.id,
+        });
+      } catch (err) {
+        console.log('Failed to log logout activity:', err);
+      }
     }
     
-    await supabase.auth.signOut();
+    // Clear local state first (ensures logout works even if server session is already invalid)
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+    setUserRole(null);
+    setProfileFetchedFor(null);
+    setIsSuspended(false);
+    
+    // Then attempt server signout (ignore errors - session may already be invalid)
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.log('Server signout error (session may already be invalid):', err);
+    }
+    
     setIsLoading(false);
   };
 
