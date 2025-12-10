@@ -4618,6 +4618,7 @@ export type Database = {
       }
       stock_transfer_requests: {
         Row: {
+          approved_at: string | null
           approved_by: string | null
           completed_by: string | null
           created_at: string
@@ -4630,6 +4631,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          approved_at?: string | null
           approved_by?: string | null
           completed_by?: string | null
           created_at?: string
@@ -4642,6 +4644,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          approved_at?: string | null
           approved_by?: string | null
           completed_by?: string | null
           created_at?: string
