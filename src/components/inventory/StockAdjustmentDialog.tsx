@@ -15,21 +15,17 @@ import { Loader2, AlertTriangle, TrendingUp, TrendingDown, Info, Upload, X, Imag
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRoles } from "@/hooks/useUserRoles";
 
-const REASON_OPTIONS = [
-  { value: "inventory_made", label: "Inventory Made" },
-  { value: "damaged", label: "Damaged" },
-  { value: "return", label: "Return" },
-] as const;
-
-// Store manager specific reasons
-const STORE_MANAGER_DECREASE_REASONS = [
+// Standardized reason options for all roles
+const DECREASE_REASONS = [
   { value: "items_damaged", label: "Items Damaged" },
   { value: "sale", label: "Sale" },
 ] as const;
 
-const STORE_MANAGER_INCREASE_REASONS = [
+const INCREASE_REASONS = [
   { value: "return_received", label: "Return Received" },
 ] as const;
+
+const ALL_REASONS = [...DECREASE_REASONS, ...INCREASE_REASONS] as const;
 
 const adjustmentSchema = z.object({
   product_id: z.string().min(1, "Product is required"),
@@ -38,7 +34,7 @@ const adjustmentSchema = z.object({
     required_error: "Please select adjustment type",
   }),
   quantity: z.number().int().min(1, "Quantity must be at least 1"),
-  reason: z.enum(["inventory_made", "damaged", "return", "items_damaged", "sale", "return_received"], {
+  reason: z.enum(["items_damaged", "sale", "return_received"], {
     required_error: "Please select a reason",
   }),
 });
@@ -138,16 +134,13 @@ export function StockAdjustmentDialog({
   const quantity = watch("quantity") || 0;
   const reason = watch("reason");
 
-  // Get filtered reason options based on role and adjustment type
-  // Store managers: decrease = "Items Damaged" or "Sale", increase = "Return Received"
-  const filteredReasonOptions = isStoreManager 
-    ? (adjustmentType === 'decrease' 
-        ? STORE_MANAGER_DECREASE_REASONS
-        : STORE_MANAGER_INCREASE_REASONS)
-    : REASON_OPTIONS;
+  // Get filtered reason options based on adjustment type (same for all roles)
+  const filteredReasonOptions = adjustmentType === 'decrease' 
+    ? DECREASE_REASONS
+    : INCREASE_REASONS;
 
-  // Image is required for all store manager adjustments
-  const isImageRequired = isStoreManager;
+  // Image is required for all adjustments
+  const isImageRequired = true;
 
   // Fetch current stock for selected product and outlet
   const { data: currentInventory, isLoading: isLoadingInventory } = useQuery({
@@ -244,8 +237,7 @@ export function StockAdjustmentDialog({
       const adjustmentQuantity = data.adjustment_type === "increase" ? data.quantity : -data.quantity;
       
       // Get reason label from appropriate options array
-      const allReasonOptions = [...REASON_OPTIONS, ...STORE_MANAGER_DECREASE_REASONS, ...STORE_MANAGER_INCREASE_REASONS];
-      const reasonLabel = allReasonOptions.find(r => r.value === data.reason)?.label || data.reason;
+      const reasonLabel = ALL_REASONS.find(r => r.value === data.reason)?.label || data.reason;
       const reasonText = imageUrl 
         ? `${reasonLabel} | Image: ${imageUrl}`
         : reasonLabel;
@@ -305,26 +297,23 @@ export function StockAdjustmentDialog({
     }
   }, [open]);
 
-  // Set defaults for store managers and warehouse managers when dialog opens
+  // Set defaults when dialog opens
   useEffect(() => {
-    if (open && isOutletRestricted) {
-      if (userOutlet?.id) {
+    if (open) {
+      // Set outlet for restricted roles
+      if (isOutletRestricted && userOutlet?.id) {
         setValue('outlet_id', userOutlet.id);
       }
-      // Store managers: auto-set reason based on adjustment type, default to decrease
-      if (isStoreManager) {
-        setValue('adjustment_type', 'decrease');
-        setValue('reason', 'items_damaged');
-      }
+      // Auto-set default reason
+      setValue('adjustment_type', 'decrease');
+      setValue('reason', 'items_damaged');
     }
-  }, [open, isOutletRestricted, isStoreManager, userOutlet, setValue]);
+  }, [open, isOutletRestricted, userOutlet, setValue]);
 
-  // Auto-update reason when adjustment type changes for store managers
+  // Auto-update reason when adjustment type changes (for all roles)
   useEffect(() => {
-    if (isStoreManager) {
-      setValue('reason', adjustmentType === 'decrease' ? 'items_damaged' : 'return_received');
-    }
-  }, [adjustmentType, isStoreManager, setValue]);
+    setValue('reason', adjustmentType === 'decrease' ? 'items_damaged' : 'return_received');
+  }, [adjustmentType, setValue]);
 
   const selectedProduct = products?.find(p => p.id === selectedProductId);
   const selectedOutlet = outlets?.find(o => o.id === selectedOutletId);
@@ -514,9 +503,8 @@ export function StockAdjustmentDialog({
                   )}
                 </div>
 
-                {/* Image Upload for Damaged or Store Manager (all reasons require proof) */}
-                {(isImageRequired || reason === "damaged") && (
-                  <div className="space-y-2">
+                {/* Image Upload - required for all adjustments */}
+                <div className="space-y-2">
                     <Label>
                       Proof Image <span className="text-destructive">*</span>
                     </Label>
@@ -560,7 +548,6 @@ export function StockAdjustmentDialog({
                       <p className="text-sm text-destructive">{imageError}</p>
                     )}
                   </div>
-                )}
               </div>
             </div>
           ) : (
@@ -598,7 +585,7 @@ export function StockAdjustmentDialog({
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Reason:</span>
                   <span className="font-medium">
-                    {REASON_OPTIONS.find(r => r.value === reason)?.label}
+                    {ALL_REASONS.find(r => r.value === reason)?.label}
                   </span>
                 </div>
                 <div className="flex justify-between pt-2 border-t">

@@ -13,21 +13,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload, X, ImageIcon } from "lucide-react";
 
-const REASON_OPTIONS = [
-  { value: "shipment_received", label: "Shipment Received" },
-  { value: "damaged_items", label: "Damaged Items" },
-  { value: "other", label: "Other" },
-] as const;
-
-// Store manager specific reasons
-const STORE_MANAGER_DECREASE_REASONS = [
+// Standardized reason options for all roles
+const DECREASE_REASONS = [
   { value: "items_damaged", label: "Items Damaged" },
   { value: "sale", label: "Sale" },
 ] as const;
 
-const STORE_MANAGER_INCREASE_REASONS = [
+const INCREASE_REASONS = [
   { value: "return_received", label: "Return Received" },
 ] as const;
+
+const ALL_REASONS = [...DECREASE_REASONS, ...INCREASE_REASONS] as const;
 
 const packagingAdjustmentSchema = z.object({
   packaging_item_id: z.string().min(1, "Packaging item is required"),
@@ -35,18 +31,9 @@ const packagingAdjustmentSchema = z.object({
     required_error: "Please select adjustment type",
   }),
   quantity: z.number().int().min(1, "Quantity must be at least 1"),
-  reason: z.enum(["shipment_received", "damaged_items", "other", "items_damaged", "sale", "return_received"], {
+  reason: z.enum(["items_damaged", "sale", "return_received"], {
     required_error: "Please select a reason",
   }),
-  other_reason: z.string().optional(),
-}).refine((data) => {
-  if (data.reason === "other") {
-    return data.other_reason && data.other_reason.trim().length > 0;
-  }
-  return true;
-}, {
-  message: "Please specify the reason",
-  path: ["other_reason"],
 });
 
 type PackagingAdjustmentFormData = z.infer<typeof packagingAdjustmentSchema>;
@@ -96,10 +83,9 @@ export function PackagingAdjustmentDialog({
     resolver: zodResolver(packagingAdjustmentSchema),
     defaultValues: {
       packaging_item_id: "",
-      adjustment_type: isStoreManager ? "decrease" : "increase",
+      adjustment_type: "decrease",
       quantity: 1,
       reason: undefined,
-      other_reason: "",
     },
   });
 
@@ -110,34 +96,30 @@ export function PackagingAdjustmentDialog({
   const selectedPackaging = packagingItems?.find(item => item.id === selectedPackagingId);
   const currentStock = selectedPackaging?.current_stock || 0;
 
-  // Filter reason options for store managers
-  const filteredReasonOptions = isStoreManager
-    ? (adjustmentType === "decrease"
-        ? STORE_MANAGER_DECREASE_REASONS
-        : STORE_MANAGER_INCREASE_REASONS)
-    : REASON_OPTIONS;
+  // Filter reason options based on adjustment type (same for all roles)
+  const filteredReasonOptions = adjustmentType === "decrease"
+    ? DECREASE_REASONS
+    : INCREASE_REASONS;
 
-  // Auto-select reason for store managers when adjustment type changes
+  // Auto-select default reason when dialog opens
   useEffect(() => {
-    if (isStoreManager && open) {
+    if (open) {
       setValue("adjustment_type", "decrease");
       setValue("reason", "items_damaged");
     }
-  }, [isStoreManager, open, setValue]);
+  }, [open, setValue]);
 
+  // Auto-update reason when adjustment type changes
   useEffect(() => {
-    if (isStoreManager) {
-      if (adjustmentType === "decrease") {
-        setValue("reason", "items_damaged");
-      } else {
-        setValue("reason", "return_received");
-      }
+    if (adjustmentType === "decrease") {
+      setValue("reason", "items_damaged");
+    } else {
+      setValue("reason", "return_received");
     }
-  }, [adjustmentType, isStoreManager, setValue]);
+  }, [adjustmentType, setValue]);
 
-  // Image is required for all store manager adjustments
-  const isImageRequired = isStoreManager;
-  const showOtherReasonInput = selectedReason === "other";
+  // Image is required for all adjustments
+  const isImageRequired = true;
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -205,10 +187,7 @@ export function PackagingAdjustmentDialog({
       }
 
       // Get reason label from appropriate options array
-      const allReasonOptions = [...REASON_OPTIONS, ...STORE_MANAGER_DECREASE_REASONS, ...STORE_MANAGER_INCREASE_REASONS];
-      const reasonText = data.reason === "other" 
-        ? `Other: ${data.other_reason}` 
-        : allReasonOptions.find(r => r.value === data.reason)?.label || data.reason;
+      const reasonText = ALL_REASONS.find(r => r.value === data.reason)?.label || data.reason;
 
       const { data: result, error } = await supabase.functions.invoke("manage-stock", {
         body: {
@@ -340,26 +319,11 @@ export function PackagingAdjustmentDialog({
             )}
           </div>
 
-          {showOtherReasonInput && (
-            <div className="space-y-2">
-              <Label htmlFor="other_reason">Specify Reason *</Label>
-              <Textarea
-                id="other_reason"
-                {...register("other_reason")}
-                placeholder="Please describe the reason for adjustment..."
-                rows={2}
-              />
-              {errors.other_reason && (
-                <p className="text-sm text-destructive">{errors.other_reason.message}</p>
-              )}
-            </div>
-          )}
-
-          {(isStoreManager || selectedReason === "damaged_items" || selectedReason === "other") && (
-            <div className="space-y-2">
-              <Label>
-                Proof Image {isImageRequired ? "*" : "(Optional)"}
-              </Label>
+          {/* Image Upload - required for all adjustments */}
+          <div className="space-y-2">
+            <Label>
+              Proof Image *
+            </Label>
               
               {imagePreview ? (
                 <div className="relative inline-block">
@@ -397,13 +361,12 @@ export function PackagingAdjustmentDialog({
                 </div>
               )}
               
-              {isImageRequired && !proofImage && (
+              {!proofImage && (
                 <p className="text-sm text-muted-foreground">
                   Image proof is required
                 </p>
               )}
             </div>
-          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose}>
