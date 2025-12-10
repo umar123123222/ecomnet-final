@@ -104,11 +104,18 @@ export function StockAdjustmentDialog({
     enabled: !!profile?.id && isOutletRestricted,
   });
 
-  // Get filtered reason options based on role
-  // Store managers can only use "Damaged", warehouse managers can use all reasons
-  const filteredReasonOptions = isStoreManager 
-    ? REASON_OPTIONS.filter(r => r.value === 'damaged')
-    : REASON_OPTIONS;
+  // Get filtered reason options based on role and adjustment type
+  // Store managers: decrease = "Damaged" only, increase = "Return" only
+  const getFilteredReasonOptions = () => {
+    if (isStoreManager) {
+      // Store managers have restricted reasons based on adjustment type
+      return adjustmentType === 'decrease' 
+        ? REASON_OPTIONS.filter(r => r.value === 'damaged')
+        : REASON_OPTIONS.filter(r => r.value === 'return');
+    }
+    return REASON_OPTIONS;
+  };
+  const filteredReasonOptions = getFilteredReasonOptions();
 
   const {
     register,
@@ -293,13 +300,20 @@ export function StockAdjustmentDialog({
       if (userOutlet?.id) {
         setValue('outlet_id', userOutlet.id);
       }
-      // Store managers: auto-set reason to damaged and default to decrease
+      // Store managers: auto-set reason based on adjustment type, default to decrease
       if (isStoreManager) {
-        setValue('reason', 'damaged');
         setValue('adjustment_type', 'decrease');
+        setValue('reason', 'damaged');
       }
     }
   }, [open, isOutletRestricted, isStoreManager, userOutlet, setValue]);
+
+  // Auto-update reason when adjustment type changes for store managers
+  useEffect(() => {
+    if (isStoreManager) {
+      setValue('reason', adjustmentType === 'decrease' ? 'damaged' : 'return');
+    }
+  }, [adjustmentType, isStoreManager, setValue]);
 
   const selectedProduct = products?.find(p => p.id === selectedProductId);
   const selectedOutlet = outlets?.find(o => o.id === selectedOutletId);
