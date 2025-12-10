@@ -104,19 +104,6 @@ export function StockAdjustmentDialog({
     enabled: !!profile?.id && isOutletRestricted,
   });
 
-  // Get filtered reason options based on role and adjustment type
-  // Store managers: decrease = "Damaged" only, increase = "Return" only
-  const getFilteredReasonOptions = () => {
-    if (isStoreManager) {
-      // Store managers have restricted reasons based on adjustment type
-      return adjustmentType === 'decrease' 
-        ? REASON_OPTIONS.filter(r => r.value === 'damaged')
-        : REASON_OPTIONS.filter(r => r.value === 'return');
-    }
-    return REASON_OPTIONS;
-  };
-  const filteredReasonOptions = getFilteredReasonOptions();
-
   const {
     register,
     handleSubmit,
@@ -140,6 +127,14 @@ export function StockAdjustmentDialog({
   const selectedOutletId = watch("outlet_id");
   const quantity = watch("quantity") || 0;
   const reason = watch("reason");
+
+  // Get filtered reason options based on role and adjustment type
+  // Store managers: decrease = "Damaged" only, increase = "Return" only
+  const filteredReasonOptions = isStoreManager 
+    ? (adjustmentType === 'decrease' 
+        ? REASON_OPTIONS.filter(r => r.value === 'damaged')
+        : REASON_OPTIONS.filter(r => r.value === 'return'))
+    : REASON_OPTIONS;
 
   // Fetch current stock for selected product and outlet
   const { data: currentInventory, isLoading: isLoadingInventory } = useQuery({
