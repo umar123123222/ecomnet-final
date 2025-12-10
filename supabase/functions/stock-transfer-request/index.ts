@@ -456,10 +456,10 @@ serve(async (req) => {
               .from('packaging_movements')
               .insert({
                 packaging_item_id: packItem.packaging_item_id,
-                movement_type: 'transfer_out',
+                movement_type: 'dispatch',
                 quantity: -quantity,
                 reference_id: transfer_id,
-                notes: `Dispatched to ${request.to_outlet?.name || 'store'}`,
+                notes: `Transfer dispatched to ${request.to_outlet?.name || 'store'}`,
                 created_by: user.id
               })
 
@@ -469,11 +469,11 @@ serve(async (req) => {
           }
         }
 
-        // Update status to dispatched
+        // Update status to in_transit (dispatched)
         const { error: dispatchError } = await supabaseClient
           .from('stock_transfer_requests')
           .update({
-            status: 'dispatched',
+            status: 'in_transit',
             completed_by: user.id
           })
           .eq('id', transfer_id)
@@ -573,7 +573,7 @@ serve(async (req) => {
               .from('packaging_movements')
               .insert({
                 packaging_item_id: packItem.packaging_item_id,
-                movement_type: 'transfer_out',
+                movement_type: 'dispatch',
                 quantity: -quantity,
                 reference_id: transfer_id,
                 notes: `Transfer to outlet`,
@@ -663,8 +663,8 @@ serve(async (req) => {
 
         if (transferError) throw transferError
 
-        // Verify transfer is in dispatched status (or approved for backwards compatibility)
-        if (transfer.status !== 'dispatched' && transfer.status !== 'approved') {
+        // Verify transfer is in in_transit status (or approved for backwards compatibility)
+        if (transfer.status !== 'in_transit' && transfer.status !== 'approved') {
           return new Response(
             JSON.stringify({ error: 'Transfer must be dispatched before receiving' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -778,7 +778,7 @@ serve(async (req) => {
             .from('packaging_movements')
             .insert({
               packaging_item_id: packagingItem.packaging_item_id,
-              movement_type: 'transfer_in',
+              movement_type: 'adjustment',
               quantity: item.quantity_received,
               reference_id: transfer_id,
               notes: `Transfer receipt from ${transfer.from_outlet?.name || 'warehouse'}`,
@@ -790,7 +790,7 @@ serve(async (req) => {
           }
         }
 
-        const status = variances.length > 0 ? 'received' : 'completed'
+        const status = 'completed' // Always completed on receive (variances are tracked separately)
         const { error: updateError } = await supabaseClient
           .from('stock_transfer_requests')
           .update({ 
