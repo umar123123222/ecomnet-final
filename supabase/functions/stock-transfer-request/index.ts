@@ -655,7 +655,7 @@ serve(async (req) => {
               packaging_item_id,
               quantity_approved,
               quantity_requested,
-              packaging:packaging_items(id, name, sku, cost_per_unit)
+              packaging:packaging_items(id, name, sku)
             )
           `)
           .eq('id', transfer_id)
