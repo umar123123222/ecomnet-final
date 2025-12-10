@@ -114,6 +114,9 @@ const AutomationHistory = lazy(() => import("@/pages/Inventory/AutomationHistory
 const StockMovementHistory = lazy(() => import("@/pages/Inventory/StockMovementHistory").then(module => ({
   default: module.default
 })));
+const OutletInventory = lazy(() => import("@/pages/Inventory/OutletInventory").then(module => ({
+  default: module.default
+})));
 const SystemValidation = lazy(() => import("@/pages/Testing/SystemValidation").then(module => ({
   default: module.default
 })));
@@ -280,6 +283,9 @@ const App = () => {
                     </Suspense>} />
                   <Route path="stock-movement-history" element={<Suspense fallback={<PageLoader />}>
                       <StockMovementHistory />
+                    </Suspense>} />
+                  <Route path="outlet-inventory" element={<Suspense fallback={<PageLoader />}>
+                      <OutletInventory />
                     </Suspense>} />
                   <Route path="system-validation" element={<Suspense fallback={<PageLoader />}>
                       <SystemValidation />
