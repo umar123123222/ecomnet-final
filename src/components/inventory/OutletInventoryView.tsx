@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { Search, Package, TrendingDown, TrendingUp, AlertTriangle, Loader2, SlidersHorizontal } from "lucide-react";
+import { Search, Package, TrendingDown, TrendingUp, AlertTriangle, Loader2, SlidersHorizontal, Box } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { StockAdjustmentDialog } from "./StockAdjustmentDialog";
 import { PackagingAdjustmentDialog } from "./PackagingAdjustmentDialog";
@@ -37,6 +37,7 @@ interface StockMovement {
 
 export const OutletInventoryView = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [packagingSearchQuery, setPackagingSearchQuery] = useState("");
   const [stockAdjustmentDialogOpen, setStockAdjustmentDialogOpen] = useState(false);
   const [packagingAdjustmentDialogOpen, setPackagingAdjustmentDialogOpen] = useState(false);
   const { profile } = useAuth();
@@ -135,19 +136,28 @@ export const OutletInventoryView = () => {
   // Fetch outlets for stock adjustment dialog (user's outlet only)
   const outlets = userOutlet ? [{ id: userOutlet.id, name: userOutlet.name }] : [];
 
-  // Fetch packaging items for packaging adjustment dialog
-  const { data: packagingItems = [] } = useQuery({
-    queryKey: ["packaging-items-for-adjustment"],
+  // Fetch packaging items for packaging adjustment dialog and display
+  const { data: packagingItems = [], isLoading: packagingLoading } = useQuery({
+    queryKey: ["packaging-items-for-outlet", packagingSearchQuery],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("packaging_items")
-        .select("id, name, sku, current_stock")
-        .eq("is_active", true)
-        .order("name");
+        .select("id, name, sku, current_stock, reorder_level")
+        .eq("is_active", true);
+      
+      if (packagingSearchQuery) {
+        query = query.or(`name.ilike.%${packagingSearchQuery}%,sku.ilike.%${packagingSearchQuery}%`);
+      }
+      
+      const { data, error } = await query.order("name");
       if (error) throw error;
       return data;
     },
   });
+
+  const lowPackagingCount = packagingItems.filter(item => 
+    item.current_stock <= (item.reorder_level || 0)
+  ).length;
 
   const lowStockCount = inventory?.filter(item => 
     item.quantity <= (item.product?.reorder_level || 0)
@@ -218,7 +228,7 @@ export const OutletInventoryView = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Products</CardTitle>
@@ -231,7 +241,7 @@ export const OutletInventoryView = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Low Stock Items</CardTitle>
+            <CardTitle className="text-sm font-medium">Low Stock Products</CardTitle>
             <AlertTriangle className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
@@ -241,14 +251,21 @@ export const OutletInventoryView = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Stock Value</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-500" />
+            <CardTitle className="text-sm font-medium">Packaging Items</CardTitle>
+            <Box className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {inventory?.reduce((acc, item) => acc + item.quantity, 0) || 0}
-            </div>
-            <p className="text-xs text-muted-foreground">Total units</p>
+            <div className="text-2xl font-bold">{packagingItems.length}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Low Stock Packaging</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">{lowPackagingCount}</div>
           </CardContent>
         </Card>
       </div>
@@ -315,6 +332,78 @@ export const OutletInventoryView = () => {
                     <TableRow>
                       <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
                         No inventory found
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Packaging Inventory Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Packaging Inventory</CardTitle>
+          <CardDescription>Packaging stock levels</CardDescription>
+          <div className="relative mt-4">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search packaging..."
+              value={packagingSearchQuery}
+              onChange={(e) => setPackagingSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          {packagingLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Packaging Item</TableHead>
+                    <TableHead className="text-right">Stock Qty</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {packagingItems.length > 0 ? (
+                    packagingItems.map((item) => {
+                      const isLowStock = item.current_stock <= (item.reorder_level || 0);
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{item.name}</div>
+                              <div className="text-xs text-muted-foreground">{item.sku}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-medium">{item.current_stock}</TableCell>
+                          <TableCell>
+                            {isLowStock ? (
+                              <Badge variant="outline" className="border-yellow-500 text-yellow-500 gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                Low Stock
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="border-green-500 text-green-500">
+                                In Stock
+                              </Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                        No packaging items found
                       </TableCell>
                     </TableRow>
                   )}
