@@ -16,7 +16,8 @@ import { useQueryClient } from "@tanstack/react-query";
 interface TransferItem {
   id: string;
   product_id: string;
-  quantity_approved: number;
+  quantity_requested: number;
+  quantity_approved: number | null;
   product?: {
     name: string;
     sku: string;
@@ -57,11 +58,14 @@ export const TransferReceiveDialog = ({ open, onOpenChange, transfer }: Transfer
 
   const items = transfer?.items || [];
 
+  // Get expected quantity (use quantity_approved if available, fallback to quantity)
+  const getExpectedQty = (item: TransferItem) => item.quantity_approved ?? item.quantity_requested ?? 0;
+
   // Initialize quantities when transfer changes
   const initializeQuantities = (complete: boolean) => {
     const quantities: Record<string, number> = {};
     items.forEach(item => {
-      quantities[item.id] = complete ? item.quantity_approved : 0;
+      quantities[item.id] = complete ? getExpectedQty(item) : 0;
     });
     setReceivedQuantities(quantities);
   };
@@ -79,14 +83,15 @@ export const TransferReceiveDialog = ({ open, onOpenChange, transfer }: Transfer
     setVarianceNotes(prev => ({ ...prev, [itemId]: note }));
   };
 
-  const calculateVariance = (itemId: string, expected: number) => {
-    const received = receivedQuantities[itemId] ?? expected;
+  const calculateVariance = (item: TransferItem) => {
+    const expected = getExpectedQty(item);
+    const received = receivedQuantities[item.id] ?? expected;
     return expected - received;
   };
 
   const hasVariances = () => {
     return items.some(item => {
-      const variance = calculateVariance(item.id, item.quantity_approved);
+      const variance = calculateVariance(item);
       return variance !== 0;
     });
   };
@@ -98,8 +103,8 @@ export const TransferReceiveDialog = ({ open, onOpenChange, transfer }: Transfer
     try {
       const receiptItems = items.map(item => ({
         transfer_item_id: item.id,
-        quantity_expected: item.quantity_approved,
-        quantity_received: item.quantity_approved,
+        quantity_expected: getExpectedQty(item),
+        quantity_received: getExpectedQty(item),
         variance_reason: null,
       }));
 
@@ -153,7 +158,7 @@ export const TransferReceiveDialog = ({ open, onOpenChange, transfer }: Transfer
     }
 
     // Validate variance reasons and notes for items with variances
-    const itemsWithVariances = items.filter(item => calculateVariance(item.id, item.quantity_approved) !== 0);
+    const itemsWithVariances = items.filter(item => calculateVariance(item) !== 0);
     const missingReasons = itemsWithVariances.filter(item => !varianceReasons[item.id]);
     if (missingReasons.length > 0) {
       toast({
@@ -189,14 +194,14 @@ export const TransferReceiveDialog = ({ open, onOpenChange, transfer }: Transfer
     setIsSubmitting(true);
     try {
       const receiptItems = items.map(item => {
-        const variance = calculateVariance(item.id, item.quantity_approved);
+        const variance = calculateVariance(item);
         const reasonKey = varianceReasons[item.id];
         const reasonLabel = VARIANCE_REASONS.find(r => r.value === reasonKey)?.label || reasonKey;
         const note = varianceNotes[item.id] || "";
         
         return {
           transfer_item_id: item.id,
-          quantity_expected: item.quantity_approved,
+          quantity_expected: getExpectedQty(item),
           quantity_received: receivedQuantities[item.id],
           variance_reason: variance !== 0 
             ? `${reasonLabel}${note ? `: ${note}` : ""}`
@@ -243,7 +248,7 @@ export const TransferReceiveDialog = ({ open, onOpenChange, transfer }: Transfer
     setGeneralNotes("");
   };
 
-  const totalExpected = items.reduce((sum, item) => sum + item.quantity_approved, 0);
+  const totalExpected = items.reduce((sum, item) => sum + getExpectedQty(item), 0);
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -345,8 +350,9 @@ export const TransferReceiveDialog = ({ open, onOpenChange, transfer }: Transfer
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.map((item) => {
-                    const variance = calculateVariance(item.id, item.quantity_approved);
+                {items.map((item) => {
+                    const expected = getExpectedQty(item);
+                    const variance = calculateVariance(item);
                     const hasVariance = variance !== 0;
 
                     return (
@@ -358,13 +364,13 @@ export const TransferReceiveDialog = ({ open, onOpenChange, transfer }: Transfer
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          {item.quantity_approved}
+                          {expected}
                         </TableCell>
                         <TableCell className="text-right">
                           <Input
                             type="number"
                             min="0"
-                            max={item.quantity_approved}
+                            max={expected}
                             value={receivedQuantities[item.id] ?? ""}
                             onChange={(e) => handleQuantityChange(item.id, e.target.value)}
                             className="w-20 text-right"
