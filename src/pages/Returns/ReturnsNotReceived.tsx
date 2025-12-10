@@ -34,6 +34,15 @@ const ReturnsNotReceived = () => {
   const [allReturns, setAllReturns] = useState<ReturnNotReceived[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     fetchReturnsNotReceived();
@@ -462,13 +471,15 @@ const ReturnsNotReceived = () => {
       )}
 
       {/* Scroll to Top Button */}
-      <Button
-        size="icon"
-        className="fixed bottom-6 right-6 z-50 rounded-full shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground"
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-      >
-        <ArrowUp className="h-4 w-4" />
-      </Button>
+      {showScrollTop && (
+        <Button
+          size="icon"
+          className="fixed bottom-6 right-6 z-50 rounded-full shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground transition-opacity"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        >
+          <ArrowUp className="h-4 w-4" />
+        </Button>
+      )}
     </PageContainer>
   );
 };
