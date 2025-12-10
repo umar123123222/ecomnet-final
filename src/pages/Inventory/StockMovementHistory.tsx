@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Search, Download, TrendingUp, TrendingDown, ArrowLeftRight, Package, Calendar, ChevronDown, ChevronRight, Image as ImageIcon, Box } from "lucide-react";
+import { Search, Download, TrendingUp, TrendingDown, ArrowLeftRight, Package, Calendar, ChevronDown, ChevronRight, Image as ImageIcon, Box, Truck } from "lucide-react";
 import { format } from "date-fns";
 import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import { DateRange } from "react-day-picker";
@@ -50,6 +50,19 @@ interface UnifiedMovement {
   to_outlet?: string;
 }
 
+interface DispatchBatch {
+  id: string;
+  type: 'batch';
+  date: string;
+  movements: UnifiedMovement[];
+  productCount: number;
+  packagingCount: number;
+  totalProductQty: number;
+  totalPackagingQty: number;
+}
+
+type DisplayItem = UnifiedMovement | DispatchBatch;
+
 export default function StockMovementHistory() {
   const { permissions } = useUserRoles();
   const [searchTerm, setSearchTerm] = useState("");
@@ -57,6 +70,7 @@ export default function StockMovementHistory() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Fetch product movements
@@ -263,6 +277,49 @@ export default function StockMovementHistory() {
     return matchesSearch && matchesCategory;
   });
 
+  // Group dispatch movements by date, keep others as individual items
+  const displayItems = useMemo((): DisplayItem[] => {
+    const dispatchMovements = filteredMovements.filter(m => m.movement_type === 'dispatch');
+    const otherMovements = filteredMovements.filter(m => m.movement_type !== 'dispatch');
+    
+    // Group dispatch movements by date (YYYY-MM-DD)
+    const dispatchByDate = new Map<string, UnifiedMovement[]>();
+    dispatchMovements.forEach(m => {
+      const dateKey = format(new Date(m.created_at), 'yyyy-MM-dd');
+      if (!dispatchByDate.has(dateKey)) {
+        dispatchByDate.set(dateKey, []);
+      }
+      dispatchByDate.get(dateKey)!.push(m);
+    });
+
+    // Convert dispatch groups to batch items
+    const batches: DispatchBatch[] = Array.from(dispatchByDate.entries()).map(([date, movements]) => {
+      const productMovs = movements.filter(m => m.category === 'product');
+      const packagingMovs = movements.filter(m => m.category === 'packaging');
+      
+      return {
+        id: `batch-${date}`,
+        type: 'batch' as const,
+        date,
+        movements,
+        productCount: productMovs.length,
+        packagingCount: packagingMovs.length,
+        totalProductQty: Math.abs(productMovs.reduce((sum, m) => sum + m.quantity, 0)),
+        totalPackagingQty: Math.abs(packagingMovs.reduce((sum, m) => sum + m.quantity, 0)),
+      };
+    });
+
+    // Combine batches and other movements, sort by date
+    const combined: DisplayItem[] = [...batches, ...otherMovements];
+    combined.sort((a, b) => {
+      const dateA = 'date' in a ? new Date(a.date) : new Date(a.created_at);
+      const dateB = 'date' in b ? new Date(b.date) : new Date(b.created_at);
+      return dateB.getTime() - dateA.getTime();
+    });
+
+    return combined;
+  }, [filteredMovements]);
+
   const handleExportToCSV = () => {
     if (!filteredMovements || filteredMovements.length === 0) {
       toast.error("No data to export");
@@ -270,10 +327,12 @@ export default function StockMovementHistory() {
     }
 
     const csvContent = [
-      ["Date", "Stock Name", "SKU", "Category", "Type", "Change", "Reason", "Details", "Performed By"].join(","),
-      ...filteredMovements.map((m) =>
-        [
+      ["Date", "Batch Date", "Stock Name", "SKU", "Category", "Type", "Change", "Reason", "Details", "Performed By"].join(","),
+      ...filteredMovements.map((m) => {
+        const batchDate = m.movement_type === 'dispatch' ? format(new Date(m.created_at), "yyyy-MM-dd") : '';
+        return [
           format(new Date(m.created_at), "yyyy-MM-dd hh:mm:ss a"),
+          batchDate,
           `"${m.name}"`,
           m.sku,
           m.category,
@@ -282,8 +341,8 @@ export default function StockMovementHistory() {
           `"${m.reason}"`,
           `"${m.notes}"`,
           m.performed_by,
-        ].join(",")
-      ),
+        ].join(",");
+      }),
     ].join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv" });
@@ -307,6 +366,20 @@ export default function StockMovementHistory() {
     setExpandedRows(newExpanded);
   };
 
+  const toggleBatch = (id: string) => {
+    const newExpanded = new Set(expandedBatches);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
+    } else {
+      newExpanded.add(id);
+    }
+    setExpandedBatches(newExpanded);
+  };
+
+  const isBatch = (item: DisplayItem): item is DispatchBatch => {
+    return 'type' in item && item.type === 'batch';
+  };
+
   const isLoading = loadingProducts || loadingPackaging;
 
   if (!permissions.canViewStockMovements) {
@@ -320,6 +393,178 @@ export default function StockMovementHistory() {
       </div>
     );
   }
+
+  const renderMovementRow = (movement: UnifiedMovement, isNested: boolean = false) => {
+    const isExpanded = expandedRows.has(movement.id);
+    const hasDetails = movement.notes || movement.image_url;
+    
+    return (
+      <>
+        <TableRow 
+          key={movement.id} 
+          className={`${hasDetails ? "cursor-pointer hover:bg-muted/50" : ""} ${isNested ? "bg-muted/20" : ""}`}
+          onClick={() => hasDetails && toggleRow(movement.id)}
+        >
+          <TableCell className={isNested ? "pl-8" : ""}>
+            {hasDetails && (
+              isExpanded ? 
+                <ChevronDown className="h-4 w-4 text-muted-foreground" /> : 
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+          </TableCell>
+          <TableCell className="whitespace-nowrap">
+            <div className="flex items-center gap-2 text-sm">
+              <Calendar className="h-3 w-3 text-muted-foreground" />
+              {format(new Date(movement.created_at), "MMM dd, yyyy hh:mm a")}
+            </div>
+          </TableCell>
+          <TableCell>
+            <div>
+              <p className="font-medium">{movement.name}</p>
+              <p className="text-xs text-muted-foreground">{movement.sku}</p>
+            </div>
+          </TableCell>
+          <TableCell>
+            <Badge 
+              variant={movement.category === 'product' ? 'default' : 'secondary'}
+              className="gap-1"
+            >
+              {movement.category === 'product' ? (
+                <Package className="h-3 w-3" />
+              ) : (
+                <Box className="h-3 w-3" />
+              )}
+              {movement.category === 'product' ? 'Product' : 'Packaging'}
+            </Badge>
+          </TableCell>
+          <TableCell>
+            <Badge variant="outline" className="capitalize">
+              {movement.movement_type}
+            </Badge>
+          </TableCell>
+          <TableCell>
+            <div className="flex items-center gap-1">
+              {movement.quantity > 0 ? (
+                <TrendingUp className="h-4 w-4 text-success" />
+              ) : (
+                <TrendingDown className="h-4 w-4 text-destructive" />
+              )}
+              <span className={movement.quantity > 0 ? "text-success font-medium" : "text-destructive font-medium"}>
+                {movement.quantity > 0 ? "+" : ""}{movement.quantity}
+              </span>
+            </div>
+          </TableCell>
+          <TableCell>
+            <div className="flex items-center gap-2">
+              <span>{movement.reason}</span>
+              {movement.image_url && (
+                <ImageIcon className="h-4 w-4 text-muted-foreground" />
+              )}
+            </div>
+          </TableCell>
+          <TableCell>{movement.performed_by}</TableCell>
+        </TableRow>
+        {isExpanded && hasDetails && (
+          <TableRow key={`${movement.id}-details`}>
+            <TableCell colSpan={8} className="bg-muted/30 p-4">
+              <div className="space-y-3">
+                {movement.notes && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Details</p>
+                    <p className="text-sm">{movement.notes}</p>
+                  </div>
+                )}
+                {movement.from_outlet && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
+                    <span>From: <strong>{movement.from_outlet}</strong></span>
+                    {movement.to_outlet && (
+                      <span>→ To: <strong>{movement.to_outlet}</strong></span>
+                    )}
+                  </div>
+                )}
+                {movement.image_url && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-2">Proof Image</p>
+                    <img 
+                      src={movement.image_url} 
+                      alt="Proof" 
+                      className="h-24 w-24 object-cover rounded-md border cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedImage(movement.image_url!);
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </TableCell>
+          </TableRow>
+        )}
+      </>
+    );
+  };
+
+  const renderBatchRow = (batch: DispatchBatch) => {
+    const isExpanded = expandedBatches.has(batch.id);
+    
+    return (
+      <>
+        <TableRow 
+          key={batch.id}
+          className="cursor-pointer hover:bg-primary/5 bg-primary/10 border-l-4 border-l-primary"
+          onClick={() => toggleBatch(batch.id)}
+        >
+          <TableCell>
+            {isExpanded ? 
+              <ChevronDown className="h-4 w-4 text-primary" /> : 
+              <ChevronRight className="h-4 w-4 text-primary" />
+            }
+          </TableCell>
+          <TableCell colSpan={2}>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-primary/20">
+                <Truck className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-primary">Daily Dispatch Batch</p>
+                <p className="text-sm text-muted-foreground">{format(new Date(batch.date), "MMMM dd, yyyy")}</p>
+              </div>
+            </div>
+          </TableCell>
+          <TableCell colSpan={2}>
+            <div className="flex gap-4">
+              <div className="flex items-center gap-1.5">
+                <Package className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm">
+                  <strong>{batch.productCount}</strong> products
+                  <span className="text-muted-foreground ml-1">(-{batch.totalProductQty} units)</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Box className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm">
+                  <strong>{batch.packagingCount}</strong> packaging
+                  <span className="text-muted-foreground ml-1">(-{batch.totalPackagingQty} units)</span>
+                </span>
+              </div>
+            </div>
+          </TableCell>
+          <TableCell>
+            <Badge variant="default" className="bg-primary/80">
+              {batch.movements.length} items
+            </Badge>
+          </TableCell>
+          <TableCell colSpan={2}>
+            <span className="text-sm text-muted-foreground">
+              Click to {isExpanded ? 'collapse' : 'expand'} details
+            </span>
+          </TableCell>
+        </TableRow>
+        {isExpanded && batch.movements.map(movement => renderMovementRow(movement, true))}
+      </>
+    );
+  };
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -406,116 +651,13 @@ export default function StockMovementHistory() {
                     Loading movements...
                   </TableCell>
                 </TableRow>
-              ) : filteredMovements.length > 0 ? (
-                filteredMovements.map((movement) => {
-                  const isExpanded = expandedRows.has(movement.id);
-                  const hasDetails = movement.notes || movement.image_url;
-                  
-                  return (
-                    <>
-                      <TableRow 
-                        key={movement.id} 
-                        className={hasDetails ? "cursor-pointer hover:bg-muted/50" : ""}
-                        onClick={() => hasDetails && toggleRow(movement.id)}
-                      >
-                        <TableCell>
-                          {hasDetails && (
-                            isExpanded ? 
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" /> : 
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <div className="flex items-center gap-2 text-sm">
-                            <Calendar className="h-3 w-3 text-muted-foreground" />
-                            {format(new Date(movement.created_at), "MMM dd, yyyy hh:mm a")}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{movement.name}</p>
-                            <p className="text-xs text-muted-foreground">{movement.sku}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={movement.category === 'product' ? 'default' : 'secondary'}
-                            className="gap-1"
-                          >
-                            {movement.category === 'product' ? (
-                              <Package className="h-3 w-3" />
-                            ) : (
-                              <Box className="h-3 w-3" />
-                            )}
-                            {movement.category === 'product' ? 'Product' : 'Packaging'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {movement.movement_type}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            {movement.quantity > 0 ? (
-                              <TrendingUp className="h-4 w-4 text-success" />
-                            ) : (
-                              <TrendingDown className="h-4 w-4 text-destructive" />
-                            )}
-                            <span className={movement.quantity > 0 ? "text-success font-medium" : "text-destructive font-medium"}>
-                              {movement.quantity > 0 ? "+" : ""}{movement.quantity}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span>{movement.reason}</span>
-                            {movement.image_url && (
-                              <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>{movement.performed_by}</TableCell>
-                      </TableRow>
-                      {isExpanded && hasDetails && (
-                        <TableRow key={`${movement.id}-details`}>
-                          <TableCell colSpan={8} className="bg-muted/30 p-4">
-                            <div className="space-y-3">
-                              {movement.notes && (
-                                <div>
-                                  <p className="text-sm font-medium text-muted-foreground mb-1">Details</p>
-                                  <p className="text-sm">{movement.notes}</p>
-                                </div>
-                              )}
-                              {movement.from_outlet && (
-                                <div className="flex items-center gap-2 text-sm">
-                                  <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
-                                  <span>From: <strong>{movement.from_outlet}</strong></span>
-                                  {movement.to_outlet && (
-                                    <span>→ To: <strong>{movement.to_outlet}</strong></span>
-                                  )}
-                                </div>
-                              )}
-                              {movement.image_url && (
-                                <div>
-                                  <p className="text-sm font-medium text-muted-foreground mb-2">Proof Image</p>
-                                  <img 
-                                    src={movement.image_url} 
-                                    alt="Proof" 
-                                    className="h-24 w-24 object-cover rounded-md border cursor-pointer hover:opacity-80 transition-opacity"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedImage(movement.image_url!);
-                                    }}
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </>
-                  );
+              ) : displayItems.length > 0 ? (
+                displayItems.map((item) => {
+                  if (isBatch(item)) {
+                    return renderBatchRow(item);
+                  } else {
+                    return renderMovementRow(item);
+                  }
                 })
               ) : (
                 <TableRow>
