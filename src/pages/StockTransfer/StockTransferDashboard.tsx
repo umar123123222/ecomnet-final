@@ -14,67 +14,82 @@ import { OutletInventoryView } from "@/components/inventory/OutletInventoryView"
 import { useToast } from "@/hooks/use-toast";
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { useAuth } from '@/contexts/AuthContext';
-
 type TransferWithRelations = Omit<StockTransferRequest, 'from_outlet' | 'to_outlet'> & {
-  from_outlet?: { name: string };
-  to_outlet?: { name: string };
-  requester?: { full_name: string };
+  from_outlet?: {
+    name: string;
+  };
+  to_outlet?: {
+    name: string;
+  };
+  requester?: {
+    full_name: string;
+  };
   items?: {
     id: string;
     product_id: string;
     quantity_requested: number;
     quantity_approved: number | null;
-    product: { name: string; sku: string };
+    product: {
+      name: string;
+      sku: string;
+    };
   }[];
 };
-
 const StockTransferDashboard = () => {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [selectedTransfer, setSelectedTransfer] = useState<any>(null);
-  const { toast } = useToast();
+  const {
+    toast
+  } = useToast();
   const queryClient = useQueryClient();
-  const { permissions, primaryRole } = useUserRoles();
-  const { profile } = useAuth();
-
+  const {
+    permissions,
+    primaryRole
+  } = useUserRoles();
+  const {
+    profile
+  } = useAuth();
   const isStoreManager = primaryRole === 'store_manager';
   const isWarehouseOrAdmin = ['super_admin', 'super_manager', 'warehouse_manager'].includes(primaryRole as string);
 
   // Fetch products and outlets for the dialog
-  const { data: products } = useQuery<Product[]>({
+  const {
+    data: products
+  } = useQuery<Product[]>({
     queryKey: ["products"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("is_active", true)
-        .order("name");
+      const {
+        data,
+        error
+      } = await supabase.from("products").select("*").eq("is_active", true).order("name");
       if (error) throw error;
       return data;
-    },
+    }
   });
-
-  const { data: outlets } = useQuery<Outlet[]>({
+  const {
+    data: outlets
+  } = useQuery<Outlet[]>({
     queryKey: ["outlets"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("outlets")
-        .select("*")
-        .eq("is_active", true)
-        .order("name");
+      const {
+        data,
+        error
+      } = await supabase.from("outlets").select("*").eq("is_active", true).order("name");
       if (error) throw error;
       return data as Outlet[];
-    },
+    }
   });
 
   // Fetch transfer requests with items
-  const { data: transfers, isLoading } = useQuery<TransferWithRelations[]>({
+  const {
+    data: transfers,
+    isLoading
+  } = useQuery<TransferWithRelations[]>({
     queryKey: ["stock-transfers", filterStatus, profile?.id],
     queryFn: async () => {
-      let query = supabase
-        .from("stock_transfer_requests")
-        .select(`
+      let query = supabase.from("stock_transfer_requests").select(`
           *,
           from_outlet:outlets!stock_transfer_requests_from_outlet_id_fkey(name),
           to_outlet:outlets!stock_transfer_requests_to_outlet_id_fkey(name),
@@ -86,155 +101,186 @@ const StockTransferDashboard = () => {
             quantity_approved,
             product:products(name, sku)
           )
-        `)
-        .order("created_at", { ascending: false });
+        `).order("created_at", {
+        ascending: false
+      });
 
       // Filter for store managers - only show transfers TO their outlet
       if (isStoreManager) {
-        const { data: userOutlet } = await supabase
-          .from("outlets")
-          .select("id")
-          .eq("manager_id", profile?.id)
-          .single();
-        
+        const {
+          data: userOutlet
+        } = await supabase.from("outlets").select("id").eq("manager_id", profile?.id).single();
         if (userOutlet) {
           query = query.eq("to_outlet_id", userOutlet.id);
         }
       }
-
       if (filterStatus !== "all") {
         query = query.eq("status", filterStatus);
       }
-
-      const { data, error } = await query.limit(100);
+      const {
+        data,
+        error
+      } = await query.limit(100);
       if (error) throw error;
       return data as TransferWithRelations[];
-    },
+    }
   });
-
   const pendingCount = transfers?.filter(t => t.status === 'pending').length || 0;
   const approvedCount = transfers?.filter(t => t.status === 'approved').length || 0;
-  const dispatchedCount = transfers?.filter(t => (t.status as string) === 'dispatched').length || 0;
-  const completedCount = transfers?.filter(t => t.status === 'completed' || (t.status as string) === 'received').length || 0;
-
+  const dispatchedCount = transfers?.filter(t => t.status as string === 'dispatched').length || 0;
+  const completedCount = transfers?.filter(t => t.status === 'completed' || t.status as string === 'received').length || 0;
   const handleApprove = async (transferId: string) => {
     try {
-      const { error } = await supabase.functions.invoke("stock-transfer-request", {
-        body: { action: "approve", transfer_id: transferId },
+      const {
+        error
+      } = await supabase.functions.invoke("stock-transfer-request", {
+        body: {
+          action: "approve",
+          transfer_id: transferId
+        }
       });
-
       if (error) throw error;
-
       toast({
         title: "Success",
-        description: "Transfer request approved",
+        description: "Transfer request approved"
       });
-
-      queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
+      queryClient.invalidateQueries({
+        queryKey: ["stock-transfers"]
+      });
     } catch (error: any) {
       toast({
         title: "Error",
         description: error.message || "Failed to approve transfer",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
-
   const handleReject = async (transferId: string) => {
     try {
-      const { error } = await supabase.functions.invoke("stock-transfer-request", {
-        body: { action: "reject", transfer_id: transferId },
+      const {
+        error
+      } = await supabase.functions.invoke("stock-transfer-request", {
+        body: {
+          action: "reject",
+          transfer_id: transferId
+        }
       });
-
       if (error) throw error;
-
       toast({
         title: "Success",
-        description: "Transfer request rejected",
+        description: "Transfer request rejected"
       });
-
-      queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
+      queryClient.invalidateQueries({
+        queryKey: ["stock-transfers"]
+      });
     } catch (error: any) {
       toast({
         title: "Error",
         description: error.message || "Failed to reject transfer",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
-
   const handleDispatch = async (transferId: string) => {
     try {
-      const { error } = await supabase.functions.invoke("stock-transfer-request", {
-        body: { action: "dispatch", transfer_id: transferId },
+      const {
+        error
+      } = await supabase.functions.invoke("stock-transfer-request", {
+        body: {
+          action: "dispatch",
+          transfer_id: transferId
+        }
       });
-
       if (error) throw error;
-
       toast({
         title: "Success",
-        description: "Transfer dispatched - store manager can now receive inventory",
+        description: "Transfer dispatched - store manager can now receive inventory"
       });
-
-      queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
+      queryClient.invalidateQueries({
+        queryKey: ["stock-transfers"]
+      });
     } catch (error: any) {
       toast({
         title: "Error",
         description: error.message || "Failed to dispatch transfer",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
-
   const handleComplete = async (transferId: string) => {
     try {
-      const { error } = await supabase.functions.invoke("stock-transfer-request", {
-        body: { action: "complete", transfer_id: transferId },
+      const {
+        error
+      } = await supabase.functions.invoke("stock-transfer-request", {
+        body: {
+          action: "complete",
+          transfer_id: transferId
+        }
       });
-
       if (error) throw error;
-
       toast({
         title: "Success",
-        description: "Transfer completed successfully",
+        description: "Transfer completed successfully"
       });
-
-      queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
+      queryClient.invalidateQueries({
+        queryKey: ["stock-transfers"]
+      });
     } catch (error: any) {
       toast({
         title: "Error",
         description: error.message || "Failed to complete transfer",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
-
   const getStatusBadge = (status: string) => {
     const variants = {
-      pending: { variant: "outline" as const, className: "border-yellow-500 text-yellow-500", icon: Clock },
-      approved: { variant: "outline" as const, className: "border-blue-500 text-blue-500", icon: CheckCircle },
-      dispatched: { variant: "outline" as const, className: "border-purple-500 text-purple-500", icon: Truck },
-      completed: { variant: "outline" as const, className: "border-green-500 text-green-500", icon: CheckCircle },
-      received: { variant: "outline" as const, className: "border-green-500 text-green-500", icon: CheckCircle },
-      rejected: { variant: "outline" as const, className: "border-red-500 text-red-500", icon: XCircle },
-      cancelled: { variant: "outline" as const, className: "border-gray-500 text-gray-500", icon: XCircle },
+      pending: {
+        variant: "outline" as const,
+        className: "border-yellow-500 text-yellow-500",
+        icon: Clock
+      },
+      approved: {
+        variant: "outline" as const,
+        className: "border-blue-500 text-blue-500",
+        icon: CheckCircle
+      },
+      dispatched: {
+        variant: "outline" as const,
+        className: "border-purple-500 text-purple-500",
+        icon: Truck
+      },
+      completed: {
+        variant: "outline" as const,
+        className: "border-green-500 text-green-500",
+        icon: CheckCircle
+      },
+      received: {
+        variant: "outline" as const,
+        className: "border-green-500 text-green-500",
+        icon: CheckCircle
+      },
+      rejected: {
+        variant: "outline" as const,
+        className: "border-red-500 text-red-500",
+        icon: XCircle
+      },
+      cancelled: {
+        variant: "outline" as const,
+        className: "border-gray-500 text-gray-500",
+        icon: XCircle
+      }
     };
-    
     const config = variants[status as keyof typeof variants] || variants.pending;
     const Icon = config.icon;
-    
-    return (
-      <Badge variant={config.variant} className={config.className}>
+    return <Badge variant={config.variant} className={config.className}>
         <Icon className="h-3 w-3 mr-1" />
         {status.charAt(0).toUpperCase() + status.slice(1)}
-      </Badge>
-    );
+      </Badge>;
   };
-
-  return (
-    <div className="p-6 space-y-6">
+  return <div className="p-6 space-y-6">
       {/* Show outlet inventory for store managers */}
-      {isStoreManager && <OutletInventoryView />}
+      {isStoreManager}
       
       {/* Transfer Requests Section - visible to all users */}
       <div className="flex items-center justify-between">
@@ -243,9 +289,7 @@ const StockTransferDashboard = () => {
             {isStoreManager ? 'Stock Transfer Requests' : 'Stock Transfer Requests'}
           </h1>
           <p className="text-muted-foreground">
-            {isStoreManager 
-              ? 'Request inventory from warehouse and receive transfers' 
-              : 'Manage inventory transfers between outlets'}
+            {isStoreManager ? 'Request inventory from warehouse and receive transfers' : 'Manage inventory transfers between outlets'}
           </p>
         </div>
         {/* Store managers can create transfer requests */}
@@ -321,24 +365,14 @@ const StockTransferDashboard = () => {
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 mb-4 flex-wrap">
-            {['all', 'pending', 'approved', 'dispatched', 'completed', 'rejected'].map((status) => (
-              <Button
-                key={status}
-                variant={filterStatus === status ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilterStatus(status)}
-              >
+            {['all', 'pending', 'approved', 'dispatched', 'completed', 'rejected'].map(status => <Button key={status} variant={filterStatus === status ? "default" : "outline"} size="sm" onClick={() => setFilterStatus(status)}>
                 {status.charAt(0).toUpperCase() + status.slice(1)}
-              </Button>
-            ))}
+              </Button>)}
           </div>
 
-          {isLoading ? (
-            <div className="flex justify-center py-8">
+          {isLoading ? <div className="flex justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
-            </div>
-          ) : (
-            <div className="rounded-md border">
+            </div> : <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -353,24 +387,16 @@ const StockTransferDashboard = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {transfers && transfers.length > 0 ? (
-                    transfers.map((transfer) => (
-                      <TableRow key={transfer.id}>
+                  {transfers && transfers.length > 0 ? transfers.map(transfer => <TableRow key={transfer.id}>
                         <TableCell className="text-sm">
                           {format(new Date(transfer.created_at), "MMM dd, yyyy")}
                         </TableCell>
                         <TableCell>
                           <div>
-                            {transfer.items && transfer.items.length > 0 ? (
-                              transfer.items.map((item, idx) => (
-                                <div key={idx}>
+                            {transfer.items && transfer.items.length > 0 ? transfer.items.map((item, idx) => <div key={idx}>
                                   <div className="font-medium">{item.product?.name}</div>
                                   <div className="text-xs text-muted-foreground">{item.product?.sku} (Qty: {item.quantity_approved || item.quantity_requested})</div>
-                                </div>
-                              ))
-                            ) : (
-                              <span className="text-muted-foreground">No items</span>
-                            )}
+                                </div>) : <span className="text-muted-foreground">No items</span>}
                           </div>
                         </TableCell>
                         <TableCell>{transfer.from_outlet?.name}</TableCell>
@@ -382,85 +408,43 @@ const StockTransferDashboard = () => {
                         <TableCell>{getStatusBadge(transfer.status)}</TableCell>
                         <TableCell className="text-right">
                           {/* Pending: Warehouse/Admin can approve/reject */}
-                          {transfer.status === 'pending' && isWarehouseOrAdmin && (
-                            <div className="flex gap-1 justify-end">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-green-600 hover:bg-green-50"
-                                onClick={() => handleApprove(transfer.id)}
-                              >
+                          {transfer.status === 'pending' && isWarehouseOrAdmin && <div className="flex gap-1 justify-end">
+                              <Button variant="outline" size="sm" className="text-green-600 hover:bg-green-50" onClick={() => handleApprove(transfer.id)}>
                                 Approve
                               </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-red-600 hover:bg-red-50"
-                                onClick={() => handleReject(transfer.id)}
-                              >
+                              <Button variant="outline" size="sm" className="text-red-600 hover:bg-red-50" onClick={() => handleReject(transfer.id)}>
                                 Reject
                               </Button>
-                            </div>
-                          )}
+                            </div>}
                           {/* Approved: Warehouse/Admin can dispatch */}
-                          {transfer.status === 'approved' && isWarehouseOrAdmin && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-2"
-                              onClick={() => handleDispatch(transfer.id)}
-                            >
+                          {transfer.status === 'approved' && isWarehouseOrAdmin && <Button variant="outline" size="sm" className="gap-2" onClick={() => handleDispatch(transfer.id)}>
                               <Truck className="h-4 w-4" />
                               Dispatch
-                            </Button>
-                          )}
+                            </Button>}
                           {/* Dispatched: Store manager can receive */}
-                          {(transfer.status as string) === 'dispatched' && isStoreManager && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-2"
-                              onClick={() => {
-                                setSelectedTransfer(transfer);
-                                setReceiveDialogOpen(true);
-                              }}
-                            >
+                          {transfer.status as string === 'dispatched' && isStoreManager && <Button variant="outline" size="sm" className="gap-2" onClick={() => {
+                    setSelectedTransfer(transfer);
+                    setReceiveDialogOpen(true);
+                  }}>
                               <PackageCheck className="h-4 w-4" />
                               Receive
-                            </Button>
-                          )}
+                            </Button>}
                         </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
+                      </TableRow>) : <TableRow>
                       <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         No transfer requests found
                       </TableCell>
-                    </TableRow>
-                  )}
+                    </TableRow>}
                 </TableBody>
               </Table>
-            </div>
-          )}
+            </div>}
         </CardContent>
       </Card>
 
       {/* Dialogs */}
-      <StockTransferDialog
-        open={transferDialogOpen}
-        onOpenChange={setTransferDialogOpen}
-        products={products || []}
-        outlets={outlets || []}
-      />
+      <StockTransferDialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen} products={products || []} outlets={outlets || []} />
       
-      <TransferReceiveDialog
-        open={receiveDialogOpen}
-        onOpenChange={setReceiveDialogOpen}
-        transfer={selectedTransfer}
-      />
-    </div>
-  );
+      <TransferReceiveDialog open={receiveDialogOpen} onOpenChange={setReceiveDialogOpen} transfer={selectedTransfer} />
+    </div>;
 };
-
 export default StockTransferDashboard;
