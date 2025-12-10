@@ -175,13 +175,17 @@ const ReturnsDashboard = () => {
       const dateStr = returnItem.received_at || returnItem.created_at;
       if (!dateStr) return false;
       const returnDate = parseISO(dateStr);
+      
+      // Set start of day for from date and end of day for to date
+      const startOfFrom = new Date(dateRange.from);
+      startOfFrom.setHours(0, 0, 0, 0);
+      
       if (dateRange.to) {
-        return isWithinInterval(returnDate, {
-          start: dateRange.from,
-          end: dateRange.to
-        });
+        const endOfTo = new Date(dateRange.to);
+        endOfTo.setHours(23, 59, 59, 999);
+        return returnDate >= startOfFrom && returnDate <= endOfTo;
       }
-      return returnDate >= dateRange.from;
+      return returnDate >= startOfFrom;
     });
   }, [returns, dateRange]);
   const filteredReturns = useMemo(() => {
