@@ -136,40 +136,46 @@ export const OutletInventoryView = () => {
   // Fetch outlets for stock adjustment dialog (user's outlet only)
   const outlets = userOutlet ? [{ id: userOutlet.id, name: userOutlet.name }] : [];
 
-  // Fetch outlet-specific packaging inventory
+  // Fetch outlet-specific packaging inventory - show ALL packaging items with outlet quantities
   const { data: packagingItems = [], isLoading: packagingLoading } = useQuery({
     queryKey: ["outlet-packaging-inventory", userOutlet?.id, packagingSearchQuery],
     queryFn: async () => {
       if (!userOutlet?.id) return [];
       
-      const { data, error } = await supabase
-        .from("outlet_packaging_inventory")
-        .select(`
-          id,
-          quantity,
-          packaging_item:packaging_items(id, name, sku, reorder_level)
-        `)
-        .eq("outlet_id", userOutlet.id);
+      // Get all active packaging items
+      let packagingQuery = supabase
+        .from("packaging_items")
+        .select("id, name, sku, reorder_level")
+        .eq("is_active", true);
       
-      if (error) throw error;
-      
-      // Filter by search query and transform data
-      let filtered = data || [];
       if (packagingSearchQuery) {
-        const searchLower = packagingSearchQuery.toLowerCase();
-        filtered = filtered.filter(item => 
-          item.packaging_item?.name?.toLowerCase().includes(searchLower) ||
-          item.packaging_item?.sku?.toLowerCase().includes(searchLower)
-        );
+        packagingQuery = packagingQuery.or(`name.ilike.%${packagingSearchQuery}%,sku.ilike.%${packagingSearchQuery}%`);
       }
       
-      return filtered.map(item => ({
-        id: item.id,
-        packaging_item_id: item.packaging_item?.id,
-        name: item.packaging_item?.name || 'Unknown',
-        sku: item.packaging_item?.sku || '',
-        current_stock: item.quantity,
-        reorder_level: item.packaging_item?.reorder_level || 0
+      const { data: allPackaging, error: packagingError } = await packagingQuery;
+      if (packagingError) throw packagingError;
+      
+      // Get outlet-specific quantities
+      const { data: outletQuantities, error: outletError } = await supabase
+        .from("outlet_packaging_inventory")
+        .select("packaging_item_id, quantity")
+        .eq("outlet_id", userOutlet.id);
+      
+      if (outletError) throw outletError;
+      
+      // Create a map of packaging_item_id -> quantity
+      const quantityMap = new Map(
+        (outletQuantities || []).map(item => [item.packaging_item_id, item.quantity])
+      );
+      
+      // Combine: all packaging items with outlet-specific quantity (default 0)
+      return (allPackaging || []).map(pkg => ({
+        id: pkg.id,
+        packaging_item_id: pkg.id,
+        name: pkg.name || 'Unknown',
+        sku: pkg.sku || '',
+        current_stock: quantityMap.get(pkg.id) || 0,
+        reorder_level: pkg.reorder_level || 0
       }));
     },
     enabled: !!userOutlet?.id,
