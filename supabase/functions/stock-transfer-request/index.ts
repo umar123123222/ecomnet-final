@@ -386,6 +386,128 @@ serve(async (req) => {
         )
       }
 
+      case 'dispatch': {
+        // Warehouse manager marks transfer as dispatched (deducts from warehouse, doesn't add to store yet)
+        const { transfer_id } = data
+        
+        // Get the approved request with items and packaging
+        const { data: request, error: getError } = await supabaseClient
+          .from('stock_transfer_requests')
+          .select(`
+            *,
+            from_outlet:outlets!stock_transfer_requests_from_outlet_id_fkey(id, name),
+            to_outlet:outlets!stock_transfer_requests_to_outlet_id_fkey(id, name),
+            items:stock_transfer_items(*),
+            packaging_items:stock_transfer_packaging_items(*)
+          `)
+          .eq('id', transfer_id)
+          .eq('status', 'approved')
+          .single()
+
+        if (getError) throw getError
+
+        if (!request) {
+          return new Response(
+            JSON.stringify({ error: 'Request not found or not approved' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        // Check permissions
+        const { data: profile } = await supabaseClient
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+
+        const canDispatch = profile && ['super_admin', 'super_manager', 'warehouse_manager'].includes(profile.role)
+        if (!canDispatch) {
+          return new Response(
+            JSON.stringify({ error: 'Insufficient permissions to dispatch' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        // Deduct product items from warehouse ONLY (transfer_out)
+        for (const item of request.items) {
+          const quantity = item.quantity_approved || item.quantity_requested
+
+          const { error: movementError } = await supabaseClient
+            .from('stock_movements')
+            .insert({
+              product_id: item.product_id,
+              outlet_id: request.from_outlet_id,
+              quantity: -quantity,
+              movement_type: 'transfer_out',
+              reference_id: transfer_id,
+              notes: `Dispatched to ${request.to_outlet?.name || 'store'}`,
+              created_by: user.id,
+            })
+
+          if (movementError) throw movementError
+        }
+
+        // Deduct packaging items from warehouse
+        if (request.packaging_items && request.packaging_items.length > 0) {
+          for (const packItem of request.packaging_items) {
+            const quantity = packItem.quantity_approved || packItem.quantity_requested
+
+            const { error: packMovementError } = await supabaseClient
+              .from('packaging_movements')
+              .insert({
+                packaging_item_id: packItem.packaging_item_id,
+                movement_type: 'transfer_out',
+                quantity: -quantity,
+                reference_id: transfer_id,
+                notes: `Dispatched to ${request.to_outlet?.name || 'store'}`,
+                created_by: user.id
+              })
+
+            if (packMovementError) {
+              console.error('Error creating packaging movement:', packMovementError)
+            }
+          }
+        }
+
+        // Update status to dispatched
+        const { error: dispatchError } = await supabaseClient
+          .from('stock_transfer_requests')
+          .update({
+            status: 'dispatched',
+            completed_by: user.id
+          })
+          .eq('id', transfer_id)
+
+        if (dispatchError) throw dispatchError
+
+        // NOTIFICATIONS: Transfer Dispatched
+        const recipients = await getNotificationRecipients(supabaseClient, request.requested_by)
+        const toOutletName = request.to_outlet?.name || 'Unknown Store'
+        const fromOutletName = request.from_outlet?.name || 'Warehouse'
+        const itemCount = request.items?.length || 0
+
+        await createPortalNotifications(supabaseClient, recipients, {
+          title: 'Stock Transfer Dispatched',
+          message: `Inventory dispatched from ${fromOutletName} to ${toOutletName}. ${itemCount} item(s) ready to receive.`,
+          type: 'info',
+          priority: 'high',
+          action_url: '/stock-transfer',
+          metadata: {
+            transfer_id: transfer_id,
+            from_outlet: fromOutletName,
+            to_outlet: toOutletName,
+            item_count: itemCount
+          }
+        })
+
+        sendEmailNotifications(supabaseClient, transfer_id, 'dispatched')
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Transfer dispatched - store can now receive inventory' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       case 'complete': {
         const { transfer_id } = data
         
@@ -540,6 +662,14 @@ serve(async (req) => {
           .single()
 
         if (transferError) throw transferError
+
+        // Verify transfer is in dispatched status (or approved for backwards compatibility)
+        if (transfer.status !== 'dispatched' && transfer.status !== 'approved') {
+          return new Response(
+            JSON.stringify({ error: 'Transfer must be dispatched before receiving' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
 
         const { data: hasAccess } = await supabaseClient.rpc('has_outlet_access', {
           _user_id: user.id,

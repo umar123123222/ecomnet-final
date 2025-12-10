@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowRightLeft, Clock, CheckCircle, XCircle, Plus, Loader2, PackageCheck } from "lucide-react";
+import { ArrowRightLeft, Clock, CheckCircle, XCircle, Plus, Loader2, PackageCheck, Truck } from "lucide-react";
 import { format } from "date-fns";
 import { StockTransferRequest, Product, Outlet } from "@/types/inventory";
 import { StockTransferDialog } from "@/components/inventory/StockTransferDialog";
@@ -39,6 +39,7 @@ const StockTransferDashboard = () => {
   const { profile } = useAuth();
 
   const isStoreManager = primaryRole === 'store_manager';
+  const isWarehouseOrAdmin = ['super_admin', 'super_manager', 'warehouse_manager'].includes(primaryRole as string);
 
   // Fetch products and outlets for the dialog
   const { data: products } = useQuery<Product[]>({
@@ -113,7 +114,8 @@ const StockTransferDashboard = () => {
 
   const pendingCount = transfers?.filter(t => t.status === 'pending').length || 0;
   const approvedCount = transfers?.filter(t => t.status === 'approved').length || 0;
-  const completedCount = transfers?.filter(t => t.status === 'completed').length || 0;
+  const dispatchedCount = transfers?.filter(t => (t.status as string) === 'dispatched').length || 0;
+  const completedCount = transfers?.filter(t => t.status === 'completed' || (t.status as string) === 'received').length || 0;
 
   const handleApprove = async (transferId: string) => {
     try {
@@ -161,6 +163,29 @@ const StockTransferDashboard = () => {
     }
   };
 
+  const handleDispatch = async (transferId: string) => {
+    try {
+      const { error } = await supabase.functions.invoke("stock-transfer-request", {
+        body: { action: "dispatch", transfer_id: transferId },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Transfer dispatched - store manager can now receive inventory",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to dispatch transfer",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleComplete = async (transferId: string) => {
     try {
       const { error } = await supabase.functions.invoke("stock-transfer-request", {
@@ -188,7 +213,9 @@ const StockTransferDashboard = () => {
     const variants = {
       pending: { variant: "outline" as const, className: "border-yellow-500 text-yellow-500", icon: Clock },
       approved: { variant: "outline" as const, className: "border-blue-500 text-blue-500", icon: CheckCircle },
+      dispatched: { variant: "outline" as const, className: "border-purple-500 text-purple-500", icon: Truck },
       completed: { variant: "outline" as const, className: "border-green-500 text-green-500", icon: CheckCircle },
+      received: { variant: "outline" as const, className: "border-green-500 text-green-500", icon: CheckCircle },
       rejected: { variant: "outline" as const, className: "border-red-500 text-red-500", icon: XCircle },
       cancelled: { variant: "outline" as const, className: "border-gray-500 text-gray-500", icon: XCircle },
     };
@@ -206,27 +233,30 @@ const StockTransferDashboard = () => {
 
   return (
     <div className="p-6 space-y-6">
-      {isStoreManager ? (
-        <OutletInventoryView />
-      ) : (
-        <>
-          <div className="flex items-center justify-between">
+      {/* Show outlet inventory for store managers */}
+      {isStoreManager && <OutletInventoryView />}
+      
+      {/* Transfer Requests Section - visible to all users */}
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-            Stock Transfer Requests
+            {isStoreManager ? 'Stock Transfer Requests' : 'Stock Transfer Requests'}
           </h1>
-          <p className="text-muted-foreground">Manage inventory transfers between outlets</p>
+          <p className="text-muted-foreground">
+            {isStoreManager 
+              ? 'Request inventory from warehouse and receive transfers' 
+              : 'Manage inventory transfers between outlets'}
+          </p>
         </div>
-        {permissions.canCreateStockTransfer && (
-          <Button onClick={() => setTransferDialogOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            New Transfer Request
-          </Button>
-        )}
+        {/* Store managers can create transfer requests */}
+        <Button onClick={() => setTransferDialogOpen(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Request Transfer
+        </Button>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pending</CardTitle>
@@ -245,7 +275,18 @@ const StockTransferDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{approvedCount}</div>
-            <p className="text-xs text-muted-foreground">Ready to transfer</p>
+            <p className="text-xs text-muted-foreground">Ready to dispatch</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Dispatched</CardTitle>
+            <Truck className="h-4 w-4 text-purple-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dispatchedCount}</div>
+            <p className="text-xs text-muted-foreground">In transit</p>
           </CardContent>
         </Card>
 
@@ -256,7 +297,7 @@ const StockTransferDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{completedCount}</div>
-            <p className="text-xs text-muted-foreground">Successfully transferred</p>
+            <p className="text-xs text-muted-foreground">Successfully received</p>
           </CardContent>
         </Card>
 
@@ -279,8 +320,8 @@ const StockTransferDashboard = () => {
           <CardDescription>View all stock transfer requests</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2 mb-4">
-            {['all', 'pending', 'approved', 'completed', 'rejected'].map((status) => (
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {['all', 'pending', 'approved', 'dispatched', 'completed', 'rejected'].map((status) => (
               <Button
                 key={status}
                 variant={filterStatus === status ? "default" : "outline"}
@@ -340,7 +381,8 @@ const StockTransferDashboard = () => {
                         <TableCell>{transfer.requester?.full_name}</TableCell>
                         <TableCell>{getStatusBadge(transfer.status)}</TableCell>
                         <TableCell className="text-right">
-                          {transfer.status === 'pending' && !isStoreManager && (
+                          {/* Pending: Warehouse/Admin can approve/reject */}
+                          {transfer.status === 'pending' && isWarehouseOrAdmin && (
                             <div className="flex gap-1 justify-end">
                               <Button
                                 variant="outline"
@@ -360,31 +402,32 @@ const StockTransferDashboard = () => {
                               </Button>
                             </div>
                           )}
-                          {transfer.status === 'approved' && (
-                            <>
-                              {isStoreManager ? (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="gap-2"
-                                  onClick={() => {
-                                    setSelectedTransfer(transfer);
-                                    setReceiveDialogOpen(true);
-                                  }}
-                                >
-                                  <PackageCheck className="h-4 w-4" />
-                                  Receive
-                                </Button>
-                              ) : (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleComplete(transfer.id)}
-                                >
-                                  Complete
-                                </Button>
-                              )}
-                            </>
+                          {/* Approved: Warehouse/Admin can dispatch */}
+                          {transfer.status === 'approved' && isWarehouseOrAdmin && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-2"
+                              onClick={() => handleDispatch(transfer.id)}
+                            >
+                              <Truck className="h-4 w-4" />
+                              Dispatch
+                            </Button>
+                          )}
+                          {/* Dispatched: Store manager can receive */}
+                          {(transfer.status as string) === 'dispatched' && isStoreManager && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-2"
+                              onClick={() => {
+                                setSelectedTransfer(transfer);
+                                setReceiveDialogOpen(true);
+                              }}
+                            >
+                              <PackageCheck className="h-4 w-4" />
+                              Receive
+                            </Button>
                           )}
                         </TableCell>
                       </TableRow>
@@ -416,8 +459,6 @@ const StockTransferDashboard = () => {
         onOpenChange={setReceiveDialogOpen}
         transfer={selectedTransfer}
       />
-        </>
-      )}
     </div>
   );
 };
