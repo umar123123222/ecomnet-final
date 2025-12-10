@@ -81,8 +81,8 @@ const handler = async (req: Request): Promise<Response> => {
       const { data: settingData, error: settingError } = await supabase
         .from('api_settings')
         .select('setting_value')
-        .eq('setting_key', 'PORTAL_URL')
-        .single();
+        .eq('setting_key', 'portal_url')
+        .maybeSingle();
       
       if (!settingError && settingData) {
         finalPortalUrl = settingData.setting_value;
