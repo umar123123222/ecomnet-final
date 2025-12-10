@@ -124,14 +124,17 @@ serve(async (req) => {
 
     if (!returnRecord) {
       // No return record exists - try to find the order directly and create return
+      console.log('No return record found, searching for order directly with entry:', entry);
       let foundOrder: any = null;
 
       // Try finding order by tracking_id
-      const { data: orderByTracking } = await supabase
+      const { data: orderByTracking, error: trackingErr } = await supabase
         .from('orders')
         .select('id, order_number, customer_name, tracking_id, total_amount, status')
         .eq('tracking_id', entry)
         .maybeSingle();
+
+      console.log('Order by tracking result:', JSON.stringify(orderByTracking), 'Error:', trackingErr);
 
       if (orderByTracking) {
         foundOrder = orderByTracking;
