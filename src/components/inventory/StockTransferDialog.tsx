@@ -60,12 +60,41 @@ export function StockTransferDialog({
   const [productSearch, setProductSearch] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   // Find main warehouse
   const mainWarehouse = outlets?.find(
     (outlet) => outlet.outlet_type === 'warehouse' && outlet.name.toLowerCase().includes('main')
   ) || outlets?.find((outlet) => outlet.outlet_type === 'warehouse');
+
+  // Check if user is store manager and get their assigned outlet
+  const isStoreManager = profile?.role === 'store_manager';
+  
+  const { data: userOutlet } = useQuery({
+    queryKey: ["user-assigned-outlet", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      // Check if user is an outlet manager
+      const { data: managedOutlet } = await supabase
+        .from("outlets")
+        .select("id, name, outlet_type")
+        .eq("manager_id", user.id)
+        .single();
+      
+      if (managedOutlet) return managedOutlet;
+      
+      // Check outlet_staff assignment
+      const { data: staffOutlet } = await supabase
+        .from("outlet_staff")
+        .select("outlet:outlets(id, name, outlet_type)")
+        .eq("user_id", user.id)
+        .single();
+      
+      return staffOutlet?.outlet || null;
+    },
+    enabled: open && isStoreManager && !!user?.id,
+  });
 
   // Fetch packaging items from database
   const { data: availablePackaging } = useQuery({
@@ -114,6 +143,13 @@ export function StockTransferDialog({
       notes: "",
     },
   });
+
+  // Auto-set destination outlet for store managers
+  useEffect(() => {
+    if (isStoreManager && userOutlet?.id) {
+      setValue("to_outlet_id", userOutlet.id);
+    }
+  }, [isStoreManager, userOutlet?.id, setValue]);
 
   // Filter products by search
   const filteredProducts = useMemo(() => {
@@ -419,27 +455,35 @@ export function StockTransferDialog({
                   {/* Destination Selection */}
                   <div>
                     <Label className="text-sm font-medium mb-2 block">Transfer To</Label>
-                    <Select
-                      value={watch("to_outlet_id")}
-                      onValueChange={(value) => setValue("to_outlet_id", value)}
-                    >
-                      <SelectTrigger className={`w-full ${errors.to_outlet_id ? "border-destructive" : ""}`}>
-                        <SelectValue placeholder="Select destination outlet..." />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover z-50">
-                        {destinationOutlets.length === 0 ? (
-                          <div className="p-2 text-sm text-muted-foreground text-center">
-                            No outlets available
-                          </div>
-                        ) : (
-                          destinationOutlets.map((outlet) => (
-                            <SelectItem key={outlet.id} value={outlet.id}>
-                              {outlet.name} ({outlet.outlet_type === "warehouse" ? "Warehouse" : "Outlet"})
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+                    {isStoreManager && userOutlet ? (
+                      <div className="flex items-center gap-2 p-3 bg-muted rounded-md border">
+                        <Package className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">{userOutlet.name}</span>
+                        <Badge variant="secondary" className="text-xs">Your Outlet</Badge>
+                      </div>
+                    ) : (
+                      <Select
+                        value={watch("to_outlet_id")}
+                        onValueChange={(value) => setValue("to_outlet_id", value)}
+                      >
+                        <SelectTrigger className={`w-full ${errors.to_outlet_id ? "border-destructive" : ""}`}>
+                          <SelectValue placeholder="Select destination outlet..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover z-50">
+                          {destinationOutlets.length === 0 ? (
+                            <div className="p-2 text-sm text-muted-foreground text-center">
+                              No outlets available
+                            </div>
+                          ) : (
+                            destinationOutlets.map((outlet) => (
+                              <SelectItem key={outlet.id} value={outlet.id}>
+                                {outlet.name} ({outlet.outlet_type === "warehouse" ? "Warehouse" : "Outlet"})
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    )}
                     {errors.to_outlet_id && (
                       <p className="text-xs text-destructive mt-1">{errors.to_outlet_id.message}</p>
                     )}
