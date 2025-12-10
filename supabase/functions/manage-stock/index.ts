@@ -415,10 +415,112 @@ serve(async (req) => {
       }
 
       case 'adjustPackagingStock': {
-        const { packagingItemId, quantity, reason } = data
+        const { packagingItemId, quantity, reason, outletId } = data
         
-        console.log(`[adjustPackagingStock] Starting adjustment - Packaging: ${packagingItemId}, Adjustment: ${quantity}`)
+        console.log(`[adjustPackagingStock] Starting adjustment - Packaging: ${packagingItemId}, Outlet: ${outletId || 'central'}, Adjustment: ${quantity}`)
         
+        // Check if this is an outlet-level adjustment (store manager damage reporting)
+        if (outletId) {
+          // Validate outlet assignment for store managers
+          const { data: userRoleData } = await supabaseClient
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', user.id)
+            .eq('is_active', true)
+            .single()
+          
+          const userRole = userRoleData?.role
+          
+          if (userRole === 'store_manager') {
+            // Verify store manager is assigned to this outlet
+            const { data: managedOutlet } = await supabaseClient
+              .from('outlets')
+              .select('id')
+              .eq('manager_id', user.id)
+              .eq('id', outletId)
+              .single()
+            
+            const { data: staffOutlet } = await supabaseClient
+              .from('outlet_staff')
+              .select('outlet_id')
+              .eq('user_id', user.id)
+              .eq('outlet_id', outletId)
+              .single()
+            
+            if (!managedOutlet && !staffOutlet) {
+              console.error(`[adjustPackagingStock] Access denied: User ${user.id} (${userRole}) is not assigned to outlet ${outletId}`)
+              return new Response(
+                JSON.stringify({ error: 'You can only adjust packaging for your assigned outlet' }),
+                { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              )
+            }
+          }
+          
+          // Fetch current outlet packaging inventory
+          const { data: outletInventory, error: fetchError } = await supabaseClient
+            .from('outlet_packaging_inventory')
+            .select('id, quantity')
+            .eq('packaging_item_id', packagingItemId)
+            .eq('outlet_id', outletId)
+            .maybeSingle()
+          
+          const currentStock = outletInventory?.quantity || 0
+          const newQuantity = currentStock + quantity
+          
+          console.log(`[adjustPackagingStock] Outlet ${outletId} - Current: ${currentStock}, Adjustment: ${quantity}, New: ${newQuantity}`)
+          
+          // Validate: prevent negative stock
+          if (newQuantity < 0) {
+            const error = `Cannot adjust packaging stock: would result in negative quantity (${newQuantity}). Current stock: ${currentStock}, Adjustment: ${quantity}`
+            console.error(`[adjustPackagingStock] ${error}`)
+            return new Response(
+              JSON.stringify({ error }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+          
+          // Use upsert function to update outlet packaging inventory
+          const { error: upsertError } = await supabaseClient.rpc('upsert_outlet_packaging_inventory', {
+            p_outlet_id: outletId,
+            p_packaging_item_id: packagingItemId,
+            p_quantity_change: quantity
+          })
+          
+          if (upsertError) {
+            console.error('[adjustPackagingStock] Error upserting outlet packaging inventory:', upsertError)
+            throw upsertError
+          }
+          
+          // Create packaging movement record for audit trail
+          const { error: movementError } = await supabaseClient
+            .from('packaging_movements')
+            .insert({
+              packaging_item_id: packagingItemId,
+              movement_type: 'adjustment',
+              quantity: quantity,
+              notes: `${reason} (Outlet: ${outletId})`,
+              created_by: user.id
+            })
+          
+          if (movementError) {
+            console.error('[adjustPackagingStock] Error creating packaging movement:', movementError)
+          }
+          
+          console.log(`[adjustPackagingStock] Success - Outlet packaging adjusted from ${currentStock} to ${newQuantity}`)
+          
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              previousQuantity: currentStock,
+              newQuantity: newQuantity,
+              adjustment: quantity,
+              outlet_level: true
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        
+        // Central warehouse packaging adjustment (original logic)
         // Fetch current packaging stock
         const { data: currentPackaging, error: fetchError } = await supabaseClient
           .from('packaging_items')
@@ -438,7 +540,7 @@ serve(async (req) => {
         // Calculate new quantity (current + adjustment)
         const newQuantity = currentPackaging.current_stock + quantity
         
-        console.log(`[adjustPackagingStock] Current: ${currentPackaging.current_stock}, Adjustment: ${quantity}, New: ${newQuantity}`)
+        console.log(`[adjustPackagingStock] Central - Current: ${currentPackaging.current_stock}, Adjustment: ${quantity}, New: ${newQuantity}`)
 
         // Validate: prevent negative stock
         if (newQuantity < 0) {

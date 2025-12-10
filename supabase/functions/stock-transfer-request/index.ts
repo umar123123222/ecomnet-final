@@ -797,7 +797,7 @@ serve(async (req) => {
           if (movementError) throw movementError
         }
 
-        // Process packaging receipt items
+        // Process packaging receipt items - add to outlet_packaging_inventory
         for (const item of (packaging_receipt_items || [])) {
           const packagingItem = transfer.packaging_items?.find((pi: any) => pi.id === item.transfer_packaging_item_id)
           if (!packagingItem) continue
@@ -807,14 +807,37 @@ serve(async (req) => {
             .update({ quantity_received: item.quantity_received })
             .eq('id', item.transfer_packaging_item_id)
 
+          // Add packaging to outlet_packaging_inventory using upsert function
+          const { error: upsertError } = await supabaseClient.rpc('upsert_outlet_packaging_inventory', {
+            p_outlet_id: transfer.to_outlet_id,
+            p_packaging_item_id: packagingItem.packaging_item_id,
+            p_quantity_change: item.quantity_received
+          })
+
+          if (upsertError) {
+            console.error('Error upserting outlet packaging inventory:', upsertError)
+          }
+
+          // Deduct from central warehouse packaging_items.current_stock
+          const { error: deductError } = await supabaseClient
+            .from('packaging_items')
+            .update({ 
+              current_stock: supabaseClient.sql`current_stock - ${item.quantity_received}`
+            })
+            .eq('id', packagingItem.packaging_item_id)
+
+          if (deductError) {
+            console.error('Error deducting central packaging stock:', deductError)
+          }
+
           const { error: packMovementError } = await supabaseClient
             .from('packaging_movements')
             .insert({
               packaging_item_id: packagingItem.packaging_item_id,
-              movement_type: 'adjustment',
+              movement_type: 'transfer_in',
               quantity: item.quantity_received,
               reference_id: transfer_id,
-              notes: `Transfer receipt from ${transfer.from_outlet?.name || 'warehouse'}`,
+              notes: `Transfer receipt to ${transfer.to_outlet?.name || 'store'} from ${transfer.from_outlet?.name || 'warehouse'}`,
               created_by: user.id
             })
 
