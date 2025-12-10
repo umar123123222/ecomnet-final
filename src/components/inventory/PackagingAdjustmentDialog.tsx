@@ -19,13 +19,23 @@ const REASON_OPTIONS = [
   { value: "other", label: "Other" },
 ] as const;
 
+// Store manager specific reasons
+const STORE_MANAGER_DECREASE_REASONS = [
+  { value: "items_damaged", label: "Items Damaged" },
+  { value: "sale", label: "Sale" },
+] as const;
+
+const STORE_MANAGER_INCREASE_REASONS = [
+  { value: "return_received", label: "Return Received" },
+] as const;
+
 const packagingAdjustmentSchema = z.object({
   packaging_item_id: z.string().min(1, "Packaging item is required"),
   adjustment_type: z.enum(["increase", "decrease"], {
     required_error: "Please select adjustment type",
   }),
   quantity: z.number().int().min(1, "Quantity must be at least 1"),
-  reason: z.enum(["shipment_received", "damaged_items", "other"], {
+  reason: z.enum(["shipment_received", "damaged_items", "other", "items_damaged", "sale", "return_received"], {
     required_error: "Please select a reason",
   }),
   other_reason: z.string().optional(),
@@ -103,29 +113,30 @@ export function PackagingAdjustmentDialog({
   // Filter reason options for store managers
   const filteredReasonOptions = isStoreManager
     ? (adjustmentType === "decrease"
-        ? REASON_OPTIONS.filter(r => r.value === "damaged_items")
-        : REASON_OPTIONS.filter(r => r.value === "shipment_received"))
+        ? STORE_MANAGER_DECREASE_REASONS
+        : STORE_MANAGER_INCREASE_REASONS)
     : REASON_OPTIONS;
 
   // Auto-select reason for store managers when adjustment type changes
   useEffect(() => {
     if (isStoreManager && open) {
       setValue("adjustment_type", "decrease");
-      setValue("reason", "damaged_items");
+      setValue("reason", "items_damaged");
     }
   }, [isStoreManager, open, setValue]);
 
   useEffect(() => {
     if (isStoreManager) {
       if (adjustmentType === "decrease") {
-        setValue("reason", "damaged_items");
+        setValue("reason", "items_damaged");
       } else {
-        setValue("reason", "shipment_received");
+        setValue("reason", "return_received");
       }
     }
   }, [adjustmentType, isStoreManager, setValue]);
 
-  const isImageRequired = selectedReason === "damaged_items";
+  // Image is required for all store manager adjustments
+  const isImageRequired = isStoreManager;
   const showOtherReasonInput = selectedReason === "other";
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,7 +175,7 @@ export function PackagingAdjustmentDialog({
     if (isImageRequired && !proofImage) {
       toast({
         title: "Image Required",
-        description: "Please upload proof image for damaged items",
+        description: "Please upload proof image",
         variant: "destructive",
       });
       return;
@@ -193,9 +204,11 @@ export function PackagingAdjustmentDialog({
         }
       }
 
+      // Get reason label from appropriate options array
+      const allReasonOptions = [...REASON_OPTIONS, ...STORE_MANAGER_DECREASE_REASONS, ...STORE_MANAGER_INCREASE_REASONS];
       const reasonText = data.reason === "other" 
         ? `Other: ${data.other_reason}` 
-        : REASON_OPTIONS.find(r => r.value === data.reason)?.label || data.reason;
+        : allReasonOptions.find(r => r.value === data.reason)?.label || data.reason;
 
       const { data: result, error } = await supabase.functions.invoke("manage-stock", {
         body: {
@@ -342,7 +355,7 @@ export function PackagingAdjustmentDialog({
             </div>
           )}
 
-          {(selectedReason === "damaged_items" || selectedReason === "other") && (
+          {(isStoreManager || selectedReason === "damaged_items" || selectedReason === "other") && (
             <div className="space-y-2">
               <Label>
                 Proof Image {isImageRequired ? "*" : "(Optional)"}
@@ -386,7 +399,7 @@ export function PackagingAdjustmentDialog({
               
               {isImageRequired && !proofImage && (
                 <p className="text-sm text-muted-foreground">
-                  Image proof is required for damaged items
+                  Image proof is required
                 </p>
               )}
             </div>

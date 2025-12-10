@@ -21,6 +21,16 @@ const REASON_OPTIONS = [
   { value: "return", label: "Return" },
 ] as const;
 
+// Store manager specific reasons
+const STORE_MANAGER_DECREASE_REASONS = [
+  { value: "items_damaged", label: "Items Damaged" },
+  { value: "sale", label: "Sale" },
+] as const;
+
+const STORE_MANAGER_INCREASE_REASONS = [
+  { value: "return_received", label: "Return Received" },
+] as const;
+
 const adjustmentSchema = z.object({
   product_id: z.string().min(1, "Product is required"),
   outlet_id: z.string().min(1, "Outlet is required"),
@@ -28,7 +38,7 @@ const adjustmentSchema = z.object({
     required_error: "Please select adjustment type",
   }),
   quantity: z.number().int().min(1, "Quantity must be at least 1"),
-  reason: z.enum(["inventory_made", "damaged", "return"], {
+  reason: z.enum(["inventory_made", "damaged", "return", "items_damaged", "sale", "return_received"], {
     required_error: "Please select a reason",
   }),
 });
@@ -129,12 +139,15 @@ export function StockAdjustmentDialog({
   const reason = watch("reason");
 
   // Get filtered reason options based on role and adjustment type
-  // Store managers: decrease = "Damaged" only, increase = "Return" only
+  // Store managers: decrease = "Items Damaged" or "Sale", increase = "Return Received"
   const filteredReasonOptions = isStoreManager 
     ? (adjustmentType === 'decrease' 
-        ? REASON_OPTIONS.filter(r => r.value === 'damaged')
-        : REASON_OPTIONS.filter(r => r.value === 'return'))
+        ? STORE_MANAGER_DECREASE_REASONS
+        : STORE_MANAGER_INCREASE_REASONS)
     : REASON_OPTIONS;
+
+  // Image is required for all store manager adjustments
+  const isImageRequired = isStoreManager;
 
   // Fetch current stock for selected product and outlet
   const { data: currentInventory, isLoading: isLoadingInventory } = useQuery({
@@ -191,9 +204,9 @@ export function StockAdjustmentDialog({
   };
 
   const onSubmit = async (data: AdjustmentFormData) => {
-    // Validate image for damaged reason
-    if (data.reason === "damaged" && !imageFile) {
-      setImageError("Image is required for damaged items");
+    // Validate image for store managers (all reasons require proof)
+    if (isImageRequired && !imageFile) {
+      setImageError("Image proof is required");
       return;
     }
 
@@ -229,7 +242,10 @@ export function StockAdjustmentDialog({
       }
 
       const adjustmentQuantity = data.adjustment_type === "increase" ? data.quantity : -data.quantity;
-      const reasonLabel = REASON_OPTIONS.find(r => r.value === data.reason)?.label || data.reason;
+      
+      // Get reason label from appropriate options array
+      const allReasonOptions = [...REASON_OPTIONS, ...STORE_MANAGER_DECREASE_REASONS, ...STORE_MANAGER_INCREASE_REASONS];
+      const reasonLabel = allReasonOptions.find(r => r.value === data.reason)?.label || data.reason;
       const reasonText = imageUrl 
         ? `${reasonLabel} | Image: ${imageUrl}`
         : reasonLabel;
@@ -298,7 +314,7 @@ export function StockAdjustmentDialog({
       // Store managers: auto-set reason based on adjustment type, default to decrease
       if (isStoreManager) {
         setValue('adjustment_type', 'decrease');
-        setValue('reason', 'damaged');
+        setValue('reason', 'items_damaged');
       }
     }
   }, [open, isOutletRestricted, isStoreManager, userOutlet, setValue]);
@@ -306,7 +322,7 @@ export function StockAdjustmentDialog({
   // Auto-update reason when adjustment type changes for store managers
   useEffect(() => {
     if (isStoreManager) {
-      setValue('reason', adjustmentType === 'decrease' ? 'damaged' : 'return');
+      setValue('reason', adjustmentType === 'decrease' ? 'items_damaged' : 'return_received');
     }
   }, [adjustmentType, isStoreManager, setValue]);
 
@@ -473,39 +489,33 @@ export function StockAdjustmentDialog({
 
                 <div className="space-y-2">
                   <Label htmlFor="reason">Reason *</Label>
-                  {isStoreManager ? (
-                    <div className="flex items-center h-10 px-3 bg-muted rounded-md border text-sm">
-                      Damaged
-                    </div>
-                  ) : (
-                    <Select
-                      value={reason}
-                      onValueChange={(value) => {
-                        setValue("reason", value as "inventory_made" | "damaged" | "return");
-                        if (value !== "damaged") {
-                          removeImage();
-                        }
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select reason" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredReasonOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <Select
+                    value={reason}
+                    onValueChange={(value) => {
+                      setValue("reason", value as any);
+                      if (!isStoreManager && value !== "damaged") {
+                        removeImage();
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select reason" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredReasonOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   {errors.reason && (
                     <p className="text-sm text-destructive">{errors.reason.message}</p>
                   )}
                 </div>
 
-                {/* Image Upload for Damaged */}
-                {reason === "damaged" && (
+                {/* Image Upload for Damaged or Store Manager (all reasons require proof) */}
+                {(isImageRequired || reason === "damaged") && (
                   <div className="space-y-2">
                     <Label>
                       Proof Image <span className="text-destructive">*</span>
@@ -518,7 +528,7 @@ export function StockAdjustmentDialog({
                             Click to upload image
                           </span>
                           <span className="text-xs text-muted-foreground mt-1">
-                            Required for damaged items (max 5MB)
+                            Required (max 5MB)
                           </span>
                           <input
                             type="file"
