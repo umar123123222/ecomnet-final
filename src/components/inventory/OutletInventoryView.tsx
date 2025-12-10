@@ -4,9 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { Search, Package, TrendingDown, TrendingUp, AlertTriangle, Loader2 } from "lucide-react";
+import { Search, Package, TrendingDown, TrendingUp, AlertTriangle, Loader2, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { StockAdjustmentDialog } from "./StockAdjustmentDialog";
+import { PackagingAdjustmentDialog } from "./PackagingAdjustmentDialog";
 
 interface InventoryItem {
   id: string;
@@ -36,6 +39,8 @@ interface StockMovement {
 
 export const OutletInventoryView = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [stockAdjustmentDialogOpen, setStockAdjustmentDialogOpen] = useState(false);
+  const [packagingAdjustmentDialogOpen, setPackagingAdjustmentDialogOpen] = useState(false);
   const { profile } = useAuth();
 
   // Get user's assigned outlet
@@ -117,6 +122,37 @@ export const OutletInventoryView = () => {
     enabled: !!userOutlet?.id,
   });
 
+  // Fetch products for stock adjustment dialog
+  const { data: products = [] } = useQuery({
+    queryKey: ["products-for-adjustment"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, sku")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch outlets for stock adjustment dialog (user's outlet only)
+  const outlets = userOutlet ? [{ id: userOutlet.id, name: userOutlet.name }] : [];
+
+  // Fetch packaging items for packaging adjustment dialog
+  const { data: packagingItems = [] } = useQuery({
+    queryKey: ["packaging-items-for-adjustment"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("packaging_items")
+        .select("id, name, sku, current_stock")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const lowStockCount = inventory?.filter(item => 
     item.available_quantity <= (item.product?.reorder_level || 0)
   ).length || 0;
@@ -160,9 +196,29 @@ export const OutletInventoryView = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold">{userOutlet.name} Inventory</h2>
-        <p className="text-muted-foreground">View and manage your outlet's stock levels</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">{userOutlet.name} Inventory</h2>
+          <p className="text-muted-foreground">View and manage your outlet's stock levels</p>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => setStockAdjustmentDialogOpen(true)} 
+            variant="outline" 
+            className="gap-2"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Adjust Product Stock
+          </Button>
+          <Button 
+            onClick={() => setPackagingAdjustmentDialogOpen(true)} 
+            variant="outline" 
+            className="gap-2"
+          >
+            <Package className="h-4 w-4" />
+            Adjust Packaging Stock
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -333,6 +389,20 @@ export const OutletInventoryView = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Stock Adjustment Dialogs */}
+      <StockAdjustmentDialog
+        open={stockAdjustmentDialogOpen}
+        onOpenChange={setStockAdjustmentDialogOpen}
+        products={products}
+        outlets={outlets}
+      />
+
+      <PackagingAdjustmentDialog
+        open={packagingAdjustmentDialogOpen}
+        onOpenChange={setPackagingAdjustmentDialogOpen}
+        packagingItems={packagingItems}
+      />
     </div>
   );
 };
