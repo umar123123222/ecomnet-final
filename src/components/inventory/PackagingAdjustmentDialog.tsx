@@ -7,11 +7,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, X, ImageIcon } from "lucide-react";
+import { Loader2, X, ImageIcon } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserRoles } from "@/hooks/useUserRoles";
 
 // Standardized reason options
 const DECREASE_REASONS = [
@@ -32,6 +33,7 @@ const ALL_REASONS = [...DECREASE_REASONS, ...INCREASE_REASONS, ...SUPER_ROLE_REA
 
 const packagingAdjustmentSchema = z.object({
   packaging_item_id: z.string().min(1, "Packaging item is required"),
+  outlet_id: z.string().min(1, "Outlet/Warehouse is required"),
   adjustment_type: z.enum(["increase", "decrease"], {
     required_error: "Please select adjustment type",
   }),
@@ -54,29 +56,74 @@ export function PackagingAdjustmentDialog({
   onOpenChange,
   packagingItems,
 }: PackagingAdjustmentDialogProps) {
+  const { profile } = useAuth();
+  const { primaryRole } = useUserRoles();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [proofImage, setProofImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Get user profile to check role
-  const { data: profile } = useQuery({
-    queryKey: ["user-profile"],
+  const isStoreManager = primaryRole === "store_manager";
+  const isWarehouseManager = primaryRole === "warehouse_manager";
+  const isSuperRole = primaryRole === "super_admin" || primaryRole === "super_manager";
+  // Only store_manager and warehouse_manager are restricted to their assigned outlet
+  const isOutletRestricted = isStoreManager || isWarehouseManager;
+
+  // Fetch outlets for selection
+  const { data: outlets } = useQuery({
+    queryKey: ["outlets-for-packaging-adjustment"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, role")
-        .eq("id", user.id)
-        .single();
+      const { data, error } = await supabase
+        .from("outlets")
+        .select("id, name, outlet_type")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
       return data;
     },
   });
 
-  const isStoreManager = profile?.role === "store_manager";
-  const isSuperRole = profile?.role === "super_admin" || profile?.role === "super_manager";
+  // Fetch user's assigned outlet (for store_manager and warehouse_manager)
+  const { data: userOutlet } = useQuery<{ id: string; name: string } | null>({
+    queryKey: ["user-assigned-outlet-packaging", profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return null;
+      
+      // First check if user is a manager of an outlet
+      const { data: managedData } = await supabase
+        .from("outlets")
+        .select("id, name")
+        .eq("manager_id", profile.id)
+        .eq("is_active", true)
+        .limit(1);
+
+      if (managedData && managedData.length > 0) {
+        return { id: managedData[0].id, name: managedData[0].name };
+      }
+
+      // Otherwise check outlet_staff assignment
+      const { data: staffData } = await supabase
+        .from("outlet_staff")
+        .select("outlet_id")
+        .eq("user_id", profile.id)
+        .limit(1);
+
+      if (staffData && staffData.length > 0 && staffData[0].outlet_id) {
+        const { data: outletData } = await supabase
+          .from("outlets")
+          .select("id, name")
+          .eq("id", staffData[0].outlet_id)
+          .limit(1);
+        if (outletData && outletData.length > 0) {
+          return { id: outletData[0].id, name: outletData[0].name };
+        }
+      }
+
+      return null;
+    },
+    enabled: !!profile?.id && isOutletRestricted,
+  });
 
   const {
     register,
@@ -89,6 +136,7 @@ export function PackagingAdjustmentDialog({
     resolver: zodResolver(packagingAdjustmentSchema),
     defaultValues: {
       packaging_item_id: "",
+      outlet_id: "",
       adjustment_type: "decrease",
       quantity: 1,
       reason: undefined,
@@ -97,10 +145,12 @@ export function PackagingAdjustmentDialog({
 
   const adjustmentType = watch("adjustment_type");
   const selectedPackagingId = watch("packaging_item_id");
+  const selectedOutletId = watch("outlet_id");
   const selectedReason = watch("reason");
 
   const selectedPackaging = packagingItems?.find(item => item.id === selectedPackagingId);
   const currentStock = selectedPackaging?.current_stock || 0;
+  const selectedOutlet = outlets?.find(o => o.id === selectedOutletId);
 
   // Filter reason options based on adjustment type and role
   const getReasonOptions = () => {
@@ -113,13 +163,17 @@ export function PackagingAdjustmentDialog({
   };
   const filteredReasonOptions = getReasonOptions();
 
-  // Auto-select default reason when dialog opens
+  // Set defaults when dialog opens
   useEffect(() => {
     if (open) {
+      // Set outlet for restricted roles
+      if (isOutletRestricted && userOutlet?.id) {
+        setValue("outlet_id", userOutlet.id);
+      }
       setValue("adjustment_type", "decrease");
       setValue("reason", "items_damaged");
     }
-  }, [open, setValue]);
+  }, [open, isOutletRestricted, userOutlet, setValue]);
 
   // Auto-update reason when adjustment type changes
   useEffect(() => {
@@ -206,6 +260,7 @@ export function PackagingAdjustmentDialog({
           operation: "adjustPackagingStock",
           data: {
             packagingItemId: data.packaging_item_id,
+            outletId: data.outlet_id,
             quantity: data.adjustment_type === "increase" ? data.quantity : -data.quantity,
             reason: reasonText,
             proofImageUrl: imageUrl,
@@ -265,6 +320,34 @@ export function PackagingAdjustmentDialog({
             </Select>
             {errors.packaging_item_id && (
               <p className="text-sm text-destructive">{errors.packaging_item_id.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="outlet_id">Outlet/Warehouse *</Label>
+            {isOutletRestricted ? (
+              <div className="flex items-center h-10 px-3 bg-muted rounded-md border text-sm">
+                {userOutlet?.name || (isStoreManager ? 'Your Store' : 'Your Warehouse')}
+              </div>
+            ) : (
+              <Select
+                value={watch("outlet_id")}
+                onValueChange={(value) => setValue("outlet_id", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select outlet/warehouse" />
+                </SelectTrigger>
+                <SelectContent>
+                  {outlets?.map((outlet) => (
+                    <SelectItem key={outlet.id} value={outlet.id}>
+                      {outlet.name} {outlet.outlet_type === 'warehouse' ? '(Warehouse)' : '(Store)'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {errors.outlet_id && (
+              <p className="text-sm text-destructive">{errors.outlet_id.message}</p>
             )}
           </div>
 
