@@ -292,7 +292,7 @@ export function PackagingAdjustmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Packaging Stock Adjustment</DialogTitle>
           <DialogDescription>
@@ -301,54 +301,164 @@ export function PackagingAdjustmentDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="packaging_item_id">Packaging Item *</Label>
-            <Select
-              value={watch("packaging_item_id")}
-              onValueChange={(value) => setValue("packaging_item_id", value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select packaging item" />
-              </SelectTrigger>
-              <SelectContent>
-                {packagingItems?.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name} ({item.sku}) - Current: {item.current_stock}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.packaging_item_id && (
-              <p className="text-sm text-destructive">{errors.packaging_item_id.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="outlet_id">Outlet/Warehouse *</Label>
-            {isOutletRestricted ? (
-              <div className="flex items-center h-10 px-3 bg-muted rounded-md border text-sm">
-                {userOutlet?.name || (isStoreManager ? 'Your Store' : 'Your Warehouse')}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Left Column */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="packaging_item_id">Packaging Item *</Label>
+                <Select
+                  value={watch("packaging_item_id")}
+                  onValueChange={(value) => setValue("packaging_item_id", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select packaging item" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {packagingItems?.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name} ({item.sku})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.packaging_item_id && (
+                  <p className="text-sm text-destructive">{errors.packaging_item_id.message}</p>
+                )}
               </div>
-            ) : (
-              <Select
-                value={watch("outlet_id")}
-                onValueChange={(value) => setValue("outlet_id", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select outlet/warehouse" />
-                </SelectTrigger>
-                <SelectContent>
-                  {outlets?.map((outlet) => (
-                    <SelectItem key={outlet.id} value={outlet.id}>
-                      {outlet.name} {outlet.outlet_type === 'warehouse' ? '(Warehouse)' : '(Store)'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {errors.outlet_id && (
-              <p className="text-sm text-destructive">{errors.outlet_id.message}</p>
-            )}
+
+              <div className="space-y-2">
+                <Label htmlFor="outlet_id">Outlet/Warehouse *</Label>
+                {isOutletRestricted ? (
+                  <div className="flex items-center h-10 px-3 bg-muted rounded-md border text-sm">
+                    {userOutlet?.name || (isStoreManager ? 'Your Store' : 'Your Warehouse')}
+                  </div>
+                ) : (
+                  <Select
+                    value={watch("outlet_id")}
+                    onValueChange={(value) => setValue("outlet_id", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select outlet/warehouse" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {outlets?.map((outlet) => (
+                        <SelectItem key={outlet.id} value={outlet.id}>
+                          {outlet.name} {outlet.outlet_type === 'warehouse' ? '(Warehouse)' : '(Store)'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {errors.outlet_id && (
+                  <p className="text-sm text-destructive">{errors.outlet_id.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="adjustment_type">Adjustment Type *</Label>
+                <Select
+                  value={adjustmentType}
+                  onValueChange={(value) => setValue("adjustment_type", value as "increase" | "decrease")}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="increase">Increase Stock</SelectItem>
+                    <SelectItem value="decrease">Decrease Stock</SelectItem>
+                  </SelectContent>
+                </Select>
+                {errors.adjustment_type && (
+                  <p className="text-sm text-destructive">{errors.adjustment_type.message}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Right Column */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="quantity">Quantity *</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  {...register("quantity", { valueAsNumber: true })}
+                  placeholder="1"
+                />
+                {errors.quantity && (
+                  <p className="text-sm text-destructive">{errors.quantity.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="reason">Reason *</Label>
+                <Select
+                  value={selectedReason}
+                  onValueChange={(value) => setValue("reason", value as any)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select reason" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredReasonOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.reason && (
+                  <p className="text-sm text-destructive">{errors.reason.message}</p>
+                )}
+              </div>
+
+              {/* Image Upload */}
+              <div className="space-y-2">
+                <Label>Proof Image *</Label>
+                  
+                {imagePreview ? (
+                  <div className="relative inline-block">
+                    <img
+                      src={imagePreview}
+                      alt="Proof"
+                      className="max-h-24 rounded-md border"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute -top-2 -right-2 h-6 w-6"
+                      onClick={removeImage}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Label
+                      htmlFor="proof-image"
+                      className="flex items-center gap-2 px-4 py-2 border border-dashed rounded-md cursor-pointer hover:bg-muted transition-colors"
+                    >
+                      <ImageIcon className="h-4 w-4" />
+                      <span className="text-sm">Upload Image</span>
+                    </Label>
+                    <Input
+                      id="proof-image"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageChange}
+                    />
+                  </div>
+                )}
+                  
+                {!proofImage && (
+                  <p className="text-sm text-muted-foreground">
+                    Image proof is required
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
 
           {selectedPackaging && (
@@ -358,110 +468,6 @@ export function PackagingAdjustmentDialog({
               </p>
             </div>
           )}
-
-          <div className="space-y-2">
-            <Label htmlFor="adjustment_type">Adjustment Type *</Label>
-            <Select
-              value={adjustmentType}
-              onValueChange={(value) => setValue("adjustment_type", value as "increase" | "decrease")}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="increase">Increase Stock</SelectItem>
-                <SelectItem value="decrease">Decrease Stock</SelectItem>
-              </SelectContent>
-            </Select>
-            {errors.adjustment_type && (
-              <p className="text-sm text-destructive">{errors.adjustment_type.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="quantity">Quantity *</Label>
-            <Input
-              id="quantity"
-              type="number"
-              min="1"
-              {...register("quantity", { valueAsNumber: true })}
-              placeholder="1"
-            />
-            {errors.quantity && (
-              <p className="text-sm text-destructive">{errors.quantity.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="reason">Reason *</Label>
-            <Select
-              value={selectedReason}
-              onValueChange={(value) => setValue("reason", value as any)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select reason" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredReasonOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.reason && (
-              <p className="text-sm text-destructive">{errors.reason.message}</p>
-            )}
-          </div>
-
-          {/* Image Upload - required for all adjustments */}
-          <div className="space-y-2">
-            <Label>
-              Proof Image *
-            </Label>
-              
-              {imagePreview ? (
-                <div className="relative inline-block">
-                  <img
-                    src={imagePreview}
-                    alt="Proof"
-                    className="max-h-32 rounded-md border"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="absolute -top-2 -right-2 h-6 w-6"
-                    onClick={removeImage}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <Label
-                    htmlFor="proof-image"
-                    className="flex items-center gap-2 px-4 py-2 border border-dashed rounded-md cursor-pointer hover:bg-muted transition-colors"
-                  >
-                    <ImageIcon className="h-4 w-4" />
-                    <span className="text-sm">Upload Image</span>
-                  </Label>
-                  <Input
-                    id="proof-image"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImageChange}
-                  />
-                </div>
-              )}
-              
-              {!proofImage && (
-                <p className="text-sm text-muted-foreground">
-                  Image proof is required
-                </p>
-              )}
-            </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose}>
