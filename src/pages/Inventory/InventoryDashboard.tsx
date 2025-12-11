@@ -46,7 +46,7 @@ import { InventorySummaryWidget } from "@/components/inventory/InventorySummaryW
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useUserRoles } from "@/hooks/useUserRoles";
-import { BundleAvailabilityWidget } from "@/components/inventory/BundleAvailabilityWidget";
+
 
 const InventoryDashboard = () => {
   const { user, profile } = useAuth();
@@ -202,7 +202,8 @@ const InventoryDashboard = () => {
   const totalValue = filteredInventory?.reduce((sum, item) => 
     sum + (item.quantity * (item.product?.price || 0)), 0) || 0;
   const lowStockCount = filteredInventory?.filter(item => 
-    item.available_quantity <= (item.product?.reorder_level || 0)).length || 0;
+    item.available_quantity <= (item.product?.reorder_level || 10)).length || 0;
+  const deficitCount = filteredInventory?.filter(item => item.available_quantity < 0).length || 0;
 
   // Get unique categories
   const categories = Array.from(new Set(inventory?.map(i => i.product?.category).filter(Boolean))) as string[];
@@ -478,8 +479,9 @@ const InventoryDashboard = () => {
                   <TableBody>
                     {filteredInventory && filteredInventory.length > 0 ? (
                       filteredInventory.map((item) => {
-                        const isLowStock = item.available_quantity <= (item.product?.reorder_level || 0);
+                        const isLowStock = item.available_quantity <= (item.product?.reorder_level || 10);
                         const isOutOfStock = item.available_quantity === 0;
+                        const isDeficit = item.available_quantity < 0;
                         const isBundle = item.product?.is_bundle;
                         
                         return (
@@ -491,9 +493,11 @@ const InventoryDashboard = () => {
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Badge variant="outline" className="gap-1 cursor-help">
-                                        📦 Bundle
-                                      </Badge>
+                                      <span>
+                                        <Badge variant="outline" className="gap-1 cursor-help">
+                                          📦 Bundle
+                                        </Badge>
+                                      </span>
                                     </TooltipTrigger>
                                     <TooltipContent>
                                       <div className="text-xs">
@@ -509,10 +513,18 @@ const InventoryDashboard = () => {
                             <TableCell>{item.outlet?.name}</TableCell>
                             <TableCell className="text-right">{item.quantity}</TableCell>
                             <TableCell className="text-right">{item.reserved_quantity}</TableCell>
-                            <TableCell className="text-right font-medium">{item.available_quantity}</TableCell>
+                            <TableCell className={`text-right font-medium ${isDeficit ? 'text-destructive' : ''}`}>
+                              {isDeficit && <span className="text-xs mr-1">⚠️</span>}
+                              {item.available_quantity}
+                            </TableCell>
                             <TableCell className="text-right">{item.product?.reorder_level || 10}</TableCell>
                             <TableCell>
-                              {isOutOfStock ? (
+                              {isDeficit ? (
+                                <Badge variant="destructive" className="gap-1">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Deficit
+                                </Badge>
+                              ) : isOutOfStock ? (
                                 <Badge variant="destructive" className="gap-1">
                                   <AlertTriangle className="h-3 w-3" />
                                   Out of Stock

@@ -30,13 +30,14 @@ export function InventoryHealthScore() {
         data: inventory
       } = await supabase.from('inventory').select(`
           quantity,
+          available_quantity,
           product:products!inner (
             reorder_level
           )
         `);
       const totalProducts = inventory?.length || 0;
-      const inStockProducts = inventory?.filter(inv => inv.quantity > 0).length || 0;
-      const lowStockProducts = inventory?.filter(inv => inv.quantity > 0 && inv.quantity <= (inv.product?.reorder_level || 0)).length || 0;
+      const inStockProducts = inventory?.filter(inv => (inv.available_quantity ?? inv.quantity) > 0).length || 0;
+      const lowStockProducts = inventory?.filter(inv => (inv.available_quantity ?? inv.quantity) > 0 && (inv.available_quantity ?? inv.quantity) <= (inv.product?.reorder_level || 10)).length || 0;
       const outOfStockProducts = totalProducts - inStockProducts;
       const stockAvailability = totalProducts > 0 ? (inStockProducts - lowStockProducts * 0.5) / totalProducts * 100 : 0;
       const stockScore = Math.min(stockAvailability / 100 * 25, 25);
@@ -80,9 +81,9 @@ export function InventoryHealthScore() {
         strengths.push('All variances resolved');
       }
 
-      // 4. Fulfillment Capacity Score (25 points)
-      const availableStock = inventory?.reduce((sum, inv) => sum + (inv.quantity - (inv.product?.reorder_level || 0)), 0) || 0;
-      const fulfillmentCapacity = totalStock > 0 ? Math.max(availableStock / totalStock * 100, 0) : 0;
+      // 4. Fulfillment Capacity Score (25 points) - based on actual available stock
+      const totalAvailableStock = inventory?.reduce((sum, inv) => sum + Math.max(inv.available_quantity ?? inv.quantity, 0), 0) || 0;
+      const fulfillmentCapacity = totalStock > 0 ? Math.max(totalAvailableStock / totalStock * 100, 0) : 0;
       const fulfillmentScore = Math.min(fulfillmentCapacity / 100 * 25, 25);
       totalScore += fulfillmentScore;
       if (fulfillmentCapacity < 30) {
