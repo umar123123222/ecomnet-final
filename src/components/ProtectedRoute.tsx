@@ -1,6 +1,5 @@
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import AuthPage from '@/pages/AuthPage';
 import { Loader2 } from 'lucide-react';
 import { Navigate, useLocation } from 'react-router-dom';
 
@@ -9,7 +8,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { user, isLoading, profile } = useAuth();
+  const { user, isLoading, profile, userRole } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -26,6 +25,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   if (!user || !profile) {
     // Redirect unauthenticated users to dedicated auth route
     return <Navigate to="/auth" replace state={{ from: location }} />;
+  }
+
+  // Redirect suppliers to supplier portal (unless already there)
+  if (userRole === 'supplier' && location.pathname !== '/supplier-portal') {
+    return <Navigate to="/supplier-portal" replace />;
   }
 
   return <>{children}</>;
