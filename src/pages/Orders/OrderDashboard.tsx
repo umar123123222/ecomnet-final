@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase, invokeBackfillShopifyFulfillments } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1161,7 +1161,7 @@ const OrderDashboard = () => {
         </DropdownMenuContent>
       </DropdownMenu>;
   };
-  const summaryCards = [{
+  const summaryCards = useMemo(() => [{
     title: 'Total Orders',
     value: totalCount.toLocaleString(),
     color: 'bg-blue-500'
@@ -1185,8 +1185,8 @@ const OrderDashboard = () => {
     title: 'Returns',
     value: summaryData.returns.toLocaleString(),
     color: 'bg-gray-500'
-  }];
-  const handleSelectOrder = (orderId: string) => {
+  }], [totalCount, summaryData]);
+  const handleSelectOrder = useCallback((orderId: string) => {
     setSelectedOrders(prev => {
       const next = new Set(prev);
       if (next.has(orderId)) {
@@ -1196,7 +1196,7 @@ const OrderDashboard = () => {
       }
       return next;
     });
-  };
+  }, []);
   const handleSelectAllCurrentPage = () => {
     if (selectedOrders.size === orders.length) {
       setSelectedOrders(new Set());
@@ -1282,7 +1282,7 @@ const OrderDashboard = () => {
       });
     }
   };
-  const toggleExpanded = (orderId: string) => {
+  const toggleExpanded = useCallback((orderId: string) => {
     setExpandedRows(prev => {
       const next = new Set(prev);
       if (next.has(orderId)) {
@@ -1292,7 +1292,7 @@ const OrderDashboard = () => {
       }
       return next;
     });
-  };
+  }, []);
   const handleBulkAction = (action: string) => {
     // Bulk action implementation would go here
   };
@@ -1872,13 +1872,14 @@ const OrderDashboard = () => {
     }
   };
 
-  // Quick action handlers
-  const handleQuickMarkDispatched = async (orderId: string) => {
+  // Quick action handlers - memoized for performance
+  const handleQuickMarkDispatched = useCallback(async (orderId: string) => {
     await handleUpdateOrderStatus(orderId, 'dispatched', {
       dispatched_at: new Date().toISOString()
     });
-  };
-  const handleQuickGenerateLabel = (orderId: string) => {
+  }, [handleUpdateOrderStatus]);
+  
+  const handleQuickGenerateLabel = useCallback((orderId: string) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
     const courierName = order.courier && order.courier !== 'N/A' ? order.courier.toUpperCase() : 'COURIER';
@@ -1938,19 +1939,21 @@ const OrderDashboard = () => {
       title: "Label Downloaded",
       description: `Shipping label for order ${order.orderNumber} downloaded`
     });
-  };
-  const handleQuickViewActivity = (orderId: string) => {
+  }, [orders, toast]);
+  
+  const handleQuickViewActivity = useCallback((orderId: string) => {
     // Find the full order object from the orders array
     const order = orders.find(o => o.id === orderId);
     if (order) {
       setSelectedOrder(order);
       setDetailsModalOpen(true);
     }
-  };
-  const handleQuickViewDetails = (order: any) => {
+  }, [orders]);
+  
+  const handleQuickViewDetails = useCallback((order: any) => {
     setSelectedOrder(order);
     setDetailsModalOpen(true);
-  };
+  }, []);
 
   // Handle filter presets
   const handlePresetSelect = (preset: any) => {
@@ -2057,10 +2060,16 @@ const OrderDashboard = () => {
       }
     }
   };
-  const effectivePageSize = Math.min(pageSize, 100);
-  const start = page * effectivePageSize + 1;
-  const end = Math.min((page + 1) * effectivePageSize, totalCount);
-  const totalPages = Math.ceil(totalCount / effectivePageSize);
+  // Memoize pagination calculations
+  const { effectivePageSize, start, end, totalPages } = useMemo(() => {
+    const effective = Math.min(pageSize, 100);
+    return {
+      effectivePageSize: effective,
+      start: page * effective + 1,
+      end: Math.min((page + 1) * effective, totalCount),
+      totalPages: Math.ceil(totalCount / effective)
+    };
+  }, [pageSize, page, totalCount]);
   return <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-6">
