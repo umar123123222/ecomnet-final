@@ -15,7 +15,7 @@ import { Loader2, AlertTriangle, TrendingUp, TrendingDown, Info, Upload, X, Imag
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRoles } from "@/hooks/useUserRoles";
 
-// Standardized reason options for all roles
+// Standardized reason options
 const DECREASE_REASONS = [
   { value: "items_damaged", label: "Items Damaged" },
   { value: "sale", label: "Sale" },
@@ -25,7 +25,12 @@ const INCREASE_REASONS = [
   { value: "return_received", label: "Return Received" },
 ] as const;
 
-const ALL_REASONS = [...DECREASE_REASONS, ...INCREASE_REASONS] as const;
+// Additional reason for super roles (both increase and decrease)
+const SUPER_ROLE_REASONS = [
+  { value: "stock_adjustment", label: "Stock Adjustment" },
+] as const;
+
+const ALL_REASONS = [...DECREASE_REASONS, ...INCREASE_REASONS, ...SUPER_ROLE_REASONS] as const;
 
 const adjustmentSchema = z.object({
   product_id: z.string().min(1, "Product is required"),
@@ -34,7 +39,7 @@ const adjustmentSchema = z.object({
     required_error: "Please select adjustment type",
   }),
   quantity: z.number().int().min(1, "Quantity must be at least 1"),
-  reason: z.enum(["items_damaged", "sale", "return_received"], {
+  reason: z.enum(["items_damaged", "sale", "return_received", "stock_adjustment"], {
     required_error: "Please select a reason",
   }),
 });
@@ -66,7 +71,9 @@ export function StockAdjustmentDialog({
 
   const isStoreManager = primaryRole === 'store_manager';
   const isWarehouseManager = primaryRole === 'warehouse_manager';
-  // Both store_manager and warehouse_manager are restricted to their assigned outlet
+  const isSuperRole = primaryRole === 'super_admin' || primaryRole === 'super_manager';
+  // Only store_manager and warehouse_manager are restricted to their assigned outlet
+  // super_admin and super_manager can adjust any outlet
   const isOutletRestricted = isStoreManager || isWarehouseManager;
 
   // Fetch the user's assigned outlet (for both store_manager and warehouse_manager)
@@ -134,10 +141,16 @@ export function StockAdjustmentDialog({
   const quantity = watch("quantity") || 0;
   const reason = watch("reason");
 
-  // Get filtered reason options based on adjustment type (same for all roles)
-  const filteredReasonOptions = adjustmentType === 'decrease' 
-    ? DECREASE_REASONS
-    : INCREASE_REASONS;
+  // Get filtered reason options based on adjustment type and role
+  const getReasonOptions = () => {
+    const baseReasons = adjustmentType === 'decrease' ? [...DECREASE_REASONS] : [...INCREASE_REASONS];
+    // Super roles get additional "Stock Adjustment" option for both increase and decrease
+    if (isSuperRole) {
+      return [...baseReasons, ...SUPER_ROLE_REASONS];
+    }
+    return baseReasons;
+  };
+  const filteredReasonOptions = getReasonOptions();
 
   // Image is required for all adjustments
   const isImageRequired = true;
