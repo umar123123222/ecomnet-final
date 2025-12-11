@@ -6,20 +6,57 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Batch processing constants
+const BATCH_SIZE = 50;
+const MAX_RUNTIME_MS = 50 * 1000; // 50 seconds
+
+// Self-continuation function
+async function continueProcessing(supabaseUrl: string, anonKey: string, offset: number) {
+  try {
+    console.log(`🔄 Self-continuing from offset ${offset}...`);
+    const response = await fetch(`${supabaseUrl}/functions/v1/scheduled-courier-tracking`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${anonKey}`,
+      },
+      body: JSON.stringify({ offset, trigger: 'self-continuation' }),
+    });
+    console.log(`✅ Self-continuation triggered, status: ${response.status}`);
+  } catch (error) {
+    console.error('❌ Self-continuation failed:', error);
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    console.log('🔄 Starting scheduled courier tracking updates...');
-    
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+  const startTime = Date.now();
 
-    // Get all active dispatches that need tracking
+  try {
+    const body = await req.json().catch(() => ({}));
+    const offset = body.offset || 0;
+    const trigger = body.trigger || 'scheduled';
+    
+    console.log(`🔄 Starting scheduled courier tracking (offset: ${offset}, trigger: ${trigger})...`);
+    
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get total count first
+    const { count: totalCount } = await supabase
+      .from('dispatches')
+      .select('*', { count: 'exact', head: true })
+      .not('tracking_id', 'is', null);
+
+    console.log(`📊 Total dispatches to track: ${totalCount}, starting at offset ${offset}`);
+
+    // Get batch of dispatches that need tracking
     const { data: dispatches, error: fetchError } = await supabase
       .from('dispatches')
       .select(`
@@ -30,27 +67,38 @@ serve(async (req) => {
         courier_id,
         last_tracking_update
       `)
-      .not('tracking_id', 'is', null);
+      .not('tracking_id', 'is', null)
+      .order('created_at', { ascending: true })
+      .range(offset, offset + BATCH_SIZE - 1);
 
     if (fetchError) {
       console.error('Error fetching dispatches:', fetchError);
       throw fetchError;
     }
 
-    console.log(`📦 Found ${dispatches?.length || 0} dispatches to track`);
+    console.log(`📦 Processing ${dispatches?.length || 0} dispatches (batch ${Math.floor(offset / BATCH_SIZE) + 1})`);
 
     const results = {
-      total: dispatches?.length || 0,
+      total: totalCount || 0,
+      batchSize: dispatches?.length || 0,
+      offset,
       updated: 0,
+      delivered: 0,
+      returned: 0,
       failed: 0,
+      noChange: 0,
       errors: [] as any[]
     };
 
-    // Track each dispatch
+    // Track each dispatch in batch
     for (const dispatch of dispatches || []) {
+      // Check timeout
+      if (Date.now() - startTime > MAX_RUNTIME_MS) {
+        console.log('⏰ Approaching timeout, saving progress...');
+        break;
+      }
+
       try {
-        console.log(`🔍 Tracking ${dispatch.courier} - ${dispatch.tracking_id}`);
-        
         // Call the courier-tracking function
         const { data: trackingData, error: trackingError } = await supabase.functions.invoke(
           'courier-tracking',
@@ -98,42 +146,7 @@ serve(async (req) => {
             })
             .eq('id', dispatch.id);
 
-          // Only log to activity logs and tracking history if something changed
           if (hasChange) {
-            const statusDescriptions: Record<string, string> = {
-              'booked': `Order booked with ${dispatch.courier}`,
-              'picked_up': `Package picked up by ${dispatch.courier}`,
-              'in_transit': `Order in transit${tracking.currentLocation ? ` at ${tracking.currentLocation}` : ''}`,
-              'out_for_delivery': `Out for delivery${tracking.currentLocation ? ` in ${tracking.currentLocation}` : ''}`,
-              'delivered': 'Order successfully delivered',
-              'returned': `Order returned by ${dispatch.courier}`,
-              'failed_delivery': 'Delivery attempt failed',
-              'on_hold': 'Shipment on hold'
-            };
-
-            const statusAction = tracking.status.replace(/-/g, '_');
-            const actionDescription = statusDescriptions[tracking.status] || `Status updated: ${tracking.status}`;
-
-            // Log to activity logs only when there's a change (skip if system user doesn't exist)
-            try {
-              await supabase.from('activity_logs').insert({
-                user_id: '00000000-0000-0000-0000-000000000000',
-                entity_type: 'order',
-                entity_id: dispatch.order_id,
-                action: `tracking_${statusAction}`,
-                details: {
-                  description: actionDescription,
-                  courier: dispatch.courier,
-                  tracking_id: dispatch.tracking_id,
-                  status: tracking.status,
-                  location: tracking.currentLocation,
-                  timestamp: new Date().toISOString()
-                }
-              });
-            } catch (activityLogError) {
-              console.warn('Could not log activity (system user may not exist):', activityLogError);
-            }
-
             // Get courier_id from couriers table if not available on dispatch
             let courierId = dispatch.courier_id;
             if (!courierId && dispatch.courier) {
@@ -159,13 +172,11 @@ serve(async (req) => {
                   raw_response: tracking.raw,
                   checked_at: new Date().toISOString()
                 });
-            } else {
-              console.warn(`Skipping tracking history for ${dispatch.tracking_id} - no courier_id found`);
             }
 
-            console.log(`✅ Updated ${dispatch.tracking_id}: ${tracking.status}${tracking.currentLocation ? ` at ${tracking.currentLocation}` : ''}`);
+            results.updated++;
           } else {
-            console.log(`⏭️ No change for ${dispatch.tracking_id}: ${tracking.status}`);
+            results.noChange++;
           }
 
           // Update order status if delivered OR returned
@@ -177,6 +188,7 @@ serve(async (req) => {
                 delivered_at: new Date().toISOString()
               })
               .eq('id', dispatch.order_id);
+            results.delivered++;
             console.log(`📦 Order ${dispatch.order_id} marked as delivered`);
           } else if (tracking.status === 'returned') {
             await supabase
@@ -186,10 +198,9 @@ serve(async (req) => {
                 returned_at: new Date().toISOString()
               })
               .eq('id', dispatch.order_id);
+            results.returned++;
             console.log(`↩️ Order ${dispatch.order_id} marked as returned`);
           }
-
-          results.updated++;
         }
       } catch (error: any) {
         console.error(`Error processing dispatch ${dispatch.id}:`, error);
@@ -202,11 +213,22 @@ serve(async (req) => {
       }
     }
 
-    console.log('✨ Scheduled tracking complete:', results);
+    const hasMore = (offset + BATCH_SIZE) < (totalCount || 0);
+    const nextOffset = offset + BATCH_SIZE;
+
+    console.log(`✨ Batch complete: updated=${results.updated}, delivered=${results.delivered}, returned=${results.returned}, noChange=${results.noChange}, hasMore=${hasMore}`);
+
+    // Self-continue if more batches and triggered by cron
+    if (hasMore && (trigger === 'scheduled' || trigger === 'self-continuation')) {
+      // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+      EdgeRuntime.waitUntil(continueProcessing(supabaseUrl, supabaseAnonKey, nextOffset));
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
+        hasMore,
+        nextOffset: hasMore ? nextOffset : null,
         results
       }),
       {
