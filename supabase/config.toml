@@ -212,3 +212,6 @@ verify_jwt = false
 
 [functions.backfill-order-shipping]
 verify_jwt = true
+
+[functions.scheduled-db-cleanup]
+verify_jwt = false
