@@ -130,6 +130,31 @@ serve(async (req) => {
       // User exists but no supplier profile for this supplier - ADD the supplier profile
       console.log('Adding supplier profile to existing user:', existingAuthUser.id);
       
+      // Ensure main profile exists (required for AuthContext)
+      const { data: existingMainProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', existingAuthUser.id)
+        .maybeSingle();
+
+      if (!existingMainProfile) {
+        console.log('Creating main profile for existing user');
+        const { error: mainProfileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: existingAuthUser.id,
+            email,
+            full_name: contact_person,
+            role: 'supplier',
+            is_active: true,
+          });
+
+        if (mainProfileError) {
+          console.error('Main profile creation error:', mainProfileError);
+          throw new Error(`Failed to create main profile: ${mainProfileError.message}`);
+        }
+      }
+      
       const { error: profileError } = await supabase
         .from('supplier_profiles')
         .insert({
@@ -227,6 +252,26 @@ serve(async (req) => {
 
     console.log('Auth user created:', authData.user.id);
 
+    // Create profile record (required for AuthContext)
+    const { error: mainProfileError } = await supabase
+      .from('profiles')
+      .insert({
+        id: authData.user.id,
+        email,
+        full_name: contact_person,
+        role: 'supplier',
+        is_active: true,
+      });
+
+    if (mainProfileError) {
+      console.error('Main profile creation error:', mainProfileError);
+      // Attempt to delete the auth user if profile creation fails
+      await supabase.auth.admin.deleteUser(authData.user.id);
+      throw new Error(`Failed to create main profile: ${mainProfileError.message}`);
+    }
+
+    console.log('Main profile created');
+
     // Create supplier profile
     const { error: profileError } = await supabase
       .from('supplier_profiles')
@@ -239,7 +284,7 @@ serve(async (req) => {
       });
 
     if (profileError) {
-      console.error('Profile creation error:', profileError);
+      console.error('Supplier profile creation error:', profileError);
       // Attempt to delete the auth user if profile creation fails
       await supabase.auth.admin.deleteUser(authData.user.id);
       throw new Error(`Failed to create supplier profile: ${profileError.message}`);
