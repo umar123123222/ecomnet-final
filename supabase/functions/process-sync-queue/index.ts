@@ -236,29 +236,76 @@ Deno.serve(async (req) => {
             console.log('Successfully cancelled order in Shopify');
           }
           
-          // Handle address update if address fields changed
-          if (changes.customer_address || changes.customer_new_address || changes.city) {
-            console.log('Calling update-shopify-order for address update');
-            
-            const addressResult = await supabase.functions.invoke('update-shopify-order', {
-              body: {
-                order_id: item.entity_id,
-                action: 'update_address',
-                data: {
-                  address: {
-                    address1: changes.customer_address || changes.customer_new_address,
-                    city: changes.city,
-                    first_name: changes.customer_name?.split(' ')[0],
-                    last_name: changes.customer_name?.split(' ').slice(1).join(' '),
-                    phone: changes.customer_phone,
-                  }
+          // Handle address update ONLY if:
+          // 1. Address fields changed
+          // 2. It's a user change (not system/webhook)
+          // 3. Not flagged to skip (didn't originate from Shopify webhook)
+          const isUserChange = item.payload?.is_user_change === true;
+          const skipAddressSync = item.payload?.skip_address_sync === true;
+          const addressChanged = item.payload?.address_changed === true;
+          
+          if (addressChanged && (changes.customer_address || changes.customer_new_address || changes.city)) {
+            if (skipAddressSync) {
+              console.log('Skipping address sync - change originated from Shopify webhook');
+            } else if (!isUserChange) {
+              console.log('Skipping address sync - not a user-initiated change');
+            } else {
+              console.log('Calling update-shopify-order for address update (user-initiated)');
+              
+              // Get user name for attribution
+              let userName = 'ERP User';
+              const changedBy = item.payload?.changed_by;
+              if (changedBy) {
+                const { data: userProfile } = await supabase
+                  .from('profiles')
+                  .select('full_name')
+                  .eq('id', changedBy)
+                  .single();
+                
+                if (userProfile?.full_name) {
+                  userName = userProfile.full_name;
                 }
               }
-            });
+              
+              const addressResult = await supabase.functions.invoke('update-shopify-order', {
+                body: {
+                  order_id: item.entity_id,
+                  action: 'update_address',
+                  data: {
+                    address: {
+                      address1: changes.customer_address || changes.customer_new_address,
+                      city: changes.city,
+                      first_name: changes.customer_name?.split(' ')[0],
+                      last_name: changes.customer_name?.split(' ').slice(1).join(' '),
+                      phone: changes.customer_phone,
+                    }
+                  }
+                }
+              });
 
-            if (addressResult.error) {
-              console.error('Failed to update address in Shopify:', addressResult.error);
-              throw addressResult.error;
+              if (addressResult.error) {
+                console.error('Failed to update address in Shopify:', addressResult.error);
+                throw addressResult.error;
+              }
+              
+              // Add attribution note to Shopify order
+              const timestamp = new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' });
+              const attributionNote = `Address updated by ${userName} via ERP on ${timestamp}`;
+              
+              console.log('Adding address change attribution note:', attributionNote);
+              
+              const noteResult = await supabase.functions.invoke('update-shopify-order', {
+                body: {
+                  order_id: item.entity_id,
+                  action: 'update_notes',
+                  data: { note: attributionNote }
+                }
+              });
+
+              if (noteResult.error) {
+                console.warn('Failed to add attribution note (non-blocking):', noteResult.error);
+                // Don't throw - this is non-critical
+              }
             }
           }
           
