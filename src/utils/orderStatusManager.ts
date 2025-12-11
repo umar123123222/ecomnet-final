@@ -26,7 +26,18 @@ export async function updateOrderStatus(params: StatusUpdateParams) {
   } = params;
 
   try {
-    // 1. Update order status in database
+    // 1. FIRST fetch the current order to get old status BEFORE updating
+    const { data: currentOrder, error: fetchError } = await supabase
+      .from('orders')
+      .select('status, order_number')
+      .eq('id', orderId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    const oldStatus = currentOrder?.status;
+
+    // 2. Update order status in database
     const updateData: any = {
       status: newStatus,
       updated_at: new Date().toISOString()
@@ -57,10 +68,11 @@ export async function updateOrderStatus(params: StatusUpdateParams) {
 
     if (updateError) throw updateError;
 
-    // 2. Log activity to activity_logs
+    // 3. Log activity to activity_logs (note: DB trigger also logs this, but we add more context here)
     const activityDetails: any = {
-      previous_status: order?.status,
+      old_status: oldStatus,
       new_status: newStatus,
+      order_number: currentOrder?.order_number,
       timestamp: new Date().toISOString()
     };
 
@@ -72,7 +84,7 @@ export async function updateOrderStatus(params: StatusUpdateParams) {
       user_id: userId || '00000000-0000-0000-0000-000000000000',
       entity_type: 'order',
       entity_id: orderId,
-      action: `order_${newStatus}`,
+      action: 'status_changed',
       details: activityDetails
     });
 

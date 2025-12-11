@@ -23,7 +23,9 @@ import {
   Send,
   RotateCcw,
   ChevronDown,
-  Info
+  Info,
+  ArrowRight,
+  RefreshCw
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
@@ -289,13 +291,9 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
   const getActionDescription = (action: string, details: any) => {
     if (!details) return undefined;
     
+    // Status changed is now handled specially with badges in the render
     if (action === 'status_changed') {
-      if (details.old_status && details.new_status) {
-        return `Status changed from "${details.old_status}" to "${details.new_status}"`;
-      }
-      if (details.from && details.to) {
-        return `Status changed from "${details.from}" to "${details.to}"`;
-      }
+      return null; // Return null so we render badges instead
     }
     
     if (action === 'order_assigned' && details.courier) {
@@ -327,6 +325,38 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
     }
     
     return undefined;
+  };
+
+  const getStatusBadgeColor = (status: string) => {
+    const colors: Record<string, string> = {
+      pending: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20',
+      confirmed: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+      booked: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
+      dispatched: 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20',
+      delivered: 'bg-green-500/10 text-green-600 border-green-500/20',
+      returned: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
+      cancelled: 'bg-red-500/10 text-red-600 border-red-500/20',
+    };
+    return colors[status] || 'bg-muted text-muted-foreground';
+  };
+
+  const renderStatusTransition = (details: any) => {
+    const oldStatus = details?.old_status || details?.previous_status || details?.from;
+    const newStatus = details?.new_status || details?.to;
+    
+    if (!oldStatus || !newStatus) return null;
+    
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        <Badge variant="outline" className={`text-xs capitalize ${getStatusBadgeColor(oldStatus)}`}>
+          {oldStatus}
+        </Badge>
+        <ArrowRight className="h-3 w-3 text-muted-foreground" />
+        <Badge variant="outline" className={`text-xs capitalize ${getStatusBadgeColor(newStatus)}`}>
+          {newStatus}
+        </Badge>
+      </div>
+    );
   };
 
   const formatTrackingStatus = (status: string) => {
@@ -361,10 +391,20 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
       case 'order_cancelled':
         return <XCircle className="h-4 w-4" />;
       case 'status_changed':
-        return <AlertCircle className="h-4 w-4" />;
+        return <RefreshCw className="h-4 w-4" />;
       default:
         return <Clock className="h-4 w-4" />;
     }
+  };
+
+  // Check if event is a status change event
+  const isStatusChangeEvent = (event: TimelineEvent) => {
+    const action = event.details?.action || event.type;
+    return action === 'status_changed' && (
+      (event.details?.old_status && event.details?.new_status) ||
+      (event.details?.previous_status && event.details?.new_status) ||
+      (event.details?.from && event.details?.to)
+    );
   };
 
   const getEventColor = (type: string, status?: string) => {
@@ -438,7 +478,11 @@ export function OrderActivityLog({ orderId, open, onOpenChange, embedded = false
                       )}
                     </div>
                     
-                    {event.description && (
+                    {/* Special handling for status change events - show badges */}
+                    {isStatusChangeEvent(event) && renderStatusTransition(event.details)}
+                    
+                    {/* Regular description for non-status-change events */}
+                    {event.description && !isStatusChangeEvent(event) && (
                       <p className="text-sm text-foreground">{event.description}</p>
                     )}
 
