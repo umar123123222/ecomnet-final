@@ -1633,7 +1633,11 @@ export type Database = {
           response_received: boolean | null
           sent_at: string
           suggested_quantity: number
+          supplier_available_qty: number | null
+          supplier_can_supply: boolean | null
+          supplier_estimated_date: string | null
           supplier_id: string
+          supplier_notes: string | null
         }
         Insert: {
           current_stock: number
@@ -1648,7 +1652,11 @@ export type Database = {
           response_received?: boolean | null
           sent_at?: string
           suggested_quantity: number
+          supplier_available_qty?: number | null
+          supplier_can_supply?: boolean | null
+          supplier_estimated_date?: string | null
           supplier_id: string
+          supplier_notes?: string | null
         }
         Update: {
           current_stock?: number
@@ -1663,7 +1671,11 @@ export type Database = {
           response_received?: boolean | null
           sent_at?: string
           suggested_quantity?: number
+          supplier_available_qty?: number | null
+          supplier_can_supply?: boolean | null
+          supplier_estimated_date?: string | null
           supplier_id?: string
+          supplier_notes?: string | null
         }
         Relationships: [
           {
@@ -2579,6 +2591,48 @@ export type Database = {
             columns: ["packaging_item_id"]
             isOneToOne: false
             referencedRelation: "packaging_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      po_messages: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string
+          po_id: string
+          sender_id: string
+          sender_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message: string
+          po_id: string
+          sender_id: string
+          sender_type: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string
+          po_id?: string
+          sender_id?: string
+          sender_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "po_messages_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "po_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -3663,9 +3717,18 @@ export type Database = {
           outlet_id: string
           payment_status: string | null
           po_number: string
+          received_at: string | null
+          shipped_at: string | null
           shipping_cost: number | null
+          shipping_tracking: string | null
           status: string | null
+          supplier_confirmed: boolean | null
+          supplier_confirmed_at: string | null
+          supplier_delivery_date: string | null
           supplier_id: string
+          supplier_notes: string | null
+          supplier_rejected: boolean | null
+          supplier_rejected_reason: string | null
           tax_amount: number | null
           terms_conditions: string | null
           total_amount: number
@@ -3684,9 +3747,18 @@ export type Database = {
           outlet_id: string
           payment_status?: string | null
           po_number: string
+          received_at?: string | null
+          shipped_at?: string | null
           shipping_cost?: number | null
+          shipping_tracking?: string | null
           status?: string | null
+          supplier_confirmed?: boolean | null
+          supplier_confirmed_at?: string | null
+          supplier_delivery_date?: string | null
           supplier_id: string
+          supplier_notes?: string | null
+          supplier_rejected?: boolean | null
+          supplier_rejected_reason?: string | null
           tax_amount?: number | null
           terms_conditions?: string | null
           total_amount: number
@@ -3705,9 +3777,18 @@ export type Database = {
           outlet_id?: string
           payment_status?: string | null
           po_number?: string
+          received_at?: string | null
+          shipped_at?: string | null
           shipping_cost?: number | null
+          shipping_tracking?: string | null
           status?: string | null
+          supplier_confirmed?: boolean | null
+          supplier_confirmed_at?: string | null
+          supplier_delivery_date?: string | null
           supplier_id?: string
+          supplier_notes?: string | null
+          supplier_rejected?: boolean | null
+          supplier_rejected_reason?: string | null
           tax_amount?: number | null
           terms_conditions?: string | null
           total_amount?: number
@@ -4827,6 +4908,7 @@ export type Database = {
           created_at: string
           id: string
           is_primary_supplier: boolean | null
+          lead_time_days: number | null
           minimum_order_quantity: number | null
           notes: string | null
           packaging_item_id: string | null
@@ -4839,6 +4921,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_primary_supplier?: boolean | null
+          lead_time_days?: number | null
           minimum_order_quantity?: number | null
           notes?: string | null
           packaging_item_id?: string | null
@@ -4851,6 +4934,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_primary_supplier?: boolean | null
+          lead_time_days?: number | null
           minimum_order_quantity?: number | null
           notes?: string | null
           packaging_item_id?: string | null

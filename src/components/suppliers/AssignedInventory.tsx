@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search } from "lucide-react";
+import { Search, Package } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -74,90 +74,136 @@ export function AssignedInventory({ supplierId }: AssignedInventoryProps) {
     return matchesSearch && status.toLowerCase().includes(statusFilter);
   });
 
+  // Calculate summary stats
+  const totalItems = inventory?.length || 0;
+  const lowStockItems = inventory?.filter((item: any) => getStockStatus(item).label === "Low Stock").length || 0;
+  const outOfStockItems = inventory?.filter((item: any) => getStockStatus(item).label === "Out of Stock").length || 0;
+
   return (
-    <Card className="p-6">
-      <div className="flex items-center gap-4 mb-6">
-        <div className="flex items-center gap-2 flex-1">
-          <Search className="h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search items..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-sm"
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="in stock">In Stock</SelectItem>
-            <SelectItem value="low">Low Stock</SelectItem>
-            <SelectItem value="out">Out of Stock</SelectItem>
-          </SelectContent>
-        </Select>
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Package className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Total Assigned</p>
+              <p className="text-2xl font-bold">{totalItems}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-yellow-500/10 rounded-lg">
+              <Package className="h-5 w-5 text-yellow-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Low Stock</p>
+              <p className="text-2xl font-bold text-yellow-600">{lowStockItems}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-destructive/10 rounded-lg">
+              <Package className="h-5 w-5 text-destructive" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Out of Stock</p>
+              <p className="text-2xl font-bold text-destructive">{outOfStockItems}</p>
+            </div>
+          </div>
+        </Card>
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Item Name</TableHead>
-            <TableHead>SKU</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Current Stock</TableHead>
-            <TableHead>Reorder Level</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Last Restocked</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {isLoading ? (
-            <TableRow>
-              <TableCell colSpan={7} className="text-center">
-                Loading...
-              </TableCell>
-            </TableRow>
-          ) : filteredInventory?.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={7} className="text-center">
-                No assigned items found
-              </TableCell>
-            </TableRow>
-          ) : (
-            filteredInventory?.map((item: any) => {
-              const status = getStockStatus(item);
-              const isProduct = !!item.product;
-              const data = isProduct ? item.product : item.packaging_item;
-              const inv = isProduct ? item.product?.inventory?.[0] : null;
-              const currentStock = isProduct ? (inv?.available_quantity || 0) : (data?.current_stock || 0);
-              const reorderLevel = data?.reorder_level || 0;
+      <Card className="p-6">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="flex items-center gap-2 flex-1">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search items..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="in stock">In Stock</SelectItem>
+              <SelectItem value="low">Low Stock</SelectItem>
+              <SelectItem value="out">Out of Stock</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-              return (
-                <TableRow key={item.id}>
-                  <TableCell className="font-medium">{data?.name}</TableCell>
-                  <TableCell>{data?.sku}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="capitalize">
-                      {isProduct ? "Product" : data?.type}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{currentStock}</TableCell>
-                  <TableCell>{reorderLevel}</TableCell>
-                  <TableCell>
-                    <Badge variant={status.variant}>{status.label}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {inv?.last_restocked_at 
-                      ? new Date(inv.last_restocked_at).toLocaleDateString()
-                      : "-"}
-                  </TableCell>
-                </TableRow>
-              );
-            })
-          )}
-        </TableBody>
-      </Table>
-    </Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Item Name</TableHead>
+              <TableHead>SKU</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Unit Cost</TableHead>
+              <TableHead>MOQ</TableHead>
+              <TableHead>Lead Time</TableHead>
+              <TableHead>Current Stock</TableHead>
+              <TableHead>Reorder Level</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center">
+                  Loading...
+                </TableCell>
+              </TableRow>
+            ) : filteredInventory?.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center">
+                  No assigned items found
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredInventory?.map((item: any) => {
+                const status = getStockStatus(item);
+                const isProduct = !!item.product;
+                const data = isProduct ? item.product : item.packaging_item;
+                const inv = isProduct ? item.product?.inventory?.[0] : null;
+                const currentStock = isProduct ? (inv?.available_quantity || 0) : (data?.current_stock || 0);
+                const reorderLevel = data?.reorder_level || 0;
+
+                return (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-medium">{data?.name}</TableCell>
+                    <TableCell>{data?.sku}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="capitalize">
+                        {isProduct ? "Product" : data?.type}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>PKR {item.unit_cost?.toFixed(2) || "0.00"}</TableCell>
+                    <TableCell>{item.minimum_order_quantity || 1}</TableCell>
+                    <TableCell>{item.lead_time_days || 7} days</TableCell>
+                    <TableCell className={currentStock <= reorderLevel ? "text-destructive font-medium" : ""}>
+                      {currentStock}
+                    </TableCell>
+                    <TableCell>{reorderLevel}</TableCell>
+                    <TableCell>
+                      <Badge variant={status.variant}>{status.label}</Badge>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </Card>
+    </div>
   );
 }
