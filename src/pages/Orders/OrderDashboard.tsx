@@ -30,6 +30,7 @@ import NewDispatchDialog from '@/components/dispatch/NewDispatchDialog';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRoles } from '@/hooks/useUserRoles';
+import { useCouriers } from '@/hooks/useCouriers';
 import { logActivity } from '@/utils/activityLogger';
 import { useAdvancedFilters } from '@/hooks/useAdvancedFilters';
 import { AdvancedFilterPanel } from '@/components/AdvancedFilterPanel';
@@ -94,7 +95,7 @@ const OrderDashboard = () => {
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [sortOrder, setSortOrder] = useState<'latest' | 'oldest'>('latest');
   const [activityLogOrderId, setActivityLogOrderId] = useState<string | null>(null);
-  const [couriers, setCouriers] = useState<any[]>([]);
+  const { data: couriers = [] } = useCouriers();
   const [jumpToPage, setJumpToPage] = useState<string>('');
   const [showKPIPanel, setShowKPIPanel] = useState(true);
   const [activePreset, setActivePreset] = useState<string | null>(null);
@@ -512,7 +513,6 @@ const OrderDashboard = () => {
   };
   useEffect(() => {
     fetchOrders();
-    fetchCouriers();
   }, [page, pageSize, filters, sortOrder]);
 
   // Debounce search input to prevent flickering
@@ -528,18 +528,6 @@ const OrderDashboard = () => {
     }, 500);
     return () => clearTimeout(timer);
   }, [searchInput]);
-  const fetchCouriers = async () => {
-    try {
-      const {
-        data,
-        error
-      } = await supabase.from('couriers').select('id, name, code').eq('is_active', true).order('name');
-      if (error) throw error;
-      setCouriers(data || []);
-    } catch (error) {
-      console.error('Error fetching couriers:', error);
-    }
-  };
 
   // Real-time subscription for order updates
   useEffect(() => {
