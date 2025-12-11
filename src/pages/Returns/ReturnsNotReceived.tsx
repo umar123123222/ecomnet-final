@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -217,22 +217,22 @@ const ReturnsNotReceived = () => {
     return filteredReturns.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredReturns, currentPage]);
 
-  const handleSelectReturn = (returnId: string, checked: boolean) => {
+  const handleSelectReturn = useCallback((returnId: string, checked: boolean) => {
     if (checked) {
-      setSelectedReturns([...selectedReturns, returnId]);
+      setSelectedReturns(prev => [...prev, returnId]);
     } else {
-      setSelectedReturns(selectedReturns.filter(id => id !== returnId));
+      setSelectedReturns(prev => prev.filter(id => id !== returnId));
     }
-  };
+  }, []);
 
-  const handleSelectAll = (checked: boolean) => {
+  const handleSelectAll = useCallback((checked: boolean) => {
     if (checked) {
       // Select all on current page
       setSelectedReturns(paginatedReturns.map(returnItem => returnItem.id));
     } else {
       setSelectedReturns([]);
     }
-  };
+  }, [paginatedReturns]);
 
   const handleExportSelected = () => {
     const selectedData = filteredReturns.filter(returnItem => selectedReturns.includes(returnItem.id));

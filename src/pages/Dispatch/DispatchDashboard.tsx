@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -362,12 +362,13 @@ const metrics = useMemo(() => {
     mostUsedCourier
   };
 }, [filteredByDate, filteredDispatches, totalDispatchCount]);
-  const handleSelectDispatch = (dispatchId: string) => {
+  const handleSelectDispatch = useCallback((dispatchId: string) => {
     setSelectedDispatches(prev => prev.includes(dispatchId) ? prev.filter(id => id !== dispatchId) : [...prev, dispatchId]);
-  };
-  const handleSelectAll = () => {
-    setSelectedDispatches(selectedDispatches.length === filteredDispatches.length ? [] : filteredDispatches.map(d => d.id));
-  };
+  }, []);
+  
+  const handleSelectAll = useCallback(() => {
+    setSelectedDispatches(prev => prev.length === filteredDispatches.length ? [] : filteredDispatches.map(d => d.id));
+  }, [filteredDispatches]);
   const handleManualEntry = async (data: {
     bulkEntries: string;
   }) => {
@@ -661,9 +662,9 @@ const metrics = useMemo(() => {
       setIsProcessing(false);
     }
   };
-  const toggleRowExpansion = (dispatchId: string) => {
+  const toggleRowExpansion = useCallback((dispatchId: string) => {
     setExpandedRows(prev => prev.includes(dispatchId) ? prev.filter(id => id !== dispatchId) : [...prev, dispatchId]);
-  };
+  }, []);
 
   // Set up scanner listener when manual entry is disabled
   useEffect(() => {
