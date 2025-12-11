@@ -31,9 +31,11 @@ export function InventorySummaryWidget() {
     },
     refetchInterval: 60000 // Refresh every minute
   });
-  const totalItems = inventory?.reduce((sum, item) => sum + item.available_quantity, 0) || 0;
-  const totalValue = inventory?.reduce((sum, item) => sum + item.available_quantity * (item.product?.price || 0), 0) || 0;
-  const lowStockCount = inventory?.filter(item => item.available_quantity <= (item.product?.reorder_level || 0)).length || 0;
+  const totalItems = inventory?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  const availableItems = inventory?.reduce((sum, item) => sum + (item.available_quantity ?? item.quantity), 0) || 0;
+  const totalValue = inventory?.reduce((sum, item) => sum + item.quantity * (item.product?.price || 0), 0) || 0;
+  const lowStockCount = inventory?.filter(item => (item.available_quantity ?? item.quantity) <= (item.product?.reorder_level || 10)).length || 0;
+  const deficitCount = inventory?.filter(item => (item.available_quantity ?? 0) < 0).length || 0;
   const totalProducts = new Set(inventory?.map(item => item.product_id)).size;
   if (isLoading) {
     return <Card>
@@ -67,13 +69,21 @@ export function InventorySummaryWidget() {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="space-y-1">
             <div className="text-sm text-muted-foreground flex items-center gap-1">
               <Package className="h-3 w-3" />
-              Total Items
+              Total Stock
             </div>
             <div className="text-2xl font-bold">{totalItems.toLocaleString()}</div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="text-sm text-muted-foreground flex items-center gap-1">
+              <Package className="h-3 w-3 text-green-500" />
+              Available
+            </div>
+            <div className="text-2xl font-bold text-green-600">{availableItems.toLocaleString()}</div>
           </div>
 
           <div className="space-y-1">
@@ -86,14 +96,6 @@ export function InventorySummaryWidget() {
 
           <div className="space-y-1">
             <div className="text-sm text-muted-foreground flex items-center gap-1">
-              <Package className="h-3 w-3" />
-              Products
-            </div>
-            <div className="text-2xl font-bold">{totalProducts}</div>
-          </div>
-
-          <div className="space-y-1">
-            <div className="text-sm text-muted-foreground flex items-center gap-1">
               <AlertTriangle className="h-3 w-3 text-orange-500" />
               Low Stock
             </div>
@@ -101,6 +103,19 @@ export function InventorySummaryWidget() {
               <div className="text-2xl font-bold text-orange-500">{lowStockCount}</div>
               {lowStockCount > 0 && <Badge variant="destructive" className="text-xs animate-pulse">
                   Alert
+                </Badge>}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="text-sm text-muted-foreground flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3 text-red-500" />
+              Deficit
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="text-2xl font-bold text-red-500">{deficitCount}</div>
+              {deficitCount > 0 && <Badge variant="destructive" className="text-xs">
+                  Oversold
                 </Badge>}
             </div>
           </div>
