@@ -5756,6 +5756,7 @@ export type Database = {
         Returns: string
       }
       cleanup_old_tracking_jobs: { Args: never; Returns: undefined }
+      cleanup_sync_queue: { Args: never; Returns: number }
       deduct_order_packaging: {
         Args: { p_order_id: string; p_user_id: string }
         Returns: Json
@@ -5777,6 +5778,18 @@ export type Database = {
       get_current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      get_dashboard_stats: {
+        Args: { p_end_date?: string; p_start_date?: string }
+        Returns: Json
+      }
+      get_order_counts_by_status_optimized: {
+        Args: never
+        Returns: {
+          count: number
+          status: Database["public"]["Enums"]["order_status"]
+          today_count: number
+        }[]
       }
       get_order_packaging_recommendation: {
         Args: { p_order_id: string }
