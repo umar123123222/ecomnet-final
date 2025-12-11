@@ -2,17 +2,16 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Bell, FileText, BarChart3 } from "lucide-react";
+import { Package, Bell, FileText, Loader2 } from "lucide-react";
 import { AssignedInventory } from "@/components/suppliers/AssignedInventory";
 import { LowStockNotifications } from "@/components/suppliers/LowStockNotifications";
 import { SupplierPurchaseOrders } from "@/components/suppliers/SupplierPurchaseOrders";
 import { useAuth } from "@/contexts/AuthContext";
-import { Navigate } from "react-router-dom";
 
 export default function SupplierPortal() {
   const { user } = useAuth();
 
-  const { data: supplierProfile } = useQuery({
+  const { data: supplierProfile, isLoading: isLoadingProfile } = useQuery({
     queryKey: ["supplier-profile", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -67,9 +66,27 @@ export default function SupplierPortal() {
     enabled: !!supplierProfile?.supplier_id,
   });
 
-  // Redirect non-suppliers
+  // Show loading state
+  if (isLoadingProfile) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Show error if no supplier profile found
   if (!supplierProfile) {
-    return <Navigate to="/" replace />;
+    return (
+      <div className="container mx-auto p-6">
+        <Card className="p-6 text-center">
+          <h2 className="text-xl font-semibold text-destructive mb-2">Access Denied</h2>
+          <p className="text-muted-foreground">
+            No supplier profile found for your account. Please contact an administrator.
+          </p>
+        </Card>
+      </div>
+    );
   }
 
   return (
