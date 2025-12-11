@@ -91,152 +91,50 @@ const Dashboard = () => {
     };
   };
 
-  // Optimized data fetching with React Query and aggregation
+  // Optimized data fetching - uses single aggregated DB function (was 21 queries, now 1)
   const { data: dashboardData, isLoading: loading } = useQuery({
-    queryKey: ['dashboard-stats', dateRange],
+    queryKey: ['dashboard-stats-optimized', dateRange],
     queryFn: async () => {
       const ranges = getDateRanges();
 
-      // Fetch order counts by status using efficient queries
-      const [
-        allTimeBookedRes,
-        allTimeDispatchedRes,
-        allTimeDeliveredRes,
-        allTimeCancelledRes,
-        allTimeReturnedRes,
-        allTimePendingRes,
-        currentBookedRes,
-        currentDispatchedRes,
-        currentDeliveredRes,
-        currentCancelledRes,
-        currentReturnedRes,
-        currentPendingRes,
-        previousBookedRes,
-        previousDispatchedRes,
-        previousDeliveredRes,
-        previousCancelledRes,
-        previousReturnedRes,
-        previousPendingRes,
-        allTimeCustomersRes,
-        currentCustomersRes,
-        previousCustomersRes,
-      ] = await Promise.all([
-        // All-time counts by status
-        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'booked'),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'dispatched'),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'delivered'),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'cancelled'),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'returned'),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).in('status', ['pending', 'confirmed']),
-        // Current period counts
-        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'booked')
-          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'dispatched')
-          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'delivered')
-          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'cancelled')
-          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'returned')
-          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).in('status', ['pending', 'confirmed'])
-          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
-        // Previous period counts
-        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'booked')
-          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'dispatched')
-          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'delivered')
-          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'cancelled')
-          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'returned')
-          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
-        supabase.from('orders').select('*', { count: 'exact', head: true }).in('status', ['pending', 'confirmed'])
-          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
-        // Customers
-        supabase.from('customers').select('id', { count: 'exact', head: true }),
-        supabase.from('customers').select('id', { count: 'exact', head: true })
-          .gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd),
-        supabase.from('customers').select('id', { count: 'exact', head: true })
-          .gte('created_at', ranges.previousStart).lte('created_at', ranges.previousEnd),
+      // Use optimized RPC function for stats
+      const [allTimeResult, currentResult, previousResult] = await Promise.all([
+        supabase.rpc('get_dashboard_stats'),
+        supabase.rpc('get_dashboard_stats', {
+          p_start_date: ranges.currentStart,
+          p_end_date: ranges.currentEnd,
+        }),
+        supabase.rpc('get_dashboard_stats', {
+          p_start_date: ranges.previousStart,
+          p_end_date: ranges.previousEnd,
+        }),
       ]);
 
+      if (allTimeResult.error) throw allTimeResult.error;
 
-      // Check for errors - just check a few key ones since we have many queries
-      if (allTimeBookedRes.error || allTimeCustomersRes.error) {
-        console.error('Dashboard data fetch error');
-        throw new Error('Failed to fetch dashboard data');
-      }
+      const allTimeData = allTimeResult.data as any;
+      const currentData = (currentResult.data || {}) as any;
+      const previousData = (previousResult.data || {}) as any;
 
       const calculateTrend = (current: number, previous: number) => {
         if (previous === 0) return current > 0 ? 100 : 0;
         return ((current - previous) / previous) * 100;
       };
 
-      // Calculate totals
-      const allTimeTotal = 
-        (allTimeBookedRes.count || 0) +
-        (allTimeDispatchedRes.count || 0) +
-        (allTimeDeliveredRes.count || 0) +
-        (allTimeCancelledRes.count || 0) +
-        (allTimeReturnedRes.count || 0) +
-        (allTimePendingRes.count || 0);
+      const getCounts = (data: any) => ({
+        totalOrders: data?.total_orders || 0,
+        bookedOrders: data?.order_counts?.booked || 0,
+        dispatchedOrders: data?.order_counts?.dispatched || 0,
+        deliveredOrders: data?.order_counts?.delivered || 0,
+        cancelledOrders: data?.order_counts?.cancelled || 0,
+        returnedOrders: data?.order_counts?.returned || 0,
+        pendingOrders: (data?.order_counts?.pending || 0) + (data?.order_counts?.confirmed || 0),
+        customers: data?.total_customers || 0,
+      });
 
-      const currentTotal =
-        (currentBookedRes.count || 0) +
-        (currentDispatchedRes.count || 0) +
-        (currentDeliveredRes.count || 0) +
-        (currentCancelledRes.count || 0) +
-        (currentReturnedRes.count || 0) +
-        (currentPendingRes.count || 0);
-
-      const previousTotal =
-        (previousBookedRes.count || 0) +
-        (previousDispatchedRes.count || 0) +
-        (previousDeliveredRes.count || 0) +
-        (previousCancelledRes.count || 0) +
-        (previousReturnedRes.count || 0) +
-        (previousPendingRes.count || 0);
-
-      // All-time statistics
-      const allTimeStats = {
-        totalOrders: allTimeTotal,
-        bookedOrders: allTimeBookedRes.count || 0,
-        dispatchedOrders: allTimeDispatchedRes.count || 0,
-        deliveredOrders: allTimeDeliveredRes.count || 0,
-        cancelledOrders: allTimeCancelledRes.count || 0,
-        returnedOrders: allTimeReturnedRes.count || 0,
-        pendingOrders: allTimePendingRes.count || 0,
-        customers: allTimeCustomersRes.count || 0,
-      };
-
-      // Current period statistics
-      const currentStats = {
-        totalOrders: currentTotal,
-        bookedOrders: currentBookedRes.count || 0,
-        dispatchedOrders: currentDispatchedRes.count || 0,
-        deliveredOrders: currentDeliveredRes.count || 0,
-        cancelledOrders: currentCancelledRes.count || 0,
-        returnedOrders: currentReturnedRes.count || 0,
-        pendingOrders: currentPendingRes.count || 0,
-        customers: currentCustomersRes.count || 0,
-      };
-
-      // Previous period statistics
-      const previousStats = {
-        totalOrders: previousTotal,
-        bookedOrders: previousBookedRes.count || 0,
-        dispatchedOrders: previousDispatchedRes.count || 0,
-        deliveredOrders: previousDeliveredRes.count || 0,
-        cancelledOrders: previousCancelledRes.count || 0,
-        returnedOrders: previousReturnedRes.count || 0,
-        pendingOrders: previousPendingRes.count || 0,
-        customers: previousCustomersRes.count || 0,
-      };
-
-      console.log('Dashboard metrics:', allTimeStats);
-
+      const allTimeStats = getCounts(allTimeData);
+      const currentStats = getCounts(currentData);
+      const previousStats = getCounts(previousData);
 
       return {
         allTime: allTimeStats,
@@ -244,18 +142,18 @@ const Dashboard = () => {
         previous: previousStats,
         trends: {
           totalOrders: calculateTrend(currentStats.totalOrders, previousStats.totalOrders),
-        bookedOrders: calculateTrend(currentStats.bookedOrders, previousStats.bookedOrders),
-        dispatchedOrders: calculateTrend(currentStats.dispatchedOrders, previousStats.dispatchedOrders),
-        deliveredOrders: calculateTrend(currentStats.deliveredOrders, previousStats.deliveredOrders),
-        cancelledOrders: calculateTrend(currentStats.cancelledOrders, previousStats.cancelledOrders),
-        returnedOrders: calculateTrend(currentStats.returnedOrders, previousStats.returnedOrders),
-        pendingOrders: calculateTrend(currentStats.pendingOrders, previousStats.pendingOrders),
-        customers: calculateTrend(currentStats.customers, previousStats.customers),
+          bookedOrders: calculateTrend(currentStats.bookedOrders, previousStats.bookedOrders),
+          dispatchedOrders: calculateTrend(currentStats.dispatchedOrders, previousStats.dispatchedOrders),
+          deliveredOrders: calculateTrend(currentStats.deliveredOrders, previousStats.deliveredOrders),
+          cancelledOrders: calculateTrend(currentStats.cancelledOrders, previousStats.cancelledOrders),
+          returnedOrders: calculateTrend(currentStats.returnedOrders, previousStats.returnedOrders),
+          pendingOrders: calculateTrend(currentStats.pendingOrders, previousStats.pendingOrders),
+          customers: calculateTrend(currentStats.customers, previousStats.customers),
         },
       };
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
-    staleTime: 20000, // Consider data fresh for 20 seconds
+    refetchInterval: 30000,
+    staleTime: 20000,
   });
 
   // Format trend percentage
