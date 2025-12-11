@@ -30,6 +30,7 @@ const ShipperAdvice = () => {
   const [courierFilter, setCourierFilter] = useState<string>('all');
   const [attemptsFilter, setAttemptsFilter] = useState<string>('all');
   const [availableCouriers, setAvailableCouriers] = useState<string[]>([]);
+  const [couriersWithAdviceSupport, setCouriersWithAdviceSupport] = useState<Set<string>>(new Set());
   const [processingAdvice, setProcessingAdvice] = useState<string | null>(null);
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -245,7 +246,7 @@ const ShipperAdvice = () => {
       try {
         const { data, error } = await supabase
           .from('couriers')
-          .select('name')
+          .select('name, code, shipper_advice_save_endpoint')
           .eq('is_active', true)
           .order('name');
 
@@ -253,6 +254,15 @@ const ShipperAdvice = () => {
         
         if (data) {
           setAvailableCouriers(data.map(c => c.name));
+          // Track which couriers have shipper advice endpoint configured
+          const supportedCouriers = new Set<string>();
+          data.forEach(c => {
+            if (c.shipper_advice_save_endpoint) {
+              supportedCouriers.add(c.code?.toLowerCase() || '');
+              supportedCouriers.add(c.name?.toLowerCase() || '');
+            }
+          });
+          setCouriersWithAdviceSupport(supportedCouriers);
         }
       } catch (error) {
         console.error('Error fetching couriers:', error);
@@ -365,6 +375,19 @@ const ShipperAdvice = () => {
     return 'text-green-600';
   };
 
+  // Check if courier supports shipper advice API
+  const courierSupportsAdvice = (courierCode: string) => {
+    return couriersWithAdviceSupport.has(courierCode?.toLowerCase() || '');
+  };
+
+  // Get selected orders that support shipper advice
+  const selectedOrdersWithAdviceSupport = useMemo(() => {
+    return selectedOrders.filter(orderId => {
+      const order = orders.find(o => o.id === orderId);
+      return order && courierSupportsAdvice(order.courier);
+    });
+  }, [selectedOrders, orders, couriersWithAdviceSupport]);
+
   const handleShipperAdvice = async (orderId: string, adviceType: 'reattempt' | 'return') => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
@@ -403,13 +426,13 @@ const ShipperAdvice = () => {
   };
 
   const handleBulkAdvice = async (adviceType: 'reattempt' | 'return') => {
-    if (selectedOrders.length === 0) return;
+    if (selectedOrdersWithAdviceSupport.length === 0) return;
 
     setBulkProcessing(true);
     let successCount = 0;
     let failCount = 0;
 
-    for (const orderId of selectedOrders) {
+    for (const orderId of selectedOrdersWithAdviceSupport) {
       const order = orders.find(o => o.id === orderId);
       if (!order) continue;
 
@@ -439,7 +462,7 @@ const ShipperAdvice = () => {
 
     // Remove successful orders from list
     if (successCount > 0) {
-      setOrders(prev => prev.filter(o => !selectedOrders.includes(o.id) || failCount > 0));
+      setOrders(prev => prev.filter(o => !selectedOrdersWithAdviceSupport.includes(o.id) || failCount > 0));
       setSelectedOrders([]);
     }
     setBulkProcessing(false);
@@ -472,7 +495,7 @@ const ShipperAdvice = () => {
           <p className="text-muted-foreground mt-1">Orders with failed deliveries that need reattempt, return, or reschedule instructions</p>
         </div>
         <div className="flex gap-2">
-          {selectedOrders.length > 0 && (
+          {selectedOrdersWithAdviceSupport.length > 0 && (
             <>
               <Button
                 variant="default"
@@ -480,7 +503,7 @@ const ShipperAdvice = () => {
                 disabled={bulkProcessing}
               >
                 {bulkProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-2" />}
-                Bulk Reattempt ({selectedOrders.length})
+                Bulk Reattempt ({selectedOrdersWithAdviceSupport.length})
               </Button>
               <Button
                 variant="destructive"
@@ -488,7 +511,7 @@ const ShipperAdvice = () => {
                 disabled={bulkProcessing}
               >
                 {bulkProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Undo2 className="h-4 w-4 mr-2" />}
-                Bulk Return ({selectedOrders.length})
+                Bulk Return ({selectedOrdersWithAdviceSupport.length})
               </Button>
             </>
           )}
@@ -683,29 +706,35 @@ const ShipperAdvice = () => {
                          <TableCell className="font-medium">₨{order.totalAmount.toLocaleString()}</TableCell>
                           <TableCell>
                             <div className="flex gap-1">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => confirmAdvice('reattempt', order.id)}
-                                disabled={processingAdvice === order.id}
-                                title="Reattempt Delivery"
-                              >
-                                {processingAdvice === order.id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <RotateCcw className="h-3 w-3" />
-                                )}
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => confirmAdvice('return', order.id)}
-                                disabled={processingAdvice === order.id}
-                                title="Return to Origin"
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Undo2 className="h-3 w-3" />
-                              </Button>
+                              {courierSupportsAdvice(order.courier) ? (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => confirmAdvice('reattempt', order.id)}
+                                    disabled={processingAdvice === order.id}
+                                    title="Reattempt Delivery"
+                                  >
+                                    {processingAdvice === order.id ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <RotateCcw className="h-3 w-3" />
+                                    )}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => confirmAdvice('return', order.id)}
+                                    disabled={processingAdvice === order.id}
+                                    title="Return to Origin"
+                                    className="text-destructive hover:text-destructive"
+                                  >
+                                    <Undo2 className="h-3 w-3" />
+                                  </Button>
+                                </>
+                              ) : (
+                                <span className="text-xs text-muted-foreground italic">No API</span>
+                              )}
                               <Button variant="outline" size="sm" onClick={() => toggleRowExpansion(order.id)} title="View Details">
                                 <Eye className="h-3 w-3" />
                               </Button>
