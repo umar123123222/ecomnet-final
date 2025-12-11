@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw, Filter, PackagePlus, SlidersHorizontal, DollarSign, Layers, Pencil } from "lucide-react";
+import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw, Filter, PackagePlus, SlidersHorizontal, DollarSign, Layers, Pencil, MapPin } from "lucide-react";
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from "@/components/layout";
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
@@ -46,6 +46,7 @@ const ProductManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(50);
   const [isSyncingShopify, setIsSyncingShopify] = useState(false);
+  const [selectedOutlet, setSelectedOutlet] = useState<string>("all");
   const {
     progress,
     executeBulkOperation
@@ -85,16 +86,20 @@ const ProductManagement = () => {
   const totalCount = productsData?.totalCount || 0;
   const totalPages = Math.ceil(totalCount / pageSize);
 
-  // Fetch inventory data aggregated by product
+  // Fetch inventory data aggregated by product (filtered by outlet if selected)
   const {
     data: inventoryData
   } = useQuery({
-    queryKey: ["products-inventory-aggregated"],
+    queryKey: ["products-inventory-aggregated", selectedOutlet],
     queryFn: async () => {
-      const {
-        data,
-        error
-      } = await supabase.from("inventory").select("product_id, quantity, reserved_quantity");
+      let query = supabase.from("inventory").select("product_id, quantity, reserved_quantity, outlet_id");
+      
+      // Filter by outlet if selected
+      if (selectedOutlet !== "all") {
+        query = query.eq("outlet_id", selectedOutlet);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
 
       // Aggregate by product_id
@@ -328,6 +333,19 @@ const ProductManagement = () => {
                 <SelectItem value="all">All Products</SelectItem>
                 <SelectItem value="active">Active Only</SelectItem>
                 <SelectItem value="inactive">Inactive Only</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedOutlet} onValueChange={setSelectedOutlet}>
+              <SelectTrigger className="w-[180px]">
+                <MapPin className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Filter by outlet" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Outlets</SelectItem>
+                {outlets.map((outlet: any) => (
+                  <SelectItem key={outlet.id} value={outlet.id}>{outlet.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
 

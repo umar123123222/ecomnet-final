@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Package, AlertTriangle, Edit, Trash2, PackagePlus, CheckCircle } from "lucide-react";
+import { Plus, Search, Package, AlertTriangle, Edit, Trash2, PackagePlus, CheckCircle, MapPin } from "lucide-react";
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from "@/components/layout";
 import { useToast } from "@/hooks/use-toast";
 import { useBulkOperations } from "@/hooks/useBulkOperations";
@@ -76,6 +76,7 @@ export default function PackagingManagement() {
   const [editingItem, setEditingItem] = useState<any>(null);
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [selectedOutlet, setSelectedOutlet] = useState<string>("all");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { permissions } = useUserRoles();
@@ -91,15 +92,50 @@ export default function PackagingManagement() {
     clearDateFilter
   } = useReservationDateFilter();
 
-  const { data: packagingItems, isLoading } = useQuery({
-    queryKey: ["packaging-items"],
+  // Fetch outlets
+  const { data: outlets = [] } = useQuery({
+    queryKey: ['outlets-active'],
     queryFn: async () => {
-      // Fetch packaging items
+      const { data, error } = await supabase
+        .from('outlets')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name');
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  const { data: packagingItems, isLoading } = useQuery({
+    queryKey: ["packaging-items", selectedOutlet],
+    queryFn: async () => {
+      // Fetch central packaging items
       const { data: items, error } = await supabase
         .from("packaging_items")
         .select("*")
         .order("name");
       if (error) throw error;
+
+      // If filtering by outlet, fetch outlet-specific inventory
+      if (selectedOutlet !== "all") {
+        const { data: outletInventory } = await supabase
+          .from("outlet_packaging_inventory")
+          .select("packaging_item_id, quantity")
+          .eq("outlet_id", selectedOutlet);
+        
+        // Create a map of outlet-specific quantities
+        const outletQtyMap = new Map<string, number>();
+        outletInventory?.forEach((inv: any) => {
+          outletQtyMap.set(inv.packaging_item_id, inv.quantity || 0);
+        });
+
+        // Return items with outlet-specific stock
+        return items?.map(item => ({
+          ...item,
+          current_stock: outletQtyMap.get(item.id) || 0,
+          reserved_quantity: 0 // Outlet-specific reservations not tracked separately
+        }));
+      }
 
       // Fetch reserved quantities using RPC function that calculates from pending/booked orders + packaging rules
       const { data: reservedData } = await supabase.rpc('get_packaging_reservations');
@@ -352,6 +388,18 @@ export default function PackagingManagement() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="max-w-sm"
           />
+          <Select value={selectedOutlet} onValueChange={setSelectedOutlet}>
+            <SelectTrigger className="w-[180px]">
+              <MapPin className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Filter by outlet" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Outlets (Central)</SelectItem>
+              {outlets.map((outlet: any) => (
+                <SelectItem key={outlet.id} value={outlet.id}>{outlet.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <ReservationDateFilter
             dateRange={dateRange}
             onDateRangeChange={setDateRange}
