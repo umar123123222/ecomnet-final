@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { UserRole } from '@/types/auth';
@@ -37,6 +37,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const [isSuspended, setIsSuspended] = useState(false);
   const [profileFetchedFor, setProfileFetchedFor] = useState<string | null>(null);
+  const fetchingProfileRef = useRef<string | null>(null); // Track in-flight requests
 
   const fetchUserProfile = async (userId: string): Promise<boolean> => {
     // Skip if already fetched for this user
@@ -44,6 +45,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
       return false;
     }
+    
+    // Skip if already fetching for this user (prevent duplicate in-flight requests)
+    if (fetchingProfileRef.current === userId) {
+      return false;
+    }
+    
+    fetchingProfileRef.current = userId;
     
     try {
       // Combined query: fetch profile and role in a single request using PostgreSQL join
@@ -86,6 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsSuspended(false);
         setProfile(profileData);
         setProfileFetchedFor(userId);
+        fetchingProfileRef.current = null;
         // user_roles returns an array, get first element
         const roleData = Array.isArray(profileData.user_roles) ? profileData.user_roles[0] : profileData.user_roles;
         setUserRole(roleData?.role || profileData.role);
@@ -96,6 +105,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setProfile(null);
       setUserRole(null);
       setProfileFetchedFor(null);
+      fetchingProfileRef.current = null;
       setIsLoading(false);
     }
     return false; // Return false = user is NOT suspended
