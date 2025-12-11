@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload, X, ImageIcon } from "lucide-react";
 
-// Standardized reason options for all roles
+// Standardized reason options
 const DECREASE_REASONS = [
   { value: "items_damaged", label: "Items Damaged" },
   { value: "sale", label: "Sale" },
@@ -23,7 +23,12 @@ const INCREASE_REASONS = [
   { value: "return_received", label: "Return Received" },
 ] as const;
 
-const ALL_REASONS = [...DECREASE_REASONS, ...INCREASE_REASONS] as const;
+// Additional reason for super roles (both increase and decrease)
+const SUPER_ROLE_REASONS = [
+  { value: "stock_adjustment", label: "Stock Adjustment" },
+] as const;
+
+const ALL_REASONS = [...DECREASE_REASONS, ...INCREASE_REASONS, ...SUPER_ROLE_REASONS] as const;
 
 const packagingAdjustmentSchema = z.object({
   packaging_item_id: z.string().min(1, "Packaging item is required"),
@@ -31,7 +36,7 @@ const packagingAdjustmentSchema = z.object({
     required_error: "Please select adjustment type",
   }),
   quantity: z.number().int().min(1, "Quantity must be at least 1"),
-  reason: z.enum(["items_damaged", "sale", "return_received"], {
+  reason: z.enum(["items_damaged", "sale", "return_received", "stock_adjustment"], {
     required_error: "Please select a reason",
   }),
 });
@@ -71,6 +76,7 @@ export function PackagingAdjustmentDialog({
   });
 
   const isStoreManager = profile?.role === "store_manager";
+  const isSuperRole = profile?.role === "super_admin" || profile?.role === "super_manager";
 
   const {
     register,
@@ -96,10 +102,16 @@ export function PackagingAdjustmentDialog({
   const selectedPackaging = packagingItems?.find(item => item.id === selectedPackagingId);
   const currentStock = selectedPackaging?.current_stock || 0;
 
-  // Filter reason options based on adjustment type (same for all roles)
-  const filteredReasonOptions = adjustmentType === "decrease"
-    ? DECREASE_REASONS
-    : INCREASE_REASONS;
+  // Filter reason options based on adjustment type and role
+  const getReasonOptions = () => {
+    const baseReasons = adjustmentType === "decrease" ? [...DECREASE_REASONS] : [...INCREASE_REASONS];
+    // Super roles get additional "Stock Adjustment" option for both increase and decrease
+    if (isSuperRole) {
+      return [...baseReasons, ...SUPER_ROLE_REASONS];
+    }
+    return baseReasons;
+  };
+  const filteredReasonOptions = getReasonOptions();
 
   // Auto-select default reason when dialog opens
   useEffect(() => {
