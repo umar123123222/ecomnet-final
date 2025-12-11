@@ -6,6 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Process orders in parallel for efficiency
+const PARALLEL_BATCH_SIZE = 5; // Track 5 orders simultaneously
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -15,8 +18,7 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const trigger = body.trigger || 'manual';
     const offset = body.offset || 0;
-    // Reduced batch size to 20 to avoid WORKER_LIMIT errors
-    const limit = Math.min(body.limit || 20, 20);
+    const limit = Math.min(body.limit || 50, 50);
     
     console.log(`🌙 Starting nightly tracking update (trigger: ${trigger}, offset: ${offset}, limit: ${limit})...`);
     
@@ -25,7 +27,8 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get orders that are NOT in terminal states and have tracking
+    // Get orders that need tracking - PRIORITIZE never-tracked orders first
+    // Also include orders without dispatch records (will auto-create)
     const { data: activeOrders, error: fetchError } = await supabase
       .from('orders')
       .select(`
@@ -33,11 +36,14 @@ serve(async (req) => {
         order_number,
         status,
         courier,
-        tracking_id
+        tracking_id,
+        booked_at,
+        created_at
       `)
       .eq('status', 'dispatched')
       .not('tracking_id', 'is', null)
       .neq('tracking_id', '')
+      .order('booked_at', { ascending: true, nullsFirst: true }) // Oldest first
       .range(offset, offset + limit - 1);
 
     if (fetchError) {
@@ -54,108 +60,172 @@ serve(async (req) => {
       returned: 0,
       failed: 0,
       noChange: 0,
+      dispatchesCreated: 0,
       errors: [] as any[]
     };
 
-    // Process orders SEQUENTIALLY with longer delays to avoid resource limits
-    for (const order of activeOrders || []) {
-      try {
-        console.log(`🔍 Tracking order ${order.order_number} - ${order.courier} - ${order.tracking_id}`);
-        
-        // Call the courier-tracking function with timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout per order
-        
+    // Process orders in parallel batches for efficiency
+    for (let i = 0; i < (activeOrders?.length || 0); i += PARALLEL_BATCH_SIZE) {
+      const batch = activeOrders!.slice(i, i + PARALLEL_BATCH_SIZE);
+      
+      const batchPromises = batch.map(async (order) => {
         try {
-          const { data: trackingData, error: trackingError } = await supabase.functions.invoke(
-            'courier-tracking',
-            {
-              body: {
-                trackingId: order.tracking_id,
-                courierCode: order.courier
-              }
-            }
-          );
+          console.log(`🔍 Tracking order ${order.order_number} - ${order.courier} - ${order.tracking_id}`);
           
-          clearTimeout(timeoutId);
-
-          if (trackingError) {
-            console.error(`Failed to track ${order.tracking_id}:`, trackingError);
-            results.failed++;
-            results.errors.push({
-              order_id: order.id,
-              order_number: order.order_number,
-              tracking_id: order.tracking_id,
-              error: trackingError.message
-            });
-            continue;
-          }
-
-          if (trackingData?.success && trackingData?.tracking) {
-            const tracking = trackingData.tracking;
+          // First check if dispatch exists, create if missing
+          const { data: existingDispatch } = await supabase
+            .from('dispatches')
+            .select('id, courier_id')
+            .eq('order_id', order.id)
+            .maybeSingle();
+          
+          let dispatchId = existingDispatch?.id;
+          let courierId = existingDispatch?.courier_id;
+          
+          // Auto-create missing dispatch record
+          if (!existingDispatch) {
+            console.log(`📝 Creating missing dispatch for order ${order.order_number}`);
             
-            // Update order status based on tracking status
-            if (tracking.status === 'delivered') {
-              await supabase
-                .from('orders')
-                .update({
-                  status: 'delivered',
-                  delivered_at: new Date().toISOString()
-                })
-                .eq('id', order.id);
+            // Get courier_id from couriers table
+            const { data: courierData } = await supabase
+              .from('couriers')
+              .select('id')
+              .eq('code', order.courier)
+              .maybeSingle();
+            
+            courierId = courierData?.id;
+            
+            const { data: newDispatch, error: createError } = await supabase
+              .from('dispatches')
+              .insert({
+                order_id: order.id,
+                tracking_id: order.tracking_id,
+                courier: order.courier || 'unknown',
+                courier_id: courierId,
+                dispatch_date: order.booked_at || order.created_at,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .select('id')
+              .single();
+            
+            if (createError) {
+              console.error(`Failed to create dispatch for ${order.order_number}:`, createError);
+            } else {
+              dispatchId = newDispatch?.id;
+              results.dispatchesCreated++;
+              console.log(`✅ Created dispatch ${dispatchId} for order ${order.order_number}`);
+            }
+          }
+          
+          // Now track the order
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+          
+          try {
+            const { data: trackingData, error: trackingError } = await supabase.functions.invoke(
+              'courier-tracking',
+              {
+                body: {
+                  trackingId: order.tracking_id,
+                  courierCode: order.courier
+                }
+              }
+            );
+            
+            clearTimeout(timeoutId);
+
+            if (trackingError) {
+              console.error(`Failed to track ${order.tracking_id}:`, trackingError);
+              results.failed++;
+              results.errors.push({
+                order_id: order.id,
+                order_number: order.order_number,
+                tracking_id: order.tracking_id,
+                error: trackingError.message
+              });
+              return;
+            }
+
+            if (trackingData?.success && trackingData?.tracking) {
+              const tracking = trackingData.tracking;
               
-              results.delivered++;
-              results.updated++;
-              console.log(`✅ Order ${order.order_number} marked as DELIVERED`);
+              // Update dispatch last_tracking_update
+              if (dispatchId) {
+                await supabase
+                  .from('dispatches')
+                  .update({ last_tracking_update: new Date().toISOString() })
+                  .eq('id', dispatchId);
+              }
               
-            } else if (tracking.status === 'returned') {
-              await supabase
-                .from('orders')
-                .update({
-                  status: 'returned',
-                  returned_at: new Date().toISOString()
-                })
-                .eq('id', order.id);
-              
-              results.returned++;
-              results.updated++;
-              console.log(`↩️ Order ${order.order_number} marked as RETURNED`);
-              
+              // Update order status based on tracking status
+              if (tracking.status === 'delivered') {
+                await supabase
+                  .from('orders')
+                  .update({
+                    status: 'delivered',
+                    delivered_at: new Date().toISOString()
+                  })
+                  .eq('id', order.id);
+                
+                results.delivered++;
+                results.updated++;
+                console.log(`✅ Order ${order.order_number} marked as DELIVERED`);
+                
+              } else if (tracking.status === 'returned') {
+                await supabase
+                  .from('orders')
+                  .update({
+                    status: 'returned',
+                    returned_at: new Date().toISOString()
+                  })
+                  .eq('id', order.id);
+                
+                results.returned++;
+                results.updated++;
+                console.log(`↩️ Order ${order.order_number} marked as RETURNED`);
+                
+              } else {
+                results.noChange++;
+                console.log(`⏭️ Order ${order.order_number}: ${tracking.status} (no status change needed)`);
+              }
             } else {
               results.noChange++;
-              console.log(`⏭️ Order ${order.order_number}: ${tracking.status} (no status change needed)`);
             }
-          } else {
-            results.noChange++;
+          } catch (invokeError: any) {
+            clearTimeout(timeoutId);
+            if (invokeError.name === 'AbortError') {
+              console.error(`Timeout tracking ${order.tracking_id}`);
+              results.failed++;
+              results.errors.push({
+                order_id: order.id,
+                order_number: order.order_number,
+                tracking_id: order.tracking_id,
+                error: 'Tracking request timed out'
+              });
+            } else {
+              throw invokeError;
+            }
           }
-        } catch (invokeError: any) {
-          clearTimeout(timeoutId);
-          if (invokeError.name === 'AbortError') {
-            console.error(`Timeout tracking ${order.tracking_id}`);
-            results.failed++;
-            results.errors.push({
-              order_id: order.id,
-              order_number: order.order_number,
-              tracking_id: order.tracking_id,
-              error: 'Tracking request timed out'
-            });
-          } else {
-            throw invokeError;
-          }
+          
+        } catch (error: any) {
+          console.error(`Error processing order ${order.order_number}:`, error);
+          results.failed++;
+          results.errors.push({
+            order_id: order.id,
+            order_number: order.order_number,
+            tracking_id: order.tracking_id,
+            error: error.message
+          });
         }
-        
-        // Longer delay between requests to reduce resource pressure
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-      } catch (error: any) {
-        console.error(`Error processing order ${order.order_number}:`, error);
-        results.failed++;
-        results.errors.push({
-          order_id: order.id,
-          order_number: order.order_number,
-          tracking_id: order.tracking_id,
-          error: error.message
-        });
+      });
+      
+      // Wait for parallel batch to complete
+      await Promise.all(batchPromises);
+      
+      // Small delay between parallel batches to avoid overwhelming APIs
+      if (i + PARALLEL_BATCH_SIZE < (activeOrders?.length || 0)) {
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
     }
 

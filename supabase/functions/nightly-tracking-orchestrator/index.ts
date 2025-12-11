@@ -6,12 +6,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// INCREASED: Process more orders per invocation
-const BATCH_SIZE = 50; // Was 20
-const BATCH_DELAY_MS = 300; // Was 500ms, reduced for faster processing
-const MAX_BATCHES_PER_INVOCATION = 10; // Was 3 - now processes 500 orders per call
-const MAX_RUNTIME_MS = 50 * 1000; // 50 seconds max runtime
-const STALE_JOB_HOURS = 2;
+// Optimized settings for faster processing
+const BATCH_SIZE = 50;
+const BATCH_DELAY_MS = 200;
+const MAX_BATCHES_PER_INVOCATION = 15; // Process 750 orders per call
+const MAX_RUNTIME_MS = 55 * 1000; // 55 seconds max runtime
+const STALE_JOB_HOURS = 1; // Reduced from 2 hours
 
 // Self-continuation function
 async function continueProcessing(supabaseUrl: string, anonKey: string) {
@@ -51,22 +51,19 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Step 1: Clean up stale jobs (stuck for 2+ hours)
+    // Step 1: Clean up stale jobs (stuck for 1+ hour)
     const staleThreshold = new Date(Date.now() - STALE_JOB_HOURS * 60 * 60 * 1000).toISOString();
     await supabase
       .from('tracking_update_jobs')
       .update({ 
         status: 'failed', 
-        error_message: 'Job timed out after 2 hours',
+        error_message: 'Job timed out',
         completed_at: new Date().toISOString()
       })
       .eq('status', 'running')
       .lt('started_at', staleThreshold);
 
-    // Step 2: Check for incomplete job from today (resume capability)
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    
+    // Step 2: Check for incomplete job (resume capability)
     let job: any = null;
     let resuming = false;
     
@@ -75,10 +72,9 @@ serve(async (req) => {
         .from('tracking_update_jobs')
         .select('*')
         .eq('status', 'running')
-        .gte('started_at', todayStart.toISOString())
         .order('started_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
       
       if (incompleteJob) {
         job = incompleteJob;
@@ -132,7 +128,7 @@ serve(async (req) => {
       job = newJob;
       console.log(`📝 Created new job ${job.id}`);
     } else {
-      // Update total orders count in case it changed
+      // Update total orders count
       await supabase
         .from('tracking_update_jobs')
         .update({ total_orders: totalOrders })
@@ -161,14 +157,13 @@ serve(async (req) => {
             delivered_count: deliveredCount,
             returned_count: returnedCount,
             failed_count: failedCount,
-            no_change_count: noChangeCount,
-            error_message: `Paused at offset ${offset} due to timeout, will resume next run`
+            no_change_count: noChangeCount
           })
           .eq('id', job.id);
 
-        // Self-continue in background if triggered by cron/scheduled
+        // Self-continue in background
         if (trigger === 'scheduled' || trigger === 'self-continuation') {
-          // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+          // @ts-ignore
           EdgeRuntime.waitUntil(continueProcessing(supabaseUrl, supabaseAnonKey));
         }
 
@@ -195,7 +190,6 @@ serve(async (req) => {
       console.log(`📦 Processing batch ${batchesProcessed + 1}/${MAX_BATCHES_PER_INVOCATION} at offset ${offset}...`);
 
       try {
-        // Call nightly-tracking-update function
         const { data: batchResult, error: batchError } = await supabase.functions.invoke(
           'nightly-tracking-update',
           {
@@ -226,9 +220,9 @@ serve(async (req) => {
           offset += BATCH_SIZE;
           batchesProcessed++;
 
-          console.log(`✅ Batch complete: delivered=${results.delivered}, returned=${results.returned}, failed=${results.failed}, hasMore=${hasMore}`);
+          console.log(`✅ Batch complete: delivered=${results.delivered}, returned=${results.returned}, dispatchesCreated=${results.dispatchesCreated || 0}`);
 
-          // Update progress in database every batch
+          // Update progress every batch
           await supabase
             .from('tracking_update_jobs')
             .update({
@@ -240,7 +234,7 @@ serve(async (req) => {
             })
             .eq('id', job.id);
         } else {
-          console.warn(`Invalid batch result at offset ${offset}:`, batchResult);
+          console.warn(`Invalid batch result at offset ${offset}`);
           offset += BATCH_SIZE;
           hasMore = offset < totalOrders;
           batchesProcessed++;
@@ -254,13 +248,13 @@ serve(async (req) => {
         batchesProcessed++;
       }
 
-      // Delay between batches to avoid rate limits
+      // Short delay between batches
       if (hasMore && batchesProcessed < MAX_BATCHES_PER_INVOCATION) {
         await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
       }
     }
 
-    // Save progress after processing batches
+    // Save progress
     await supabase
       .from('tracking_update_jobs')
       .update({
@@ -272,20 +266,19 @@ serve(async (req) => {
       })
       .eq('id', job.id);
 
-    // Check if there's more to process
+    // Check if more to process
     if (hasMore) {
       console.log(`📤 Batch limit reached at offset ${offset}, ${totalOrders - offset} orders remaining...`);
       
-      // Self-continue in background if triggered by cron/scheduled
       if (trigger === 'scheduled' || trigger === 'self-continuation') {
-        // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+        // @ts-ignore
         EdgeRuntime.waitUntil(continueProcessing(supabaseUrl, supabaseAnonKey));
       }
       
       return new Response(
         JSON.stringify({
           success: true,
-          message: `Processed ${batchesProcessed} batches (${offset} orders), self-continuing for remaining ${totalOrders - offset}...`,
+          message: `Processed ${batchesProcessed} batches (${offset} orders), self-continuing...`,
           job_id: job.id,
           totalOrders,
           hasMore: true,
@@ -302,7 +295,7 @@ serve(async (req) => {
       );
     }
 
-    // Step 6: Mark job as complete (only if no more to process)
+    // Mark job complete
     await supabase
       .from('tracking_update_jobs')
       .update({
@@ -313,7 +306,7 @@ serve(async (req) => {
       .eq('id', job.id);
 
     const totalTime = Math.round((Date.now() - startTime) / 1000);
-    console.log(`🎉 Job completed in ${totalTime}s: delivered=${deliveredCount}, returned=${returnedCount}, failed=${failedCount}`);
+    console.log(`🎉 Job completed in ${totalTime}s: delivered=${deliveredCount}, returned=${returnedCount}`);
 
     return new Response(
       JSON.stringify({
