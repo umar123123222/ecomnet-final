@@ -184,8 +184,8 @@ export function PackagingAdjustmentDialog({
     }
   }, [adjustmentType, setValue]);
 
-  // Image is required for all adjustments
-  const isImageRequired = true;
+  // Image is only required when reason is NOT stock_adjustment
+  const isImageRequired = selectedReason !== 'stock_adjustment';
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -411,7 +411,10 @@ export function PackagingAdjustmentDialog({
             </div>
 
             <div className="space-y-2">
-              <Label>Proof Image *</Label>
+              <Label>
+                Proof Image {isImageRequired && <span className="text-destructive">*</span>}
+                {!isImageRequired && <span className="text-muted-foreground text-xs ml-1">(Optional)</span>}
+              </Label>
               {imagePreview ? (
                 <div className="relative inline-block">
                   <img
@@ -445,7 +448,7 @@ export function PackagingAdjustmentDialog({
                 className="hidden"
                 onChange={handleImageChange}
               />
-              {!proofImage && (
+              {!proofImage && isImageRequired && (
                 <p className="text-xs text-muted-foreground">Required</p>
               )}
             </div>
