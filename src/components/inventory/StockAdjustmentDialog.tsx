@@ -152,8 +152,8 @@ export function StockAdjustmentDialog({
   };
   const filteredReasonOptions = getReasonOptions();
 
-  // Image is required for all adjustments
-  const isImageRequired = true;
+  // Image is optional for all adjustments
+  const isImageRequired = false;
 
   // Fetch current stock for selected product and outlet
   const { data: currentInventory, isLoading: isLoadingInventory } = useQuery({
@@ -210,11 +210,6 @@ export function StockAdjustmentDialog({
   };
 
   const onSubmit = async (data: AdjustmentFormData) => {
-    // Validate image for store managers (all reasons require proof)
-    if (isImageRequired && !imageFile) {
-      setImageError("Image proof is required");
-      return;
-    }
 
     // Show confirmation for large adjustments
     if (isLargeAdjustment && !showConfirmation) {
@@ -516,11 +511,9 @@ export function StockAdjustmentDialog({
                   )}
                 </div>
 
-                {/* Image Upload - required for all adjustments */}
+                {/* Image Upload - optional */}
                 <div className="space-y-2">
-                    <Label>
-                      Proof Image <span className="text-destructive">*</span>
-                    </Label>
+                    <Label>Proof Image (Optional)</Label>
                     {!imagePreview ? (
                       <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4">
                         <label className="flex flex-col items-center justify-center cursor-pointer">
@@ -529,7 +522,7 @@ export function StockAdjustmentDialog({
                             Click to upload image
                           </span>
                           <span className="text-xs text-muted-foreground mt-1">
-                            Required (max 5MB)
+                            Max 5MB
                           </span>
                           <input
                             type="file"
@@ -556,9 +549,6 @@ export function StockAdjustmentDialog({
                           <X className="h-4 w-4" />
                         </Button>
                       </div>
-                    )}
-                    {imageError && (
-                      <p className="text-sm text-destructive">{imageError}</p>
                     )}
                   </div>
               </div>
