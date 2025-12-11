@@ -184,8 +184,8 @@ export function PackagingAdjustmentDialog({
     }
   }, [adjustmentType, setValue]);
 
-  // Image is optional for all adjustments
-  const isImageRequired = false;
+  // Image is required for all adjustments
+  const isImageRequired = true;
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -220,6 +220,14 @@ export function PackagingAdjustmentDialog({
   };
 
   const onSubmit = async (data: PackagingAdjustmentFormData) => {
+    if (isImageRequired && !proofImage) {
+      toast({
+        title: "Image Required",
+        description: "Please upload proof image",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -403,7 +411,7 @@ export function PackagingAdjustmentDialog({
             </div>
 
             <div className="space-y-2">
-              <Label>Proof Image (Optional)</Label>
+              <Label>Proof Image *</Label>
               {imagePreview ? (
                 <div className="relative inline-block">
                   <img
@@ -437,6 +445,9 @@ export function PackagingAdjustmentDialog({
                 className="hidden"
                 onChange={handleImageChange}
               />
+              {!proofImage && (
+                <p className="text-xs text-muted-foreground">Required</p>
+              )}
             </div>
           </div>
 
