@@ -182,6 +182,14 @@ const App = () => {
                 <Route path="/auth" element={<Suspense fallback={<PageLoader />}>
                       <AuthPage />
                     </Suspense>} />
+                {/* Supplier Portal - standalone layout (no sidebar) */}
+                <Route path="/supplier-portal" element={
+                  <ProtectedRoute>
+                    <Suspense fallback={<PageLoader />}>
+                      <SupplierPortal />
+                    </Suspense>
+                  </ProtectedRoute>
+                } />
                 <Route path="/" element={<ProtectedRoute>
                     <Layout />
                   </ProtectedRoute>}>
@@ -241,9 +249,6 @@ const App = () => {
                     </Suspense>} />
                   <Route path="suppliers" element={<Suspense fallback={<PageLoader />}>
                       <SupplierManagement />
-                    </Suspense>} />
-                  <Route path="supplier-portal" element={<Suspense fallback={<PageLoader />}>
-                      <SupplierPortal />
                     </Suspense>} />
                   <Route path="supplier-analytics" element={<Suspense fallback={<PageLoader />}>
                       <SupplierAnalyticsDashboard />

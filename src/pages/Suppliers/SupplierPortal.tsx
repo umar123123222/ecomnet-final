@@ -2,14 +2,16 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Bell, FileText, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Package, Bell, FileText, BarChart3, Loader2, LogOut, Building2 } from "lucide-react";
 import { AssignedInventory } from "@/components/suppliers/AssignedInventory";
 import { LowStockNotifications } from "@/components/suppliers/LowStockNotifications";
 import { SupplierPurchaseOrders } from "@/components/suppliers/SupplierPurchaseOrders";
+import { SupplierPerformance } from "@/components/suppliers/SupplierPerformance";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function SupplierPortal() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
 
   const { data: supplierProfile, isLoading: isLoadingProfile } = useQuery({
     queryKey: ["supplier-profile", user?.id],
@@ -39,7 +41,7 @@ export default function SupplierPortal() {
       
       if (assignError) throw assignError;
 
-      // Get low stock alerts count
+      // Get pending low stock alerts count
       const { data: alerts, error: alertError } = await supabase
         .from("low_stock_notifications")
         .select("id")
@@ -48,19 +50,32 @@ export default function SupplierPortal() {
 
       if (alertError) throw alertError;
 
-      // Get pending POs count
-      const { data: pos, error: poError } = await supabase
+      // Get pending POs count (awaiting confirmation)
+      const { data: pendingPOs, error: poError } = await supabase
+        .from("purchase_orders")
+        .select("id, supplier_confirmed")
+        .eq("supplier_id", supplierProfile.supplier_id)
+        .eq("status", "pending")
+        .is("supplier_confirmed", null);
+
+      if (poError) throw poError;
+
+      // Get confirmed but not shipped POs
+      const { data: toShipPOs, error: shipError } = await supabase
         .from("purchase_orders")
         .select("id")
         .eq("supplier_id", supplierProfile.supplier_id)
-        .in("status", ["draft", "pending"]);
+        .eq("supplier_confirmed", true)
+        .is("shipped_at", null)
+        .neq("status", "cancelled");
 
-      if (poError) throw poError;
+      if (shipError) throw shipError;
 
       return {
         assignedItems: assignments?.length || 0,
         lowStockAlerts: alerts?.length || 0,
-        pendingPOs: pos?.length || 0,
+        pendingPOs: pendingPOs?.length || 0,
+        toShipPOs: toShipPOs?.length || 0,
       };
     },
     enabled: !!supplierProfile?.supplier_id,
@@ -69,8 +84,11 @@ export default function SupplierPortal() {
   // Show loading state
   if (isLoadingProfile) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading portal...</p>
+        </div>
       </div>
     );
   }
@@ -78,86 +96,158 @@ export default function SupplierPortal() {
   // Show error if no supplier profile found
   if (!supplierProfile) {
     return (
-      <div className="container mx-auto p-6">
-        <Card className="p-6 text-center">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
+        <Card className="p-8 text-center max-w-md">
           <h2 className="text-xl font-semibold text-destructive mb-2">Access Denied</h2>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground mb-4">
             No supplier profile found for your account. Please contact an administrator.
           </p>
+          <Button variant="outline" onClick={() => signOut()}>
+            <LogOut className="mr-2 h-4 w-4" />
+            Sign Out
+          </Button>
         </Card>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <header>
-        <h1 className="text-3xl font-bold">Supplier Portal</h1>
-        <p className="text-muted-foreground">
-          Welcome, {supplierProfile.supplier?.name}
-        </p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
+      {/* Header */}
+      <header className="bg-background/80 backdrop-blur-sm border-b sticky top-0 z-50">
+        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Building2 className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">Supplier Portal</h1>
+              <p className="text-sm text-muted-foreground">{supplierProfile.supplier?.name}</p>
+            </div>
+          </div>
+          <Button variant="outline" onClick={() => signOut()}>
+            <LogOut className="mr-2 h-4 w-4" />
+            Sign Out
+          </Button>
+        </div>
       </header>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="p-6">
-          <div className="flex items-center gap-2">
-            <Package className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-sm text-muted-foreground">Assigned Items</p>
-              <p className="text-2xl font-bold">{stats?.assignedItems || 0}</p>
+      <main className="container mx-auto p-6 space-y-6">
+        {/* Summary Cards */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card className="p-6 bg-background/80 backdrop-blur-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-primary/10 rounded-lg">
+                <Package className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Assigned Items</p>
+                <p className="text-3xl font-bold">{stats?.assignedItems || 0}</p>
+              </div>
             </div>
-          </div>
-        </Card>
-        <Card className="p-6">
-          <div className="flex items-center gap-2">
-            <Bell className="h-5 w-5 text-warning" />
-            <div>
-              <p className="text-sm text-muted-foreground">Low Stock Alerts</p>
-              <p className="text-2xl font-bold">{stats?.lowStockAlerts || 0}</p>
+          </Card>
+
+          <Card className="p-6 bg-background/80 backdrop-blur-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-yellow-500/10 rounded-lg">
+                <Bell className="h-6 w-6 text-yellow-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Pending Alerts</p>
+                <p className="text-3xl font-bold text-yellow-600">{stats?.lowStockAlerts || 0}</p>
+              </div>
             </div>
-          </div>
-        </Card>
-        <Card className="p-6">
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-sm text-muted-foreground">Pending POs</p>
-              <p className="text-2xl font-bold">{stats?.pendingPOs || 0}</p>
+          </Card>
+
+          <Card className="p-6 bg-background/80 backdrop-blur-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-orange-500/10 rounded-lg">
+                <FileText className="h-6 w-6 text-orange-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">POs to Review</p>
+                <p className="text-3xl font-bold text-orange-600">{stats?.pendingPOs || 0}</p>
+              </div>
             </div>
-          </div>
+          </Card>
+
+          <Card className="p-6 bg-background/80 backdrop-blur-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-blue-500/10 rounded-lg">
+                <Package className="h-6 w-6 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Ready to Ship</p>
+                <p className="text-3xl font-bold text-blue-600">{stats?.toShipPOs || 0}</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Main Content Tabs */}
+        <Card className="bg-background/80 backdrop-blur-sm">
+          <Tabs defaultValue="orders" className="w-full">
+            <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent">
+              <TabsTrigger 
+                value="orders" 
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-4"
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                Purchase Orders
+                {(stats?.pendingPOs || 0) > 0 && (
+                  <span className="ml-2 bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">
+                    {stats?.pendingPOs}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="notifications"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-4"
+              >
+                <Bell className="mr-2 h-4 w-4" />
+                Stock Alerts
+                {(stats?.lowStockAlerts || 0) > 0 && (
+                  <span className="ml-2 bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">
+                    {stats?.lowStockAlerts}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="inventory"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-4"
+              >
+                <Package className="mr-2 h-4 w-4" />
+                Inventory
+              </TabsTrigger>
+              <TabsTrigger 
+                value="performance"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-4"
+              >
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Performance
+              </TabsTrigger>
+            </TabsList>
+
+            <div className="p-6">
+              <TabsContent value="orders" className="m-0">
+                <SupplierPurchaseOrders supplierId={supplierProfile.supplier_id} />
+              </TabsContent>
+
+              <TabsContent value="notifications" className="m-0">
+                <LowStockNotifications supplierId={supplierProfile.supplier_id} />
+              </TabsContent>
+
+              <TabsContent value="inventory" className="m-0">
+                <AssignedInventory supplierId={supplierProfile.supplier_id} />
+              </TabsContent>
+
+              <TabsContent value="performance" className="m-0">
+                <SupplierPerformance supplierId={supplierProfile.supplier_id} />
+              </TabsContent>
+            </div>
+          </Tabs>
         </Card>
-      </div>
-
-      {/* Tabs */}
-      <Tabs defaultValue="inventory" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="inventory">
-            <Package className="mr-2 h-4 w-4" />
-            Inventory
-          </TabsTrigger>
-          <TabsTrigger value="notifications">
-            <Bell className="mr-2 h-4 w-4" />
-            Notifications
-          </TabsTrigger>
-          <TabsTrigger value="orders">
-            <FileText className="mr-2 h-4 w-4" />
-            Purchase Orders
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="inventory">
-          <AssignedInventory supplierId={supplierProfile.supplier_id} />
-        </TabsContent>
-
-        <TabsContent value="notifications">
-          <LowStockNotifications supplierId={supplierProfile.supplier_id} />
-        </TabsContent>
-
-        <TabsContent value="orders">
-          <SupplierPurchaseOrders supplierId={supplierProfile.supplier_id} />
-        </TabsContent>
-      </Tabs>
+      </main>
     </div>
   );
 }
