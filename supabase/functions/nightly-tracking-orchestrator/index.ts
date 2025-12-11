@@ -6,11 +6,30 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const BATCH_SIZE = 20;
-const BATCH_DELAY_MS = 500; // 500ms between batches
-const MAX_BATCHES_PER_INVOCATION = 3; // Process max 3 batches per call (60 orders)
-const MAX_RUNTIME_MS = 45 * 1000; // 45 seconds max runtime (edge function limit is ~60s)
-const STALE_JOB_HOURS = 2; // Mark jobs as failed if stuck for 2+ hours
+// INCREASED: Process more orders per invocation
+const BATCH_SIZE = 50; // Was 20
+const BATCH_DELAY_MS = 300; // Was 500ms, reduced for faster processing
+const MAX_BATCHES_PER_INVOCATION = 10; // Was 3 - now processes 500 orders per call
+const MAX_RUNTIME_MS = 50 * 1000; // 50 seconds max runtime
+const STALE_JOB_HOURS = 2;
+
+// Self-continuation function
+async function continueProcessing(supabaseUrl: string, anonKey: string) {
+  try {
+    console.log('🔄 Self-continuing to process more orders...');
+    const response = await fetch(`${supabaseUrl}/functions/v1/nightly-tracking-orchestrator`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${anonKey}`,
+      },
+      body: JSON.stringify({ trigger: 'self-continuation' }),
+    });
+    console.log(`✅ Self-continuation triggered, status: ${response.status}`);
+  } catch (error) {
+    console.error('❌ Self-continuation failed:', error);
+  }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -24,12 +43,13 @@ serve(async (req) => {
     const trigger = body.trigger || 'scheduled';
     const forceNewJob = body.forceNew || false;
     
-    console.log(`🚀 Nightly tracking orchestrator started (trigger: ${trigger})`);
+    console.log(`🚀 Nightly tracking orchestrator started (trigger: ${trigger}, batch_size: ${BATCH_SIZE}, max_batches: ${MAX_BATCHES_PER_INVOCATION})`);
     
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Step 1: Clean up stale jobs (stuck for 2+ hours)
     const staleThreshold = new Date(Date.now() - STALE_JOB_HOURS * 60 * 60 * 1000).toISOString();
@@ -146,10 +166,16 @@ serve(async (req) => {
           })
           .eq('id', job.id);
 
+        // Self-continue in background if triggered by cron/scheduled
+        if (trigger === 'scheduled' || trigger === 'self-continuation') {
+          // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+          EdgeRuntime.waitUntil(continueProcessing(supabaseUrl, supabaseAnonKey));
+        }
+
         return new Response(
           JSON.stringify({
             success: true,
-            message: `Processed ${batchesProcessed} batches, paused for next invocation`,
+            message: `Processed ${batchesProcessed} batches, self-continuing...`,
             job_id: job.id,
             totalOrders,
             hasMore: true,
@@ -166,7 +192,7 @@ serve(async (req) => {
         );
       }
 
-      console.log(`📦 Processing batch at offset ${offset}...`);
+      console.log(`📦 Processing batch ${batchesProcessed + 1}/${MAX_BATCHES_PER_INVOCATION} at offset ${offset}...`);
 
       try {
         // Call nightly-tracking-update function
@@ -183,9 +209,10 @@ serve(async (req) => {
 
         if (batchError) {
           console.error(`Batch error at offset ${offset}:`, batchError);
-          failedCount += BATCH_SIZE; // Assume all failed in this batch
+          failedCount += BATCH_SIZE;
           offset += BATCH_SIZE;
-          continue; // Don't stop, continue with next batch
+          batchesProcessed++;
+          continue;
         }
 
         if (batchResult?.success && batchResult?.results) {
@@ -213,10 +240,10 @@ serve(async (req) => {
             })
             .eq('id', job.id);
         } else {
-          // No valid result, but don't stop
           console.warn(`Invalid batch result at offset ${offset}:`, batchResult);
           offset += BATCH_SIZE;
           hasMore = offset < totalOrders;
+          batchesProcessed++;
         }
 
       } catch (error: any) {
@@ -224,7 +251,7 @@ serve(async (req) => {
         failedCount += BATCH_SIZE;
         offset += BATCH_SIZE;
         hasMore = offset < totalOrders;
-        // Continue with next batch, don't stop
+        batchesProcessed++;
       }
 
       // Delay between batches to avoid rate limits
@@ -247,12 +274,18 @@ serve(async (req) => {
 
     // Check if there's more to process
     if (hasMore) {
-      console.log(`📤 Batch limit reached at offset ${offset}, returning for next invocation...`);
+      console.log(`📤 Batch limit reached at offset ${offset}, ${totalOrders - offset} orders remaining...`);
+      
+      // Self-continue in background if triggered by cron/scheduled
+      if (trigger === 'scheduled' || trigger === 'self-continuation') {
+        // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+        EdgeRuntime.waitUntil(continueProcessing(supabaseUrl, supabaseAnonKey));
+      }
       
       return new Response(
         JSON.stringify({
           success: true,
-          message: `Processed ${batchesProcessed} batches (${offset} orders), more remaining`,
+          message: `Processed ${batchesProcessed} batches (${offset} orders), self-continuing for remaining ${totalOrders - offset}...`,
           job_id: job.id,
           totalOrders,
           hasMore: true,
