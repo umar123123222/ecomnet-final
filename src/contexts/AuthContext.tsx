@@ -37,7 +37,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const [isSuspended, setIsSuspended] = useState(false);
   const [profileFetchedFor, setProfileFetchedFor] = useState<string | null>(null);
-  const fetchingProfileRef = useRef<string | null>(null); // Track in-flight requests
+  const fetchingPromiseRef = useRef<Promise<boolean> | null>(null);
+  const fetchingUserIdRef = useRef<string | null>(null);
 
   const fetchUserProfile = async (userId: string): Promise<boolean> => {
     // Skip if already fetched for this user
@@ -46,69 +47,72 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
     
-    // Skip if already fetching for this user (prevent duplicate in-flight requests)
-    if (fetchingProfileRef.current === userId) {
-      return false;
+    // If already fetching for this user, return the existing promise (deduplication)
+    if (fetchingUserIdRef.current === userId && fetchingPromiseRef.current) {
+      return fetchingPromiseRef.current;
     }
     
-    fetchingProfileRef.current = userId;
+    // Start new fetch - store promise for deduplication
+    fetchingUserIdRef.current = userId;
     
-    try {
-      // Combined query: fetch profile and role in a single request using PostgreSQL join
-      // Use specific foreign key to avoid ambiguity
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select(`
-          *,
-          user_roles!user_roles_user_id_profiles_fkey!inner(role, is_active)
-        `)
-        .eq('id', userId)
-        .eq('user_roles.is_active', true)
-        .single();
+    const fetchPromise = (async (): Promise<boolean> => {
+      try {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select(`
+            *,
+            user_roles!user_roles_user_id_profiles_fkey!inner(role, is_active)
+          `)
+          .eq('id', userId)
+          .eq('user_roles.is_active', true)
+          .single();
 
-      if (profileError) {
-        console.error('Profile fetch error:', profileError);
+        if (profileError) {
+          console.error('Profile fetch error:', profileError);
+          setProfile(null);
+          setUserRole(null);
+          setProfileFetchedFor(null);
+          setIsLoading(false);
+          return false;
+        }
+        
+        if (profileData) {
+          if (!profileData.is_active) {
+            console.log('User is suspended:', userId);
+            setIsSuspended(true);
+            setProfile(null);
+            setUserRole(null);
+            setUser(null);
+            setSession(null);
+            setProfileFetchedFor(null);
+            await supabase.auth.signOut();
+            setIsLoading(false);
+            return true;
+          }
+          
+          setIsSuspended(false);
+          setProfile(profileData);
+          setProfileFetchedFor(userId);
+          const roleData = Array.isArray(profileData.user_roles) ? profileData.user_roles[0] : profileData.user_roles;
+          setUserRole(roleData?.role || profileData.role);
+        }
+        setIsLoading(false);
+        return false;
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
         setProfile(null);
         setUserRole(null);
         setProfileFetchedFor(null);
         setIsLoading(false);
         return false;
+      } finally {
+        fetchingPromiseRef.current = null;
+        fetchingUserIdRef.current = null;
       }
-      
-      if (profileData) {
-        // Check if user is suspended (is_active = false)
-        if (!profileData.is_active) {
-          console.log('User is suspended:', userId);
-          setIsSuspended(true);
-          setProfile(null);
-          setUserRole(null);
-          setUser(null);
-          setSession(null);
-          setProfileFetchedFor(null);
-          // Sign out the user
-          await supabase.auth.signOut();
-          setIsLoading(false);
-          return true; // Return true = user is suspended
-        }
-        
-        setIsSuspended(false);
-        setProfile(profileData);
-        setProfileFetchedFor(userId);
-        fetchingProfileRef.current = null;
-        // user_roles returns an array, get first element
-        const roleData = Array.isArray(profileData.user_roles) ? profileData.user_roles[0] : profileData.user_roles;
-        setUserRole(roleData?.role || profileData.role);
-      }
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-      setProfile(null);
-      setUserRole(null);
-      setProfileFetchedFor(null);
-      fetchingProfileRef.current = null;
-      setIsLoading(false);
-    }
-    return false; // Return false = user is NOT suspended
+    })();
+    
+    fetchingPromiseRef.current = fetchPromise;
+    return fetchPromise;
   };
 
   useEffect(() => {
