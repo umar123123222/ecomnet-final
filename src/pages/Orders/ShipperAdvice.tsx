@@ -3,13 +3,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Filter, Download, Eye, MessageSquare } from "lucide-react";
+import { Search, Filter, Download, Eye, MessageSquare, RotateCcw, Undo2, Loader2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import TagsNotes from "@/components/TagsNotes";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const ShipperAdvice = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -20,6 +30,14 @@ const ShipperAdvice = () => {
   const [courierFilter, setCourierFilter] = useState<string>('all');
   const [attemptsFilter, setAttemptsFilter] = useState<string>('all');
   const [availableCouriers, setAvailableCouriers] = useState<string[]>([]);
+  const [processingAdvice, setProcessingAdvice] = useState<string | null>(null);
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    type: 'reattempt' | 'return';
+    orderId?: string;
+    isBulk: boolean;
+  }>({ open: false, type: 'reattempt', isBulk: false });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -115,10 +133,20 @@ const ShipperAdvice = () => {
 
         console.log('Step 4 - Orders with pending advice:', ordersWithPendingAdvice.size);
 
-        // Statuses that indicate parcel needs shipper advice (matching actual database values)
+        // Statuses that indicate parcel needs shipper advice (expanded to catch all couriers)
         const needsAdviceStatuses = [
-          'delivery_failed', 
-          'returned'
+          'delivery_failed',   // Leopard
+          'returned',          // All couriers
+          'failed',            // Common alternative
+          'undelivered',       // TCS/PostEx possible
+          'rto',               // Return to Origin
+          'not_delivered',     // Alternative naming
+          'refused',           // Customer refused
+          'RO',                // TCS returned status
+          'delivery_attempt_failed', // Alternative
+          'consignee_refused', // PostEx
+          'address_issue',     // Address problems
+          'customer_not_available', // Customer unavailable
         ];
 
         // Step 5: Filter and format orders
@@ -337,6 +365,104 @@ const ShipperAdvice = () => {
     return 'text-green-600';
   };
 
+  const handleShipperAdvice = async (orderId: string, adviceType: 'reattempt' | 'return') => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    setProcessingAdvice(orderId);
+    try {
+      const { data, error } = await supabase.functions.invoke('shipper-advice', {
+        body: {
+          trackingId: order.trackingId,
+          courierCode: order.courier?.toLowerCase(),
+          adviceType,
+          remarks: `${adviceType === 'reattempt' ? 'Please reattempt delivery' : 'Please return to origin'} - ${order.lastAttemptReason}`
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Advice Submitted",
+        description: `${adviceType === 'reattempt' ? 'Reattempt' : 'Return'} advice sent to ${order.courier} for ${order.orderNumber}`,
+      });
+
+      // Remove from list after successful submission
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+      setSelectedOrders(prev => prev.filter(id => id !== orderId));
+    } catch (error: any) {
+      console.error('Shipper advice error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to submit shipper advice",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingAdvice(null);
+    }
+  };
+
+  const handleBulkAdvice = async (adviceType: 'reattempt' | 'return') => {
+    if (selectedOrders.length === 0) return;
+
+    setBulkProcessing(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const orderId of selectedOrders) {
+      const order = orders.find(o => o.id === orderId);
+      if (!order) continue;
+
+      try {
+        const { error } = await supabase.functions.invoke('shipper-advice', {
+          body: {
+            trackingId: order.trackingId,
+            courierCode: order.courier?.toLowerCase(),
+            adviceType,
+            remarks: `${adviceType === 'reattempt' ? 'Please reattempt delivery' : 'Please return to origin'} - ${order.lastAttemptReason}`
+          }
+        });
+
+        if (error) throw error;
+        successCount++;
+      } catch (error) {
+        console.error(`Failed for order ${order.orderNumber}:`, error);
+        failCount++;
+      }
+    }
+
+    toast({
+      title: "Bulk Advice Complete",
+      description: `${successCount} successful, ${failCount} failed`,
+      variant: failCount > 0 ? "destructive" : "default",
+    });
+
+    // Remove successful orders from list
+    if (successCount > 0) {
+      setOrders(prev => prev.filter(o => !selectedOrders.includes(o.id) || failCount > 0));
+      setSelectedOrders([]);
+    }
+    setBulkProcessing(false);
+  };
+
+  const confirmAdvice = (type: 'reattempt' | 'return', orderId?: string) => {
+    setConfirmDialog({
+      open: true,
+      type,
+      orderId,
+      isBulk: !orderId
+    });
+  };
+
+  const executeConfirmedAdvice = () => {
+    if (confirmDialog.isBulk) {
+      handleBulkAdvice(confirmDialog.type);
+    } else if (confirmDialog.orderId) {
+      handleShipperAdvice(confirmDialog.orderId, confirmDialog.type);
+    }
+    setConfirmDialog({ open: false, type: 'reattempt', isBulk: false });
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -345,10 +471,32 @@ const ShipperAdvice = () => {
           <h1 className="text-3xl font-bold text-foreground">Parcels Waiting for Shipper Advice</h1>
           <p className="text-muted-foreground mt-1">Orders with failed deliveries that need reattempt, return, or reschedule instructions</p>
         </div>
-        <Button variant="outline" disabled={selectedOrders.length === 0} onClick={handleExportSelected}>
-          <Download className="h-4 w-4 mr-2" />
-          Export Selected
-        </Button>
+        <div className="flex gap-2">
+          {selectedOrders.length > 0 && (
+            <>
+              <Button
+                variant="default"
+                onClick={() => confirmAdvice('reattempt')}
+                disabled={bulkProcessing}
+              >
+                {bulkProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-2" />}
+                Bulk Reattempt ({selectedOrders.length})
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => confirmAdvice('return')}
+                disabled={bulkProcessing}
+              >
+                {bulkProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Undo2 className="h-4 w-4 mr-2" />}
+                Bulk Return ({selectedOrders.length})
+              </Button>
+            </>
+          )}
+          <Button variant="outline" disabled={selectedOrders.length === 0} onClick={handleExportSelected}>
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -533,16 +681,39 @@ const ShipperAdvice = () => {
                            </span>
                          </TableCell>
                          <TableCell className="font-medium">₨{order.totalAmount.toLocaleString()}</TableCell>
-                         <TableCell>
-                           <div className="flex gap-2">
-                             <Button variant="outline" size="sm" onClick={() => toggleRowExpansion(order.id)}>
-                               <Eye className="h-3 w-3" />
-                             </Button>
-                             <Button variant="outline" size="sm" onClick={() => handleWhatsApp(order.customerPhone)}>
-                               <MessageSquare className="h-3 w-3" />
-                             </Button>
-                           </div>
-                         </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => confirmAdvice('reattempt', order.id)}
+                                disabled={processingAdvice === order.id}
+                                title="Reattempt Delivery"
+                              >
+                                {processingAdvice === order.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <RotateCcw className="h-3 w-3" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => confirmAdvice('return', order.id)}
+                                disabled={processingAdvice === order.id}
+                                title="Return to Origin"
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Undo2 className="h-3 w-3" />
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => toggleRowExpansion(order.id)} title="View Details">
+                                <Eye className="h-3 w-3" />
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => handleWhatsApp(order.customerPhone)} title="WhatsApp">
+                                <MessageSquare className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </TableCell>
                        </TableRow>
                        {expandedRows.includes(order.id) && (
                          <TableRow>
@@ -579,6 +750,31 @@ const ShipperAdvice = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Confirm {confirmDialog.type === 'reattempt' ? 'Reattempt' : 'Return'} Advice
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDialog.isBulk
+                ? `This will send ${confirmDialog.type} advice to couriers for ${selectedOrders.length} selected order(s). This action cannot be undone.`
+                : `This will send ${confirmDialog.type} advice to the courier. This action cannot be undone.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeConfirmedAdvice}
+              className={confirmDialog.type === 'return' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
+            >
+              {confirmDialog.type === 'reattempt' ? 'Reattempt' : 'Return'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
