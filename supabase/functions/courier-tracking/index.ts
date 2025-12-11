@@ -246,15 +246,53 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
     };
   }
 
-  // Get dispatch and order info
-  const { data: dispatch, error: dispatchError } = await supabaseClient
+  // Get dispatch and order info - with auto-create fallback
+  let { data: dispatch, error: dispatchError } = await supabaseClient
     .from('dispatches')
     .select('id, order_id, courier_id')
     .eq('tracking_id', trackingId)
     .single();
 
-  if (!dispatchError && dispatch) {
-    console.log(`Found dispatch ${dispatch.id} for order ${dispatch.order_id}`);
+  // If no dispatch found, try to auto-create one from order
+  if (dispatchError || !dispatch) {
+    console.log(`No dispatch found for tracking ${trackingId}, checking orders table...`);
+    
+    const { data: order, error: orderError } = await supabaseClient
+      .from('orders')
+      .select('id, courier, booked_at, created_at')
+      .eq('tracking_id', trackingId)
+      .single();
+    
+    if (!orderError && order) {
+      console.log(`Found order ${order.id} with tracking ${trackingId}, auto-creating dispatch record...`);
+      
+      const { data: newDispatch, error: createError } = await supabaseClient
+        .from('dispatches')
+        .insert({
+          order_id: order.id,
+          tracking_id: trackingId,
+          courier: courier.name,
+          courier_id: courier.id,
+          dispatch_date: order.booked_at || order.created_at || new Date().toISOString(),
+          last_tracking_update: new Date().toISOString()
+        })
+        .select('id, order_id, courier_id')
+        .single();
+      
+      if (!createError && newDispatch) {
+        console.log(`Auto-created dispatch ${newDispatch.id} for order ${order.id}`);
+        dispatch = newDispatch;
+        dispatchError = null;
+      } else {
+        console.error('Failed to auto-create dispatch:', createError);
+      }
+    } else {
+      console.warn('No order found with tracking_id:', trackingId);
+    }
+  }
+
+  if (dispatch) {
+    console.log(`Using dispatch ${dispatch.id} for order ${dispatch.order_id}`);
     
     // Use courier.id if dispatch.courier_id is not set
     const courierId = dispatch.courier_id || courier.id;
@@ -269,8 +307,6 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
     // Insert tracking events into courier_tracking_history
     for (const event of trackingData.statusHistory) {
       // Check for duplicates using raw datetime string from the event
-      // This prevents duplicates even if our parsed timestamp changes
-      // Supports all courier formats: TCS (datetime), PostEx (updatedAt), Leopard (Activity_datetime)
       const rawDatetime = event.raw?.datetime || event.raw?.updatedAt || event.raw?.Activity_datetime || 
                           event.raw?.transactionDateTime || '';
       const rawStatus = event.raw?.status || event.raw?.Status || event.raw?.transactionStatusMessage || event.status;
@@ -311,7 +347,7 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
       }
     }
   } else {
-    console.warn('Could not find dispatch for tracking ID:', trackingId, dispatchError);
+    console.warn('Could not find or create dispatch for tracking ID:', trackingId);
   }
   
   return trackingData;
