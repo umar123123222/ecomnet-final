@@ -151,9 +151,8 @@ export function StockAdjustmentDialog({
     return baseReasons;
   };
   const filteredReasonOptions = getReasonOptions();
-
-  // Image is required for all adjustments
-  const isImageRequired = true;
+  // Image is only required when reason is NOT stock_adjustment
+  const isImageRequired = reason !== 'stock_adjustment';
 
   // Fetch current stock for selected product and outlet
   const { data: currentInventory, isLoading: isLoadingInventory } = useQuery({
@@ -516,10 +515,11 @@ export function StockAdjustmentDialog({
                   )}
                 </div>
 
-                {/* Image Upload - required for all adjustments */}
+                {/* Image Upload - required unless reason is stock_adjustment */}
                 <div className="space-y-2">
                     <Label>
-                      Proof Image <span className="text-destructive">*</span>
+                      Proof Image {isImageRequired && <span className="text-destructive">*</span>}
+                      {!isImageRequired && <span className="text-muted-foreground text-xs">(Optional)</span>}
                     </Label>
                     {!imagePreview ? (
                       <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4">
@@ -529,7 +529,7 @@ export function StockAdjustmentDialog({
                             Click to upload image
                           </span>
                           <span className="text-xs text-muted-foreground mt-1">
-                            Required (max 5MB)
+                            {isImageRequired ? 'Required' : 'Optional'} (max 5MB)
                           </span>
                           <input
                             type="file"
