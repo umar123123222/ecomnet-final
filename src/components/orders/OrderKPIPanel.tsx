@@ -25,7 +25,7 @@ export const OrderKPIPanel = ({
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch orders for the selected month
+  // Fetch orders for the selected month - optimized with chunked fetching
   useEffect(() => {
     const fetchOrders = async () => {
       setLoading(true);
@@ -33,17 +33,33 @@ export const OrderKPIPanel = ({
         const now = new Date();
         const monthStart = monthFilter === 'current' ? startOfMonth(now) : startOfMonth(subMonths(now, 1));
         const monthEnd = monthFilter === 'current' ? endOfMonth(now) : endOfMonth(subMonths(now, 1));
-        console.log(`Fetching orders for ${monthFilter} month:`, {
-          start: monthStart.toISOString(),
-          end: monthEnd.toISOString()
-        });
-        const {
-          data,
-          error
-        } = await supabase.from('orders').select('id, total_amount, city, courier, status, created_at').gte('created_at', monthStart.toISOString()).lte('created_at', monthEnd.toISOString()).limit(50000);
-        if (error) throw error;
-        console.log(`Fetched ${data?.length || 0} orders for ${monthFilter} month`);
-        setOrders(data || []);
+        
+        // Use chunked fetching to avoid 1000 row limit
+        const CHUNK_SIZE = 1000;
+        let allOrders: Order[] = [];
+        let offset = 0;
+        let hasMore = true;
+        
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('orders')
+            .select('id, total_amount, city, courier, status, created_at')
+            .gte('created_at', monthStart.toISOString())
+            .lte('created_at', monthEnd.toISOString())
+            .range(offset, offset + CHUNK_SIZE - 1);
+          
+          if (error) throw error;
+          
+          if (data && data.length > 0) {
+            allOrders = [...allOrders, ...data];
+            offset += CHUNK_SIZE;
+            hasMore = data.length === CHUNK_SIZE;
+          } else {
+            hasMore = false;
+          }
+        }
+        
+        setOrders(allOrders);
       } catch (error) {
         console.error('Error fetching KPI orders:', error);
         setOrders([]);

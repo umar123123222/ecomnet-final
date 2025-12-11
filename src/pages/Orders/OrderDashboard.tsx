@@ -476,15 +476,26 @@ const OrderDashboard = () => {
           ...statusCounts
         });
       } else {
-        // Get counts for each status in parallel
-        const [bookedResult, dispatchedResult, deliveredResult, cancelledResult, returnedResult] = await Promise.all([buildBaseCountQuery().eq('status', 'booked'), buildBaseCountQuery().eq('status', 'dispatched'), buildBaseCountQuery().eq('status', 'delivered'), buildBaseCountQuery().eq('status', 'cancelled'), buildBaseCountQuery().eq('status', 'returned')]);
+        // Use single query with RPC or fallback to efficient counting
+        // Fetch status counts in a single query by getting minimal data and counting client-side
+        // This is more efficient than 5 separate HEAD requests
+        const { data: statusCounts } = await supabase
+          .from('orders')
+          .select('status')
+          .in('status', ['booked', 'dispatched', 'delivered', 'cancelled', 'returned']);
+        
+        const counts = (statusCounts || []).reduce((acc, order) => {
+          acc[order.status] = (acc[order.status] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        
         setSummaryData({
           totalOrders: count || 0,
-          booked: bookedResult.count || 0,
-          dispatched: dispatchedResult.count || 0,
-          delivered: deliveredResult.count || 0,
-          cancelled: cancelledResult.count || 0,
-          returns: returnedResult.count || 0
+          booked: counts['booked'] || 0,
+          dispatched: counts['dispatched'] || 0,
+          delivered: counts['delivered'] || 0,
+          cancelled: counts['cancelled'] || 0,
+          returns: counts['returned'] || 0
         });
       }
     } catch (error) {
