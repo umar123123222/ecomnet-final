@@ -38,7 +38,7 @@ export function SmartReorderRecommendations() {
       if (error) throw error;
       return data.recommendations as ReorderRecommendation[];
     },
-    refetchInterval: 60000,
+    refetchInterval: 300000, // Refresh every 5 minutes (reduced from 1 min)
   });
 
   const createPOMutation = useMutation({

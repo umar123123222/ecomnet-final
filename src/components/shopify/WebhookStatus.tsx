@@ -28,7 +28,7 @@ export const WebhookStatus = () => {
       if (error) throw error;
       return data as WebhookRegistry[];
     },
-    refetchInterval: 60000, // Refetch every minute
+    refetchInterval: 300000, // Refetch every 5 minutes (reduced from 1 min)
   });
 
   if (isLoading) {

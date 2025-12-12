@@ -5783,6 +5783,20 @@ export type Database = {
         Args: { p_end_date?: string; p_start_date?: string }
         Returns: Json
       }
+      get_dispatches_for_tracking: {
+        Args: { p_days_back?: number; p_limit?: number }
+        Returns: {
+          courier: string
+          courier_code: string
+          courier_id: string
+          dispatch_id: string
+          last_tracking_update: string
+          order_id: string
+          order_number: string
+          order_status: Database["public"]["Enums"]["order_status"]
+          tracking_id: string
+        }[]
+      }
       get_order_counts_by_status_optimized: {
         Args: never
         Returns: {
@@ -5879,6 +5893,10 @@ export type Database = {
         Returns: Json
       }
       trigger_smart_reorder_now: { Args: never; Returns: Json }
+      update_dispatch_tracking: {
+        Args: { p_dispatch_id: string; p_location?: string; p_status: string }
+        Returns: undefined
+      }
       upsert_outlet_packaging_inventory: {
         Args: {
           p_outlet_id: string
