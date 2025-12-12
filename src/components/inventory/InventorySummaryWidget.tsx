@@ -29,7 +29,7 @@ export function InventorySummaryWidget() {
       if (error) throw error;
       return data as unknown as Inventory[];
     },
-    refetchInterval: 60000 // Refresh every minute
+    refetchInterval: 300000 // Refresh every 5 minutes (reduced from 1 min)
   });
   const totalItems = inventory?.reduce((sum, item) => sum + item.quantity, 0) || 0;
   const availableItems = inventory?.reduce((sum, item) => sum + (item.available_quantity ?? item.quantity), 0) || 0;

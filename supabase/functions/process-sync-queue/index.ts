@@ -16,17 +16,18 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const batchSize = 25; // Reduced to prevent resource exhaustion
+    const batchSize = 10; // Reduced from 25 to 10 for rate limiting
     let processed = 0;
     let failed = 0;
     const results: any[] = [];
 
     // Priority-based processing: fetch items ordered by priority
+    // Only process items with retry_count < 3 (reduced from 5 to limit retries)
     const { data: queueItems, error: queueError } = await supabase
       .from('sync_queue')
       .select('*')
       .eq('status', 'pending')
-      .lt('retry_count', 5)
+      .lt('retry_count', 3) // Reduced from 5 to 3 - fail faster
       // Process by priority (critical > high > normal > low), then by created_at
       .order('priority', { ascending: false })
       .order('created_at', { ascending: false })
@@ -365,24 +366,41 @@ Deno.serve(async (req) => {
         console.error(`Error processing sync queue item ${item.id}:`, error);
         
         const newRetryCount = item.retry_count + 1;
-        const newStatus = newRetryCount >= 5 ? 'failed' : 'failed'; // Keep as failed for retry
+        const errorMessage = error.message || 'Unknown error';
+        
+        // Check for non-retryable errors (Shopify 406, 404, auth errors)
+        const isNonRetryable = 
+          errorMessage.includes('406') || 
+          errorMessage.includes('404') ||
+          errorMessage.includes('Not Found') ||
+          errorMessage.includes('Unauthorized') ||
+          errorMessage.includes('Forbidden') ||
+          errorMessage.includes('rate limit') ||
+          errorMessage.includes('Missing shopify_order_id');
+        
+        // Mark as permanently failed if:
+        // 1. Non-retryable error, OR
+        // 2. Retry count >= 3 (reduced from 5)
+        const shouldPermanentlyFail = isNonRetryable || newRetryCount >= 3;
+        const finalRetryCount = shouldPermanentlyFail ? 5 : newRetryCount;
 
         // Update with error
         await supabase
           .from('sync_queue')
           .update({ 
-            status: newStatus,
-            retry_count: newRetryCount,
-            error_message: error.message,
+            status: 'failed',
+            retry_count: finalRetryCount,
+            error_message: isNonRetryable ? `[NON-RETRYABLE] ${errorMessage}` : errorMessage,
           })
           .eq('id', item.id);
 
         failed++;
         results.push({ 
           id: item.id, 
-          status: newStatus,
-          error: error.message,
-          retry_count: newRetryCount
+          status: 'failed',
+          error: errorMessage,
+          retry_count: finalRetryCount,
+          permanently_failed: shouldPermanentlyFail
         });
       }
     }

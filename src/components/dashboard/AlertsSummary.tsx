@@ -102,7 +102,7 @@ export const AlertsSummary: React.FC = () => {
 
       return alerts;
     },
-    refetchInterval: 60000, // Refresh every minute
+    refetchInterval: 300000, // Refresh every 5 minutes (reduced from 1 min)
   });
 
   const getIcon = (type: Alert['type']) => {

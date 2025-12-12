@@ -58,7 +58,7 @@ const CourierPerformanceWidget = () => {
         avgDeliveryDays: stat.avgDeliveryTime.length > 0 ? (stat.avgDeliveryTime.reduce((sum: number, days: number) => sum + days, 0) / stat.avgDeliveryTime.length).toFixed(1) : "N/A"
       })).sort((a: any, b: any) => b.total - a.total);
     },
-    refetchInterval: 60000 // Refresh every minute
+    refetchInterval: 300000 // Refresh every 5 minutes (reduced from 1 min)
   });
   return;
 };
