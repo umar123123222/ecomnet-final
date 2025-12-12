@@ -32,26 +32,62 @@ export function AssignedInventory({ supplierId }: AssignedInventoryProps) {
   const { data: inventory, isLoading } = useQuery({
     queryKey: ["supplier-inventory", supplierId],
     queryFn: async () => {
+      // First get the warehouse outlet
+      const { data: warehouseOutlet } = await supabase
+        .from("outlets")
+        .select("id")
+        .eq("outlet_type", "warehouse")
+        .limit(1)
+        .single();
+
+      const warehouseId = warehouseOutlet?.id;
+
       const { data: assignments, error } = await supabase
         .from("supplier_products")
         .select(`
           *,
-          product:products(*, inventory(available_quantity, reorder_level, last_restocked_at, outlet:outlets(name))),
+          product:products(*),
           packaging_item:packaging_items(*)
         `)
         .eq("supplier_id", supplierId);
 
       if (error) throw error;
+
+      // Fetch warehouse inventory for each product
+      if (assignments && warehouseId) {
+        const productIds = assignments
+          .filter((a: any) => a.product_id)
+          .map((a: any) => a.product_id);
+
+        if (productIds.length > 0) {
+          const { data: inventoryData } = await supabase
+            .from("inventory")
+            .select("product_id, quantity, reserved_quantity, available_quantity")
+            .eq("outlet_id", warehouseId)
+            .in("product_id", productIds);
+
+          // Attach inventory to assignments
+          return assignments.map((item: any) => {
+            if (item.product_id && inventoryData) {
+              const inv = inventoryData.find((i: any) => i.product_id === item.product_id);
+              return { ...item, warehouseInventory: inv };
+            }
+            return item;
+          });
+        }
+      }
+
       return assignments;
     },
   });
 
   const getStockStatus = (item: any) => {
     if (item.product) {
-      const inv = item.product.inventory?.[0];
+      const inv = item.warehouseInventory;
       if (!inv) return { label: "No Data", variant: "secondary" as const };
-      if (inv.available_quantity === 0) return { label: "Out of Stock", variant: "destructive" as const };
-      if (inv.available_quantity <= item.product.reorder_level) return { label: "Low Stock", variant: "secondary" as const };
+      const availableQty = inv.available_quantity ?? (inv.quantity - inv.reserved_quantity);
+      if (availableQty === 0) return { label: "Out of Stock", variant: "destructive" as const };
+      if (availableQty <= item.product.reorder_level) return { label: "Low Stock", variant: "secondary" as const };
       return { label: "In Stock", variant: "default" as const };
     } else if (item.packaging_item) {
       const stock = item.packaging_item.current_stock;
@@ -174,8 +210,10 @@ export function AssignedInventory({ supplierId }: AssignedInventoryProps) {
                 const status = getStockStatus(item);
                 const isProduct = !!item.product;
                 const data = isProduct ? item.product : item.packaging_item;
-                const inv = isProduct ? item.product?.inventory?.[0] : null;
-                const currentStock = isProduct ? (inv?.available_quantity || 0) : (data?.current_stock || 0);
+                const inv = isProduct ? item.warehouseInventory : null;
+                const currentStock = isProduct 
+                  ? (inv?.available_quantity ?? (inv ? inv.quantity - inv.reserved_quantity : 0)) 
+                  : (data?.current_stock || 0);
                 const reorderLevel = data?.reorder_level || 0;
 
                 return (
