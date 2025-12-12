@@ -167,17 +167,18 @@ const SupplierManagement = () => {
   // Delete supplier
   const deleteMutation = useMutation({
     mutationFn: async (supplierId: string) => {
-      // Check for existing purchase orders
-      const { data: purchaseOrders, error: poError } = await supabase
+      // Check for existing NON-CANCELLED purchase orders only
+      const { data: activePOs, error: poError } = await supabase
         .from('purchase_orders')
         .select('id')
         .eq('supplier_id', supplierId)
+        .neq('status', 'cancelled')
         .limit(1);
 
       if (poError) throw poError;
       
-      if (purchaseOrders && purchaseOrders.length > 0) {
-        throw new Error('Cannot delete supplier with existing purchase orders. Please reassign or archive the purchase orders first.');
+      if (activePOs && activePOs.length > 0) {
+        throw new Error('Cannot delete supplier with active purchase orders. Please cancel or complete the purchase orders first.');
       }
 
       // Check for existing GRNs
@@ -193,7 +194,14 @@ const SupplierManagement = () => {
         throw new Error('Cannot delete supplier with existing goods received notes. These records must be preserved for audit purposes.');
       }
 
-      // Delete related records first
+      // Auto-cleanup: Delete cancelled purchase orders for this supplier
+      await supabase
+        .from('purchase_orders')
+        .delete()
+        .eq('supplier_id', supplierId)
+        .eq('status', 'cancelled');
+
+      // Delete related records
       await supabase
         .from('supplier_products')
         .delete()
