@@ -25,7 +25,49 @@ Deno.serve(async (req) => {
       errors: [] as string[],
     };
 
-    // 1. Clean up sync_queue - delete old failed/completed entries
+    // 1. EMERGENCY: Mark all failed items as permanently failed (retry_count = 5)
+    try {
+      const { count: markedFailed, error: markError } = await supabase
+        .from('sync_queue')
+        .update({ retry_count: 5 })
+        .eq('status', 'failed')
+        .lt('retry_count', 5)
+        .select('*', { count: 'exact', head: true });
+
+      if (markError) {
+        console.error('Mark failed items error:', markError);
+        results.errors.push(`mark_failed: ${markError.message}`);
+      } else {
+        console.log(`Marked ${markedFailed || 0} failed items as permanently failed`);
+      }
+    } catch (e: any) {
+      results.errors.push(`mark_failed: ${e.message}`);
+    }
+
+    // 2. Delete stale pending order→Shopify syncs (older than 24 hours)
+    try {
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+      const { count: stalePending, error: staleError } = await supabase
+        .from('sync_queue')
+        .delete()
+        .eq('status', 'pending')
+        .eq('direction', 'to_shopify')
+        .lt('created_at', oneDayAgo.toISOString())
+        .select('*', { count: 'exact', head: true });
+
+      if (staleError) {
+        console.error('Delete stale pending error:', staleError);
+        results.errors.push(`stale_pending: ${staleError.message}`);
+      } else {
+        console.log(`Deleted ${stalePending || 0} stale pending items`);
+      }
+    } catch (e: any) {
+      results.errors.push(`stale_pending: ${e.message}`);
+    }
+
+    // 3. Clean up sync_queue - delete old failed/completed entries via RPC
     try {
       const { data: syncCleanup, error: syncError } = await supabase.rpc('cleanup_sync_queue');
       if (syncError) {
@@ -62,16 +104,16 @@ Deno.serve(async (req) => {
       results.errors.push(`notifications: ${e.message}`);
     }
 
-    // 3. Clean up stuck processing items in sync_queue (older than 1 hour)
+    // 5. Clean up stuck processing items in sync_queue (older than 1 hour) - use created_at since sync_queue has no updated_at
     try {
       const oneHourAgo = new Date();
       oneHourAgo.setHours(oneHourAgo.getHours() - 1);
 
       const { error: stuckError } = await supabase
         .from('sync_queue')
-        .update({ status: 'failed', error_message: 'Stuck in processing - auto-failed by cleanup job' })
+        .update({ status: 'failed', error_message: 'Stuck in processing - auto-failed by cleanup job', retry_count: 5 })
         .eq('status', 'processing')
-        .lt('updated_at', oneHourAgo.toISOString());
+        .lt('created_at', oneHourAgo.toISOString());
 
       if (stuckError) {
         console.error('Stuck items cleanup error:', stuckError);
