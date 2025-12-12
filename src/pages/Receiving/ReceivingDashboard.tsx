@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -8,13 +8,13 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Package, AlertTriangle, CheckCircle2, ScanBarcode } from 'lucide-react';
+import { Search, Package, AlertTriangle, CheckCircle2, ScanBarcode, Upload, X, ImageIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 import UnifiedScanner from '@/components/UnifiedScanner';
 import type { ScanResult } from '@/components/UnifiedScanner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface GRN {
   id: string;
@@ -29,6 +29,22 @@ interface GRN {
   purchase_orders: { po_number: string } | null;
 }
 
+interface ReceivingItem {
+  po_item_id: string;
+  product_id: string | null;
+  packaging_item_id: string | null;
+  name: string;
+  sku: string;
+  quantity_expected: number;
+  quantity_received: number;
+  unit_cost: number;
+  batch_number: string;
+  expiry_date: string;
+  notes: string;
+  damage_reason: string;
+  damage_images: string[];
+}
+
 const ReceivingDashboard = () => {
   const { toast } = useToast();
   const { profile } = useAuth();
@@ -36,8 +52,10 @@ const ReceivingDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isReceivingDialogOpen, setIsReceivingDialogOpen] = useState(false);
   const [selectedPO, setSelectedPO] = useState<any>(null);
-  const [receivingItems, setReceivingItems] = useState<any[]>([]);
+  const [receivingItems, setReceivingItems] = useState<ReceivingItem[]>([]);
   const [notes, setNotes] = useState('');
+  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+  const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   
   // Scanner states
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -130,7 +148,7 @@ const ReceivingDashboard = () => {
   // Initialize receiving items when PO items are loaded
   const initializeReceivingItems = () => {
     if (poItems.length > 0 && receivingItems.length === 0) {
-      const items = poItems.map((item: any) => ({
+      const items: ReceivingItem[] = poItems.map((item: any) => ({
         po_item_id: item.id,
         product_id: item.product_id,
         packaging_item_id: item.packaging_item_id,
@@ -141,10 +159,85 @@ const ReceivingDashboard = () => {
         unit_cost: item.unit_cost,
         batch_number: '',
         expiry_date: '',
-        notes: ''
+        notes: '',
+        damage_reason: '',
+        damage_images: []
       }));
       setReceivingItems(items);
     }
+  };
+
+  // Handle image upload for damaged items
+  const handleImageUpload = async (index: number, files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    
+    setUploadingIndex(index);
+    const newImages: string[] = [];
+    
+    try {
+      for (const file of Array.from(files)) {
+        if (file.size > 5 * 1024 * 1024) {
+          toast({
+            title: 'File too large',
+            description: 'Max file size is 5MB',
+            variant: 'destructive'
+          });
+          continue;
+        }
+        
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+        const filePath = `grn-damage-proofs/${fileName}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('grn-damage-proofs')
+          .upload(filePath, file);
+        
+        if (uploadError) {
+          // Try creating the bucket if it doesn't exist
+          if (uploadError.message.includes('not found')) {
+            toast({
+              title: 'Upload Error',
+              description: 'Storage bucket not configured. Contact admin.',
+              variant: 'destructive'
+            });
+            continue;
+          }
+          throw uploadError;
+        }
+        
+        const { data: publicUrl } = supabase.storage
+          .from('grn-damage-proofs')
+          .getPublicUrl(filePath);
+        
+        newImages.push(publicUrl.publicUrl);
+      }
+      
+      if (newImages.length > 0) {
+        const newItems = [...receivingItems];
+        newItems[index].damage_images = [...newItems[index].damage_images, ...newImages];
+        setReceivingItems(newItems);
+        
+        toast({
+          title: 'Images Uploaded',
+          description: `${newImages.length} image(s) uploaded successfully`
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Upload Failed',
+        description: error.message,
+        variant: 'destructive'
+      });
+    } finally {
+      setUploadingIndex(null);
+    }
+  };
+
+  const removeImage = (itemIndex: number, imageIndex: number) => {
+    const newItems = [...receivingItems];
+    newItems[itemIndex].damage_images.splice(imageIndex, 1);
+    setReceivingItems(newItems);
   };
 
   // Update received quantity
@@ -229,11 +322,15 @@ const ReceivingDashboard = () => {
   // Create GRN mutation
   const createGRNMutation = useMutation({
     mutationFn: async () => {
-      // Validate at least one item received
-      const totalReceived = receivingItems.reduce((sum, item) => sum + item.quantity_received, 0);
+      // Validate - items with discrepancy must have notes or damage reason
+      const discrepancyWithoutReason = receivingItems.some(
+        item => item.quantity_received < item.quantity_expected && 
+                !item.damage_reason && 
+                !item.notes
+      );
       
-      if (totalReceived === 0) {
-        throw new Error('Please scan or enter at least one item before completing');
+      if (discrepancyWithoutReason) {
+        throw new Error('Please provide a reason for items with quantity discrepancies');
       }
 
       const { data, error } = await supabase.functions.invoke('process-grn', {
@@ -504,16 +601,12 @@ const ReceivingDashboard = () => {
             {/* Items to Receive */}
             {receivingItems.length > 0 ? (
               <div className="space-y-4">
-                {/* Header with scanning controls */}
+                {/* Header */}
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold">Items to Receive</h3>
                   <div className="flex gap-2">
                     <Badge variant="outline">
                       {receivingItems.length} item(s)
-                    </Badge>
-                    <Badge variant="secondary">
-                      Scanned: {Object.values(scannedItemsCount).reduce((a, b) => a + b, 0)} / 
-                      {receivingItems.reduce((sum, item) => sum + item.quantity_expected, 0)}
                     </Badge>
                     <Button 
                       size="sm" 
@@ -521,133 +614,188 @@ const ReceivingDashboard = () => {
                       onClick={startContinuousScanning}
                     >
                       <ScanBarcode className="h-4 w-4 mr-2" />
-                      Start Scanning
+                      Scan Items
                     </Button>
                   </div>
                 </div>
 
-                {/* Progress bar */}
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Scanning Progress</span>
-                    <span className="text-muted-foreground">
-                      {Object.values(scannedItemsCount).reduce((a, b) => a + b, 0)} / 
-                      {receivingItems.reduce((sum, item) => sum + item.quantity_expected, 0)} items
-                    </span>
-                  </div>
-                  <Progress 
-                    value={
-                      receivingItems.reduce((sum, item) => sum + item.quantity_expected, 0) > 0
-                        ? (Object.values(scannedItemsCount).reduce((a, b) => a + b, 0) / 
-                          receivingItems.reduce((sum, item) => sum + item.quantity_expected, 0)) * 100
-                        : 0
-                    } 
-                  />
-                </div>
-
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-muted">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-sm font-medium">Item</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium">SKU</th>
-                          <th className="px-4 py-3 text-right text-sm font-medium">Expected</th>
-                          <th className="px-4 py-3 text-right text-sm font-medium">Received *</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium">Batch #</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium">Expiry</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium">Notes</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {receivingItems.map((item, index) => {
-                          const hasDiscrepancy = item.quantity_received !== item.quantity_expected;
-                          const isScanned = scannedItemsCount[index] > 0;
-                          return (
-                            <tr 
-                              key={index} 
-                              className={
-                                isScanned 
-                                  ? 'bg-green-50 border-l-4 border-green-500' 
-                                  : hasDiscrepancy 
-                                  ? 'bg-amber-50' 
-                                  : ''
-                              }
+                {/* Items List */}
+                <div className="space-y-3">
+                  {receivingItems.map((item, index) => {
+                    const hasDiscrepancy = item.quantity_received < item.quantity_expected;
+                    const isScanned = scannedItemsCount[index] > 0;
+                    
+                    return (
+                      <Card 
+                        key={index} 
+                        className={
+                          hasDiscrepancy 
+                            ? 'border-amber-300 bg-amber-50/50' 
+                            : isScanned 
+                            ? 'border-green-300 bg-green-50/50'
+                            : ''
+                        }
+                      >
+                        <CardContent className="pt-4 space-y-4">
+                          {/* Item Header */}
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-2">
+                              {hasDiscrepancy && (
+                                <AlertTriangle className="h-5 w-5 text-amber-600" />
+                              )}
+                              {isScanned && !hasDiscrepancy && (
+                                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                              )}
+                              <div>
+                                <p className="font-medium">{item.name}</p>
+                                <p className="text-sm text-muted-foreground">{item.sku}</p>
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => openScannerForItem(index)}
+                              title="Scan barcode"
                             >
-                              <td className="px-4 py-3">
-                                <div className="flex items-center gap-2">
-                                  {hasDiscrepancy && (
-                                    <AlertTriangle className="h-4 w-4 text-amber-600" />
-                                  )}
-                                  <span className="font-medium">{item.name}</span>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-sm text-muted-foreground">
-                                {item.sku}
-                              </td>
-                              <td className="px-4 py-3 text-right font-medium">
-                                {item.quantity_expected}
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="flex items-center gap-2">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    value={item.quantity_received}
-                                    onChange={(e) => updateReceivedQuantity(index, e.target.value)}
-                                    className={hasDiscrepancy ? 'border-amber-500' : ''}
-                                  />
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => openScannerForItem(index)}
-                                    title="Scan barcode"
+                              <ScanBarcode className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          {/* Quantity Row */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Expected</Label>
+                              <div className="font-semibold text-lg">{item.quantity_expected}</div>
+                            </div>
+                            <div>
+                              <Label className="text-xs">Received Qty *</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                value={item.quantity_received}
+                                onChange={(e) => updateReceivedQuantity(index, e.target.value)}
+                                className={hasDiscrepancy ? 'border-amber-500' : ''}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Batch #</Label>
+                              <Input
+                                placeholder="Optional"
+                                value={item.batch_number}
+                                onChange={(e) => updateItemField(index, 'batch_number', e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Expiry Date</Label>
+                              <Input
+                                type="date"
+                                value={item.expiry_date}
+                                onChange={(e) => updateItemField(index, 'expiry_date', e.target.value)}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Discrepancy Section - Only show when quantity is less */}
+                          {hasDiscrepancy && (
+                            <div className="border-t pt-4 space-y-3">
+                              <div className="flex items-center gap-2 text-amber-700">
+                                <AlertTriangle className="h-4 w-4" />
+                                <span className="text-sm font-medium">
+                                  Missing {item.quantity_expected - item.quantity_received} item(s) - Please provide reason
+                                </span>
+                              </div>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <Label className="text-xs">Reason for Discrepancy *</Label>
+                                  <Select
+                                    value={item.damage_reason}
+                                    onValueChange={(value) => updateItemField(index, 'damage_reason', value)}
                                   >
-                                    <ScanBarcode className="h-4 w-4" />
-                                  </Button>
-                                  {isScanned && (
-                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                  )}
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select reason" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="damaged">Damaged Items</SelectItem>
+                                      <SelectItem value="missing">Missing from Shipment</SelectItem>
+                                      <SelectItem value="wrong_item">Wrong Item Received</SelectItem>
+                                      <SelectItem value="defective">Defective/Quality Issue</SelectItem>
+                                      <SelectItem value="short_shipment">Short Shipment</SelectItem>
+                                      <SelectItem value="other">Other</SelectItem>
+                                    </SelectContent>
+                                  </Select>
                                 </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <Input
-                                  placeholder="Batch"
-                                  value={item.batch_number}
-                                  onChange={(e) => updateItemField(index, 'batch_number', e.target.value)}
-                                />
-                              </td>
-                              <td className="px-4 py-3">
-                                <Input
-                                  type="date"
-                                  value={item.expiry_date}
-                                  onChange={(e) => updateItemField(index, 'expiry_date', e.target.value)}
-                                />
-                              </td>
-                              <td className="px-4 py-3">
-                                <Input
-                                  placeholder="Item notes"
-                                  value={item.notes}
-                                  onChange={(e) => updateItemField(index, 'notes', e.target.value)}
-                                />
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                                <div>
+                                  <Label className="text-xs">Notes</Label>
+                                  <Input
+                                    placeholder="Additional details..."
+                                    value={item.notes}
+                                    onChange={(e) => updateItemField(index, 'notes', e.target.value)}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Image Upload for Damage Proof */}
+                              {(item.damage_reason === 'damaged' || item.damage_reason === 'defective' || item.damage_reason === 'wrong_item') && (
+                                <div className="space-y-2">
+                                  <Label className="text-xs">Upload Proof Images</Label>
+                                  <div className="flex flex-wrap gap-2">
+                                    {item.damage_images.map((img, imgIndex) => (
+                                      <div key={imgIndex} className="relative group">
+                                        <img 
+                                          src={img} 
+                                          alt={`Damage proof ${imgIndex + 1}`}
+                                          className="w-16 h-16 object-cover rounded border"
+                                        />
+                                        <button
+                                          onClick={() => removeImage(index, imgIndex)}
+                                          className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                    <button
+                                      onClick={() => fileInputRefs.current[index]?.click()}
+                                      disabled={uploadingIndex === index}
+                                      className="w-16 h-16 border-2 border-dashed rounded flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                                    >
+                                      {uploadingIndex === index ? (
+                                        <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                                      ) : (
+                                        <Upload className="h-5 w-5" />
+                                      )}
+                                    </button>
+                                    <input
+                                      type="file"
+                                      ref={(el) => (fileInputRefs.current[index] = el)}
+                                      accept="image/*"
+                                      multiple
+                                      className="hidden"
+                                      onChange={(e) => handleImageUpload(index, e.target.files)}
+                                    />
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Upload photos as proof of damage/issue (max 5MB each)
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
 
-                {/* Discrepancy Warning */}
-                {receivingItems.some(item => item.quantity_received !== item.quantity_expected) && (
+                {/* Discrepancy Summary Warning */}
+                {receivingItems.some(item => item.quantity_received < item.quantity_expected) && (
                   <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                     <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
                     <div className="flex-1">
                       <h4 className="font-semibold text-amber-900">Quantity Discrepancy Detected</h4>
                       <p className="text-sm text-amber-800 mt-1">
-                        One or more items have different received quantities than expected.
-                        Managers and the supplier will be automatically notified.
+                        Items with quantity differences will be flagged. Managers and the supplier will be automatically notified.
                       </p>
                     </div>
                   </div>
