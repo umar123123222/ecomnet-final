@@ -189,16 +189,25 @@ const PurchaseOrderDashboard = () => {
       const poNumber = generatePONumber();
       const totalAmount = selectedItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
       
+      // Fix: Convert empty string to null for timestamp fields
+      const insertData = {
+        supplier_id: data.supplier_id,
+        outlet_id: data.outlet_id,
+        notes: data.notes || null,
+        expected_delivery_date: data.expected_delivery_date || null,
+        po_number: poNumber,
+        created_by: profile?.id,
+        total_amount: totalAmount,
+        status: 'draft'
+      };
+      
       const { data: poData, error: poError } = await supabase
         .from('purchase_orders')
-        .insert([{
-          ...data,
-          po_number: poNumber,
-          created_by: profile?.id,
-          total_amount: totalAmount,
-          status: 'draft'
-        }])
-        .select()
+        .insert([insertData])
+        .select(`
+          *,
+          suppliers(name, code, email)
+        `)
         .single();
       
       if (poError) throw poError;
@@ -218,12 +227,38 @@ const PurchaseOrderDashboard = () => {
         .insert(poItems);
       
       if (itemsError) throw itemsError;
+
+      // Send email notification to warehouse managers, creator, super managers, and super admins
+      try {
+        await supabase.functions.invoke('send-po-notification', {
+          body: {
+            po_id: poData.id,
+            supplier_email: poData.suppliers?.email || '',
+            supplier_name: poData.suppliers?.name || 'Unknown',
+            po_number: poNumber,
+            total_amount: totalAmount,
+            expected_delivery_date: data.expected_delivery_date || null,
+            items: selectedItems.map(item => ({
+              name: item.name,
+              quantity: item.quantity,
+              unit_price: item.unit_price
+            })),
+            notify_admins: true
+          }
+        });
+        console.log('PO notification emails sent');
+      } catch (emailError) {
+        console.error('Failed to send PO notification emails:', emailError);
+        // Don't throw - PO was created successfully, email is secondary
+      }
+      
+      return poData;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
       toast({
         title: 'Purchase Order Created',
-        description: 'The purchase order has been created successfully.'
+        description: 'The purchase order has been created successfully and notifications sent.'
       });
       setIsDialogOpen(false);
       resetForm();
