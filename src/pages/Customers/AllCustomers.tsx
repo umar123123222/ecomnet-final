@@ -35,6 +35,8 @@ const AllCustomers = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [customerOrders, setCustomerOrders] = useState<any[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
   const [summaryData, setSummaryData] = useState({
     activeCustomers: 0,
     newThisMonth: 0
@@ -44,6 +46,25 @@ const AllCustomers = () => {
   const [pageSize] = useState(50);
   const { toast } = useToast();
   const { user, profile } = useAuth();
+
+  const fetchCustomerOrders = async (customerId: string) => {
+    setLoadingOrders(true);
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id, order_number, created_at, status, total_amount')
+        .eq('customer_id', customerId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setCustomerOrders(data || []);
+    } catch (error) {
+      console.error('Error fetching customer orders:', error);
+      setCustomerOrders([]);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -202,6 +223,7 @@ const AllCustomers = () => {
 
   const handleViewCustomer = (customer: any) => {
     setSelectedCustomer(customer);
+    fetchCustomerOrders(customer.id);
   };
 
   const handleEditCustomer = (customer: any) => {
@@ -534,22 +556,33 @@ const AllCustomers = () => {
                                     </TableRow>
                                   </TableHeader>
                                   <TableBody>
-                                    {customer.orders.map((order) => (
-                                      <TableRow key={order.id}>
-                                        <TableCell className="font-medium">{order.id}</TableCell>
-                                        <TableCell>{order.date}</TableCell>
-                                        <TableCell>
-                                          <Badge className={
-                                            order.status === 'Delivered' ? 'bg-green-100 text-green-800' :
-                                            order.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
-                                            'bg-yellow-100 text-yellow-800'
-                                          }>
-                                            {order.status}
-                                          </Badge>
-                                        </TableCell>
-                                        <TableCell>{order.amount}</TableCell>
+                                    {loadingOrders ? (
+                                      <TableRow>
+                                        <TableCell colSpan={4} className="text-center">Loading orders...</TableCell>
                                       </TableRow>
-                                    ))}
+                                    ) : customerOrders.length === 0 ? (
+                                      <TableRow>
+                                        <TableCell colSpan={4} className="text-center text-muted-foreground">No orders found</TableCell>
+                                      </TableRow>
+                                    ) : (
+                                      customerOrders.map((order) => (
+                                        <TableRow key={order.id}>
+                                          <TableCell className="font-medium">{order.order_number || order.id}</TableCell>
+                                          <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
+                                          <TableCell>
+                                            <Badge className={
+                                              order.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                                              order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                              order.status === 'returned' ? 'bg-orange-100 text-orange-800' :
+                                              'bg-yellow-100 text-yellow-800'
+                                            }>
+                                              {order.status}
+                                            </Badge>
+                                          </TableCell>
+                                          <TableCell>Rs. {Number(order.total_amount || 0).toLocaleString()}</TableCell>
+                                        </TableRow>
+                                      ))
+                                    )}
                                   </TableBody>
                                 </Table>
                               </div>
