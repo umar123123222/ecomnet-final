@@ -94,15 +94,16 @@ serve(async (req) => {
         const grnItems = items.map((item: any) => ({
           grn_id: grn.id,
           po_item_id: item.po_item_id,
-          product_id: item.product_id,
-          packaging_item_id: item.packaging_item_id,
+          product_id: item.product_id || null,
+          packaging_item_id: item.packaging_item_id || null,
           quantity_expected: item.quantity_expected,
           quantity_received: item.quantity_received,
           unit_cost: item.unit_cost,
-          batch_number: item.batch_number,
-          expiry_date: item.expiry_date,
-          notes: item.notes,
-          quality_status: 'pending'
+          batch_number: item.batch_number || null,
+          expiry_date: item.expiry_date || null,
+          notes: item.notes || null,
+          quality_status: 'pending',
+          defect_type: item.damage_reason || null
         }));
 
         const { error: itemsError } = await supabaseClient
