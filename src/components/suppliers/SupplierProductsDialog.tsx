@@ -136,6 +136,11 @@ export function SupplierProductsDialog({ open, onOpenChange, supplierId, supplie
       newSet.delete(productId);
     } else {
       newSet.add(productId);
+      // Pre-fill unit cost from product price if not already set
+      const product = products.find((p: any) => p.id === productId);
+      if (product && !productCosts[productId]) {
+        setProductCosts((prev) => ({ ...prev, [productId]: product.price || 0 }));
+      }
     }
     setSelectedProducts(newSet);
   };
@@ -146,6 +151,11 @@ export function SupplierProductsDialog({ open, onOpenChange, supplierId, supplie
       newSet.delete(packagingId);
     } else {
       newSet.add(packagingId);
+      // Pre-fill unit cost from packaging item cost if not already set
+      const item = packagingItems.find((p: any) => p.id === packagingId);
+      if (item && !productCosts[packagingId]) {
+        setProductCosts((prev) => ({ ...prev, [packagingId]: item.cost || 0 }));
+      }
     }
     setSelectedPackaging(newSet);
   };
