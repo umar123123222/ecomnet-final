@@ -22,7 +22,7 @@ export function RecentStockMovements() {
       if (error) throw error;
       return data;
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 120000, // Reduced from 30s to 2 minutes
   });
 
   const getMovementIcon = (type: string) => {

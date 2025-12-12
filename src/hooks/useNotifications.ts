@@ -28,7 +28,7 @@ export const useNotifications = () => {
       return data as Notification[];
     },
     enabled: !!user,
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 120000, // Reduced from 30s to 2 minutes
   });
 
   // Update unread count

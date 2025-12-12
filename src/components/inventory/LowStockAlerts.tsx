@@ -27,7 +27,7 @@ export function LowStockAlerts() {
 
       return lowStock.slice(0, 10) as Inventory[];
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 120000, // Reduced from 30s to 2 minutes
   });
 
   if (isLoading) {

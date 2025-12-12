@@ -5756,7 +5756,7 @@ export type Database = {
         Returns: string
       }
       cleanup_old_tracking_jobs: { Args: never; Returns: undefined }
-      cleanup_sync_queue: { Args: never; Returns: number }
+      cleanup_sync_queue: { Args: never; Returns: Json }
       deduct_order_packaging: {
         Args: { p_order_id: string; p_user_id: string }
         Returns: Json

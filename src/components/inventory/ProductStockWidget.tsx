@@ -18,7 +18,7 @@ export function ProductStockWidget() {
       if (error) throw error;
       return data;
     },
-    refetchInterval: 30000,
+    refetchInterval: 120000, // Reduced from 30s
   });
 
   const { data: totals } = useQuery({
@@ -37,7 +37,7 @@ export function ProductStockWidget() {
       
       return { totalStock, totalCommitted, totalAvailable, totalValue };
     },
-    refetchInterval: 30000,
+    refetchInterval: 120000, // Reduced from 30s
   });
 
   if (isLoading) {

@@ -26,7 +26,7 @@ export const ShopifySyncStats = () => {
 
       return { total, success, failed, processing };
     },
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 120000, // Reduced from 30s to 2 minutes
   });
 
   const { data: queueStats, refetch: refetchQueue } = useQuery({
@@ -45,7 +45,7 @@ export const ShopifySyncStats = () => {
 
       return { pending, processing, failed };
     },
-    refetchInterval: 30000,
+    refetchInterval: 120000, // Reduced from 30s
   });
 
   // Real-time updates for sync logs
