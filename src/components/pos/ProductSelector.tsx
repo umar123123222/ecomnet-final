@@ -24,7 +24,7 @@ const ProductSelector = ({ outletId, onAddToCart }: ProductSelectorProps) => {
     queryFn: async () => {
       let query = supabase
         .from('products')
-        .select('*')
+        .select('id, name, sku, barcode, price, category')
         .eq('is_active', true);
 
       if (searchQuery) {

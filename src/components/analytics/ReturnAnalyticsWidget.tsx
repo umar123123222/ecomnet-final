@@ -19,10 +19,10 @@ const ReturnAnalyticsWidget = () => {
   const { data: analytics, isLoading } = useQuery({
     queryKey: ['return-analytics'],
     queryFn: async () => {
-      // Fetch returns
+      // Fetch returns - select only needed fields
       const { data: returns, error } = await supabase
         .from('returns')
-        .select('*')
+        .select('id, order_id, reason, worth, created_at')
         .order('created_at', { ascending: false });
 
       if (error) throw error;

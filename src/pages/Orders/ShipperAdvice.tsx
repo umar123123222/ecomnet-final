@@ -50,7 +50,7 @@ const ShipperAdvice = () => {
         // Step 1: Fetch dispatched orders (WITHOUT nested query)
         const { data: ordersData, error: ordersError } = await supabase
           .from('orders')
-          .select('*')
+          .select('id, order_number, status, customer_name, customer_phone, customer_address, city, tracking_id, courier, total_amount, created_at')
           .in('status', ['dispatched', 'returned'])
           .not('tracking_id', 'is', null)
           .order('created_at', { ascending: false });
@@ -83,7 +83,7 @@ const ShipperAdvice = () => {
           const chunk = orderIds.slice(i, i + CHUNK_SIZE);
           const { data: dispatchesData, error: dispatchesError } = await supabase
             .from('dispatches')
-            .select('*')
+            .select('id, order_id, tracking_id, courier, dispatch_date')
             .in('order_id', chunk);
 
           if (dispatchesError) {
@@ -105,7 +105,7 @@ const ShipperAdvice = () => {
           const chunk = orderIds.slice(i, i + CHUNK_SIZE);
           const { data: trackingData, error: trackingError } = await supabase
             .from('courier_tracking_history')
-            .select('*')
+            .select('id, order_id, tracking_id, status, current_location, checked_at')
             .in('order_id', chunk);
 
           if (trackingError) {

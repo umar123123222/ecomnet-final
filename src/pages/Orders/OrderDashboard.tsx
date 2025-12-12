@@ -422,7 +422,7 @@ const OrderDashboard = () => {
       // Calculate summary data across ALL filtered orders efficiently
       // Helper function to build base query with filters
       const buildBaseCountQuery = () => {
-        let q = supabase.from('orders').select('*', {
+        let q = supabase.from('orders').select('id', {
           count: 'exact',
           head: true
         });

@@ -251,7 +251,7 @@ export const OrderDetailsModal = ({
           const {
             data: tracking,
             error: trackingError
-          } = await supabase.from('courier_tracking_history').select('*').eq('tracking_id', trackingId).order('checked_at', {
+          } = await supabase.from('courier_tracking_history').select('id, status, current_location, checked_at, raw_response').eq('tracking_id', trackingId).order('checked_at', {
             ascending: false
           });
           if (trackingError) {
