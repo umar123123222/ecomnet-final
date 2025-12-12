@@ -73,10 +73,13 @@ const ReceivingDashboard = () => {
         .select(`
           id,
           po_number,
+          status,
+          shipped_at,
+          shipping_tracking,
           suppliers(name),
           outlets(name)
         `)
-        .in('status', ['sent', 'confirmed', 'partially_received'])
+        .in('status', ['sent', 'confirmed', 'in_transit', 'partially_received'])
         .order('expected_delivery_date', { ascending: true });
       if (error) throw error;
       return data;
@@ -360,11 +363,26 @@ const ReceivingDashboard = () => {
             <div className="space-y-2">
               {pendingPOs.map((po: any) => (
                 <div key={po.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{po.po_number}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {po.suppliers?.name} → {po.outlets?.name}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{po.po_number}</p>
+                        {po.status === 'in_transit' && (
+                          <Badge className="bg-blue-500">Shipped</Badge>
+                        )}
+                        {po.status === 'confirmed' && (
+                          <Badge variant="secondary">Confirmed</Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {po.suppliers?.name} → {po.outlets?.name}
+                      </p>
+                      {po.shipping_tracking && (
+                        <p className="text-xs text-muted-foreground">
+                          Tracking: {po.shipping_tracking}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <Button onClick={() => startReceiving(po)}>
                     Start Receiving
