@@ -11,10 +11,10 @@ export const PackagingInventoryWidget = () => {
   const { data: packagingItems, isLoading } = useQuery({
     queryKey: ['packaging-inventory-summary'],
     queryFn: async () => {
-      // Fetch packaging items
+      // Fetch packaging items - select only needed fields
       const { data: items, error } = await supabase
         .from('packaging_items')
-        .select('*')
+        .select('id, name, sku, current_stock, reorder_level')
         .eq('is_active', true)
         .order('current_stock', { ascending: true });
 

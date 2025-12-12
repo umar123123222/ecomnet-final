@@ -12,7 +12,7 @@ export const PackagingLowStockAlerts = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('packaging_items')
-        .select('*')
+        .select('id, name, sku, type, cost, current_stock, reorder_level')
         .eq('is_active', true)
         .order('current_stock', { ascending: true });
 
