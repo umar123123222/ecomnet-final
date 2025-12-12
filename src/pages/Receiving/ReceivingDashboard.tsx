@@ -333,6 +333,16 @@ const ReceivingDashboard = () => {
         throw new Error('Please provide a reason for items with quantity discrepancies');
       }
 
+      // Validate - damaged, wrong_item, or defective must have images
+      const requiresImageButMissing = receivingItems.some(
+        item => ['damaged', 'wrong_item', 'defective'].includes(item.damage_reason) && 
+                item.damage_images.length === 0
+      );
+      
+      if (requiresImageButMissing) {
+        throw new Error('Please upload proof images for damaged, wrong item, or quality issue items');
+      }
+
       const { data, error } = await supabase.functions.invoke('process-grn', {
         body: {
           action: 'create',
@@ -738,7 +748,12 @@ const ReceivingDashboard = () => {
                               {/* Image Upload for Damage Proof */}
                               {(item.damage_reason === 'damaged' || item.damage_reason === 'defective' || item.damage_reason === 'wrong_item') && (
                                 <div className="space-y-2">
-                                  <Label className="text-xs">Upload Proof Images</Label>
+                                  <Label className="text-xs flex items-center gap-1">
+                                    Upload Proof Images <span className="text-destructive">*</span>
+                                    {item.damage_images.length === 0 && (
+                                      <span className="text-destructive text-xs">(Required)</span>
+                                    )}
+                                  </Label>
                                   <div className="flex flex-wrap gap-2">
                                     {item.damage_images.map((img, imgIndex) => (
                                       <div key={imgIndex} className="relative group">
@@ -758,7 +773,11 @@ const ReceivingDashboard = () => {
                                     <button
                                       onClick={() => fileInputRefs.current[index]?.click()}
                                       disabled={uploadingIndex === index}
-                                      className="w-16 h-16 border-2 border-dashed rounded flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                                      className={`w-16 h-16 border-2 border-dashed rounded flex items-center justify-center transition-colors ${
+                                        item.damage_images.length === 0 
+                                          ? 'border-destructive text-destructive hover:bg-destructive/10' 
+                                          : 'text-muted-foreground hover:border-primary hover:text-primary'
+                                      }`}
                                     >
                                       {uploadingIndex === index ? (
                                         <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
@@ -776,7 +795,7 @@ const ReceivingDashboard = () => {
                                     />
                                   </div>
                                   <p className="text-xs text-muted-foreground">
-                                    Upload photos as proof of damage/issue (max 5MB each)
+                                    Upload photos as proof of damage/issue (max 5MB each) - Required
                                   </p>
                                 </div>
                               )}
