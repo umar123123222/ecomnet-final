@@ -9,12 +9,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Package, AlertTriangle, CheckCircle2, ScanBarcode, Upload, X, ImageIcon } from 'lucide-react';
+import { Search, Package, AlertTriangle, CheckCircle2, ScanBarcode, Upload, X, ImageIcon, Eye } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserRoles } from '@/hooks/useUserRoles';
 import { format } from 'date-fns';
 import UnifiedScanner from '@/components/UnifiedScanner';
 import type { ScanResult } from '@/components/UnifiedScanner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import GRNDetailsDialog from '@/components/receiving/GRNDetailsDialog';
 
 interface GRN {
   id: string;
@@ -48,6 +50,7 @@ interface ReceivingItem {
 const ReceivingDashboard = () => {
   const { toast } = useToast();
   const { profile } = useAuth();
+  const { hasAnyRole } = useUserRoles();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [isReceivingDialogOpen, setIsReceivingDialogOpen] = useState(false);
@@ -57,11 +60,17 @@ const ReceivingDashboard = () => {
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   
+  // GRN Details dialog state
+  const [selectedGRNId, setSelectedGRNId] = useState<string | null>(null);
+  const [isGRNDetailsOpen, setIsGRNDetailsOpen] = useState(false);
+  
   // Scanner states
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [currentScanningItemIndex, setCurrentScanningItemIndex] = useState<number | null>(null);
   const [scannedItemsCount, setScannedItemsCount] = useState<Record<number, number>>({});
   const [continuousScanMode, setContinuousScanMode] = useState(false);
+  
+  const canResolve = hasAnyRole(['super_admin', 'super_manager']);
 
   // Fetch GRNs
   const { data: grns = [], isLoading } = useQuery({
@@ -566,6 +575,19 @@ const ReceivingDashboard = () => {
                   
                   <div className="flex flex-col items-end gap-2">
                     {getStatusBadge(grn.status)}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedGRNId(grn.id);
+                        setIsGRNDetailsOpen(true);
+                      }}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      {grn.discrepancy_flag && (grn.status === 'pending_inspection' || grn.status === 'pending') && canResolve
+                        ? 'Resolve'
+                        : 'View Details'}
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -876,6 +898,16 @@ const ReceivingDashboard = () => {
             ? `Scan: ${receivingItems[currentScanningItemIndex]?.name}`
             : 'Scan Items'
         }
+      />
+
+      {/* GRN Details Dialog */}
+      <GRNDetailsDialog
+        isOpen={isGRNDetailsOpen}
+        onClose={() => {
+          setIsGRNDetailsOpen(false);
+          setSelectedGRNId(null);
+        }}
+        grnId={selectedGRNId}
       />
     </div>
   );
