@@ -71,26 +71,37 @@ async function createPortalNotifications(
   }
 }
 
-// Helper function to send email notifications via edge function
+// Helper function to send email notifications via direct HTTP call (service-to-service)
 async function sendEmailNotifications(
-  supabaseClient: any,
   transferId: string,
   notificationType: string,
   additionalData?: Record<string, any>
 ) {
   try {
-    const { error } = await supabaseClient.functions.invoke('send-transfer-notification', {
-      body: {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    
+    console.log(`Invoking send-transfer-notification for ${notificationType}, transfer: ${transferId}`)
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-transfer-notification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({
         transfer_id: transferId,
         notification_type: notificationType,
         additional_data: additionalData
-      }
+      })
     })
     
-    if (error) {
-      console.error('Error sending email notifications:', error)
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`Error sending email notifications (${response.status}):`, errorText)
     } else {
-      console.log(`Email notifications sent for ${notificationType}`)
+      const result = await response.json()
+      console.log(`Email notifications sent for ${notificationType}:`, result)
     }
   } catch (err) {
     console.error('Failed to invoke send-transfer-notification:', err)
@@ -225,7 +236,7 @@ serve(async (req) => {
         })
 
         // Send email notifications (background)
-        sendEmailNotifications(supabaseClient, request.id, 'created')
+        sendEmailNotifications(request.id, 'created')
 
         return new Response(
           JSON.stringify({ success: true, request }),
@@ -314,7 +325,7 @@ serve(async (req) => {
           }
         })
 
-        sendEmailNotifications(supabaseClient, transfer_id, 'approved')
+        sendEmailNotifications(transfer_id, 'approved')
 
         return new Response(
           JSON.stringify({ success: true, message: 'Transfer request approved' }),
@@ -378,7 +389,7 @@ serve(async (req) => {
           }
         })
 
-        sendEmailNotifications(supabaseClient, transfer_id, 'rejected', { rejection_reason })
+        sendEmailNotifications(transfer_id, 'rejected', { rejection_reason })
 
         return new Response(
           JSON.stringify({ success: true, message: 'Transfer request rejected' }),
@@ -500,7 +511,7 @@ serve(async (req) => {
           }
         })
 
-        sendEmailNotifications(supabaseClient, transfer_id, 'dispatched')
+        sendEmailNotifications(transfer_id, 'dispatched')
 
         return new Response(
           JSON.stringify({ success: true, message: 'Transfer dispatched - store can now receive inventory' }),
@@ -625,7 +636,7 @@ serve(async (req) => {
           }
         })
 
-        sendEmailNotifications(supabaseClient, transfer_id, 'dispatched')
+        sendEmailNotifications(transfer_id, 'dispatched')
 
         return new Response(
           JSON.stringify({ success: true, message: 'Transfer completed successfully' }),
@@ -881,7 +892,7 @@ serve(async (req) => {
             }
           })
 
-          sendEmailNotifications(supabaseClient, transfer_id, 'variance', { variances })
+          sendEmailNotifications(transfer_id, 'variance', { variances })
         } else {
           // Notification for successful receipt
           await createPortalNotifications(supabaseClient, recipients, {
@@ -896,7 +907,7 @@ serve(async (req) => {
             }
           })
 
-          sendEmailNotifications(supabaseClient, transfer_id, 'received')
+          sendEmailNotifications(transfer_id, 'received')
         }
 
         return new Response(
