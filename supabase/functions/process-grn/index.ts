@@ -220,10 +220,10 @@ serve(async (req) => {
           throw new Error('Missing grn_id');
         }
 
-        // Get GRN items
+        // Get GRN items with products and packaging
         const { data: grnItems, error: itemsError } = await supabaseClient
           .from('grn_items')
-          .select('*, products(*)')
+          .select('*, products(*), packaging_items(*)')
           .eq('grn_id', data.grn_id);
 
         if (itemsError) throw itemsError;
@@ -231,7 +231,7 @@ serve(async (req) => {
         // Get GRN details
         const { data: grn, error: grnError } = await supabaseClient
           .from('goods_received_notes')
-          .select('*')
+          .select('*, purchase_orders(id)')
           .eq('id', data.grn_id)
           .single();
 
@@ -241,50 +241,88 @@ serve(async (req) => {
         for (const item of grnItems) {
           const qtyToAdd = item.quantity_accepted || item.quantity_received;
           
-          // Check if inventory record exists
-          const { data: existingInv } = await supabaseClient
-            .from('inventory')
-            .select('id, quantity')
-            .eq('product_id', item.product_id)
-            .eq('outlet_id', grn.outlet_id)
-            .single();
+          if (item.product_id) {
+            // Handle PRODUCT inventory
+            const { data: existingInv } = await supabaseClient
+              .from('inventory')
+              .select('id, quantity')
+              .eq('product_id', item.product_id)
+              .eq('outlet_id', grn.outlet_id)
+              .single();
 
-          if (existingInv) {
-            // Update existing inventory
+            if (existingInv) {
+              await supabaseClient
+                .from('inventory')
+                .update({
+                  quantity: existingInv.quantity + qtyToAdd,
+                  available_quantity: existingInv.quantity + qtyToAdd,
+                  last_restocked_at: new Date().toISOString()
+                })
+                .eq('id', existingInv.id);
+            } else {
+              await supabaseClient
+                .from('inventory')
+                .insert({
+                  product_id: item.product_id,
+                  outlet_id: grn.outlet_id,
+                  quantity: qtyToAdd,
+                  available_quantity: qtyToAdd,
+                  reserved_quantity: 0,
+                  last_restocked_at: new Date().toISOString()
+                });
+            }
+
+            // Create stock movement record
             await supabaseClient
-              .from('inventory')
-              .update({
-                quantity: existingInv.quantity + qtyToAdd,
-                available_quantity: existingInv.quantity + qtyToAdd,
-                last_restocked_at: new Date().toISOString()
-              })
-              .eq('id', existingInv.id);
-          } else {
-            // Create new inventory record
-            await supabaseClient
-              .from('inventory')
+              .from('stock_movements')
               .insert({
                 product_id: item.product_id,
                 outlet_id: grn.outlet_id,
+                movement_type: 'purchase',
                 quantity: qtyToAdd,
-                available_quantity: qtyToAdd,
-                reserved_quantity: 0,
-                last_restocked_at: new Date().toISOString()
+                created_by: user.id,
+                reference_id: grn.id,
+                notes: `GRN ${grn.grn_number}`
+              });
+          } else if (item.packaging_item_id) {
+            // Handle PACKAGING inventory
+            const { data: packagingItem } = await supabaseClient
+              .from('packaging_items')
+              .select('id, current_stock')
+              .eq('id', item.packaging_item_id)
+              .single();
+
+            if (packagingItem) {
+              await supabaseClient
+                .from('packaging_items')
+                .update({
+                  current_stock: (packagingItem.current_stock || 0) + qtyToAdd,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', item.packaging_item_id);
+            }
+
+            // Create packaging movement record
+            await supabaseClient
+              .from('packaging_movements')
+              .insert({
+                packaging_item_id: item.packaging_item_id,
+                movement_type: 'purchase',
+                quantity: qtyToAdd,
+                created_by: user.id,
+                reference_id: grn.id,
+                notes: `GRN ${grn.grn_number}`
               });
           }
 
-          // Create stock movement record
+          // Update GRN item status
           await supabaseClient
-            .from('stock_movements')
-            .insert({
-              product_id: item.product_id,
-              outlet_id: grn.outlet_id,
-              movement_type: 'purchase',
-              quantity: qtyToAdd,
-              created_by: user.id,
-              reference_id: grn.id,
-              notes: `GRN ${grn.grn_number}`
-            });
+            .from('grn_items')
+            .update({
+              quality_status: 'accepted',
+              quantity_accepted: qtyToAdd
+            })
+            .eq('id', item.id);
         }
 
         // Update GRN status
@@ -298,6 +336,17 @@ serve(async (req) => {
           })
           .eq('id', data.grn_id);
 
+        // Update PO status to completed and set received_at
+        if (grn.purchase_orders?.id) {
+          await supabaseClient
+            .from('purchase_orders')
+            .update({
+              status: 'completed',
+              received_at: new Date().toISOString()
+            })
+            .eq('id', grn.purchase_orders.id);
+        }
+
         return new Response(
           JSON.stringify({ 
             success: true, 
@@ -307,10 +356,180 @@ serve(async (req) => {
         );
       }
 
+      case 'resolve': {
+        // For resolving discrepancies - only super_admin and super_manager
+        if (!data.grn_id) {
+          throw new Error('Missing grn_id');
+        }
+
+        // Check user role
+        const { data: userRoles } = await supabaseClient
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .in('role', ['super_admin', 'super_manager']);
+
+        if (!userRoles || userRoles.length === 0) {
+          throw new Error('Unauthorized: Only super_admin or super_manager can resolve discrepancies');
+        }
+
+        // Get GRN details
+        const { data: grn, error: grnError } = await supabaseClient
+          .from('goods_received_notes')
+          .select('*, purchase_orders(id)')
+          .eq('id', data.grn_id)
+          .single();
+
+        if (grnError) throw grnError;
+
+        // Get GRN items
+        const { data: grnItems, error: itemsError } = await supabaseClient
+          .from('grn_items')
+          .select('*, products(*), packaging_items(*)')
+          .eq('grn_id', data.grn_id);
+
+        if (itemsError) throw itemsError;
+
+        // Process resolutions if provided
+        const resolutions = data.resolutions || [];
+        
+        for (const item of grnItems) {
+          const resolution = resolutions.find((r: any) => r.item_id === item.id);
+          const qtyToAdd = resolution?.quantity_accepted ?? item.quantity_received;
+          const qualityStatus = resolution?.quality_status || 'accepted';
+
+          // Update GRN item with resolution
+          await supabaseClient
+            .from('grn_items')
+            .update({
+              quantity_accepted: qtyToAdd,
+              quantity_rejected: resolution?.quantity_rejected || 0,
+              quality_status: qualityStatus,
+              notes: resolution?.resolution_notes || item.notes
+            })
+            .eq('id', item.id);
+
+          // Only add to inventory if accepted or write_off (write_off still adds to inventory but is tracked)
+          if (qualityStatus !== 'rejected' && qtyToAdd > 0) {
+            if (item.product_id) {
+              // Handle PRODUCT inventory
+              const { data: existingInv } = await supabaseClient
+                .from('inventory')
+                .select('id, quantity')
+                .eq('product_id', item.product_id)
+                .eq('outlet_id', grn.outlet_id)
+                .single();
+
+              if (existingInv) {
+                await supabaseClient
+                  .from('inventory')
+                  .update({
+                    quantity: existingInv.quantity + qtyToAdd,
+                    available_quantity: existingInv.quantity + qtyToAdd,
+                    last_restocked_at: new Date().toISOString()
+                  })
+                  .eq('id', existingInv.id);
+              } else {
+                await supabaseClient
+                  .from('inventory')
+                  .insert({
+                    product_id: item.product_id,
+                    outlet_id: grn.outlet_id,
+                    quantity: qtyToAdd,
+                    available_quantity: qtyToAdd,
+                    reserved_quantity: 0,
+                    last_restocked_at: new Date().toISOString()
+                  });
+              }
+
+              // Create stock movement record
+              await supabaseClient
+                .from('stock_movements')
+                .insert({
+                  product_id: item.product_id,
+                  outlet_id: grn.outlet_id,
+                  movement_type: 'purchase',
+                  quantity: qtyToAdd,
+                  created_by: user.id,
+                  reference_id: grn.id,
+                  notes: `GRN ${grn.grn_number} - Resolved (${qualityStatus})`
+                });
+            } else if (item.packaging_item_id) {
+              // Handle PACKAGING inventory
+              const { data: packagingItem } = await supabaseClient
+                .from('packaging_items')
+                .select('id, current_stock')
+                .eq('id', item.packaging_item_id)
+                .single();
+
+              if (packagingItem) {
+                await supabaseClient
+                  .from('packaging_items')
+                  .update({
+                    current_stock: (packagingItem.current_stock || 0) + qtyToAdd,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', item.packaging_item_id);
+              }
+
+              // Create packaging movement record
+              await supabaseClient
+                .from('packaging_movements')
+                .insert({
+                  packaging_item_id: item.packaging_item_id,
+                  movement_type: 'purchase',
+                  quantity: qtyToAdd,
+                  created_by: user.id,
+                  reference_id: grn.id,
+                  notes: `GRN ${grn.grn_number} - Resolved (${qualityStatus})`
+                });
+            }
+          }
+        }
+
+        // Update GRN status
+        await supabaseClient
+          .from('goods_received_notes')
+          .update({
+            status: 'resolved',
+            inspected_by: user.id,
+            inspected_at: new Date().toISOString(),
+            quality_passed: true,
+            notes: data.notes || grn.notes
+          })
+          .eq('id', data.grn_id);
+
+        // Update PO status to completed and set received_at
+        if (grn.purchase_orders?.id) {
+          await supabaseClient
+            .from('purchase_orders')
+            .update({
+              status: 'completed',
+              received_at: new Date().toISOString()
+            })
+            .eq('id', grn.purchase_orders.id);
+        }
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: 'Discrepancy resolved and inventory updated' 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       case 'reject': {
         if (!data.grn_id || !data.rejection_reason) {
           throw new Error('Missing grn_id or rejection_reason');
         }
+
+        // Get GRN details for PO update
+        const { data: grn } = await supabaseClient
+          .from('goods_received_notes')
+          .select('purchase_orders(id)')
+          .eq('id', data.grn_id)
+          .single();
 
         await supabaseClient
           .from('goods_received_notes')
@@ -322,6 +541,14 @@ serve(async (req) => {
             rejection_reason: data.rejection_reason
           })
           .eq('id', data.grn_id);
+
+        // Update all GRN items to rejected
+        await supabaseClient
+          .from('grn_items')
+          .update({
+            quality_status: 'rejected'
+          })
+          .eq('grn_id', data.grn_id);
 
         return new Response(
           JSON.stringify({ success: true, message: 'GRN rejected' }),

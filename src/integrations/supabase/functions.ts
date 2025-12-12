@@ -258,19 +258,29 @@ export const managePurchaseOrder = async (request: PurchaseOrderRequest) => {
 // ============================================
 
 export interface GRNRequest {
-  action: 'create' | 'accept' | 'reject';
+  action: 'create' | 'accept' | 'reject' | 'resolve';
   data: {
     grn_id?: string;
     po_id?: string;
     items?: Array<{
       po_item_id: string;
-      product_id: string;
+      product_id?: string;
+      packaging_item_id?: string;
       quantity_expected: number;
       quantity_received: number;
       unit_cost: number;
       batch_number?: string;
       expiry_date?: string;
       notes?: string;
+      damage_reason?: string;
+      damage_images?: string[];
+    }>;
+    resolutions?: Array<{
+      item_id: string;
+      quantity_accepted: number;
+      quantity_rejected: number;
+      quality_status: 'accepted' | 'rejected' | 'write_off';
+      resolution_notes?: string;
     }>;
     notes?: string;
     rejection_reason?: string;
