@@ -276,10 +276,8 @@ export function SupplierProductsDialog({ open, onOpenChange, supplierId, supplie
                             type="number"
                             step="0.01"
                             placeholder="0.00"
-                            value={productCosts[item.id] || ""}
-                            onChange={(e) =>
-                              setProductCosts({ ...productCosts, [item.id]: parseFloat(e.target.value) || 0 })
-                            }
+                            value={productCosts[item.id] ?? item.cost ?? 0}
+                            readOnly
                             className="h-8"
                           />
                         </div>
