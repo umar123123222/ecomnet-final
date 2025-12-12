@@ -37,12 +37,12 @@ serve(async (req) => {
           throw new Error('Missing required fields: po_id and items are required');
         }
 
-        // Check if a GRN already exists for this PO (prevent duplicates)
+        // Check if a GRN already exists for this PO (prevent duplicates - including rejected)
         const { data: existingGRN, error: existingError } = await supabaseClient
           .from('goods_received_notes')
           .select('id, grn_number, status')
           .eq('po_id', data.po_id)
-          .in('status', ['pending_inspection', 'inspected', 'accepted', 'partial_accept'])
+          .in('status', ['pending_inspection', 'inspected', 'accepted', 'partial_accept', 'rejected'])
           .maybeSingle();
 
         if (existingError) {
@@ -50,7 +50,10 @@ serve(async (req) => {
         }
 
         if (existingGRN) {
-          throw new Error(`A GRN (${existingGRN.grn_number}) already exists for this PO. Please resolve the existing GRN first.`);
+          const message = existingGRN.status === 'rejected' 
+            ? `This PO has a rejected GRN (${existingGRN.grn_number}). No re-receiving allowed.`
+            : `A GRN (${existingGRN.grn_number}) already exists for this PO. Please resolve the existing GRN first.`;
+          throw new Error(message);
         }
 
         // Get PO details

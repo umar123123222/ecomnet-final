@@ -113,17 +113,17 @@ const ReceivingDashboard = () => {
       if (poError) throw poError;
       if (!allPOs?.length) return [];
 
-      // Get PO IDs that already have an active GRN
-      const { data: activeGRNs, error: grnError } = await supabase
+      // Get PO IDs that already have a GRN (including rejected - no re-receiving allowed)
+      const { data: existingGRNs, error: grnError } = await supabase
         .from('goods_received_notes')
         .select('po_id')
-        .in('status', ['pending_inspection', 'inspected', 'accepted', 'partial_accept']);
+        .in('status', ['pending_inspection', 'inspected', 'accepted', 'partial_accept', 'rejected']);
 
       if (grnError) throw grnError;
 
-      // Filter out POs that already have an active GRN
-      const activeGRNPoIds = new Set(activeGRNs?.map(g => g.po_id) || []);
-      return allPOs.filter(po => !activeGRNPoIds.has(po.id));
+      // Filter out POs that already have any GRN
+      const grnPoIds = new Set(existingGRNs?.map(g => g.po_id) || []);
+      return allPOs.filter(po => !grnPoIds.has(po.id));
     }
   });
 
