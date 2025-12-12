@@ -32,16 +32,7 @@ export function AssignedInventory({ supplierId }: AssignedInventoryProps) {
   const { data: inventory, isLoading } = useQuery({
     queryKey: ["supplier-inventory", supplierId],
     queryFn: async () => {
-      // First get the warehouse outlet
-      const { data: warehouseOutlet } = await supabase
-        .from("outlets")
-        .select("id")
-        .eq("outlet_type", "warehouse")
-        .limit(1)
-        .single();
-
-      const warehouseId = warehouseOutlet?.id;
-
+      // Fetch supplier product assignments
       const { data: assignments, error } = await supabase
         .from("supplier_products")
         .select(`
@@ -52,21 +43,31 @@ export function AssignedInventory({ supplierId }: AssignedInventoryProps) {
         .eq("supplier_id", supplierId);
 
       if (error) throw error;
+      if (!assignments || assignments.length === 0) return [];
 
-      // Fetch warehouse inventory for each product
-      if (assignments && warehouseId) {
-        const productIds = assignments
-          .filter((a: any) => a.product_id)
-          .map((a: any) => a.product_id);
+      // Get product IDs to fetch warehouse inventory
+      const productIds = assignments
+        .filter((a: any) => a.product_id)
+        .map((a: any) => a.product_id);
 
-        if (productIds.length > 0) {
+      // If there are products, fetch their warehouse inventory
+      if (productIds.length > 0) {
+        // Get warehouse outlet
+        const { data: warehouseOutlet } = await supabase
+          .from("outlets")
+          .select("id")
+          .eq("outlet_type", "warehouse")
+          .limit(1)
+          .single();
+
+        if (warehouseOutlet?.id) {
           const { data: inventoryData } = await supabase
             .from("inventory")
             .select("product_id, quantity, reserved_quantity, available_quantity")
-            .eq("outlet_id", warehouseId)
+            .eq("outlet_id", warehouseOutlet.id)
             .in("product_id", productIds);
 
-          // Attach inventory to assignments
+          // Attach inventory to product assignments
           return assignments.map((item: any) => {
             if (item.product_id && inventoryData) {
               const inv = inventoryData.find((i: any) => i.product_id === item.product_id);
@@ -77,6 +78,7 @@ export function AssignedInventory({ supplierId }: AssignedInventoryProps) {
         }
       }
 
+      // Return assignments as-is (packaging items use their current_stock)
       return assignments;
     },
   });
