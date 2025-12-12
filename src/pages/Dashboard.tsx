@@ -152,8 +152,8 @@ const Dashboard = () => {
         },
       };
     },
-    refetchInterval: 30000,
-    staleTime: 20000,
+    refetchInterval: 300000, // Reduced from 30s to 5 minutes
+    staleTime: 240000, // 4 minutes stale time
   });
 
   // Format trend percentage

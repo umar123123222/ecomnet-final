@@ -17,7 +17,7 @@ export function OutletStockWidget() {
       if (error) throw error;
       return data;
     },
-    refetchInterval: 30000,
+    refetchInterval: 120000, // Reduced from 30s
   });
 
   if (isLoading) {

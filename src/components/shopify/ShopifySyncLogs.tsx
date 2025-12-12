@@ -40,7 +40,7 @@ export const ShopifySyncLogs = () => {
       }
       return data as SyncLog[];
     },
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 120000, // Reduced from 30s to 2 minutes
   });
 
   // Real-time updates for sync logs

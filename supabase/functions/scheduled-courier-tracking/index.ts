@@ -6,26 +6,116 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Batch processing constants
-const BATCH_SIZE = 50;
-const MAX_RUNTIME_MS = 50 * 1000; // 50 seconds
+// Optimized constants - reduced batch size to prevent timeouts
+const BATCH_SIZE = 30;
+const MAX_DISPATCHES_PER_RUN = 200; // Limit total dispatches per scheduled run
+const MAX_AGE_DAYS = 7; // Only track orders from last 7 days
 
-// Self-continuation function
-async function continueProcessing(supabaseUrl: string, anonKey: string, offset: number) {
+// Helper to get API setting
+async function getAPISetting(supabase: any, key: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('api_settings')
+    .select('setting_value')
+    .eq('setting_key', key)
+    .single();
+  return data?.setting_value || null;
+}
+
+// Direct tracking API call for Leopard
+async function trackLeopard(trackingId: string, apiKey: string, apiPassword: string): Promise<any> {
   try {
-    console.log(`🔄 Self-continuing from offset ${offset}...`);
-    const response = await fetch(`${supabaseUrl}/functions/v1/scheduled-courier-tracking`, {
+    const response = await fetch('https://merchantapi.leopardscourier.com/api/trackBookedPacket/', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${anonKey}`,
-      },
-      body: JSON.stringify({ offset, trigger: 'self-continuation' }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: apiKey, api_password: apiPassword, track_numbers: trackingId })
     });
-    console.log(`✅ Self-continuation triggered, status: ${response.status}`);
-  } catch (error) {
-    console.error('❌ Self-continuation failed:', error);
+    const data = await response.json();
+    if (data.status === 1 && data.packet_list?.[0]) {
+      const packet = data.packet_list[0];
+      const lastStatus = packet.Tracking_Detail?.[0];
+      return {
+        success: true,
+        status: mapLeopardStatus(lastStatus?.Status || packet.booked_packet_status),
+        location: lastStatus?.Location || packet.destination_city,
+        raw: packet
+      };
+    }
+    return { success: false, error: 'No tracking data' };
+  } catch (e: any) {
+    return { success: false, error: e.message };
   }
+}
+
+// Direct tracking API call for PostEx
+async function trackPostEx(trackingId: string, apiToken: string): Promise<any> {
+  try {
+    const response = await fetch(`https://api.postex.pk/services/integration/api/order/v3/track-order/${trackingId}`, {
+      headers: { 'token': apiToken }
+    });
+    const data = await response.json();
+    if (data.statusCode === '200' && data.dist) {
+      return {
+        success: true,
+        status: mapPostExStatus(data.dist.orderStatus),
+        location: data.dist.destinationCity,
+        raw: data.dist
+      };
+    }
+    return { success: false, error: data.message || 'No tracking data' };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// Direct tracking API call for TCS
+async function trackTCS(trackingId: string, accessToken: string): Promise<any> {
+  try {
+    const response = await fetch('https://devconnect.tcscourier.com/ecom/api/shipmentTracking/track', {
+      method: 'GET',
+      headers: { 
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ consignee: [trackingId] })
+    });
+    const data = await response.json();
+    if (data.returnStatus?.status === 'SUCCESS' && data.TrackDetailReply?.[0]) {
+      const tracking = data.TrackDetailReply[0];
+      return {
+        success: true,
+        status: mapTCSStatus(tracking.status),
+        location: tracking.currentLocation,
+        raw: tracking
+      };
+    }
+    return { success: false, error: 'No tracking data' };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// Status mappers
+function mapLeopardStatus(status: string): string {
+  const lower = status?.toLowerCase() || '';
+  if (lower.includes('delivered')) return 'delivered';
+  if (lower.includes('return') || lower.includes('rto')) return 'returned';
+  if (lower.includes('transit') || lower.includes('hub')) return 'in_transit';
+  if (lower.includes('out for delivery')) return 'out_for_delivery';
+  return 'in_transit';
+}
+
+function mapPostExStatus(status: string): string {
+  const lower = status?.toLowerCase() || '';
+  if (lower.includes('delivered')) return 'delivered';
+  if (lower.includes('return') || lower.includes('rto')) return 'returned';
+  if (lower.includes('out for delivery')) return 'out_for_delivery';
+  return 'in_transit';
+}
+
+function mapTCSStatus(status: string): string {
+  if (status === 'OK') return 'delivered';
+  if (status === 'RO') return 'returned';
+  return 'in_transit';
 }
 
 serve(async (req) => {
@@ -37,198 +127,116 @@ serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const offset = body.offset || 0;
     const trigger = body.trigger || 'scheduled';
     
-    console.log(`🔄 Starting scheduled courier tracking (offset: ${offset}, trigger: ${trigger})...`);
+    console.log(`🔄 Starting optimized courier tracking (trigger: ${trigger})...`);
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get total count first
-    const { count: totalCount } = await supabase
-      .from('dispatches')
-      .select('*', { count: 'exact', head: true })
-      .not('tracking_id', 'is', null);
+    // Get API credentials once (not per dispatch)
+    const [leopardKey, leopardPassword, postexToken, tcsToken] = await Promise.all([
+      getAPISetting(supabase, 'LEOPARD_API_KEY'),
+      getAPISetting(supabase, 'LEOPARD_API_PASSWORD'),
+      getAPISetting(supabase, 'POSTEX_API_TOKEN'),
+      getAPISetting(supabase, 'TCS_ACCESS_TOKEN')
+    ]);
 
-    console.log(`📊 Total dispatches to track: ${totalCount}, starting at offset ${offset}`);
-
-    // Get batch of dispatches that need tracking
+    // Use optimized RPC to get only dispatches that need tracking
+    // - Only dispatched orders (not delivered/returned)
+    // - Last 7 days only
+    // - Not tracked in last 4 hours
     const { data: dispatches, error: fetchError } = await supabase
-      .from('dispatches')
-      .select(`
-        id,
-        order_id,
-        tracking_id,
-        courier,
-        courier_id,
-        last_tracking_update
-      `)
-      .not('tracking_id', 'is', null)
-      .order('created_at', { ascending: true })
-      .range(offset, offset + BATCH_SIZE - 1);
+      .rpc('get_dispatches_for_tracking', {
+        p_limit: MAX_DISPATCHES_PER_RUN,
+        p_max_age_days: MAX_AGE_DAYS
+      });
 
     if (fetchError) {
       console.error('Error fetching dispatches:', fetchError);
       throw fetchError;
     }
 
-    console.log(`📦 Processing ${dispatches?.length || 0} dispatches (batch ${Math.floor(offset / BATCH_SIZE) + 1})`);
+    console.log(`📦 Processing ${dispatches?.length || 0} dispatches (max ${MAX_DISPATCHES_PER_RUN})`);
 
     const results = {
-      total: totalCount || 0,
-      batchSize: dispatches?.length || 0,
-      offset,
+      total: dispatches?.length || 0,
       updated: 0,
       delivered: 0,
       returned: 0,
       failed: 0,
-      noChange: 0,
+      skipped: 0,
       errors: [] as any[]
     };
 
-    // Track each dispatch in batch
-    for (const dispatch of dispatches || []) {
-      // Check timeout
-      if (Date.now() - startTime > MAX_RUNTIME_MS) {
-        console.log('⏰ Approaching timeout, saving progress...');
-        break;
-      }
+    // Process in small batches to avoid timeouts
+    for (let i = 0; i < (dispatches?.length || 0); i += BATCH_SIZE) {
+      const batch = dispatches.slice(i, i + BATCH_SIZE);
+      
+      // Process batch in parallel
+      const batchPromises = batch.map(async (dispatch: any) => {
+        try {
+          const courierCode = dispatch.courier_code?.toLowerCase();
+          let trackingResult: any = null;
 
-      try {
-        // Call the courier-tracking function
-        const { data: trackingData, error: trackingError } = await supabase.functions.invoke(
-          'courier-tracking',
-          {
-            body: {
-              trackingId: dispatch.tracking_id,
-              courierCode: dispatch.courier
-            }
+          // Direct API calls based on courier - NO edge function invocation
+          if (courierCode === 'leopard' && leopardKey && leopardPassword) {
+            trackingResult = await trackLeopard(dispatch.tracking_id, leopardKey, leopardPassword);
+          } else if (courierCode === 'postex' && postexToken) {
+            trackingResult = await trackPostEx(dispatch.tracking_id, postexToken);
+          } else if (courierCode === 'tcs' && tcsToken) {
+            trackingResult = await trackTCS(dispatch.tracking_id, tcsToken);
+          } else {
+            results.skipped++;
+            return;
           }
-        );
 
-        if (trackingError) {
-          console.error(`Failed to track ${dispatch.tracking_id}:`, trackingError);
+          if (trackingResult?.success) {
+            // Use RPC to update tracking (reduces multiple queries to one)
+            const { data: updateResult } = await supabase.rpc('update_dispatch_tracking', {
+              p_dispatch_id: dispatch.dispatch_id,
+              p_status: trackingResult.status,
+              p_location: trackingResult.location,
+              p_raw_response: trackingResult.raw
+            });
+
+            if (updateResult?.changed) {
+              results.updated++;
+            }
+            if (updateResult?.order_updated) {
+              if (trackingResult.status === 'delivered') results.delivered++;
+              if (trackingResult.status === 'returned') results.returned++;
+            }
+          } else {
+            results.failed++;
+          }
+        } catch (error: any) {
           results.failed++;
           results.errors.push({
-            dispatch_id: dispatch.id,
+            dispatch_id: dispatch.dispatch_id,
             tracking_id: dispatch.tracking_id,
-            error: trackingError.message
+            error: error.message
           });
-          continue;
         }
+      });
 
-        if (trackingData?.success && trackingData?.tracking) {
-          const tracking = trackingData.tracking;
-          
-          // Check if status or location has actually changed from last record
-          const { data: lastRecord } = await supabase
-            .from('courier_tracking_history')
-            .select('status, current_location')
-            .eq('tracking_id', dispatch.tracking_id)
-            .order('checked_at', { ascending: false })
-            .limit(1)
-            .single();
-
-          const statusChanged = !lastRecord || lastRecord.status !== tracking.status;
-          const locationChanged = !lastRecord || lastRecord.current_location !== tracking.currentLocation;
-          const hasChange = statusChanged || locationChanged;
-
-          // Update dispatch's last tracking update timestamp
-          await supabase
-            .from('dispatches')
-            .update({
-              last_tracking_update: new Date().toISOString(),
-              courier_response: tracking.raw
-            })
-            .eq('id', dispatch.id);
-
-          if (hasChange) {
-            // Get courier_id from couriers table if not available on dispatch
-            let courierId = dispatch.courier_id;
-            if (!courierId && dispatch.courier) {
-              const { data: courierData } = await supabase
-                .from('couriers')
-                .select('id')
-                .eq('code', dispatch.courier.toLowerCase())
-                .single();
-              courierId = courierData?.id || null;
-            }
-
-            // Log tracking history only when status or location changes
-            if (courierId) {
-              await supabase
-                .from('courier_tracking_history')
-                .insert({
-                  dispatch_id: dispatch.id,
-                  order_id: dispatch.order_id,
-                  courier_id: courierId,
-                  tracking_id: dispatch.tracking_id,
-                  status: tracking.status,
-                  current_location: tracking.currentLocation,
-                  raw_response: tracking.raw,
-                  checked_at: new Date().toISOString()
-                });
-            }
-
-            results.updated++;
-          } else {
-            results.noChange++;
-          }
-
-          // Update order status if delivered OR returned
-          if (tracking.status === 'delivered') {
-            await supabase
-              .from('orders')
-              .update({
-                status: 'delivered',
-                delivered_at: new Date().toISOString()
-              })
-              .eq('id', dispatch.order_id);
-            results.delivered++;
-            console.log(`📦 Order ${dispatch.order_id} marked as delivered`);
-          } else if (tracking.status === 'returned') {
-            await supabase
-              .from('orders')
-              .update({
-                status: 'returned',
-                returned_at: new Date().toISOString()
-              })
-              .eq('id', dispatch.order_id);
-            results.returned++;
-            console.log(`↩️ Order ${dispatch.order_id} marked as returned`);
-          }
-        }
-      } catch (error: any) {
-        console.error(`Error processing dispatch ${dispatch.id}:`, error);
-        results.failed++;
-        results.errors.push({
-          dispatch_id: dispatch.id,
-          tracking_id: dispatch.tracking_id,
-          error: error.message
-        });
+      await Promise.all(batchPromises);
+      
+      // Add small delay between batches to avoid rate limits
+      if (i + BATCH_SIZE < (dispatches?.length || 0)) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 
-    const hasMore = (offset + BATCH_SIZE) < (totalCount || 0);
-    const nextOffset = offset + BATCH_SIZE;
-
-    console.log(`✨ Batch complete: updated=${results.updated}, delivered=${results.delivered}, returned=${results.returned}, noChange=${results.noChange}, hasMore=${hasMore}`);
-
-    // Self-continue if more batches and triggered by cron
-    if (hasMore && (trigger === 'scheduled' || trigger === 'self-continuation')) {
-      // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
-      EdgeRuntime.waitUntil(continueProcessing(supabaseUrl, supabaseAnonKey, nextOffset));
-    }
+    const duration = Date.now() - startTime;
+    console.log(`✨ Tracking complete in ${duration}ms: updated=${results.updated}, delivered=${results.delivered}, returned=${results.returned}, skipped=${results.skipped}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        hasMore,
-        nextOffset: hasMore ? nextOffset : null,
+        duration_ms: duration,
         results
       }),
       {
