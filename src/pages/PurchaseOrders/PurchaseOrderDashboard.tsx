@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, FileText, Calendar, DollarSign, XCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCurrency } from '@/hooks/useCurrency';
 import { format } from 'date-fns';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
@@ -24,12 +25,14 @@ interface PurchaseOrder {
   total_amount: number;
   suppliers: { name: string } | null;
   outlets: { name: string } | null;
+  profiles: { full_name: string | null; email: string } | null;
 }
 
 const PurchaseOrderDashboard = () => {
   const { toast } = useToast();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
+  const { currency } = useCurrency();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -59,7 +62,8 @@ const PurchaseOrderDashboard = () => {
         .select(`
           *,
           suppliers(name),
-          outlets(name)
+          outlets(name),
+          profiles!purchase_orders_created_by_fkey(full_name, email)
         `)
         .order('created_at', { ascending: false });
 
@@ -198,7 +202,7 @@ const PurchaseOrderDashboard = () => {
         po_number: poNumber,
         created_by: profile?.id,
         total_amount: totalAmount,
-        status: 'draft'
+        status: 'pending'
       };
       
       const { data: poData, error: poError } = await supabase
@@ -353,6 +357,7 @@ const PurchaseOrderDashboard = () => {
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string }> = {
+      pending: { variant: 'secondary', label: 'Pending' },
       draft: { variant: 'secondary', label: 'Draft' },
       sent: { variant: 'outline', label: 'Sent' },
       confirmed: { variant: 'default', label: 'Confirmed' },
@@ -360,12 +365,12 @@ const PurchaseOrderDashboard = () => {
       completed: { variant: 'default', label: 'Completed' },
       cancelled: { variant: 'destructive', label: 'Cancelled' }
     };
-    const config = variants[status] || variants.draft;
+    const config = variants[status] || variants.pending;
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
   const stats = {
-    draft: purchaseOrders.filter(po => po.status === 'draft').length,
+    pending: purchaseOrders.filter(po => po.status === 'pending' || po.status === 'draft').length,
     sent: purchaseOrders.filter(po => po.status === 'sent' || po.status === 'confirmed').length,
     inTransit: purchaseOrders.filter(po => po.status === 'partially_received').length,
     completed: purchaseOrders.filter(po => po.status === 'completed').length
@@ -525,10 +530,10 @@ const PurchaseOrderDashboard = () => {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Draft</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.draft}</div>
+            <div className="text-2xl font-bold">{stats.pending}</div>
           </CardContent>
         </Card>
         <Card>
@@ -578,7 +583,7 @@ const PurchaseOrderDashboard = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="sent">Sent</SelectItem>
                 <SelectItem value="confirmed">Confirmed</SelectItem>
                 <SelectItem value="partially_received">Partial</SelectItem>
@@ -613,6 +618,9 @@ const PurchaseOrderDashboard = () => {
                         <h3 className="font-semibold text-lg">{po.po_number}</h3>
                         <p className="text-sm text-muted-foreground">
                           {po.suppliers?.name} → {po.outlets?.name}
+                          {po.profiles && (
+                            <span className="ml-2">• Created by: {po.profiles.full_name || po.profiles.email}</span>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -630,14 +638,14 @@ const PurchaseOrderDashboard = () => {
                       )}
                       <div className="flex items-center gap-2">
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
-                        <span>${po.total_amount.toLocaleString()}</span>
+                        <span>{currency} {po.total_amount.toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
                   
                   <div className="flex flex-col items-end gap-2">
                     {getStatusBadge(po.status)}
-                    {['draft', 'sent', 'confirmed'].includes(po.status) && (
+                    {['pending', 'draft', 'sent', 'confirmed'].includes(po.status) && (
                       <Button
                         variant="outline"
                         size="sm"
