@@ -109,7 +109,7 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
           supplier_confirmed_at: new Date().toISOString(),
           supplier_delivery_date: data.delivery_date,
           supplier_notes: data.notes,
-          status: "approved",
+          status: "confirmed",
         })
         .eq("id", data.id);
       if (error) throw error;
@@ -158,7 +158,7 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
           shipped_at: new Date().toISOString(),
           shipping_tracking: data.tracking,
           supplier_notes: data.notes,
-          status: "shipped",
+          status: "in_transit",
         })
         .eq("id", data.id);
       if (error) throw error;
