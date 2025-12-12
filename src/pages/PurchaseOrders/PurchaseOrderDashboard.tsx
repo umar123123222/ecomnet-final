@@ -103,34 +103,63 @@ const PurchaseOrderDashboard = () => {
     }
   });
 
-  // Fetch supplier products
+  // Fetch supplier assigned products (from supplier_products table)
   const { data: supplierProducts = [] } = useQuery({
-    queryKey: ['supplier-products', formData.supplier_id],
+    queryKey: ['supplier-assigned-products', formData.supplier_id],
     queryFn: async () => {
       if (!formData.supplier_id) return [];
       const { data, error } = await supabase
-        .from('products')
-        .select('id, name, sku, cost')
-        .eq('supplier_id', formData.supplier_id)
-        .eq('is_active', true);
+        .from('supplier_products')
+        .select(`
+          id,
+          unit_cost,
+          product_id,
+          packaging_item_id,
+          products!supplier_products_product_id_fkey(id, name, sku, cost),
+          packaging_items!supplier_products_packaging_item_id_fkey(id, name, sku, cost)
+        `)
+        .eq('supplier_id', formData.supplier_id);
       if (error) throw error;
-      return data || [];
+      
+      // Separate products and packaging
+      const products = data?.filter(sp => sp.product_id && sp.products).map(sp => ({
+        id: sp.products!.id,
+        name: sp.products!.name,
+        sku: sp.products!.sku,
+        cost: sp.unit_cost || sp.products!.cost || 0
+      })) || [];
+      
+      return products;
     },
     enabled: !!formData.supplier_id
   });
 
-  // Fetch supplier packaging
+  // Fetch supplier assigned packaging (from supplier_products table)
   const { data: supplierPackaging = [] } = useQuery({
-    queryKey: ['supplier-packaging', formData.supplier_id],
+    queryKey: ['supplier-assigned-packaging', formData.supplier_id],
     queryFn: async () => {
       if (!formData.supplier_id) return [];
       const { data, error } = await supabase
-        .from('packaging_items')
-        .select('id, name, sku, cost')
+        .from('supplier_products')
+        .select(`
+          id,
+          unit_cost,
+          product_id,
+          packaging_item_id,
+          packaging_items!supplier_products_packaging_item_id_fkey(id, name, sku, cost)
+        `)
         .eq('supplier_id', formData.supplier_id)
-        .eq('is_active', true);
+        .not('packaging_item_id', 'is', null);
       if (error) throw error;
-      return data || [];
+      
+      const packaging = data?.filter(sp => sp.packaging_item_id && sp.packaging_items).map(sp => ({
+        id: sp.packaging_items!.id,
+        name: sp.packaging_items!.name,
+        sku: sp.packaging_items!.sku,
+        cost: sp.unit_cost || sp.packaging_items!.cost || 0
+      })) || [];
+      
+      return packaging;
     },
     enabled: !!formData.supplier_id
   });
