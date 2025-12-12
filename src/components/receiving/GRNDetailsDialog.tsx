@@ -60,6 +60,7 @@ const GRNDetailsDialog: React.FC<GRNDetailsDialogProps> = ({ isOpen, onClose, gr
   
   const [resolutions, setResolutions] = useState<Record<string, ResolutionItem>>({});
   const [overallNotes, setOverallNotes] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Fetch GRN details
@@ -124,6 +125,11 @@ const GRNDetailsDialog: React.FC<GRNDetailsDialogProps> = ({ isOpen, onClose, gr
   // Resolve GRN mutation
   const resolveMutation = useMutation({
     mutationFn: async (action: 'accept' | 'reject' | 'resolve') => {
+      // Validate rejection reason
+      if (action === 'reject' && !rejectionReason.trim()) {
+        throw new Error('Please provide a reason for rejection');
+      }
+      
       const { data, error } = await supabase.functions.invoke('process-grn', {
         body: {
           action,
@@ -131,7 +137,7 @@ const GRNDetailsDialog: React.FC<GRNDetailsDialogProps> = ({ isOpen, onClose, gr
             grn_id: grnId,
             resolutions: Object.values(resolutions),
             notes: overallNotes,
-            rejection_reason: action === 'reject' ? overallNotes : undefined
+            rejection_reason: action === 'reject' ? rejectionReason.trim() : undefined
           }
         }
       });
@@ -421,14 +427,25 @@ const GRNDetailsDialog: React.FC<GRNDetailsDialogProps> = ({ isOpen, onClose, gr
 
               {/* Overall Notes for Resolution */}
               {canResolve && isPending && (
-                <div>
-                  <Label>Overall Resolution Notes</Label>
-                  <Textarea
-                    placeholder="Add notes about this resolution..."
-                    value={overallNotes}
-                    onChange={(e) => setOverallNotes(e.target.value)}
-                    rows={3}
-                  />
+                <div className="space-y-4">
+                  <div>
+                    <Label>Rejection Reason (required if rejecting)</Label>
+                    <Textarea
+                      placeholder="Enter reason for rejection..."
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                  <div>
+                    <Label>Overall Resolution Notes</Label>
+                    <Textarea
+                      placeholder="Add notes about this resolution..."
+                      value={overallNotes}
+                      onChange={(e) => setOverallNotes(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -445,7 +462,7 @@ const GRNDetailsDialog: React.FC<GRNDetailsDialogProps> = ({ isOpen, onClose, gr
                 <Button
                   variant="destructive"
                   onClick={() => resolveMutation.mutate('reject')}
-                  disabled={resolveMutation.isPending}
+                  disabled={resolveMutation.isPending || !rejectionReason.trim()}
                 >
                   Reject GRN
                 </Button>
