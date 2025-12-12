@@ -1300,7 +1300,7 @@ export type Database = {
           notes: string | null
           packaging_item_id: string | null
           po_item_id: string | null
-          product_id: string
+          product_id: string | null
           quality_status: string | null
           quantity_accepted: number | null
           quantity_expected: number
@@ -1318,7 +1318,7 @@ export type Database = {
           notes?: string | null
           packaging_item_id?: string | null
           po_item_id?: string | null
-          product_id: string
+          product_id?: string | null
           quality_status?: string | null
           quantity_accepted?: number | null
           quantity_expected: number
@@ -1336,7 +1336,7 @@ export type Database = {
           notes?: string | null
           packaging_item_id?: string | null
           po_item_id?: string | null
-          product_id?: string
+          product_id?: string | null
           quality_status?: string | null
           quantity_accepted?: number | null
           quantity_expected?: number
