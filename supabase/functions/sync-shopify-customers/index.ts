@@ -270,12 +270,20 @@ Deno.serve(async (req) => {
         break;
       }
 
-      // Prepare customer payloads
+      // Helper to normalize phone numbers (remove all non-digits)
+      const normalizePhone = (phone: string | null | undefined): string | null => {
+        if (!phone) return null;
+        const normalized = phone.replace(/\D/g, '');
+        return normalized || null;
+      };
+
+      // Prepare customer payloads with normalized phone
       const customerPayloads = customers.map((c: any) => ({
         shopify_customer_id: Number(c.id),
         name: `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email || 'Unknown',
         email: c.email || null,
-        phone: c.phone || c.default_address?.phone || null,
+        phone: normalizePhone(c.phone || c.default_address?.phone),
+        phone_last_5_chr: normalizePhone(c.phone || c.default_address?.phone)?.slice(-5) || null,
         address: c.default_address ? 
           `${c.default_address.address1 || ''} ${c.default_address.address2 || ''}`.trim() : null,
         city: c.default_address?.city || null,
@@ -302,7 +310,7 @@ Deno.serve(async (req) => {
           );
           console.log(`[Found] ${existingMap.size} existing customers by Shopify ID out of ${customerPayloads.length}`);
 
-          // Step 2: For payloads without Shopify match, check by email
+          // Step 2: For payloads without Shopify match, check by normalized phone then email
           const toUpdate: Array<{ id: string; data: any }> = [];
           const toInsert: Array<any> = [];
 
@@ -311,25 +319,53 @@ Deno.serve(async (req) => {
             if (existingId) {
               // Found by Shopify ID - update
               toUpdate.push({ id: existingId, data: payload });
+            } else if (payload.phone) {
+              // Not found by Shopify ID, try normalized phone match first
+              const { data: phoneMatch } = await admin
+                .from('customers')
+                .select('id')
+                .eq('phone', payload.phone)
+                .maybeSingle();
+              
+              if (phoneMatch) {
+                // Found by phone - update and link Shopify ID
+                console.log(`[Phone Match] Found customer by phone ${payload.phone}, linking Shopify ID ${payload.shopify_customer_id}`);
+                toUpdate.push({ id: phoneMatch.id, data: payload });
+              } else if (payload.email) {
+                // Try email match as fallback
+                const { data: emailMatch } = await admin
+                  .from('customers')
+                  .select('id')
+                  .ilike('email', payload.email)
+                  .is('shopify_customer_id', null)
+                  .maybeSingle();
+                
+                if (emailMatch) {
+                  console.log(`[Email Match] Found customer by email ${payload.email}, linking Shopify ID ${payload.shopify_customer_id}`);
+                  toUpdate.push({ id: emailMatch.id, data: payload });
+                } else {
+                  toInsert.push(payload);
+                }
+              } else {
+                toInsert.push(payload);
+              }
             } else if (payload.email) {
-              // Not found by Shopify ID, try email match
+              // No phone, try email match
               const { data: emailMatch } = await admin
                 .from('customers')
                 .select('id')
                 .ilike('email', payload.email)
-                .is('shopify_customer_id', null) // Only match customers without Shopify ID
+                .is('shopify_customer_id', null)
                 .maybeSingle();
               
               if (emailMatch) {
-                // Found by email - update and link Shopify ID
                 console.log(`[Email Match] Found customer by email ${payload.email}, linking Shopify ID ${payload.shopify_customer_id}`);
                 toUpdate.push({ id: emailMatch.id, data: payload });
               } else {
-                // No match - insert new
                 toInsert.push(payload);
               }
             } else {
-              // No email to check - insert new
+              // No phone or email to check - insert new
               toInsert.push(payload);
             }
           }
