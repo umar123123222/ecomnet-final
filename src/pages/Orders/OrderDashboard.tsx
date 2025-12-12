@@ -477,16 +477,11 @@ const OrderDashboard = () => {
           ...statusCounts
         });
       } else {
-        // Use single query with RPC or fallback to efficient counting
-        // Fetch status counts in a single query by getting minimal data and counting client-side
-        // This is more efficient than 5 separate HEAD requests
-        const { data: statusCounts } = await supabase
-          .from('orders')
-          .select('status')
-          .in('status', ['booked', 'dispatched', 'delivered', 'cancelled', 'returned']);
+        // Use optimized RPC function for accurate counts (avoids 1000-row limit)
+        const { data: statusCounts } = await supabase.rpc('get_order_counts_by_status_optimized');
         
-        const counts = (statusCounts || []).reduce((acc, order) => {
-          acc[order.status] = (acc[order.status] || 0) + 1;
+        const counts = (statusCounts || []).reduce((acc: Record<string, number>, item: { status: string; count: number }) => {
+          acc[item.status] = item.count;
           return acc;
         }, {} as Record<string, number>);
         
