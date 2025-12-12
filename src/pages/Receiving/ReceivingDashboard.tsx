@@ -91,11 +91,12 @@ const ReceivingDashboard = () => {
     }
   });
 
-  // Fetch pending POs for receiving
+  // Fetch pending POs for receiving (excluding POs that already have an active GRN)
   const { data: pendingPOs = [] } = useQuery({
     queryKey: ['pending-pos'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // First, get all POs with confirmed/shipped status
+      const { data: allPOs, error: poError } = await supabase
         .from('purchase_orders')
         .select(`
           id,
@@ -108,8 +109,21 @@ const ReceivingDashboard = () => {
         `)
         .in('status', ['sent', 'confirmed', 'in_transit', 'partially_received'])
         .order('expected_delivery_date', { ascending: true });
-      if (error) throw error;
-      return data;
+      
+      if (poError) throw poError;
+      if (!allPOs?.length) return [];
+
+      // Get PO IDs that already have an active GRN
+      const { data: activeGRNs, error: grnError } = await supabase
+        .from('goods_received_notes')
+        .select('po_id')
+        .in('status', ['pending_inspection', 'inspected', 'accepted', 'partial_accept']);
+
+      if (grnError) throw grnError;
+
+      // Filter out POs that already have an active GRN
+      const activeGRNPoIds = new Set(activeGRNs?.map(g => g.po_id) || []);
+      return allPOs.filter(po => !activeGRNPoIds.has(po.id));
     }
   });
 
