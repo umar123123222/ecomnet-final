@@ -51,6 +51,9 @@ verify_jwt = false
 [functions.send-po-notification]
 verify_jwt = true
 
+[functions.send-po-status-notification]
+verify_jwt = false
+
 [functions.scheduled-smart-reorder]
 verify_jwt = false
 

@@ -133,7 +133,7 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
         .update({
           supplier_rejected: true,
           supplier_rejected_reason: data.reason,
-          status: "cancelled",
+          status: "supplier_rejected",
         })
         .eq("id", data.id);
       if (error) throw error;
@@ -182,24 +182,23 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
   };
 
   const getStatusBadge = (po: any) => {
-    if (po.supplier_rejected) {
-      return <Badge variant="destructive">Rejected</Badge>;
-    }
-    if (po.shipped_at) {
-      return <Badge className="bg-blue-500">Shipped</Badge>;
-    }
-    if (po.supplier_confirmed) {
-      return <Badge variant="default">Confirmed</Badge>;
-    }
-    const variants: Record<string, any> = {
-      draft: "secondary",
-      pending: "secondary",
-      approved: "default",
-      shipped: "default",
-      delivered: "default",
-      cancelled: "destructive",
+    const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string; className?: string }> = {
+      pending: { variant: 'secondary', label: 'Pending' },
+      sent: { variant: 'outline', label: 'Sent' },
+      confirmed: { variant: 'default', label: 'Confirmed' },
+      supplier_rejected: { variant: 'destructive', label: 'Rejected' },
+      in_transit: { variant: 'default', label: 'In Transit', className: 'bg-blue-500' },
+      partially_received: { variant: 'outline', label: 'Partial' },
+      completed: { variant: 'default', label: 'Completed', className: 'bg-green-500' },
+      cancelled: { variant: 'destructive', label: 'Cancelled' },
+      draft: { variant: 'secondary', label: 'Draft' },
     };
-    return <Badge variant={variants[po.status] || "secondary"}>{po.status?.toUpperCase()}</Badge>;
+    
+    const config = statusConfig[po.status];
+    if (config) {
+      return <Badge variant={config.variant} className={config.className}>{config.label}</Badge>;
+    }
+    return <Badge variant="secondary">{po.status?.toUpperCase() || 'Unknown'}</Badge>;
   };
 
   // Summary stats
@@ -274,9 +273,12 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="shipped">Shipped</SelectItem>
-              <SelectItem value="delivered">Delivered</SelectItem>
+              <SelectItem value="sent">Sent</SelectItem>
+              <SelectItem value="confirmed">Confirmed</SelectItem>
+              <SelectItem value="in_transit">In Transit</SelectItem>
+              <SelectItem value="partially_received">Partially Received</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="supplier_rejected">Rejected</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
@@ -328,14 +330,15 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
                         <Eye className="h-4 w-4" />
                       </Button>
                       
-                      {/* Show confirm/reject for pending orders */}
-                      {po.status === "pending" && !po.supplier_confirmed && !po.supplier_rejected && (
+                      {/* Show confirm/reject for sent orders (awaiting supplier response) */}
+                      {(po.status === "sent" || po.status === "pending") && !po.supplier_confirmed && !po.supplier_rejected && (
                         <>
                           <Button 
                             size="sm" 
                             variant="outline"
                             className="text-green-600"
                             onClick={() => setActionDialog({ type: "confirm", po })}
+                            title="Confirm Order"
                           >
                             <Check className="h-4 w-4" />
                           </Button>
@@ -344,6 +347,7 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
                             variant="outline"
                             className="text-destructive"
                             onClick={() => setActionDialog({ type: "reject", po })}
+                            title="Reject Order"
                           >
                             <X className="h-4 w-4" />
                           </Button>

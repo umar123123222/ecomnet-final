@@ -3715,6 +3715,10 @@ export type Database = {
           notes: string | null
           order_date: string | null
           outlet_id: string
+          paid_amount: number | null
+          payment_date: string | null
+          payment_notes: string | null
+          payment_reference: string | null
           payment_status: string | null
           po_number: string
           received_at: string | null
@@ -3745,6 +3749,10 @@ export type Database = {
           notes?: string | null
           order_date?: string | null
           outlet_id: string
+          paid_amount?: number | null
+          payment_date?: string | null
+          payment_notes?: string | null
+          payment_reference?: string | null
           payment_status?: string | null
           po_number: string
           received_at?: string | null
@@ -3775,6 +3783,10 @@ export type Database = {
           notes?: string | null
           order_date?: string | null
           outlet_id?: string
+          paid_amount?: number | null
+          payment_date?: string | null
+          payment_notes?: string | null
+          payment_reference?: string | null
           payment_status?: string | null
           po_number?: string
           received_at?: string | null
@@ -4837,6 +4849,76 @@ export type Database = {
             columns: ["to_outlet_id"]
             isOneToOne: false
             referencedRelation: "outlets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_credit_notes: {
+        Row: {
+          amount: number
+          created_at: string | null
+          created_by: string | null
+          grn_id: string | null
+          id: string
+          item_details: Json | null
+          notes: string | null
+          po_id: string | null
+          reason: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string | null
+          supplier_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          created_by?: string | null
+          grn_id?: string | null
+          id?: string
+          item_details?: Json | null
+          notes?: string | null
+          po_id?: string | null
+          reason: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string | null
+          supplier_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          created_by?: string | null
+          grn_id?: string | null
+          id?: string
+          item_details?: Json | null
+          notes?: string | null
+          po_id?: string | null
+          reason?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string | null
+          supplier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_credit_notes_grn_id_fkey"
+            columns: ["grn_id"]
+            isOneToOne: false
+            referencedRelation: "goods_received_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_credit_notes_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_credit_notes_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
         ]

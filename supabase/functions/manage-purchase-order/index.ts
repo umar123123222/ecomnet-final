@@ -6,6 +6,85 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper to send status change notifications
+async function sendStatusNotification(
+  supabaseClient: any,
+  po: any,
+  newStatus: string,
+  changedBy: string,
+  additionalInfo?: Record<string, any>
+) {
+  try {
+    // Get the changer's name
+    const { data: changerProfile } = await supabaseClient
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', changedBy)
+      .single();
+    
+    const changerName = changerProfile?.full_name || changerProfile?.email || 'System';
+    
+    // Get all super_admin and super_manager users
+    const { data: adminUsers } = await supabaseClient
+      .from('user_roles')
+      .select('user_id')
+      .in('role', ['super_admin', 'super_manager'])
+      .eq('is_active', true);
+    
+    const adminUserIds = adminUsers?.map((u: any) => u.user_id) || [];
+    
+    // Create in-app notifications for all admins
+    const statusLabels: Record<string, string> = {
+      pending: 'Pending Approval',
+      sent: 'Sent to Supplier',
+      confirmed: 'Confirmed by Supplier',
+      supplier_rejected: 'Rejected by Supplier',
+      in_transit: 'In Transit',
+      partially_received: 'Partially Received',
+      completed: 'Completed',
+      cancelled: 'Cancelled'
+    };
+    
+    const statusLabel = statusLabels[newStatus] || newStatus;
+    
+    const notifications = adminUserIds.map((userId: string) => ({
+      user_id: userId,
+      title: `PO ${po.po_number} - ${statusLabel}`,
+      message: `Purchase Order ${po.po_number} status changed to "${statusLabel}" by ${changerName}`,
+      type: 'purchase_order',
+      priority: ['supplier_rejected', 'cancelled'].includes(newStatus) ? 'high' : 'normal',
+      action_url: '/purchase-orders',
+      metadata: {
+        po_id: po.id,
+        po_number: po.po_number,
+        new_status: newStatus,
+        changed_by: changedBy,
+        ...additionalInfo
+      }
+    }));
+    
+    if (notifications.length > 0) {
+      await supabaseClient.from('notifications').insert(notifications);
+    }
+    
+    // Send email notification
+    await supabaseClient.functions.invoke('send-po-status-notification', {
+      body: {
+        po_id: po.id,
+        po_number: po.po_number,
+        new_status: newStatus,
+        changed_by_name: changerName,
+        additional_info: additionalInfo
+      }
+    });
+    
+    console.log(`Status notification sent for PO ${po.po_number} -> ${newStatus}`);
+  } catch (error) {
+    console.error('Failed to send status notification:', error);
+    // Don't throw - notification failure shouldn't break the action
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -57,7 +136,7 @@ serve(async (req) => {
           };
         });
 
-        // Create PO
+        // Create PO with status 'pending'
         const { data: po, error: poError } = await supabaseClient
           .from('purchase_orders')
           .insert({
@@ -72,7 +151,7 @@ serve(async (req) => {
             notes: data.notes,
             terms_conditions: data.terms_conditions,
             created_by: user.id,
-            status: 'draft'
+            status: 'pending'
           })
           .select()
           .single();
@@ -83,6 +162,7 @@ serve(async (req) => {
         const poItems = items.map((item: any) => ({
           po_id: po.id,
           product_id: item.product_id,
+          packaging_item_id: item.packaging_item_id,
           quantity_ordered: item.quantity_ordered,
           unit_price: item.unit_price,
           tax_rate: item.tax_rate || 0,
@@ -97,6 +177,12 @@ serve(async (req) => {
 
         if (itemsError) throw itemsError;
 
+        // Send status notification
+        await sendStatusNotification(supabaseClient, po, 'pending', user.id, {
+          supplier_id: data.supplier_id,
+          total_amount: totalAmount
+        });
+
         // Get supplier and item details for notification
         const { data: supplier } = await supabaseClient
           .from('suppliers')
@@ -109,14 +195,25 @@ serve(async (req) => {
           try {
             const itemDetails = await Promise.all(
               items.map(async (item: any) => {
-                const { data: product } = await supabaseClient
-                  .from('products')
-                  .select('name')
-                  .eq('id', item.product_id)
-                  .single();
+                let name = 'Unknown Item';
+                if (item.product_id) {
+                  const { data: product } = await supabaseClient
+                    .from('products')
+                    .select('name')
+                    .eq('id', item.product_id)
+                    .single();
+                  name = product?.name || 'Unknown Product';
+                } else if (item.packaging_item_id) {
+                  const { data: pkg } = await supabaseClient
+                    .from('packaging_items')
+                    .select('name')
+                    .eq('id', item.packaging_item_id)
+                    .single();
+                  name = pkg?.name || 'Unknown Packaging';
+                }
                 
                 return {
-                  name: product?.name || 'Unknown Product',
+                  name,
                   quantity: item.quantity_ordered,
                   unit_price: item.unit_price
                 };
@@ -139,7 +236,6 @@ serve(async (req) => {
             console.log('PO notification sent successfully');
           } catch (emailError) {
             console.error('Failed to send PO notification:', emailError);
-            // Don't fail the PO creation if email fails
           }
         }
 
@@ -154,6 +250,19 @@ serve(async (req) => {
           throw new Error('Missing po_id');
         }
 
+        // Get PO details first
+        const { data: po, error: poFetchError } = await supabaseClient
+          .from('purchase_orders')
+          .select('*, suppliers(name, email)')
+          .eq('id', data.po_id)
+          .single();
+        
+        if (poFetchError) throw poFetchError;
+        
+        if (po.status !== 'pending') {
+          throw new Error(`Cannot approve PO with status: ${po.status}`);
+        }
+
         const { error } = await supabaseClient
           .from('purchase_orders')
           .update({
@@ -165,7 +274,44 @@ serve(async (req) => {
 
         if (error) throw error;
 
-        // TODO: Send email notification to supplier
+        // Send notification
+        await sendStatusNotification(supabaseClient, po, 'sent', user.id);
+
+        // Send email to supplier
+        if (po.suppliers?.email) {
+          try {
+            // Get PO items
+            const { data: poItems } = await supabaseClient
+              .from('purchase_order_items')
+              .select(`
+                *,
+                products(name),
+                packaging_items(name)
+              `)
+              .eq('po_id', data.po_id);
+            
+            const items = poItems?.map((item: any) => ({
+              name: item.products?.name || item.packaging_items?.name || 'Unknown',
+              quantity: item.quantity_ordered,
+              unit_price: item.unit_price
+            })) || [];
+
+            await supabaseClient.functions.invoke('send-po-notification', {
+              body: {
+                po_id: po.id,
+                supplier_email: po.suppliers.email,
+                supplier_name: po.suppliers.name,
+                po_number: po.po_number,
+                total_amount: po.total_amount,
+                expected_delivery_date: po.expected_delivery_date,
+                items,
+                notify_admins: true
+              }
+            });
+          } catch (emailError) {
+            console.error('Failed to send approval notification:', emailError);
+          }
+        }
 
         return new Response(
           JSON.stringify({ success: true, message: 'Purchase order approved and sent to supplier' }),
@@ -178,15 +324,99 @@ serve(async (req) => {
           throw new Error('Missing po_id');
         }
 
+        // Get PO details first
+        const { data: po, error: poFetchError } = await supabaseClient
+          .from('purchase_orders')
+          .select('*')
+          .eq('id', data.po_id)
+          .single();
+        
+        if (poFetchError) throw poFetchError;
+
         const { error } = await supabaseClient
           .from('purchase_orders')
-          .update({ status: 'cancelled' })
+          .update({ 
+            status: 'cancelled',
+            updated_at: new Date().toISOString()
+          })
           .eq('id', data.po_id);
 
         if (error) throw error;
 
+        // Send notification
+        await sendStatusNotification(supabaseClient, po, 'cancelled', user.id, {
+          reason: data.reason || 'No reason provided'
+        });
+
         return new Response(
           JSON.stringify({ success: true, message: 'Purchase order cancelled' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'record_payment': {
+        if (!data.po_id) {
+          throw new Error('Missing po_id');
+        }
+
+        // Get PO details
+        const { data: po, error: poFetchError } = await supabaseClient
+          .from('purchase_orders')
+          .select('*, suppliers(name)')
+          .eq('id', data.po_id)
+          .single();
+        
+        if (poFetchError) throw poFetchError;
+
+        // Get credit notes sum for this PO
+        const { data: creditNotes } = await supabaseClient
+          .from('supplier_credit_notes')
+          .select('amount')
+          .eq('po_id', data.po_id)
+          .eq('status', 'applied');
+        
+        const creditTotal = creditNotes?.reduce((sum: number, cn: any) => sum + (cn.amount || 0), 0) || 0;
+        const netPayable = po.total_amount - creditTotal;
+        const newPaidAmount = (po.paid_amount || 0) + (data.amount || 0);
+        
+        // Determine payment status
+        let paymentStatus = 'pending';
+        if (newPaidAmount >= netPayable) {
+          paymentStatus = 'paid';
+        } else if (newPaidAmount > 0) {
+          paymentStatus = 'partial';
+        }
+
+        const { error } = await supabaseClient
+          .from('purchase_orders')
+          .update({
+            paid_amount: newPaidAmount,
+            payment_status: paymentStatus,
+            payment_date: data.payment_date || new Date().toISOString(),
+            payment_reference: data.payment_reference,
+            payment_notes: data.payment_notes,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', data.po_id);
+
+        if (error) throw error;
+
+        // Send notification
+        await sendStatusNotification(supabaseClient, po, `payment_${paymentStatus}`, user.id, {
+          amount_paid: data.amount,
+          total_paid: newPaidAmount,
+          net_payable: netPayable,
+          payment_reference: data.payment_reference
+        });
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: `Payment recorded. Status: ${paymentStatus}`,
+            payment_status: paymentStatus,
+            paid_amount: newPaidAmount,
+            net_payable: netPayable
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }

@@ -10,11 +10,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, FileText, Calendar, DollarSign, XCircle } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, DollarSign, XCircle, CheckCircle, Send, CreditCard, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCurrency } from '@/hooks/useCurrency';
 import { format } from 'date-fns';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface PurchaseOrder {
   id: string;
@@ -37,6 +38,11 @@ const PurchaseOrderDashboard = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [cancelDialog, setCancelDialog] = useState<{ open: boolean; po: PurchaseOrder | null }>({ open: false, po: null });
+  const [approveDialog, setApproveDialog] = useState<{ open: boolean; po: PurchaseOrder | null }>({ open: false, po: null });
+  const [paymentDialog, setPaymentDialog] = useState<{ open: boolean; po: PurchaseOrder | null }>({ open: false, po: null });
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [activeTab, setActiveTab] = useState('all');
 
   const [formData, setFormData] = useState({
     supplier_id: '',
@@ -276,6 +282,29 @@ const PurchaseOrderDashboard = () => {
     }
   });
 
+  // Approve PO mutation
+  const approveMutation = useMutation({
+    mutationFn: async (poId: string) => {
+      const { data, error } = await supabase.functions.invoke('manage-purchase-order', {
+        body: { action: 'approve', data: { po_id: poId } }
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+      toast({
+        title: 'Purchase Order Approved',
+        description: 'The PO has been approved and sent to the supplier.'
+      });
+      setApproveDialog({ open: false, po: null });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  });
+
   // Cancel PO
   const cancelMutation = useMutation({
     mutationFn: async (poId: string) => {
@@ -304,6 +333,38 @@ const PurchaseOrderDashboard = () => {
         variant: 'destructive'
       });
       setCancelDialog({ open: false, po: null });
+    }
+  });
+
+  // Record Payment mutation
+  const paymentMutation = useMutation({
+    mutationFn: async (data: { po_id: string; amount: number; reference: string }) => {
+      const { data: result, error } = await supabase.functions.invoke('manage-purchase-order', {
+        body: { 
+          action: 'record_payment', 
+          data: { 
+            po_id: data.po_id, 
+            amount: data.amount,
+            payment_reference: data.reference
+          } 
+        }
+      });
+      if (error) throw error;
+      if (result?.error) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+      toast({
+        title: 'Payment Recorded',
+        description: `Payment recorded. Status: ${data.payment_status}`
+      });
+      setPaymentDialog({ open: false, po: null });
+      setPaymentAmount('');
+      setPaymentReference('');
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
     }
   });
 
@@ -356,24 +417,37 @@ const PurchaseOrderDashboard = () => {
   );
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string }> = {
-      pending: { variant: 'secondary', label: 'Pending' },
+    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string, className?: string }> = {
+      pending: { variant: 'secondary', label: 'Pending Approval' },
       draft: { variant: 'secondary', label: 'Draft' },
-      sent: { variant: 'outline', label: 'Sent' },
+      sent: { variant: 'outline', label: 'Sent to Supplier' },
       confirmed: { variant: 'default', label: 'Confirmed' },
-      partially_received: { variant: 'outline', label: 'Partial' },
-      completed: { variant: 'default', label: 'Completed' },
+      supplier_rejected: { variant: 'destructive', label: 'Supplier Rejected' },
+      in_transit: { variant: 'default', label: 'In Transit', className: 'bg-blue-500' },
+      partially_received: { variant: 'outline', label: 'Partial Received' },
+      completed: { variant: 'default', label: 'Completed', className: 'bg-green-500' },
       cancelled: { variant: 'destructive', label: 'Cancelled' }
     };
     const config = variants[status] || variants.pending;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    return <Badge variant={config.variant} className={config.className}>{config.label}</Badge>;
+  };
+
+  const getPaymentBadge = (status: string | null) => {
+    if (!status || status === 'pending') return <Badge variant="outline">Unpaid</Badge>;
+    if (status === 'partial') return <Badge className="bg-orange-500">Partial</Badge>;
+    if (status === 'paid') return <Badge className="bg-green-500">Paid</Badge>;
+    return null;
   };
 
   const stats = {
-    pending: purchaseOrders.filter(po => po.status === 'pending' || po.status === 'draft').length,
+    pending: purchaseOrders.filter(po => po.status === 'pending').length,
     sent: purchaseOrders.filter(po => po.status === 'sent' || po.status === 'confirmed').length,
-    inTransit: purchaseOrders.filter(po => po.status === 'partially_received').length,
-    completed: purchaseOrders.filter(po => po.status === 'completed').length
+    inTransit: purchaseOrders.filter(po => po.status === 'in_transit' || po.status === 'partially_received').length,
+    completed: purchaseOrders.filter(po => po.status === 'completed').length,
+    awaitingPayment: purchaseOrders.filter(po => 
+      (po.status === 'completed' || po.status === 'partially_received') && 
+      (po as any).payment_status !== 'paid'
+    ).length
   };
 
   return (
@@ -583,10 +657,12 @@ const PurchaseOrderDashboard = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="pending">Pending Approval</SelectItem>
                 <SelectItem value="sent">Sent</SelectItem>
                 <SelectItem value="confirmed">Confirmed</SelectItem>
-                <SelectItem value="partially_received">Partial</SelectItem>
+                <SelectItem value="supplier_rejected">Rejected</SelectItem>
+                <SelectItem value="in_transit">In Transit</SelectItem>
+                <SelectItem value="partially_received">Partial Received</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
@@ -644,18 +720,51 @@ const PurchaseOrderDashboard = () => {
                   </div>
                   
                   <div className="flex flex-col items-end gap-2">
-                    {getStatusBadge(po.status)}
-                    {['pending', 'draft', 'sent', 'confirmed'].includes(po.status) && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCancelDialog({ open: true, po })}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <XCircle className="mr-1 h-3 w-3" />
-                        Cancel PO
-                      </Button>
-                    )}
+                    <div className="flex gap-2">
+                      {getStatusBadge(po.status)}
+                      {getPaymentBadge((po as any).payment_status)}
+                    </div>
+                    <div className="flex gap-1">
+                      {/* Approve button for pending POs */}
+                      {po.status === 'pending' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setApproveDialog({ open: true, po })}
+                          className="text-green-600 hover:text-green-700"
+                        >
+                          <Send className="mr-1 h-3 w-3" />
+                          Approve & Send
+                        </Button>
+                      )}
+                      
+                      {/* Payment button for completed/partially received POs */}
+                      {(po.status === 'completed' || po.status === 'partially_received') && 
+                       (po as any).payment_status !== 'paid' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPaymentDialog({ open: true, po })}
+                          className="text-blue-600 hover:text-blue-700"
+                        >
+                          <CreditCard className="mr-1 h-3 w-3" />
+                          Record Payment
+                        </Button>
+                      )}
+                      
+                      {/* Cancel button */}
+                      {['pending', 'draft', 'sent', 'confirmed'].includes(po.status) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCancelDialog({ open: true, po })}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <XCircle className="mr-1 h-3 w-3" />
+                          Cancel
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -693,6 +802,72 @@ const PurchaseOrderDashboard = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Approve Confirmation Dialog */}
+      <AlertDialog open={approveDialog.open} onOpenChange={(open) => setApproveDialog({ ...approveDialog, open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Approve & Send to Supplier?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will approve <strong>{approveDialog.po?.po_number}</strong> and send it to the supplier for confirmation.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => approveDialog.po && approveMutation.mutate(approveDialog.po.id)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {approveMutation.isPending ? 'Approving...' : 'Approve & Send'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Payment Dialog */}
+      <Dialog open={paymentDialog.open} onOpenChange={(open) => setPaymentDialog({ ...paymentDialog, open })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>PO: {paymentDialog.po?.po_number}</Label>
+              <p className="text-sm text-muted-foreground">Total: {currency} {paymentDialog.po?.total_amount?.toLocaleString()}</p>
+            </div>
+            <div>
+              <Label>Amount Paid *</Label>
+              <Input
+                type="number"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                placeholder="Enter amount"
+              />
+            </div>
+            <div>
+              <Label>Payment Reference</Label>
+              <Input
+                value={paymentReference}
+                onChange={(e) => setPaymentReference(e.target.value)}
+                placeholder="Transaction ID, cheque number, etc."
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setPaymentDialog({ open: false, po: null })}>Cancel</Button>
+            <Button
+              onClick={() => paymentDialog.po && paymentMutation.mutate({
+                po_id: paymentDialog.po.id,
+                amount: parseFloat(paymentAmount),
+                reference: paymentReference
+              })}
+              disabled={!paymentAmount || paymentMutation.isPending}
+            >
+              {paymentMutation.isPending ? 'Recording...' : 'Record Payment'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
