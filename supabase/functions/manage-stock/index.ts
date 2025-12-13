@@ -562,7 +562,7 @@ serve(async (req) => {
           throw updateError
         }
 
-        // Create packaging stock movement record for audit trail
+        // Create packaging stock movement record for detailed stock audit
         const { error: movementError } = await supabaseClient
           .from('packaging_stock_movements')
           .insert({
@@ -575,9 +575,25 @@ serve(async (req) => {
             performed_by: user.id
           })
 
+        // Also create entry in unified packaging_movements table so it shows on Stock Movements page
+        const { error: unifiedMovementError } = await supabaseClient
+          .from('packaging_movements')
+          .insert({
+            packaging_item_id: packagingItemId,
+            movement_type: 'adjustment',
+            quantity: quantity,
+            notes: reason,
+            created_by: user.id
+          })
+
         if (movementError) {
           console.error('[adjustPackagingStock] Error creating movement record:', movementError)
           // Don't throw - stock update succeeded, movement record is for audit
+        }
+
+        if (unifiedMovementError) {
+          console.error('[adjustPackagingStock] Error creating unified packaging movement:', unifiedMovementError)
+          // Don't throw - stock update succeeded, movement record is for audit / UI only
         }
 
         // Also log in activity_logs for centralized audit trail
