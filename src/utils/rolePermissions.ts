@@ -232,6 +232,49 @@ export const getRolePermissions = (role: UserRole) => {
         // No dispatch, returns, admin panel, or user management access
       };
     
+    case 'finance':
+      return {
+        ...permissions,
+        // Viewing access to most pages
+        canAccessDashboard: true,
+        canAccessOrders: true,
+        canAccessCustomers: true,
+        canAccessDispatch: true,
+        canAccessReturns: true,
+        canAccessAddressVerification: true,
+        canAccessInventory: true,
+        canAccessOutlets: true,
+        canAccessProducts: true,
+        canAccessStockTransfer: true,
+        canAccessLocations: true,
+        canAccessSuppliers: true,
+        canAccessSupplierAnalytics: true,
+        canAccessPurchaseOrders: true,
+        canAccessReceiving: true,
+        canAccessStockAudit: true,
+        canAccessVarianceManagement: true,
+        canAccessPackaging: true,
+        canViewStockMovements: true,
+        canAccessFraudReporting: true,
+        canAccessSettings: true,
+        // Explicitly denied - no management/editing capabilities
+        canAccessUserManagement: false,
+        canAccessActivityLogs: false,
+        canAccessBusinessSettings: false,
+        canAddUsers: false,
+        canEditUsers: false,
+        canDeleteUsers: false,
+        canManageOutlets: false,
+        canManageProducts: false,
+        canCreateStockTransfer: false,
+        canManageSuppliers: false,
+        canManagePackaging: false,
+        canAdjustPackagingStock: false,
+        canBulkAdjustStock: false,
+        canAccessPOS: false,
+        canAssignCouriers: false,
+      };
+    
     default:
       return permissions;
   }

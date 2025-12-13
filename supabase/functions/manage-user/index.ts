@@ -15,7 +15,8 @@ const ALLOWED_ROLES = [
   'dispatch_manager',
   'returns_manager',
   'staff',
-  'supplier'
+  'supplier',
+  'finance'
 ] as const
 
 // Normalize role string to match database enum

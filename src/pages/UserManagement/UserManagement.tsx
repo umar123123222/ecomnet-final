@@ -80,7 +80,7 @@ const UserManagement = () => {
     },
     mode: 'onChange'
   });
-  const availableRoles: UserRole[] = ['super_admin', 'super_manager', 'warehouse_manager', 'store_manager', 'dispatch_manager', 'returns_manager', 'staff'];
+  const availableRoles: UserRole[] = ['super_admin', 'super_manager', 'warehouse_manager', 'store_manager', 'dispatch_manager', 'returns_manager', 'staff', 'finance'];
 
   // Fetch suppliers for supplier role assignment
   const { data: suppliers = [] } = useQuery({
