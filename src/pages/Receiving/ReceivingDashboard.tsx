@@ -598,7 +598,9 @@ const ReceivingDashboard = () => {
                       }}
                     >
                       <Eye className="h-4 w-4 mr-1" />
-                      {grn.discrepancy_flag && (grn.status === 'pending_inspection' || grn.status === 'pending') && canResolve
+                      {grn.discrepancy_flag && 
+                       !['accepted', 'partial_accept', 'rejected', 'resolved'].includes(grn.status) && 
+                       canResolve
                         ? 'Resolve'
                         : 'View Details'}
                     </Button>
