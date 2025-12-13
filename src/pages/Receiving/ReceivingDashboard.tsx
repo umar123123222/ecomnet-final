@@ -181,7 +181,7 @@ const ReceivingDashboard = () => {
         sku: item.products?.sku || item.packaging_items?.sku || '',
         quantity_expected: item.quantity_ordered - (item.quantity_received || 0),
         quantity_received: item.quantity_ordered - (item.quantity_received || 0),
-        unit_cost: item.unit_cost,
+        unit_cost: item.unit_price || 0,
         batch_number: '',
         expiry_date: '',
         notes: '',
