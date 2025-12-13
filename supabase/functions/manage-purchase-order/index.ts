@@ -183,60 +183,24 @@ serve(async (req) => {
           total_amount: totalAmount
         });
 
-        // Get supplier and item details for notification
-        const { data: supplier } = await supabaseClient
-          .from('suppliers')
-          .select('name, email')
-          .eq('id', data.supplier_id)
-          .single();
+        // Send PO lifecycle email (created)
+        try {
+          // Use service role client for edge function invocation
+          const serviceClient = createClient(
+            Deno.env.get('SUPABASE_URL') ?? '',
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+          );
 
-        // Send email notification to supplier and admins
-        if (supplier?.email) {
-          try {
-            const itemDetails = await Promise.all(
-              items.map(async (item: any) => {
-                let name = 'Unknown Item';
-                if (item.product_id) {
-                  const { data: product } = await supabaseClient
-                    .from('products')
-                    .select('name')
-                    .eq('id', item.product_id)
-                    .single();
-                  name = product?.name || 'Unknown Product';
-                } else if (item.packaging_item_id) {
-                  const { data: pkg } = await supabaseClient
-                    .from('packaging_items')
-                    .select('name')
-                    .eq('id', item.packaging_item_id)
-                    .single();
-                  name = pkg?.name || 'Unknown Packaging';
-                }
-                
-                return {
-                  name,
-                  quantity: item.quantity_ordered,
-                  unit_price: item.unit_price
-                };
-              })
-            );
+          await serviceClient.functions.invoke('send-po-lifecycle-email', {
+            body: {
+              po_id: po.id,
+              notification_type: 'created'
+            }
+          });
 
-            await supabaseClient.functions.invoke('send-po-notification', {
-              body: {
-                po_id: po.id,
-                supplier_email: supplier.email,
-                supplier_name: supplier.name,
-                po_number: poNumber,
-                total_amount: totalAmount,
-                expected_delivery_date: data.expected_delivery_date,
-                items: itemDetails,
-                notify_admins: true
-              }
-            });
-
-            console.log('PO notification sent successfully');
-          } catch (emailError) {
-            console.error('Failed to send PO notification:', emailError);
-          }
+          console.log('PO created email sent successfully');
+        } catch (emailError) {
+          console.error('Failed to send PO created email:', emailError);
         }
 
         return new Response(
@@ -277,40 +241,23 @@ serve(async (req) => {
         // Send notification
         await sendStatusNotification(supabaseClient, po, 'sent', user.id);
 
-        // Send email to supplier
-        if (po.suppliers?.email) {
-          try {
-            // Get PO items
-            const { data: poItems } = await supabaseClient
-              .from('purchase_order_items')
-              .select(`
-                *,
-                products(name),
-                packaging_items(name)
-              `)
-              .eq('po_id', data.po_id);
-            
-            const items = poItems?.map((item: any) => ({
-              name: item.products?.name || item.packaging_items?.name || 'Unknown',
-              quantity: item.quantity_ordered,
-              unit_price: item.unit_price
-            })) || [];
+        // Send PO lifecycle email (approved)
+        try {
+          const serviceClient = createClient(
+            Deno.env.get('SUPABASE_URL') ?? '',
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+          );
 
-            await supabaseClient.functions.invoke('send-po-notification', {
-              body: {
-                po_id: po.id,
-                supplier_email: po.suppliers.email,
-                supplier_name: po.suppliers.name,
-                po_number: po.po_number,
-                total_amount: po.total_amount,
-                expected_delivery_date: po.expected_delivery_date,
-                items,
-                notify_admins: true
-              }
-            });
-          } catch (emailError) {
-            console.error('Failed to send approval notification:', emailError);
-          }
+          await serviceClient.functions.invoke('send-po-lifecycle-email', {
+            body: {
+              po_id: po.id,
+              notification_type: 'approved'
+            }
+          });
+
+          console.log('PO approved email sent successfully');
+        } catch (emailError) {
+          console.error('Failed to send PO approved email:', emailError);
         }
 
         return new Response(
