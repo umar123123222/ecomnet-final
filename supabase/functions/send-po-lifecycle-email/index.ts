@@ -9,7 +9,7 @@ const corsHeaders = {
 
 interface POLifecycleEmailRequest {
   po_id: string;
-  notification_type: 'created' | 'approved' | 'confirmed' | 'shipped' | 'received' | 'invoice' | 'discrepancy';
+  notification_type: 'created' | 'approved' | 'confirmed' | 'shipped' | 'received' | 'invoice' | 'discrepancy' | 'payment_receipt';
   additional_data?: Record<string, any>;
 }
 
@@ -455,6 +455,58 @@ const handler = async (req: Request): Promise<Response> => {
             <strong>💳 Payment Information:</strong><br>
             Please process the payment at your earliest convenience. Contact accounts department for payment details.
           </div>
+        `;
+        break;
+
+      case 'payment_receipt':
+        const paidAmount = additional_data?.amount_paid || 0;
+        const totalPaid = additional_data?.total_paid || 0;
+        const paymentNetPayable = additional_data?.net_payable || po.total_amount || 0;
+        const paymentReference = additional_data?.payment_reference || 'N/A';
+        const paymentStatus = additional_data?.payment_status || 'partial';
+        const paidBy = additional_data?.paid_by || 'Finance Team';
+        const paymentDate = additional_data?.payment_date || new Date().toISOString();
+        
+        subject = `✅ Payment Receipt - PO ${po.po_number}`;
+        headerColor = '#22c55e';
+        headerIcon = '✅';
+        headerTitle = 'Payment Receipt';
+        bodyContent = `
+          <p>A payment has been recorded for Purchase Order ${po.po_number}.</p>
+          
+          <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${headerColor};">
+            <h3 style="margin-top: 0; color: ${headerColor};">Payment Details</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="padding: 10px 0; color: #6b7280; width: 40%;">PO Number:</td><td style="padding: 10px 0; font-weight: bold;">${po.po_number}</td></tr>
+              <tr><td style="padding: 10px 0; color: #6b7280;">Supplier:</td><td style="padding: 10px 0;">${supplierName}</td></tr>
+              <tr><td style="padding: 10px 0; color: #6b7280;">Payment Date:</td><td style="padding: 10px 0;">${new Date(paymentDate).toLocaleDateString()}</td></tr>
+              <tr><td style="padding: 10px 0; color: #6b7280;">Recorded By:</td><td style="padding: 10px 0;">${paidBy}</td></tr>
+              <tr><td style="padding: 10px 0; color: #6b7280;">Reference:</td><td style="padding: 10px 0; font-weight: bold;">${paymentReference}</td></tr>
+            </table>
+          </div>
+
+          <div style="background: #dcfce7; padding: 20px; border-radius: 8px; margin: 20px 0; border: 2px solid ${headerColor};">
+            <h3 style="margin-top: 0; color: ${headerColor};">Payment Summary</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="padding: 10px 0; color: #6b7280;">Total Payable:</td><td style="padding: 10px 0; text-align: right;">PKR ${paymentNetPayable.toLocaleString()}</td></tr>
+              <tr><td style="padding: 10px 0; color: #6b7280;">This Payment:</td><td style="padding: 10px 0; text-align: right; font-weight: bold; color: ${headerColor};">PKR ${paidAmount.toLocaleString()}</td></tr>
+              <tr style="border-top: 1px solid #e5e7eb;"><td style="padding: 10px 0; color: #6b7280;">Total Paid to Date:</td><td style="padding: 10px 0; text-align: right; font-weight: bold;">PKR ${totalPaid.toLocaleString()}</td></tr>
+              <tr><td style="padding: 10px 0; color: #6b7280;">Remaining Balance:</td><td style="padding: 10px 0; text-align: right; ${(paymentNetPayable - totalPaid) > 0 ? 'color: #ef4444;' : 'color: #22c55e;'} font-weight: bold;">PKR ${Math.max(0, paymentNetPayable - totalPaid).toLocaleString()}</td></tr>
+              <tr style="border-top: 2px solid ${headerColor};">
+                <td style="padding: 15px 0; font-size: 16px; font-weight: bold;">Payment Status:</td>
+                <td style="padding: 15px 0; text-align: right; font-size: 18px; font-weight: bold; color: ${paymentStatus === 'paid' ? '#22c55e' : '#f59e0b'};">
+                  ${paymentStatus === 'paid' ? '✓ FULLY PAID' : paymentStatus === 'partial' ? '⏳ PARTIAL' : '⏳ PENDING'}
+                </td>
+              </tr>
+            </table>
+          </div>
+
+          ${additional_data?.payment_notes ? `
+            <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <strong>Payment Notes:</strong><br>
+              ${additional_data.payment_notes}
+            </div>
+          ` : ''}
         `;
         break;
     }
