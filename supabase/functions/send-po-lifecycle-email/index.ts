@@ -331,15 +331,76 @@ const handler = async (req: Request): Promise<Response> => {
         break;
 
       case 'invoice':
-        // Calculate final payable amount
-        const totalReceived = items.reduce((sum: number, item: any) => {
+        // Fetch GRN items to get ACTUAL received quantities (not PO items which may not be updated)
+        let invoiceItems: any[] = [];
+        
+        // First try to use received_items from additional_data (passed from process-grn)
+        if (additional_data?.received_items && additional_data.received_items.length > 0) {
+          console.log('Using received_items from additional_data for invoice');
+          invoiceItems = additional_data.received_items.map((ri: any) => {
+            // Find matching PO item for name lookup
+            const poItem = items.find((item: any) => 
+              item.products?.id === ri.product_id || 
+              item.packaging_items?.id === ri.packaging_item_id ||
+              (ri.product_id && item.products) ||
+              (ri.packaging_item_id && item.packaging_items)
+            );
+            return {
+              name: poItem?.products?.name || poItem?.packaging_items?.name || 'Unknown Item',
+              quantity_ordered: ri.quantity_ordered || 0,
+              quantity_received: ri.quantity_received || 0,
+              unit_price: ri.unit_price || 0
+            };
+          });
+        } else {
+          // Fallback: Fetch from GRN directly
+          console.log('Fetching GRN items for invoice calculation');
+          const { data: grnData } = await supabase
+            .from('goods_received_notes')
+            .select(`
+              id, grn_number, 
+              grn_items(
+                quantity_expected, quantity_received, unit_cost,
+                product_id, products(name),
+                packaging_item_id, packaging_items(name)
+              )
+            `)
+            .eq('po_id', po_id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (grnData?.grn_items && grnData.grn_items.length > 0) {
+            console.log('Found GRN data for invoice:', grnData.grn_number);
+            invoiceItems = grnData.grn_items.map((gi: any) => ({
+              name: gi.products?.name || gi.packaging_items?.name || 'Unknown Item',
+              quantity_ordered: gi.quantity_expected || 0,
+              quantity_received: gi.quantity_received || 0,
+              unit_price: gi.unit_cost || 0
+            }));
+          } else {
+            // Last fallback: use PO items
+            console.log('No GRN found, falling back to PO items for invoice');
+            invoiceItems = items.map((item: any) => ({
+              name: item.products?.name || item.packaging_items?.name || 'Unknown Item',
+              quantity_ordered: item.quantity_ordered || 0,
+              quantity_received: item.quantity_received || 0,
+              unit_price: item.unit_price || 0
+            }));
+          }
+        }
+
+        // Calculate final payable amount based on ACTUAL received quantities
+        const totalReceivedAmount = invoiceItems.reduce((sum: number, item: any) => {
           const received = item.quantity_received || 0;
           const price = item.unit_price || 0;
           return sum + (received * price);
         }, 0);
         const deliveryCost = po.shipping_cost || 0;
         const creditNoteAmount = additional_data?.credit_notes_total || 0;
-        const netPayable = totalReceived + deliveryCost - creditNoteAmount;
+        const netPayable = totalReceivedAmount + deliveryCost - creditNoteAmount;
+
+        console.log('Invoice calculation:', { invoiceItems, totalReceivedAmount, deliveryCost, creditNoteAmount, netPayable });
 
         subject = `💰 Invoice for Purchase Order ${po.po_number} - Payment Due`;
         headerColor = '#7c3aed';
@@ -360,13 +421,12 @@ const handler = async (req: Request): Promise<Response> => {
                 </tr>
               </thead>
               <tbody>
-                ${items.map((item: any) => {
-                  const name = item.products?.name || item.packaging_items?.name || 'Unknown';
+                ${invoiceItems.map((item: any) => {
                   const received = item.quantity_received || 0;
                   const price = item.unit_price || 0;
                   return `
                     <tr>
-                      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${name}</td>
+                      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${item.name}</td>
                       <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">${item.quantity_ordered}</td>
                       <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center; ${received < item.quantity_ordered ? 'color: #ef4444;' : ''}">${received}</td>
                       <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">PKR ${price.toLocaleString()}</td>
@@ -381,7 +441,7 @@ const handler = async (req: Request): Promise<Response> => {
           <div style="background: #f5f3ff; padding: 20px; border-radius: 8px; margin: 20px 0; border: 2px solid ${headerColor};">
             <h3 style="margin-top: 0; color: ${headerColor};">Payment Summary</h3>
             <table style="width: 100%; border-collapse: collapse;">
-              <tr><td style="padding: 10px 0; color: #6b7280;">Items Subtotal:</td><td style="padding: 10px 0; text-align: right;">PKR ${totalReceived.toLocaleString()}</td></tr>
+              <tr><td style="padding: 10px 0; color: #6b7280;">Items Subtotal:</td><td style="padding: 10px 0; text-align: right;">PKR ${totalReceivedAmount.toLocaleString()}</td></tr>
               <tr><td style="padding: 10px 0; color: #6b7280;">Shipping Charges:</td><td style="padding: 10px 0; text-align: right;">PKR ${deliveryCost.toLocaleString()}</td></tr>
               ${creditNoteAmount > 0 ? `<tr><td style="padding: 10px 0; color: #ef4444;">Credit Notes/Deductions:</td><td style="padding: 10px 0; text-align: right; color: #ef4444;">- PKR ${creditNoteAmount.toLocaleString()}</td></tr>` : ''}
               <tr style="border-top: 2px solid ${headerColor};">

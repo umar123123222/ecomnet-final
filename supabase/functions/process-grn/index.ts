@@ -383,13 +383,23 @@ serve(async (req) => {
             }
           });
 
-          // Send invoice email
+          // Send invoice email with actual received quantities
           await serviceClient.functions.invoke('send-po-lifecycle-email', {
             body: {
               po_id: data.po_id,
               notification_type: 'invoice',
               additional_data: {
-                grn_number: grnNumber
+                grn_number: grnNumber,
+                received_items: items.map((item: any) => {
+                  const poItem = po.purchase_order_items.find((poi: any) => poi.id === item.po_item_id);
+                  return {
+                    product_id: item.product_id,
+                    packaging_item_id: item.packaging_item_id,
+                    quantity_ordered: item.quantity_expected,
+                    quantity_received: item.quantity_received,
+                    unit_price: item.unit_cost
+                  };
+                })
               }
             }
           });
