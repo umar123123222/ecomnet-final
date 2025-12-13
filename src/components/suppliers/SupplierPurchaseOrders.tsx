@@ -51,6 +51,7 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
   const [rejectReason, setRejectReason] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [supplierNotes, setSupplierNotes] = useState("");
+  const [deliveryCharges, setDeliveryCharges] = useState("");
 
   const { data: purchaseOrders, isLoading } = useQuery({
     queryKey: ["supplier-purchase-orders", supplierId, statusFilter],
@@ -151,13 +152,14 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
   });
 
   const shipMutation = useMutation({
-    mutationFn: async (data: { id: string; tracking: string; notes?: string }) => {
+    mutationFn: async (data: { id: string; tracking: string; notes?: string; deliveryCharges?: number }) => {
       const { error } = await supabase
         .from("purchase_orders")
         .update({
           shipped_at: new Date().toISOString(),
           shipping_tracking: data.tracking,
           supplier_notes: data.notes,
+          shipping_charges: data.deliveryCharges || null,
           status: "in_transit",
         })
         .eq("id", data.id);
@@ -179,6 +181,7 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
     setRejectReason("");
     setTrackingNumber("");
     setSupplierNotes("");
+    setDeliveryCharges("");
   };
 
   const getStatusBadge = (po: any) => {
@@ -473,6 +476,16 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
           </DialogHeader>
           <div className="space-y-4">
             <div>
+              <Label>Delivery Charges (Optional)</Label>
+              <Input
+                type="number"
+                placeholder="Enter delivery charges..."
+                value={deliveryCharges}
+                onChange={(e) => setDeliveryCharges(e.target.value)}
+                min="0"
+              />
+            </div>
+            <div>
               <Label>Tracking Number (Optional)</Label>
               <Input
                 placeholder="Enter tracking number..."
@@ -496,6 +509,7 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
                 id: actionDialog?.po?.id,
                 tracking: trackingNumber,
                 notes: supplierNotes,
+                deliveryCharges: deliveryCharges ? parseFloat(deliveryCharges) : undefined,
               })}
               disabled={shipMutation.isPending}
             >
