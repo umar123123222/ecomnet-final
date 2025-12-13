@@ -86,7 +86,7 @@ const GRNDetailsDialog: React.FC<GRNDetailsDialogProps> = ({ isOpen, onClose, gr
     enabled: !!grnId && isOpen
   });
 
-  // Fetch GRN items
+  // Fetch GRN items with PO item unit_price as fallback
   const { data: grnItems = [] } = useQuery({
     queryKey: ['grn-items', grnId],
     queryFn: async () => {
@@ -96,11 +96,16 @@ const GRNDetailsDialog: React.FC<GRNDetailsDialogProps> = ({ isOpen, onClose, gr
         .select(`
           *,
           products(name, sku),
-          packaging_items(name, sku)
+          packaging_items(name, sku),
+          purchase_order_items:po_item_id(unit_price)
         `)
         .eq('grn_id', grnId);
       if (error) throw error;
-      return data as GRNItem[];
+      // Fallback: use PO unit_price if grn_item unit_cost is 0
+      return (data || []).map((item: any) => ({
+        ...item,
+        unit_cost: item.unit_cost || item.purchase_order_items?.unit_price || 0
+      })) as GRNItem[];
     },
     enabled: !!grnId && isOpen
   });
