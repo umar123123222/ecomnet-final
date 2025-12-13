@@ -15,6 +15,9 @@ import { RejectTransferDialog } from "@/components/inventory/RejectTransferDialo
 import { useToast } from "@/hooks/use-toast";
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { useAuth } from '@/contexts/AuthContext';
+import { PageContainer, PageHeader, StatsCard, StatsGrid } from "@/components/layout";
+import { EmptyTransfers } from "@/components/ui/empty-state";
+import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
 
 type TransferWithRelations = Omit<StockTransferRequest, 'from_outlet' | 'to_outlet'> & {
   from_outlet?: { name: string };
@@ -199,75 +202,55 @@ const StockTransferDashboard = () => {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-            Stock Transfer Requests
-          </h1>
-          <p className="text-muted-foreground">
-            {isStoreManager ? 'Request inventory from warehouse and receive transfers' : 'Manage inventory transfers between outlets'}
-          </p>
-        </div>
-        <Button onClick={() => setTransferDialogOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Request Transfer
-        </Button>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Stock Transfer Requests"
+        description={isStoreManager ? 'Request inventory from warehouse and receive transfers' : 'Manage inventory transfers between outlets'}
+        icon={ArrowRightLeft}
+        actions={
+          <Button onClick={() => setTransferDialogOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Request Transfer
+          </Button>
+        }
+      />
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-5">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{pendingCount}</div>
-            <p className="text-xs text-muted-foreground">Awaiting approval</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Approved</CardTitle>
-            <CheckCircle className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{approvedCount}</div>
-            <p className="text-xs text-muted-foreground">Ready to dispatch</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">In Transit</CardTitle>
-            <Truck className="h-4 w-4 text-purple-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{inTransitCount}</div>
-            <p className="text-xs text-muted-foreground">Awaiting receipt</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completed</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{completedCount}</div>
-            <p className="text-xs text-muted-foreground">Successfully received</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total</CardTitle>
-            <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{transfers?.length || 0}</div>
-            <p className="text-xs text-muted-foreground">All requests</p>
-          </CardContent>
-        </Card>
-      </div>
+      <StatsGrid columns={5}>
+        <StatsCard
+          title="Pending"
+          value={pendingCount}
+          description="Awaiting approval"
+          icon={Clock}
+          variant="warning"
+        />
+        <StatsCard
+          title="Approved"
+          value={approvedCount}
+          description="Ready to dispatch"
+          icon={CheckCircle}
+          variant="info"
+        />
+        <StatsCard
+          title="In Transit"
+          value={inTransitCount}
+          description="Awaiting receipt"
+          icon={Truck}
+        />
+        <StatsCard
+          title="Completed"
+          value={completedCount}
+          description="Successfully received"
+          icon={CheckCircle}
+          variant="success"
+        />
+        <StatsCard
+          title="Total"
+          value={transfers?.length || 0}
+          description="All requests"
+          icon={ArrowRightLeft}
+        />
+      </StatsGrid>
 
       {/* Transfers Table */}
       <Card>
@@ -434,7 +417,7 @@ const StockTransferDashboard = () => {
         onConfirm={handleReject}
         transferId={selectedTransfer?.id || ""}
       />
-    </div>
+    </PageContainer>
   );
 };
 
