@@ -469,15 +469,7 @@ serve(async (req) => {
           
           console.log(`[adjustPackagingStock] Outlet ${outletId} - Current: ${currentStock}, Adjustment: ${quantity}, New: ${newQuantity}`)
           
-          // Validate: prevent negative stock
-          if (newQuantity < 0) {
-            const error = `Cannot adjust packaging stock: would result in negative quantity (${newQuantity}). Current stock: ${currentStock}, Adjustment: ${quantity}`
-            console.error(`[adjustPackagingStock] ${error}`)
-            return new Response(
-              JSON.stringify({ error }),
-              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            )
-          }
+          // Allow negative stock to show deficit (same as products)
           
           // Use upsert function to update outlet packaging inventory
           const { error: upsertError } = await supabaseClient.rpc('upsert_outlet_packaging_inventory', {
@@ -542,15 +534,7 @@ serve(async (req) => {
         
         console.log(`[adjustPackagingStock] Central - Current: ${currentPackaging.current_stock}, Adjustment: ${quantity}, New: ${newQuantity}`)
 
-        // Validate: prevent negative stock
-        if (newQuantity < 0) {
-          const error = `Cannot adjust packaging stock: would result in negative quantity (${newQuantity}). Current stock: ${currentPackaging.current_stock}, Adjustment: ${quantity}`
-          console.error(`[adjustPackagingStock] ${error}`)
-          return new Response(
-            JSON.stringify({ error }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
+        // Allow negative stock to show deficit (same as products)
 
         // Update packaging item stock
         const { error: updateError } = await supabaseClient
