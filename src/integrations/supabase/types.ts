@@ -3731,6 +3731,9 @@ export type Database = {
           supplier_delivery_date: string | null
           supplier_id: string
           supplier_notes: string | null
+          supplier_payment_confirmed: boolean | null
+          supplier_payment_confirmed_at: string | null
+          supplier_payment_confirmed_notes: string | null
           supplier_rejected: boolean | null
           supplier_rejected_reason: string | null
           tax_amount: number | null
@@ -3765,6 +3768,9 @@ export type Database = {
           supplier_delivery_date?: string | null
           supplier_id: string
           supplier_notes?: string | null
+          supplier_payment_confirmed?: boolean | null
+          supplier_payment_confirmed_at?: string | null
+          supplier_payment_confirmed_notes?: string | null
           supplier_rejected?: boolean | null
           supplier_rejected_reason?: string | null
           tax_amount?: number | null
@@ -3799,6 +3805,9 @@ export type Database = {
           supplier_delivery_date?: string | null
           supplier_id?: string
           supplier_notes?: string | null
+          supplier_payment_confirmed?: boolean | null
+          supplier_payment_confirmed_at?: string | null
+          supplier_payment_confirmed_notes?: string | null
           supplier_rejected?: boolean | null
           supplier_rejected_reason?: string | null
           tax_amount?: number | null
