@@ -238,7 +238,7 @@ serve(async (req) => {
           batch_number: item.batch_number || null,
           expiry_date: item.expiry_date || null,
           notes: item.notes || null,
-          quality_status: 'accepted',
+          quality_status: 'passed', // Fixed: must be 'pending', 'passed', 'failed', or 'conditional'
           defect_type: item.damage_reason || null
         }));
 
