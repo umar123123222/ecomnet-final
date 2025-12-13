@@ -174,6 +174,42 @@ serve(async (req) => {
               .insert(managerNotifications);
           }
 
+          // Send discrepancy email to supplier
+          try {
+            const serviceClient = createClient(
+              Deno.env.get('SUPABASE_URL') ?? '',
+              Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+            );
+
+            const discrepancyItems = items
+              .filter((item: any) => item.quantity_received !== item.quantity_expected || item.damage_reason)
+              .map((item: any) => {
+                const product = po.purchase_order_items.find((poi: any) => poi.id === item.po_item_id);
+                return {
+                  name: product?.products?.name || product?.packaging_items?.name || 'Unknown',
+                  expected: item.quantity_expected,
+                  received: item.quantity_received,
+                  variance: item.quantity_expected - item.quantity_received,
+                  defect_type: item.damage_reason
+                };
+              });
+
+            await serviceClient.functions.invoke('send-po-lifecycle-email', {
+              body: {
+                po_id: data.po_id,
+                notification_type: 'discrepancy',
+                additional_data: {
+                  grn_number: grnNumber,
+                  discrepancy_items: discrepancyItems,
+                  notes: data.notes
+                }
+              }
+            });
+            console.log('Discrepancy email sent to supplier');
+          } catch (emailError) {
+            console.error('Failed to send discrepancy email:', emailError);
+          }
+
           // Notify supplier via WhatsApp if phone available
           if (supplier?.phone) {
             try {

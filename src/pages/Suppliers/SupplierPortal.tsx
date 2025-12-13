@@ -3,11 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Package, Bell, FileText, BarChart3, Loader2, LogOut, Building2 } from "lucide-react";
+import { Package, Bell, FileText, BarChart3, Loader2, LogOut, Building2, AlertTriangle } from "lucide-react";
 import { AssignedInventory } from "@/components/suppliers/AssignedInventory";
 import { LowStockNotifications } from "@/components/suppliers/LowStockNotifications";
 import { SupplierPurchaseOrders } from "@/components/suppliers/SupplierPurchaseOrders";
 import { SupplierPerformance } from "@/components/suppliers/SupplierPerformance";
+import { SupplierDiscrepancies } from "@/components/suppliers/SupplierDiscrepancies";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function SupplierPortal() {
@@ -71,11 +72,21 @@ export default function SupplierPortal() {
 
       if (shipError) throw shipError;
 
+      // Get discrepancies count (unacknowledged)
+      const { data: discrepancies, error: discError } = await supabase
+        .from("goods_received_notes")
+        .select("id")
+        .eq("supplier_id", supplierProfile.supplier_id)
+        .eq("discrepancy_flag", true);
+
+      if (discError) throw discError;
+
       return {
         assignedItems: assignments?.length || 0,
         lowStockAlerts: alerts?.length || 0,
         pendingPOs: pendingPOs?.length || 0,
         toShipPOs: toShipPOs?.length || 0,
+        discrepancies: discrepancies?.length || 0,
       };
     },
     enabled: !!supplierProfile?.supplier_id,
@@ -134,7 +145,7 @@ export default function SupplierPortal() {
 
       <main className="container mx-auto p-6 space-y-6">
         {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <Card className="p-6 bg-background/80 backdrop-blur-sm">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-primary/10 rounded-lg">
@@ -182,6 +193,18 @@ export default function SupplierPortal() {
               </div>
             </div>
           </Card>
+
+          <Card className="p-6 bg-background/80 backdrop-blur-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-red-500/10 rounded-lg">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Discrepancies</p>
+                <p className="text-3xl font-bold text-red-600">{stats?.discrepancies || 0}</p>
+              </div>
+            </div>
+          </Card>
         </div>
 
         {/* Main Content Tabs */}
@@ -220,6 +243,18 @@ export default function SupplierPortal() {
                 Inventory
               </TabsTrigger>
               <TabsTrigger 
+                value="discrepancies"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-4"
+              >
+                <AlertTriangle className="mr-2 h-4 w-4" />
+                Discrepancies
+                {(stats?.discrepancies || 0) > 0 && (
+                  <span className="ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                    {stats?.discrepancies}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger 
                 value="performance"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-4"
               >
@@ -239,6 +274,10 @@ export default function SupplierPortal() {
 
               <TabsContent value="inventory" className="m-0">
                 <AssignedInventory supplierId={supplierProfile.supplier_id} />
+              </TabsContent>
+
+              <TabsContent value="discrepancies" className="m-0">
+                <SupplierDiscrepancies supplierId={supplierProfile.supplier_id} />
               </TabsContent>
 
               <TabsContent value="performance" className="m-0">
