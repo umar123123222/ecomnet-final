@@ -738,9 +738,10 @@ const PurchaseOrderDashboard = () => {
                         </Button>
                       )}
                       
-                      {/* Payment button for completed/partially received POs */}
+                      {/* Payment button for completed/partially received POs - only for finance and super_admin */}
                       {(po.status === 'completed' || po.status === 'partially_received') && 
-                       (po as any).payment_status !== 'paid' && (
+                       (po as any).payment_status !== 'paid' &&
+                       (profile?.role === 'super_admin' || profile?.role === 'finance') && (
                         <Button
                           variant="outline"
                           size="sm"

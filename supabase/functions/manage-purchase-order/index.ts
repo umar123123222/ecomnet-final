@@ -306,6 +306,18 @@ serve(async (req) => {
           throw new Error('Missing po_id');
         }
 
+        // Check user role - only finance and super_admin can record payments
+        const { data: userRoles } = await supabaseClient
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .in('role', ['super_admin', 'finance'])
+          .eq('is_active', true);
+
+        if (!userRoles || userRoles.length === 0) {
+          throw new Error('Unauthorized: Only Finance or Super Admin can record payments');
+        }
+
         // Get PO details
         const { data: po, error: poFetchError } = await supabaseClient
           .from('purchase_orders')
