@@ -107,7 +107,7 @@ const ReceivingDashboard = () => {
           suppliers(name),
           outlets(name)
         `)
-        .in('status', ['sent', 'confirmed', 'in_transit', 'partially_received'])
+        .in('status', ['in_transit', 'partially_received'])
         .order('expected_delivery_date', { ascending: true });
       
       if (poError) throw poError;
