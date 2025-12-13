@@ -7,7 +7,8 @@ export type UserRole =
   | 'dispatch_manager'
   | 'returns_manager'
   | 'staff'
-  | 'supplier';
+  | 'supplier'
+  | 'finance';
 
 export interface User {
   id: string;

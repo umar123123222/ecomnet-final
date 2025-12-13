@@ -6015,6 +6015,7 @@ export type Database = {
         | "returns_manager"
         | "staff"
         | "supplier"
+        | "finance"
       verification_status: "pending" | "approved" | "disapproved"
     }
     CompositeTypes: {
@@ -6163,6 +6164,7 @@ export const Constants = {
         "returns_manager",
         "staff",
         "supplier",
+        "finance",
       ],
       verification_status: ["pending", "approved", "disapproved"],
     },
