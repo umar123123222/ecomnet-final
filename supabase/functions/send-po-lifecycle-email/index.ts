@@ -9,7 +9,7 @@ const corsHeaders = {
 
 interface POLifecycleEmailRequest {
   po_id: string;
-  notification_type: 'created' | 'approved' | 'confirmed' | 'shipped' | 'received' | 'invoice';
+  notification_type: 'created' | 'approved' | 'confirmed' | 'shipped' | 'received' | 'invoice' | 'discrepancy';
   additional_data?: Record<string, any>;
 }
 
@@ -257,6 +257,75 @@ const handler = async (req: Request): Promise<Response> => {
               <tr><td style="padding: 8px 0; color: #6b7280;">Received At:</td><td style="padding: 8px 0;">${timestamp}</td></tr>
               <tr><td style="padding: 8px 0; color: #6b7280;">Received By:</td><td style="padding: 8px 0;">${additional_data?.received_by || 'Warehouse Staff'}</td></tr>
             </table>
+          </div>
+        `;
+        break;
+
+      case 'discrepancy':
+        const discrepancyItems = additional_data?.discrepancy_items || [];
+        const discrepancyGrnNumber = additional_data?.grn_number || 'N/A';
+        subject = `⚠️ Receiving Discrepancy Detected - PO ${po.po_number}`;
+        headerColor = '#ef4444';
+        headerIcon = '⚠️';
+        headerTitle = 'Receiving Discrepancy Detected';
+        
+        const discrepancyItemsHTML = discrepancyItems.map((item: any) => `
+          <tr>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${item.name}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">${item.expected}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center; color: ${item.received < item.expected ? '#ef4444' : '#22c55e'};">${item.received}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center; color: ${item.variance > 0 ? '#ef4444' : '#22c55e'};">${item.variance > 0 ? '-' : '+'}${Math.abs(item.variance)}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${item.defect_type || '-'}</td>
+          </tr>
+        `).join('');
+
+        bodyContent = `
+          <p>We have detected discrepancies while receiving your shipment for Purchase Order ${po.po_number}.</p>
+          
+          <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; border-radius: 4px;">
+            <strong>⚠️ Action Required:</strong><br>
+            Please review the discrepancies below and respond via the Supplier Portal to acknowledge or dispute these findings.
+          </div>
+
+          <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${headerColor};">
+            <h3 style="margin-top: 0; color: ${headerColor};">Discrepancy Details</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
+              <tr><td style="padding: 8px 0; color: #6b7280; width: 40%;">GRN Number:</td><td style="padding: 8px 0; font-weight: bold;">${discrepancyGrnNumber}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Received At:</td><td style="padding: 8px 0;">${timestamp}</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280;">Received By:</td><td style="padding: 8px 0;">${additional_data?.received_by || 'Warehouse Staff'}</td></tr>
+            </table>
+          </div>
+
+          ${discrepancyItems.length > 0 ? `
+            <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="margin-top: 0; color: ${headerColor};">Items with Issues</h3>
+              <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                  <tr style="background: #fef2f2;">
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid ${headerColor};">Item</th>
+                    <th style="padding: 12px; text-align: center; border-bottom: 2px solid ${headerColor};">Expected</th>
+                    <th style="padding: 12px; text-align: center; border-bottom: 2px solid ${headerColor};">Received</th>
+                    <th style="padding: 12px; text-align: center; border-bottom: 2px solid ${headerColor};">Variance</th>
+                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid ${headerColor};">Issue Type</th>
+                  </tr>
+                </thead>
+                <tbody>${discrepancyItemsHTML}</tbody>
+              </table>
+            </div>
+          ` : ''}
+
+          ${additional_data?.notes ? `
+            <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <strong>Warehouse Notes:</strong><br>
+              ${additional_data.notes}
+            </div>
+          ` : ''}
+
+          <div style="background: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 4px;">
+            <strong>📋 Next Steps:</strong><br>
+            1. Log in to the Supplier Portal<br>
+            2. Go to the "Discrepancies" tab<br>
+            3. Review and respond to this discrepancy
           </div>
         `;
         break;
