@@ -20,8 +20,8 @@ const productSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(200, "Name must be less than 200 characters"),
   description: z.string().trim().max(1000, "Description must be less than 1000 characters").nullable().transform(v => v ?? "").optional(),
   category: z.string().trim().max(100, "Category must be less than 100 characters").nullable().transform(v => v ?? "").optional(),
-  price: z.number().min(0, "Price must be positive"),
-  cost: z.number().min(0, "Cost must be positive").optional(),
+  price: z.number().min(0, "Retail price must be positive"),
+  cost: z.number().min(0, "Cost must be positive"),
   reorder_level: z.number().int().min(0, "Reorder level must be a positive integer"),
   is_active: z.boolean(),
   size: z.string().nullable().transform(v => v ?? "").optional(),
@@ -526,30 +526,32 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
 
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="price">Price (PKR) *</Label>
-              <Input
-                id="price"
-                type="number"
-                step="0.01"
-                {...register("price", { valueAsNumber: true })}
-                placeholder="0.00"
-              />
-              {errors.price && (
-                <p className="text-sm text-red-500">{errors.price.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="cost">Cost (PKR)</Label>
+              <Label htmlFor="cost">Cost (PKR) *</Label>
               <Input
                 id="cost"
                 type="number"
                 step="0.01"
                 {...register("cost", { valueAsNumber: true })}
-                placeholder="0.00"
+                placeholder="Raw materials + packaging"
               />
+              <p className="text-xs text-muted-foreground">Raw materials + packaging cost</p>
               {errors.cost && (
-                <p className="text-sm text-red-500">{errors.cost.message}</p>
+                <p className="text-sm text-destructive">{errors.cost.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="price">Retail Price (PKR) *</Label>
+              <Input
+                id="price"
+                type="number"
+                step="0.01"
+                {...register("price", { valueAsNumber: true })}
+                placeholder="Selling price"
+              />
+              <p className="text-xs text-muted-foreground">Retail selling price per unit</p>
+              {errors.price && (
+                <p className="text-sm text-destructive">{errors.price.message}</p>
               )}
             </div>
 
