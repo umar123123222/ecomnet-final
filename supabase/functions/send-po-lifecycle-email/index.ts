@@ -596,6 +596,47 @@ const handler = async (req: Request): Promise<Response> => {
         const poTotalAmount = po.total_amount || 0;
         const totalPaidAmount = po.paid_amount || 0;
         
+        // Fetch GRN items to get received quantities
+        let confirmInvoiceItems: any[] = [];
+        const { data: confirmGrnData } = await supabase
+          .from('goods_received_notes')
+          .select(`
+            id, grn_number, 
+            grn_items(
+              quantity_expected, quantity_received, unit_cost,
+              product_id, products(name),
+              packaging_item_id, packaging_items(name),
+              po_item_id, purchase_order_items:po_item_id(unit_price)
+            )
+          `)
+          .eq('po_id', po_id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (confirmGrnData?.grn_items && confirmGrnData.grn_items.length > 0) {
+          confirmInvoiceItems = confirmGrnData.grn_items.map((gi: any) => ({
+            name: gi.products?.name || gi.packaging_items?.name || 'Unknown Item',
+            quantity_ordered: gi.quantity_expected || 0,
+            quantity_received: gi.quantity_received || 0,
+            unit_price: gi.unit_cost || gi.purchase_order_items?.unit_price || 0
+          }));
+        } else {
+          confirmInvoiceItems = items.map((item: any) => ({
+            name: item.products?.name || item.packaging_items?.name || 'Unknown Item',
+            quantity_ordered: item.quantity_ordered || 0,
+            quantity_received: item.quantity_received || item.quantity_ordered || 0,
+            unit_price: item.unit_price || 0
+          }));
+        }
+
+        // Calculate amounts
+        const confirmOriginalPoTotal = poTotalAmount;
+        const confirmShippingCost = po.shipping_cost || 0;
+        const confirmReceivedTotal = confirmInvoiceItems.reduce((sum: number, item: any) => 
+          sum + ((item.quantity_received || 0) * (item.unit_price || 0)), 0);
+        const confirmPayable = confirmReceivedTotal + confirmShippingCost;
+        
         subject = `✅ Payment Confirmed by Supplier - PO ${po.po_number}`;
         headerColor = '#22c55e';
         headerIcon = '✅';
@@ -613,11 +654,50 @@ const handler = async (req: Request): Promise<Response> => {
             </table>
           </div>
 
+          <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin-top: 0; color: #3b82f6;">Order Items</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background: #f3f4f6;">
+                  <th style="padding: 12px; text-align: left; border-bottom: 2px solid #3b82f6;">Item</th>
+                  <th style="padding: 12px; text-align: center; border-bottom: 2px solid #3b82f6;">Ordered Qty</th>
+                  <th style="padding: 12px; text-align: center; border-bottom: 2px solid #3b82f6;">Received Qty</th>
+                  <th style="padding: 12px; text-align: right; border-bottom: 2px solid #3b82f6;">Unit Price</th>
+                  <th style="padding: 12px; text-align: right; border-bottom: 2px solid #3b82f6;">Received Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${confirmInvoiceItems.map((item: any) => {
+                  const orderedQty = item.quantity_ordered || 0;
+                  const receivedQty = item.quantity_received || 0;
+                  const price = item.unit_price || 0;
+                  return `
+                    <tr>
+                      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${item.name}</td>
+                      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">${orderedQty}</td>
+                      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center; ${receivedQty < orderedQty ? 'color: #ef4444;' : ''}">${receivedQty}</td>
+                      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">PKR ${price.toLocaleString()}</td>
+                      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold;">PKR ${(receivedQty * price).toLocaleString()}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+              <tfoot>
+                <tr style="background: #f8fafc;">
+                  <td colspan="4" style="padding: 12px; text-align: right; color: #6b7280;">Original PO Total:</td>
+                  <td style="padding: 12px; text-align: right;">PKR ${confirmOriginalPoTotal.toLocaleString()}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
           <div style="background: #dcfce7; padding: 20px; border-radius: 8px; margin: 20px 0; border: 2px solid ${headerColor};">
             <h3 style="margin-top: 0; color: ${headerColor};">Payment Summary</h3>
             <table style="width: 100%; border-collapse: collapse;">
-              <tr><td style="padding: 10px 0; color: #6b7280;">PO Total Amount:</td><td style="padding: 10px 0; text-align: right;">PKR ${poTotalAmount.toLocaleString()}</td></tr>
-              <tr><td style="padding: 10px 0; color: #6b7280;">Amount Paid:</td><td style="padding: 10px 0; text-align: right; font-weight: bold; color: ${headerColor};">PKR ${totalPaidAmount.toLocaleString()}</td></tr>
+              <tr><td style="padding: 10px 0; color: #6b7280;">Received Items Total:</td><td style="padding: 10px 0; text-align: right;">PKR ${confirmReceivedTotal.toLocaleString()}</td></tr>
+              <tr><td style="padding: 10px 0; color: #6b7280;">Shipping Charges:</td><td style="padding: 10px 0; text-align: right;">PKR ${confirmShippingCost.toLocaleString()}</td></tr>
+              <tr style="border-top: 1px solid #e5e7eb;"><td style="padding: 10px 0; color: #6b7280; font-weight: bold;">Total Payable:</td><td style="padding: 10px 0; text-align: right; font-weight: bold;">PKR ${confirmPayable.toLocaleString()}</td></tr>
+              <tr style="border-top: 2px solid ${headerColor}; background: #bbf7d0;"><td style="padding: 10px 0; color: #6b7280;">Amount Paid:</td><td style="padding: 10px 0; text-align: right; font-weight: bold; color: ${headerColor}; font-size: 18px;">PKR ${totalPaidAmount.toLocaleString()}</td></tr>
               <tr style="border-top: 2px solid ${headerColor};">
                 <td style="padding: 15px 0; font-size: 16px; font-weight: bold;">Status:</td>
                 <td style="padding: 15px 0; text-align: right; font-size: 18px; font-weight: bold; color: ${headerColor};">
