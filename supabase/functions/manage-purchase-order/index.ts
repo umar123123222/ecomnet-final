@@ -304,6 +304,13 @@ serve(async (req) => {
 
         if (error) throw error;
 
+        // Get user profile for email
+        const { data: userProfile } = await supabaseClient
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single();
+
         // Send notification
         await sendStatusNotification(supabaseClient, po, `payment_${paymentStatus}`, user.id, {
           amount_paid: data.amount,
@@ -311,6 +318,34 @@ serve(async (req) => {
           net_payable: netPayable,
           payment_reference: data.payment_reference
         });
+
+        // Send payment receipt email
+        try {
+          const serviceClient = createClient(
+            Deno.env.get('SUPABASE_URL') ?? '',
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+          );
+
+          await serviceClient.functions.invoke('send-po-lifecycle-email', {
+            body: {
+              po_id: data.po_id,
+              notification_type: 'payment_receipt',
+              additional_data: {
+                amount_paid: data.amount,
+                total_paid: newPaidAmount,
+                net_payable: netPayable,
+                payment_reference: data.payment_reference,
+                payment_status: paymentStatus,
+                payment_date: data.payment_date || new Date().toISOString(),
+                payment_notes: data.payment_notes,
+                paid_by: userProfile?.full_name || 'Finance Team'
+              }
+            }
+          });
+          console.log('Payment receipt email sent successfully');
+        } catch (emailError) {
+          console.error('Failed to send payment receipt email:', emailError);
+        }
 
         return new Response(
           JSON.stringify({ 
