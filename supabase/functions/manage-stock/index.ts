@@ -456,60 +456,72 @@ serve(async (req) => {
             }
           }
           
-          // Fetch current outlet packaging inventory
-          const { data: outletInventory, error: fetchError } = await supabaseClient
-            .from('outlet_packaging_inventory')
-            .select('id, quantity')
-            .eq('packaging_item_id', packagingItemId)
-            .eq('outlet_id', outletId)
-            .maybeSingle()
+          // Check if outlet is a warehouse - if so, route to central stock adjustment
+          const { data: outletData } = await supabaseClient
+            .from('outlets')
+            .select('outlet_type')
+            .eq('id', outletId)
+            .single()
           
-          const currentStock = outletInventory?.quantity || 0
-          const newQuantity = currentStock + quantity
+          if (outletData?.outlet_type === 'warehouse') {
+            console.log(`[adjustPackagingStock] Outlet ${outletId} is a warehouse - routing to central stock adjustment`)
+            // Fall through to central stock logic below by not returning here
+          } else {
+            // Store/outlet-level adjustment
+            const { data: outletInventory, error: fetchError } = await supabaseClient
+              .from('outlet_packaging_inventory')
+              .select('id, quantity')
+              .eq('packaging_item_id', packagingItemId)
+              .eq('outlet_id', outletId)
+              .maybeSingle()
           
-          console.log(`[adjustPackagingStock] Outlet ${outletId} - Current: ${currentStock}, Adjustment: ${quantity}, New: ${newQuantity}`)
-          
-          // Allow negative stock to show deficit (same as products)
-          
-          // Use upsert function to update outlet packaging inventory
-          const { error: upsertError } = await supabaseClient.rpc('upsert_outlet_packaging_inventory', {
-            p_outlet_id: outletId,
-            p_packaging_item_id: packagingItemId,
-            p_quantity_change: quantity
-          })
-          
-          if (upsertError) {
-            console.error('[adjustPackagingStock] Error upserting outlet packaging inventory:', upsertError)
-            throw upsertError
-          }
-          
-          // Create packaging movement record for audit trail
-          const { error: movementError } = await supabaseClient
-            .from('packaging_movements')
-            .insert({
-              packaging_item_id: packagingItemId,
-              movement_type: 'adjustment',
-              quantity: quantity,
-              notes: `${reason} (Outlet: ${outletId})`,
-              created_by: user.id
+            const currentStock = outletInventory?.quantity || 0
+            const newQuantity = currentStock + quantity
+            
+            console.log(`[adjustPackagingStock] Outlet ${outletId} - Current: ${currentStock}, Adjustment: ${quantity}, New: ${newQuantity}`)
+            
+            // Allow negative stock to show deficit (same as products)
+            
+            // Use upsert function to update outlet packaging inventory
+            const { error: upsertError } = await supabaseClient.rpc('upsert_outlet_packaging_inventory', {
+              p_outlet_id: outletId,
+              p_packaging_item_id: packagingItemId,
+              p_quantity_change: quantity
             })
-          
-          if (movementError) {
-            console.error('[adjustPackagingStock] Error creating packaging movement:', movementError)
+            
+            if (upsertError) {
+              console.error('[adjustPackagingStock] Error upserting outlet packaging inventory:', upsertError)
+              throw upsertError
+            }
+            
+            // Create packaging movement record for audit trail
+            const { error: movementError } = await supabaseClient
+              .from('packaging_movements')
+              .insert({
+                packaging_item_id: packagingItemId,
+                movement_type: 'adjustment',
+                quantity: quantity,
+                notes: `${reason} (Outlet: ${outletId})`,
+                created_by: user.id
+              })
+            
+            if (movementError) {
+              console.error('[adjustPackagingStock] Error creating packaging movement:', movementError)
+            }
+            
+            console.log(`[adjustPackagingStock] Success - Outlet packaging adjusted from ${currentStock} to ${newQuantity}`)
+            
+            return new Response(
+              JSON.stringify({ 
+                success: true, 
+                previousQuantity: currentStock,
+                newQuantity: newQuantity,
+                adjustment: quantity,
+                outlet_level: true
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
           }
-          
-          console.log(`[adjustPackagingStock] Success - Outlet packaging adjusted from ${currentStock} to ${newQuantity}`)
-          
-          return new Response(
-            JSON.stringify({ 
-              success: true, 
-              previousQuantity: currentStock,
-              newQuantity: newQuantity,
-              adjustment: quantity,
-              outlet_level: true
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
         }
         
         // Central warehouse packaging adjustment (original logic)
