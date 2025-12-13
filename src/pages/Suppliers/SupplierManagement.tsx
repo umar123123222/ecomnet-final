@@ -10,10 +10,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, Star, AlertCircle, Building2, Package, Trash2, Mail, CheckCircle } from 'lucide-react';
+import { Plus, Search, Star, Building2, Package, Trash2, Mail, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { SupplierProductsDialog } from '@/components/suppliers/SupplierProductsDialog';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { PageContainer, PageHeader, StatsCard, StatsGrid } from '@/components/layout';
+import { EmptyState } from '@/components/ui/empty-state';
+import { DataTableSkeleton } from '@/components/ui/data-table-skeleton';
 
 interface Supplier {
   id: string;
@@ -350,23 +353,29 @@ const SupplierManagement = () => {
     );
   };
 
+  const activeCount = suppliers.filter(s => s.status === 'active').length;
+  const inactiveCount = suppliers.filter(s => s.status === 'inactive').length;
+  const blacklistedCount = suppliers.filter(s => s.status === 'blacklisted').length;
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Supplier Management</h1>
-          <p className="text-muted-foreground">Manage your suppliers and track their performance</p>
-        </div>
-        {permissions.canManageSuppliers && (
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={resetForm}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Supplier
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+    <PageContainer>
+      <PageHeader
+        title="Supplier Management"
+        description="Manage your suppliers and track their performance"
+        icon={Building2}
+        actions={
+          permissions.canManageSuppliers ? (
+            <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Supplier
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {/* Add/Edit Supplier Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}</DialogTitle>
               </DialogHeader>
@@ -531,11 +540,9 @@ const SupplierManagement = () => {
                     {saveMutation.isPending ? 'Saving...' : 'Save Supplier'}
                   </Button>
                 </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        )}
-      </div>
+            </form>
+          </DialogContent>
+        </Dialog>
 
       {/* Filters */}
       <Card>
@@ -723,7 +730,7 @@ const SupplierManagement = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageContainer>
   );
 };
 
