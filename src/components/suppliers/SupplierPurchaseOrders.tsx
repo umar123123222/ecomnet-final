@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { 
   FileText, Eye, AlertTriangle, Check, X, Truck, 
-  Clock, Package, DollarSign 
+  Clock, Package, DollarSign, CreditCard, CheckCircle2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -52,6 +52,7 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
   const [trackingNumber, setTrackingNumber] = useState("");
   const [supplierNotes, setSupplierNotes] = useState("");
   const [deliveryCharges, setDeliveryCharges] = useState("");
+  const [paymentConfirmNotes, setPaymentConfirmNotes] = useState("");
 
   const { data: purchaseOrders, isLoading } = useQuery({
     queryKey: ["supplier-purchase-orders", supplierId, statusFilter],
@@ -209,12 +210,51 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
     },
   });
 
+  const confirmPaymentMutation = useMutation({
+    mutationFn: async (data: { id: string; notes?: string }) => {
+      const { error } = await supabase
+        .from("purchase_orders")
+        .update({
+          supplier_payment_confirmed: true,
+          supplier_payment_confirmed_at: new Date().toISOString(),
+          supplier_payment_confirmed_notes: data.notes,
+        })
+        .eq("id", data.id);
+      if (error) throw error;
+
+      // Trigger lifecycle email for payment confirmation - TO finance, CC others
+      try {
+        await supabase.functions.invoke('send-po-lifecycle-email', {
+          body: {
+            po_id: data.id,
+            notification_type: 'supplier_payment_confirmation',
+            additional_data: {
+              notes: data.notes
+            }
+          }
+        });
+      } catch (emailError) {
+        console.error('Failed to send payment confirmation email:', emailError);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["supplier-purchase-orders"] });
+      toast({ title: "Payment receipt confirmed successfully" });
+      setActionDialog(null);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast({ title: "Error confirming payment", description: error.message, variant: "destructive" });
+    },
+  });
+
   const resetForm = () => {
     setDeliveryDate("");
     setRejectReason("");
     setTrackingNumber("");
     setSupplierNotes("");
     setDeliveryCharges("");
+    setPaymentConfirmNotes("");
   };
 
   const getStatusBadge = (po: any) => {
@@ -243,11 +283,16 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
   ).length || 0;
   const confirmedPOs = purchaseOrders?.filter((po: any) => po.status === "confirmed" && !po.shipped_at).length || 0;
   const shippedPOs = purchaseOrders?.filter((po: any) => po.shipped_at).length || 0;
+  
+  // Paid POs awaiting supplier confirmation
+  const paidPOs = purchaseOrders?.filter((po: any) => 
+    po.paid_amount && po.paid_amount > 0 && !po.supplier_payment_confirmed
+  ).length || 0;
 
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-yellow-500/10 rounded-lg">
@@ -278,6 +323,17 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
             <div>
               <p className="text-sm text-muted-foreground">Shipped</p>
               <p className="text-2xl font-bold text-blue-600">{shippedPOs}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-500/10 rounded-lg">
+              <CreditCard className="h-5 w-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Payments to Confirm</p>
+              <p className="text-2xl font-bold text-purple-600">{paidPOs}</p>
             </div>
           </div>
         </Card>
@@ -330,17 +386,18 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
               <TableHead>Total Amount</TableHead>
               <TableHead>Delivery Date</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Payment</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center">Loading...</TableCell>
+                <TableCell colSpan={9} className="text-center">Loading...</TableCell>
               </TableRow>
             ) : purchaseOrders?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center">No purchase orders found</TableCell>
+                <TableCell colSpan={9} className="text-center">No purchase orders found</TableCell>
               </TableRow>
             ) : (
               purchaseOrders?.map((po: any) => (
@@ -360,6 +417,22 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
                         : "-"}
                   </TableCell>
                   <TableCell>{getStatusBadge(po)}</TableCell>
+                  <TableCell>
+                    {po.paid_amount && po.paid_amount > 0 ? (
+                      po.supplier_payment_confirmed ? (
+                        <Badge className="bg-green-500">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Confirmed
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-purple-500">
+                          PKR {po.paid_amount?.toLocaleString()}
+                        </Badge>
+                      )
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" onClick={() => setSelectedPO(po)}>
@@ -399,6 +472,19 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
                           onClick={() => setActionDialog({ type: "ship", po })}
                         >
                           <Truck className="h-4 w-4" />
+                        </Button>
+                      )}
+
+                      {/* Show payment confirmation button for paid POs */}
+                      {po.paid_amount && po.paid_amount > 0 && !po.supplier_payment_confirmed && (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="text-purple-600"
+                          onClick={() => setActionDialog({ type: "confirm_payment", po })}
+                          title="Confirm Payment Receipt"
+                        >
+                          <CreditCard className="h-4 w-4" />
                         </Button>
                       )}
                     </div>
@@ -547,6 +633,60 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
               disabled={deliveryCharges === "" || shipMutation.isPending}
             >
               {shipMutation.isPending ? "Updating..." : "Mark as Shipped"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Payment Dialog */}
+      <Dialog open={actionDialog?.type === "confirm_payment"} onOpenChange={() => setActionDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Payment Receipt</DialogTitle>
+            <DialogDescription>
+              Confirm that you have received payment for {actionDialog?.po?.po_number}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
+              <div className="flex items-center gap-2 mb-2">
+                <CreditCard className="h-5 w-5 text-green-600" />
+                <span className="font-semibold text-green-700 dark:text-green-400">Payment Amount</span>
+              </div>
+              <p className="text-2xl font-bold text-green-600">
+                PKR {actionDialog?.po?.paid_amount?.toLocaleString()}
+              </p>
+              {actionDialog?.po?.payment_date && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Paid on: {new Date(actionDialog.po.payment_date).toLocaleDateString()}
+                </p>
+              )}
+              {actionDialog?.po?.payment_reference && (
+                <p className="text-sm text-muted-foreground">
+                  Reference: {actionDialog.po.payment_reference}
+                </p>
+              )}
+            </div>
+            <div>
+              <Label>Notes (Optional)</Label>
+              <Textarea
+                placeholder="Any notes about this payment..."
+                value={paymentConfirmNotes}
+                onChange={(e) => setPaymentConfirmNotes(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setActionDialog(null)}>Cancel</Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700"
+              onClick={() => confirmPaymentMutation.mutate({
+                id: actionDialog?.po?.id,
+                notes: paymentConfirmNotes,
+              })}
+              disabled={confirmPaymentMutation.isPending}
+            >
+              {confirmPaymentMutation.isPending ? "Confirming..." : "Confirm Payment Received"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -9,7 +9,7 @@ const corsHeaders = {
 
 interface POLifecycleEmailRequest {
   po_id: string;
-  notification_type: 'created' | 'approved' | 'confirmed' | 'shipped' | 'received' | 'invoice' | 'discrepancy' | 'payment_receipt';
+  notification_type: 'created' | 'approved' | 'confirmed' | 'shipped' | 'received' | 'invoice' | 'discrepancy' | 'payment_receipt' | 'supplier_payment_confirmation';
   additional_data?: Record<string, any>;
 }
 
@@ -509,6 +509,52 @@ const handler = async (req: Request): Promise<Response> => {
           ` : ''}
         `;
         break;
+
+      case 'supplier_payment_confirmation':
+        const confirmedBySupplier = additional_data?.confirmed_by || supplierName;
+        const confirmationNotes = additional_data?.notes || '';
+        const poTotalAmount = po.total_amount || 0;
+        const totalPaidAmount = po.paid_amount || 0;
+        
+        subject = `✅ Payment Confirmed by Supplier - PO ${po.po_number}`;
+        headerColor = '#22c55e';
+        headerIcon = '✅';
+        headerTitle = 'Supplier Payment Confirmation';
+        bodyContent = `
+          <p>${supplierName} has confirmed receipt of payment for Purchase Order ${po.po_number}.</p>
+          
+          <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${headerColor};">
+            <h3 style="margin-top: 0; color: ${headerColor};">Confirmation Details</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="padding: 10px 0; color: #6b7280; width: 40%;">PO Number:</td><td style="padding: 10px 0; font-weight: bold;">${po.po_number}</td></tr>
+              <tr><td style="padding: 10px 0; color: #6b7280;">Supplier:</td><td style="padding: 10px 0;">${supplierName}</td></tr>
+              <tr><td style="padding: 10px 0; color: #6b7280;">Confirmed By:</td><td style="padding: 10px 0;">${confirmedBySupplier}</td></tr>
+              <tr><td style="padding: 10px 0; color: #6b7280;">Confirmed At:</td><td style="padding: 10px 0;">${timestamp}</td></tr>
+            </table>
+          </div>
+
+          <div style="background: #dcfce7; padding: 20px; border-radius: 8px; margin: 20px 0; border: 2px solid ${headerColor};">
+            <h3 style="margin-top: 0; color: ${headerColor};">Payment Summary</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="padding: 10px 0; color: #6b7280;">PO Total Amount:</td><td style="padding: 10px 0; text-align: right;">PKR ${poTotalAmount.toLocaleString()}</td></tr>
+              <tr><td style="padding: 10px 0; color: #6b7280;">Amount Paid:</td><td style="padding: 10px 0; text-align: right; font-weight: bold; color: ${headerColor};">PKR ${totalPaidAmount.toLocaleString()}</td></tr>
+              <tr style="border-top: 2px solid ${headerColor};">
+                <td style="padding: 15px 0; font-size: 16px; font-weight: bold;">Status:</td>
+                <td style="padding: 15px 0; text-align: right; font-size: 18px; font-weight: bold; color: ${headerColor};">
+                  ✓ PAYMENT CONFIRMED BY SUPPLIER
+                </td>
+              </tr>
+            </table>
+          </div>
+
+          ${confirmationNotes ? `
+            <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <strong>Supplier Notes:</strong><br>
+              ${confirmationNotes}
+            </div>
+          ` : ''}
+        `;
+        break;
     }
 
     // Build items table for non-invoice emails
@@ -574,11 +620,34 @@ const handler = async (req: Request): Promise<Response> => {
     // Determine TO and CC recipients based on notification type
     const recipients: EmailRecipients = { to: [], cc: Array.from(ccEmails) };
 
-    // TO is always supplier email (if available)
-    if (supplierEmail) {
-      recipients.to.push(supplierEmail);
-      // Remove supplier from CC if present
-      recipients.cc = recipients.cc.filter(e => e !== supplierEmail);
+    // For supplier_payment_confirmation, email goes TO finance, CC others (not supplier)
+    if (notification_type === 'supplier_payment_confirmation') {
+      // Get finance users for TO
+      const financeUsers = roleUsers?.filter((r: any) => r.role === 'finance') || [];
+      if (financeUsers.length > 0) {
+        const financeUserIds = financeUsers.map((r: any) => r.user_id);
+        const { data: financeProfiles } = await supabase
+          .from('profiles')
+          .select('email')
+          .in('id', financeUserIds)
+          .not('email', 'is', null);
+        
+        financeProfiles?.forEach((p: any) => {
+          if (p.email) recipients.to.push(p.email);
+        });
+      }
+      
+      // If no finance users, use first CC
+      if (recipients.to.length === 0 && recipients.cc.length > 0) {
+        recipients.to.push(recipients.cc.shift()!);
+      }
+    } else {
+      // TO is always supplier email (if available)
+      if (supplierEmail) {
+        recipients.to.push(supplierEmail);
+        // Remove supplier from CC if present
+        recipients.cc = recipients.cc.filter(e => e !== supplierEmail);
+      }
     }
 
     // If no supplier email, send to first CC as TO
