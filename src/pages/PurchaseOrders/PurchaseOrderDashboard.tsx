@@ -38,10 +38,11 @@ const PurchaseOrderDashboard = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [cancelDialog, setCancelDialog] = useState<{ open: boolean; po: PurchaseOrder | null }>({ open: false, po: null });
-  const [paymentDialog, setPaymentDialog] = useState<{ open: boolean; po: PurchaseOrder | null }>({ open: false, po: null });
+  const [paymentDialog, setPaymentDialog] = useState<{ open: boolean; po: PurchaseOrder | null; suggestedAmount: number | null }>({ open: false, po: null, suggestedAmount: null });
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
   const [activeTab, setActiveTab] = useState('all');
+  const [loadingSuggestion, setLoadingSuggestion] = useState(false);
 
   const [formData, setFormData] = useState({
     supplier_id: '',
@@ -337,7 +338,7 @@ const PurchaseOrderDashboard = () => {
         title: 'Payment Recorded',
         description: `Payment recorded. Status: ${data.payment_status}`
       });
-      setPaymentDialog({ open: false, po: null });
+      setPaymentDialog({ open: false, po: null, suggestedAmount: null });
       setPaymentAmount('');
       setPaymentReference('');
     },
@@ -354,6 +355,65 @@ const PurchaseOrderDashboard = () => {
       notes: ''
     });
     setSelectedItems([]);
+  };
+
+  // Open payment dialog and calculate suggested amount
+  const openPaymentDialog = async (po: PurchaseOrder) => {
+    setLoadingSuggestion(true);
+    setPaymentDialog({ open: true, po, suggestedAmount: null });
+    setPaymentAmount('');
+    setPaymentReference('');
+    
+    try {
+      // Fetch GRN items to calculate suggested payment based on received quantities
+      const { data: grnData } = await supabase
+        .from('goods_received_notes')
+        .select(`
+          id,
+          grn_items(
+            quantity_received,
+            unit_cost,
+            po_item_id,
+            purchase_order_items:po_item_id(unit_price)
+          )
+        `)
+        .eq('po_id', po.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      let suggestedAmount = 0;
+      
+      if (grnData?.grn_items && grnData.grn_items.length > 0) {
+        // Calculate based on received quantities
+        suggestedAmount = grnData.grn_items.reduce((sum: number, item: any) => {
+          const received = item.quantity_received || 0;
+          const unitPrice = item.unit_cost || item.purchase_order_items?.unit_price || 0;
+          return sum + (received * unitPrice);
+        }, 0);
+        
+        // Add shipping cost if available
+        const { data: poData } = await supabase
+          .from('purchase_orders')
+          .select('shipping_cost')
+          .eq('id', po.id)
+          .single();
+        
+        if (poData?.shipping_cost) {
+          suggestedAmount += poData.shipping_cost;
+        }
+      } else {
+        // No GRN, use original PO total
+        suggestedAmount = po.total_amount;
+      }
+      
+      setPaymentDialog(prev => ({ ...prev, suggestedAmount }));
+    } catch (error) {
+      console.error('Failed to calculate suggested amount:', error);
+      setPaymentDialog(prev => ({ ...prev, suggestedAmount: po.total_amount }));
+    } finally {
+      setLoadingSuggestion(false);
+    }
   };
 
   const addItem = (itemId: string, itemName: string, itemType: 'product' | 'packaging', cost: number) => {
@@ -712,7 +772,7 @@ const PurchaseOrderDashboard = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setPaymentDialog({ open: true, po })}
+                          onClick={() => openPaymentDialog(po)}
                           className="text-blue-600 hover:text-blue-700"
                         >
                           <CreditCard className="mr-1 h-3 w-3" />
@@ -780,9 +840,29 @@ const PurchaseOrderDashboard = () => {
             <DialogTitle>Record Payment</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
+            <div className="space-y-2">
               <Label>PO: {paymentDialog.po?.po_number}</Label>
-              <p className="text-sm text-muted-foreground">Total: {currency} {paymentDialog.po?.total_amount?.toLocaleString()}</p>
+              <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg">
+                <div>
+                  <p className="text-xs text-muted-foreground">Original PO Total</p>
+                  <p className="text-lg font-semibold">{currency} {paymentDialog.po?.total_amount?.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Suggested Payment</p>
+                  {loadingSuggestion ? (
+                    <p className="text-lg font-semibold text-muted-foreground">Calculating...</p>
+                  ) : (
+                    <p className={`text-lg font-semibold ${paymentDialog.suggestedAmount !== paymentDialog.po?.total_amount ? 'text-amber-600' : 'text-green-600'}`}>
+                      {currency} {paymentDialog.suggestedAmount?.toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+              {paymentDialog.suggestedAmount !== null && paymentDialog.suggestedAmount !== paymentDialog.po?.total_amount && (
+                <p className="text-xs text-amber-600">
+                  * Suggested amount differs from original due to partial receiving
+                </p>
+              )}
             </div>
             <div>
               <Label>Amount Paid *</Label>
@@ -790,8 +870,18 @@ const PurchaseOrderDashboard = () => {
                 type="number"
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
-                placeholder="Enter amount"
+                placeholder={paymentDialog.suggestedAmount ? `Suggested: ${paymentDialog.suggestedAmount}` : 'Enter amount'}
               />
+              {paymentDialog.suggestedAmount && !paymentAmount && (
+                <Button 
+                  variant="link" 
+                  size="sm" 
+                  className="p-0 h-auto text-xs"
+                  onClick={() => setPaymentAmount(paymentDialog.suggestedAmount?.toString() || '')}
+                >
+                  Use suggested amount
+                </Button>
+              )}
             </div>
             <div>
               <Label>Payment Reference</Label>
@@ -803,7 +893,7 @@ const PurchaseOrderDashboard = () => {
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => setPaymentDialog({ open: false, po: null })}>Cancel</Button>
+            <Button variant="outline" onClick={() => setPaymentDialog({ open: false, po: null, suggestedAmount: null })}>Cancel</Button>
             <Button
               onClick={() => paymentDialog.po && paymentMutation.mutate({
                 po_id: paymentDialog.po.id,
