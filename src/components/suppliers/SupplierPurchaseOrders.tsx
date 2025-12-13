@@ -219,7 +219,7 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
 
   const getStatusBadge = (po: any) => {
     const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string; className?: string }> = {
-      pending: { variant: 'secondary', label: 'Pending' },
+      pending: { variant: 'secondary', label: 'Awaiting Your Response' },
       sent: { variant: 'outline', label: 'Sent' },
       confirmed: { variant: 'default', label: 'Confirmed' },
       supplier_rejected: { variant: 'destructive', label: 'Rejected' },
@@ -237,11 +237,11 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
     return <Badge variant="secondary">{po.status?.toUpperCase() || 'Unknown'}</Badge>;
   };
 
-  // Summary stats
+  // Summary stats - pending POs now go directly to supplier
   const pendingPOs = purchaseOrders?.filter((po: any) => 
     po.status === "pending" && !po.supplier_confirmed && !po.supplier_rejected
   ).length || 0;
-  const confirmedPOs = purchaseOrders?.filter((po: any) => po.supplier_confirmed && !po.shipped_at).length || 0;
+  const confirmedPOs = purchaseOrders?.filter((po: any) => po.status === "confirmed" && !po.shipped_at).length || 0;
   const shippedPOs = purchaseOrders?.filter((po: any) => po.shipped_at).length || 0;
 
   return (
@@ -366,8 +366,8 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
                         <Eye className="h-4 w-4" />
                       </Button>
                       
-                      {/* Show confirm/reject for sent orders (awaiting supplier response) */}
-                      {(po.status === "sent" || po.status === "pending") && !po.supplier_confirmed && !po.supplier_rejected && (
+                      {/* Show confirm/reject for pending orders (awaiting supplier response) */}
+                      {po.status === "pending" && !po.supplier_confirmed && !po.supplier_rejected && (
                         <>
                           <Button 
                             size="sm" 

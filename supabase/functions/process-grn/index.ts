@@ -6,6 +6,96 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper function to update inventory
+async function updateInventory(
+  supabaseClient: any,
+  userId: string,
+  grnId: string,
+  grnNumber: string,
+  outletId: string,
+  items: any[]
+) {
+  for (const item of items) {
+    const qtyToAdd = item.quantity_received;
+    
+    if (qtyToAdd <= 0) continue;
+    
+    if (item.product_id) {
+      // Handle PRODUCT inventory
+      const { data: existingInv } = await supabaseClient
+        .from('inventory')
+        .select('id, quantity')
+        .eq('product_id', item.product_id)
+        .eq('outlet_id', outletId)
+        .single();
+
+      if (existingInv) {
+        await supabaseClient
+          .from('inventory')
+          .update({
+            quantity: existingInv.quantity + qtyToAdd,
+            available_quantity: existingInv.quantity + qtyToAdd,
+            last_restocked_at: new Date().toISOString()
+          })
+          .eq('id', existingInv.id);
+      } else {
+        await supabaseClient
+          .from('inventory')
+          .insert({
+            product_id: item.product_id,
+            outlet_id: outletId,
+            quantity: qtyToAdd,
+            available_quantity: qtyToAdd,
+            reserved_quantity: 0,
+            last_restocked_at: new Date().toISOString()
+          });
+      }
+
+      // Create stock movement record
+      await supabaseClient
+        .from('stock_movements')
+        .insert({
+          product_id: item.product_id,
+          outlet_id: outletId,
+          movement_type: 'purchase',
+          quantity: qtyToAdd,
+          created_by: userId,
+          reference_id: grnId,
+          notes: `GRN ${grnNumber}`
+        });
+    } else if (item.packaging_item_id) {
+      // Handle PACKAGING inventory
+      const { data: packagingItem } = await supabaseClient
+        .from('packaging_items')
+        .select('id, current_stock')
+        .eq('id', item.packaging_item_id)
+        .single();
+
+      if (packagingItem) {
+        await supabaseClient
+          .from('packaging_items')
+          .update({
+            current_stock: (packagingItem.current_stock || 0) + qtyToAdd,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', item.packaging_item_id);
+      }
+
+      // Create packaging movement record
+      await supabaseClient
+        .from('packaging_movements')
+        .insert({
+          packaging_item_id: item.packaging_item_id,
+          movement_type: 'purchase',
+          quantity: qtyToAdd,
+          created_by: userId,
+          reference_id: grnId,
+          notes: `GRN ${grnNumber}`
+        });
+    }
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -73,23 +163,46 @@ serve(async (req) => {
         const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
         const grnNumber = `GRN-${year}-${random}`;
 
-        // Calculate totals and check for discrepancies
+        // Calculate totals and determine GRN status
         let totalExpected = 0;
         let totalReceived = 0;
-        let hasDiscrepancy = false;
+        let hasUnderReceiving = false;
+        let hasOverReceiving = false;
 
         const items = data.items.map((item: any) => {
           totalExpected += item.quantity_expected;
           totalReceived += item.quantity_received;
           
-          if (item.quantity_received !== item.quantity_expected) {
-            hasDiscrepancy = true;
+          if (item.quantity_received < item.quantity_expected) {
+            hasUnderReceiving = true;
+          }
+          if (item.quantity_received > item.quantity_expected) {
+            hasOverReceiving = true;
           }
 
           return item;
         });
 
-        // Create GRN
+        // Determine GRN status based on receiving logic:
+        // - All items match or over-received → accepted
+        // - Any item under-received → partial_accept
+        let grnStatus: string;
+        let poStatus: string;
+        let hasDiscrepancy = false;
+
+        if (hasUnderReceiving) {
+          // Under-receiving: auto partial accept
+          grnStatus = 'partial_accept';
+          poStatus = 'partially_received';
+          hasDiscrepancy = true;
+        } else {
+          // All items received (exact or over) → auto accept
+          grnStatus = 'accepted';
+          poStatus = 'completed';
+          hasDiscrepancy = hasOverReceiving; // Over-receiving is noted but still accepted
+        }
+
+        // Create GRN with auto-determined status
         const { data: grn, error: grnError } = await supabaseClient
           .from('goods_received_notes')
           .insert({
@@ -102,7 +215,10 @@ serve(async (req) => {
             total_items_received: totalReceived,
             discrepancy_flag: hasDiscrepancy,
             notes: data.notes,
-            status: 'pending_inspection'
+            status: grnStatus,
+            inspected_by: user.id,
+            inspected_at: new Date().toISOString(),
+            quality_passed: true
           })
           .select()
           .single();
@@ -117,11 +233,12 @@ serve(async (req) => {
           packaging_item_id: item.packaging_item_id || null,
           quantity_expected: item.quantity_expected || 0,
           quantity_received: item.quantity_received || 0,
+          quantity_accepted: item.quantity_received || 0,
           unit_cost: item.unit_cost || 0,
           batch_number: item.batch_number || null,
           expiry_date: item.expiry_date || null,
           notes: item.notes || null,
-          quality_status: 'pending',
+          quality_status: 'accepted',
           defect_type: item.damage_reason || null
         }));
 
@@ -131,8 +248,44 @@ serve(async (req) => {
 
         if (itemsError) throw itemsError;
 
-        // Send notifications if there are discrepancies
-        if (hasDiscrepancy) {
+        // IMMEDIATE STOCK UPDATE: Update inventory right away based on received quantities
+        await updateInventory(supabaseClient, user.id, grn.id, grnNumber, po.outlet_id, items);
+        console.log(`Inventory updated immediately for GRN ${grnNumber}`);
+
+        // Update PO items received quantities
+        for (const item of items) {
+          const { data: currentItem } = await supabaseClient
+            .from('purchase_order_items')
+            .select('quantity_received')
+            .eq('id', item.po_item_id)
+            .single();
+
+          await supabaseClient
+            .from('purchase_order_items')
+            .update({
+              quantity_received: (currentItem?.quantity_received || 0) + item.quantity_received
+            })
+            .eq('id', item.po_item_id);
+        }
+
+        // Update PO status
+        await supabaseClient
+          .from('purchase_orders')
+          .update({ 
+            status: poStatus,
+            received_at: new Date().toISOString()
+          })
+          .eq('id', data.po_id);
+
+        // Get user profile for email
+        const { data: userProfile } = await supabaseClient
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single();
+
+        // Send notifications if there are discrepancies (under-receiving)
+        if (hasUnderReceiving) {
           // Get managers (super_admin, super_manager, warehouse_manager)
           const { data: managers } = await supabaseClient
             .from('user_roles')
@@ -148,23 +301,23 @@ serve(async (req) => {
             .single();
 
           const discrepancyDetails = items
-            .filter((item: any) => item.quantity_received !== item.quantity_expected)
+            .filter((item: any) => item.quantity_received < item.quantity_expected)
             .map((item: any) => {
               const product = po.purchase_order_items.find((poi: any) => poi.id === item.po_item_id);
               return `- ${product?.products?.name || product?.packaging_items?.name}: Expected ${item.quantity_expected}, Received ${item.quantity_received}`;
             })
             .join('\n');
 
-          const notificationMessage = `Quantity discrepancies detected in GRN ${grnNumber} for PO ${po.po_number}:\n\n${discrepancyDetails}`;
+          const notificationMessage = `Partial receiving for GRN ${grnNumber} (PO ${po.po_number}):\n\n${discrepancyDetails}\n\nInventory updated with received quantities.`;
 
           // Notify managers
           if (managers) {
             const managerNotifications = managers.map((manager: any) => ({
               user_id: manager.user_id,
-              title: 'GRN Quantity Discrepancy',
+              title: 'GRN Partial Receiving',
               message: notificationMessage,
               type: 'warning',
-              priority: 'high',
+              priority: 'normal',
               action_url: `/receiving`,
               metadata: { grn_id: grn.id, po_id: data.po_id }
             }));
@@ -182,7 +335,7 @@ serve(async (req) => {
             );
 
             const discrepancyItems = items
-              .filter((item: any) => item.quantity_received !== item.quantity_expected || item.damage_reason)
+              .filter((item: any) => item.quantity_received < item.quantity_expected)
               .map((item: any) => {
                 const product = po.purchase_order_items.find((poi: any) => poi.id === item.po_item_id);
                 return {
@@ -209,95 +362,90 @@ serve(async (req) => {
           } catch (emailError) {
             console.error('Failed to send discrepancy email:', emailError);
           }
+        }
 
-          // Notify supplier via WhatsApp if phone available
-          if (supplier?.phone) {
-            try {
-              await supabaseClient.functions.invoke('send-whatsapp', {
-                body: {
-                  to: supplier.phone,
-                  message: `Dear ${supplier.contact_person || supplier.name},\n\n${notificationMessage}\n\nPlease contact us to resolve this issue.`
-                }
-              });
-            } catch (whatsappError) {
-              console.error('Failed to send WhatsApp to supplier:', whatsappError);
+        // Send received/invoice emails
+        try {
+          const serviceClient = createClient(
+            Deno.env.get('SUPABASE_URL') ?? '',
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+          );
+
+          await serviceClient.functions.invoke('send-po-lifecycle-email', {
+            body: {
+              po_id: data.po_id,
+              notification_type: 'received',
+              additional_data: {
+                grn_number: grnNumber,
+                has_discrepancy: hasUnderReceiving,
+                received_by: userProfile?.full_name || 'Warehouse Staff'
+              }
             }
-          }
+          });
+
+          // Send invoice email
+          await serviceClient.functions.invoke('send-po-lifecycle-email', {
+            body: {
+              po_id: data.po_id,
+              notification_type: 'invoice',
+              additional_data: {
+                grn_number: grnNumber
+              }
+            }
+          });
+
+          console.log('GRN emails sent successfully');
+        } catch (emailError) {
+          console.error('Failed to send GRN emails:', emailError);
         }
-
-        // Update PO items received quantities
-        for (const item of items) {
-          await supabaseClient
-            .from('purchase_order_items')
-            .update({
-              quantity_received: supabaseClient.rpc('increment', {
-                x: item.quantity_received
-              })
-            })
-            .eq('id', item.po_item_id);
-        }
-
-        // Check if PO is fully received
-        const { data: poItems } = await supabaseClient
-          .from('purchase_order_items')
-          .select('quantity_ordered, quantity_received')
-          .eq('po_id', data.po_id);
-
-        const fullyReceived = poItems?.every(
-          (item: any) => item.quantity_received >= item.quantity_ordered
-        );
-
-        const partiallyReceived = poItems?.some(
-          (item: any) => item.quantity_received > 0
-        );
-
-        const newPOStatus = fullyReceived ? 'completed' : 
-                           partiallyReceived ? 'partially_received' : 'confirmed';
-
-        await supabaseClient
-          .from('purchase_orders')
-          .update({ status: newPOStatus })
-          .eq('id', data.po_id);
 
         return new Response(
           JSON.stringify({ 
             success: true, 
             grn, 
             hasDiscrepancy,
-            message: 'GRN created successfully' 
+            status: grnStatus,
+            message: hasUnderReceiving 
+              ? 'Partial receiving completed. Inventory updated with received quantities.' 
+              : 'Goods received successfully. Inventory updated.'
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      case 'accept': {
-        if (!data.grn_id) {
-          throw new Error('Missing grn_id');
+      case 'reject': {
+        if (!data.grn_id || !data.rejection_reason) {
+          throw new Error('Missing grn_id or rejection_reason');
         }
 
-        // Get GRN items with products and packaging
-        const { data: grnItems, error: itemsError } = await supabaseClient
-          .from('grn_items')
-          .select('*, products(*), packaging_items(*)')
-          .eq('grn_id', data.grn_id);
+        // Check user role - only super_admin and super_manager can reject
+        const { data: userRoles } = await supabaseClient
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .in('role', ['super_admin', 'super_manager']);
 
-        if (itemsError) throw itemsError;
+        if (!userRoles || userRoles.length === 0) {
+          throw new Error('Unauthorized: Only super_admin or super_manager can reject GRNs');
+        }
 
         // Get GRN details
-        const { data: grn, error: grnError } = await supabaseClient
+        const { data: grn, error: grnFetchError } = await supabaseClient
           .from('goods_received_notes')
-          .select('*, purchase_orders(id)')
+          .select('*, purchase_orders(id, po_number), grn_items(*)')
           .eq('id', data.grn_id)
           .single();
 
-        if (grnError) throw grnError;
+        if (grnFetchError) throw grnFetchError;
 
-        // Update inventory for each item
-        for (const item of grnItems) {
-          const qtyToAdd = item.quantity_accepted || item.quantity_received;
+        // Reverse inventory updates that were already made
+        for (const item of grn.grn_items || []) {
+          const qtyToRemove = item.quantity_accepted || item.quantity_received;
           
+          if (qtyToRemove <= 0) continue;
+
           if (item.product_id) {
-            // Handle PRODUCT inventory
+            // Reverse product inventory
             const { data: existingInv } = await supabaseClient
               .from('inventory')
               .select('id, quantity')
@@ -309,38 +457,26 @@ serve(async (req) => {
               await supabaseClient
                 .from('inventory')
                 .update({
-                  quantity: existingInv.quantity + qtyToAdd,
-                  available_quantity: existingInv.quantity + qtyToAdd,
-                  last_restocked_at: new Date().toISOString()
+                  quantity: Math.max(0, existingInv.quantity - qtyToRemove),
+                  available_quantity: Math.max(0, existingInv.quantity - qtyToRemove)
                 })
                 .eq('id', existingInv.id);
-            } else {
-              await supabaseClient
-                .from('inventory')
-                .insert({
-                  product_id: item.product_id,
-                  outlet_id: grn.outlet_id,
-                  quantity: qtyToAdd,
-                  available_quantity: qtyToAdd,
-                  reserved_quantity: 0,
-                  last_restocked_at: new Date().toISOString()
-                });
             }
 
-            // Create stock movement record
+            // Create reversal stock movement
             await supabaseClient
               .from('stock_movements')
               .insert({
                 product_id: item.product_id,
                 outlet_id: grn.outlet_id,
-                movement_type: 'purchase',
-                quantity: qtyToAdd,
+                movement_type: 'adjustment',
+                quantity: -qtyToRemove,
                 created_by: user.id,
                 reference_id: grn.id,
-                notes: `GRN ${grn.grn_number}`
+                notes: `GRN ${grn.grn_number} Rejected: ${data.rejection_reason}`
               });
           } else if (item.packaging_item_id) {
-            // Handle PACKAGING inventory
+            // Reverse packaging inventory
             const { data: packagingItem } = await supabaseClient
               .from('packaging_items')
               .select('id, current_stock')
@@ -351,335 +487,46 @@ serve(async (req) => {
               await supabaseClient
                 .from('packaging_items')
                 .update({
-                  current_stock: (packagingItem.current_stock || 0) + qtyToAdd,
-                  updated_at: new Date().toISOString()
+                  current_stock: Math.max(0, (packagingItem.current_stock || 0) - qtyToRemove)
                 })
                 .eq('id', item.packaging_item_id);
             }
 
-            // Create packaging movement record
+            // Create reversal packaging movement
             await supabaseClient
               .from('packaging_movements')
               .insert({
                 packaging_item_id: item.packaging_item_id,
-                movement_type: 'purchase',
-                quantity: qtyToAdd,
+                movement_type: 'adjustment',
+                quantity: -qtyToRemove,
                 created_by: user.id,
                 reference_id: grn.id,
-                notes: `GRN ${grn.grn_number}`
+                notes: `GRN ${grn.grn_number} Rejected: ${data.rejection_reason}`
               });
           }
-
-          // Update GRN item status
-          await supabaseClient
-            .from('grn_items')
-            .update({
-              quality_status: 'accepted',
-              quantity_accepted: qtyToAdd
-            })
-            .eq('id', item.id);
         }
 
-        // Update GRN status
-        await supabaseClient
-          .from('goods_received_notes')
-          .update({
-            status: 'accepted',
-            inspected_by: user.id,
-            inspected_at: new Date().toISOString(),
-            quality_passed: true
-          })
-          .eq('id', data.grn_id);
+        // Reverse PO item received quantities
+        for (const item of grn.grn_items || []) {
+          if (item.po_item_id) {
+            const { data: poItem } = await supabaseClient
+              .from('purchase_order_items')
+              .select('quantity_received')
+              .eq('id', item.po_item_id)
+              .single();
 
-        // Update PO status to completed and set received_at
-        if (grn.purchase_orders?.id) {
-          await supabaseClient
-            .from('purchase_orders')
-            .update({
-              status: 'completed',
-              received_at: new Date().toISOString()
-            })
-            .eq('id', grn.purchase_orders.id);
-
-          // Get user's name for email
-          const { data: userProfile } = await supabaseClient
-            .from('profiles')
-            .select('full_name')
-            .eq('id', user.id)
-            .single();
-
-          // Send receiving email
-          try {
-            const serviceClient = createClient(
-              Deno.env.get('SUPABASE_URL') ?? '',
-              Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-            );
-
-            await serviceClient.functions.invoke('send-po-lifecycle-email', {
-              body: {
-                po_id: grn.purchase_orders.id,
-                notification_type: 'received',
-                additional_data: {
-                  grn_number: grn.grn_number,
-                  has_discrepancy: false,
-                  received_by: userProfile?.full_name || 'Warehouse Staff'
-                }
-              }
-            });
-
-            // Also send invoice email
-            await serviceClient.functions.invoke('send-po-lifecycle-email', {
-              body: {
-                po_id: grn.purchase_orders.id,
-                notification_type: 'invoice',
-                additional_data: {
-                  grn_number: grn.grn_number
-                }
-              }
-            });
-
-            console.log('GRN accept emails sent successfully');
-          } catch (emailError) {
-            console.error('Failed to send GRN accept emails:', emailError);
-          }
-        }
-
-        return new Response(
-          JSON.stringify({ 
-            success: true, 
-            message: 'GRN accepted and inventory updated' 
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      case 'resolve': {
-        // For resolving discrepancies - only super_admin and super_manager
-        if (!data.grn_id) {
-          throw new Error('Missing grn_id');
-        }
-
-        // Check user role
-        const { data: userRoles } = await supabaseClient
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user.id)
-          .in('role', ['super_admin', 'super_manager']);
-
-        if (!userRoles || userRoles.length === 0) {
-          throw new Error('Unauthorized: Only super_admin or super_manager can resolve discrepancies');
-        }
-
-        // Get GRN details
-        const { data: grn, error: grnError } = await supabaseClient
-          .from('goods_received_notes')
-          .select('*, purchase_orders(id)')
-          .eq('id', data.grn_id)
-          .single();
-
-        if (grnError) throw grnError;
-
-        // Get GRN items
-        const { data: grnItems, error: itemsError } = await supabaseClient
-          .from('grn_items')
-          .select('*, products(*), packaging_items(*)')
-          .eq('grn_id', data.grn_id);
-
-        if (itemsError) throw itemsError;
-
-        // Process resolutions if provided
-        const resolutions = data.resolutions || [];
-        
-        for (const item of grnItems) {
-          const resolution = resolutions.find((r: any) => r.item_id === item.id);
-          const qtyToAdd = resolution?.quantity_accepted ?? item.quantity_received;
-          const qualityStatus = resolution?.quality_status || 'accepted';
-
-          // Update GRN item with resolution
-          await supabaseClient
-            .from('grn_items')
-            .update({
-              quantity_accepted: qtyToAdd,
-              quantity_rejected: resolution?.quantity_rejected || 0,
-              quality_status: qualityStatus,
-              notes: resolution?.resolution_notes || item.notes
-            })
-            .eq('id', item.id);
-
-          // Only add to inventory if accepted or write_off (write_off still adds to inventory but is tracked)
-          if (qualityStatus !== 'rejected' && qtyToAdd > 0) {
-            if (item.product_id) {
-              // Handle PRODUCT inventory
-              const { data: existingInv } = await supabaseClient
-                .from('inventory')
-                .select('id, quantity')
-                .eq('product_id', item.product_id)
-                .eq('outlet_id', grn.outlet_id)
-                .single();
-
-              if (existingInv) {
-                await supabaseClient
-                  .from('inventory')
-                  .update({
-                    quantity: existingInv.quantity + qtyToAdd,
-                    available_quantity: existingInv.quantity + qtyToAdd,
-                    last_restocked_at: new Date().toISOString()
-                  })
-                  .eq('id', existingInv.id);
-              } else {
-                await supabaseClient
-                  .from('inventory')
-                  .insert({
-                    product_id: item.product_id,
-                    outlet_id: grn.outlet_id,
-                    quantity: qtyToAdd,
-                    available_quantity: qtyToAdd,
-                    reserved_quantity: 0,
-                    last_restocked_at: new Date().toISOString()
-                  });
-              }
-
-              // Create stock movement record
+            if (poItem) {
               await supabaseClient
-                .from('stock_movements')
-                .insert({
-                  product_id: item.product_id,
-                  outlet_id: grn.outlet_id,
-                  movement_type: 'purchase',
-                  quantity: qtyToAdd,
-                  created_by: user.id,
-                  reference_id: grn.id,
-                  notes: `GRN ${grn.grn_number} - Resolved (${qualityStatus})`
-                });
-            } else if (item.packaging_item_id) {
-              // Handle PACKAGING inventory
-              const { data: packagingItem } = await supabaseClient
-                .from('packaging_items')
-                .select('id, current_stock')
-                .eq('id', item.packaging_item_id)
-                .single();
-
-              if (packagingItem) {
-                await supabaseClient
-                  .from('packaging_items')
-                  .update({
-                    current_stock: (packagingItem.current_stock || 0) + qtyToAdd,
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', item.packaging_item_id);
-              }
-
-              // Create packaging movement record
-              await supabaseClient
-                .from('packaging_movements')
-                .insert({
-                  packaging_item_id: item.packaging_item_id,
-                  movement_type: 'purchase',
-                  quantity: qtyToAdd,
-                  created_by: user.id,
-                  reference_id: grn.id,
-                  notes: `GRN ${grn.grn_number} - Resolved (${qualityStatus})`
-                });
+                .from('purchase_order_items')
+                .update({
+                  quantity_received: Math.max(0, (poItem.quantity_received || 0) - (item.quantity_received || 0))
+                })
+                .eq('id', item.po_item_id);
             }
           }
         }
 
-        // Update GRN status
-        await supabaseClient
-          .from('goods_received_notes')
-          .update({
-            status: 'resolved',
-            inspected_by: user.id,
-            inspected_at: new Date().toISOString(),
-            quality_passed: true,
-            notes: data.notes || grn.notes
-          })
-          .eq('id', data.grn_id);
-
-        // Update PO status to completed and set received_at
-        if (grn.purchase_orders?.id) {
-          await supabaseClient
-            .from('purchase_orders')
-            .update({
-              status: 'completed',
-              received_at: new Date().toISOString()
-            })
-            .eq('id', grn.purchase_orders.id);
-
-          // Get user's name for email
-          const { data: userProfile } = await supabaseClient
-            .from('profiles')
-            .select('full_name')
-            .eq('id', user.id)
-            .single();
-
-          // Get credit notes total if any
-          const { data: creditNotes } = await supabaseClient
-            .from('supplier_credit_notes')
-            .select('amount')
-            .eq('po_id', grn.purchase_orders.id)
-            .eq('status', 'applied');
-
-          const creditTotal = creditNotes?.reduce((sum: number, cn: any) => sum + (cn.amount || 0), 0) || 0;
-
-          // Send receiving email with discrepancy flag
-          try {
-            const serviceClient = createClient(
-              Deno.env.get('SUPABASE_URL') ?? '',
-              Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-            );
-
-            await serviceClient.functions.invoke('send-po-lifecycle-email', {
-              body: {
-                po_id: grn.purchase_orders.id,
-                notification_type: 'received',
-                additional_data: {
-                  grn_number: grn.grn_number,
-                  has_discrepancy: true,
-                  received_by: userProfile?.full_name || 'Warehouse Staff'
-                }
-              }
-            });
-
-            // Also send invoice email with credit notes
-            await serviceClient.functions.invoke('send-po-lifecycle-email', {
-              body: {
-                po_id: grn.purchase_orders.id,
-                notification_type: 'invoice',
-                additional_data: {
-                  grn_number: grn.grn_number,
-                  credit_notes_total: creditTotal
-                }
-              }
-            });
-
-            console.log('GRN resolve emails sent successfully');
-          } catch (emailError) {
-            console.error('Failed to send GRN resolve emails:', emailError);
-          }
-        }
-
-        return new Response(
-          JSON.stringify({ 
-            success: true, 
-            message: 'Discrepancy resolved and inventory updated' 
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      case 'reject': {
-        if (!data.grn_id || !data.rejection_reason) {
-          throw new Error('Missing grn_id or rejection_reason');
-        }
-
-        // Get GRN details for PO update
-        const { data: grn } = await supabaseClient
-          .from('goods_received_notes')
-          .select('purchase_orders(id)')
-          .eq('id', data.grn_id)
-          .single();
-
+        // Update GRN status to rejected
         await supabaseClient
           .from('goods_received_notes')
           .update({
@@ -699,8 +546,39 @@ serve(async (req) => {
           })
           .eq('grn_id', data.grn_id);
 
+        // Reset PO status back to in_transit or confirmed
+        if (grn.purchase_orders?.id) {
+          await supabaseClient
+            .from('purchase_orders')
+            .update({
+              status: 'in_transit',
+              received_at: null
+            })
+            .eq('id', grn.purchase_orders.id);
+        }
+
+        // Notify managers
+        const { data: managers } = await supabaseClient
+          .from('user_roles')
+          .select('user_id')
+          .in('role', ['super_admin', 'super_manager', 'warehouse_manager'])
+          .eq('is_active', true);
+
+        if (managers) {
+          const notifications = managers.map((m: any) => ({
+            user_id: m.user_id,
+            title: 'GRN Rejected',
+            message: `GRN ${grn.grn_number} for PO ${grn.purchase_orders?.po_number} has been rejected. Reason: ${data.rejection_reason}. Inventory has been reversed.`,
+            type: 'warning',
+            priority: 'high',
+            action_url: '/receiving'
+          }));
+
+          await supabaseClient.from('notifications').insert(notifications);
+        }
+
         return new Response(
-          JSON.stringify({ success: true, message: 'GRN rejected' }),
+          JSON.stringify({ success: true, message: 'GRN rejected and inventory reversed' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
