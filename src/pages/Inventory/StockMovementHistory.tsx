@@ -73,115 +73,197 @@ export default function StockMovementHistory() {
   const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  // Fetch product movements
+  // Fetch product movements - separate queries for dispatch vs other types to ensure all types appear
   const { data: productMovements, isLoading: loadingProducts } = useQuery({
     queryKey: ["product-movements", movementTypeFilter, dateRange],
     queryFn: async () => {
-      let query = supabase
+      // If filtering by specific type, use single query
+      if (movementTypeFilter !== "all") {
+        let query = supabase
+          .from("stock_movements")
+          .select(`
+            id,
+            quantity,
+            movement_type,
+            notes,
+            created_at,
+            created_by,
+            outlet_id,
+            product:products(name, sku),
+            outlet:outlets(name)
+          `)
+          .eq("movement_type", movementTypeFilter)
+          .order("created_at", { ascending: false })
+          .limit(500);
+
+        if (dateRange?.from) {
+          query = query.gte("created_at", dateRange.from.toISOString());
+        }
+        if (dateRange?.to) {
+          query = query.lte("created_at", dateRange.to.toISOString());
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return await enrichWithProfiles(data, 'performed_by_profile');
+      }
+
+      // For "all" filter, fetch dispatch and non-dispatch separately to ensure both appear
+      const baseSelect = `
+        id,
+        quantity,
+        movement_type,
+        notes,
+        created_at,
+        created_by,
+        outlet_id,
+        product:products(name, sku),
+        outlet:outlets(name)
+      `;
+
+      // Fetch dispatch movements (limited)
+      let dispatchQuery = supabase
         .from("stock_movements")
-        .select(`
-          id,
-          quantity,
-          movement_type,
-          notes,
-          created_at,
-          created_by,
-          outlet_id,
-          product:products(name, sku),
-          outlet:outlets(name)
-        `)
+        .select(baseSelect)
+        .eq("movement_type", "dispatch")
+        .order("created_at", { ascending: false })
+        .limit(300);
+
+      // Fetch non-dispatch movements (adjustments, returns, etc.)
+      let otherQuery = supabase
+        .from("stock_movements")
+        .select(baseSelect)
+        .neq("movement_type", "dispatch")
         .order("created_at", { ascending: false })
         .limit(200);
 
-      if (movementTypeFilter !== "all") {
-        query = query.eq("movement_type", movementTypeFilter);
-      }
-
       if (dateRange?.from) {
-        query = query.gte("created_at", dateRange.from.toISOString());
+        dispatchQuery = dispatchQuery.gte("created_at", dateRange.from.toISOString());
+        otherQuery = otherQuery.gte("created_at", dateRange.from.toISOString());
       }
-
       if (dateRange?.to) {
-        query = query.lte("created_at", dateRange.to.toISOString());
+        dispatchQuery = dispatchQuery.lte("created_at", dateRange.to.toISOString());
+        otherQuery = otherQuery.lte("created_at", dateRange.to.toISOString());
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      const [dispatchResult, otherResult] = await Promise.all([dispatchQuery, otherQuery]);
       
-      // Fetch user names for created_by
-      if (data && data.length > 0) {
-        const userIds = [...new Set(data.map((m: any) => m.created_by).filter(Boolean))];
-        if (userIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, full_name, email')
-            .in('id', userIds);
-          
-          const profileMap = new Map(profiles?.map((p: any) => [p.id, p]) || []);
-          return data.map((m: any) => ({
-            ...m,
-            performed_by_profile: profileMap.get(m.created_by) || null
-          }));
-        }
-      }
-      return data;
+      if (dispatchResult.error) throw dispatchResult.error;
+      if (otherResult.error) throw otherResult.error;
+
+      const combined = [...(dispatchResult.data || []), ...(otherResult.data || [])];
+      return await enrichWithProfiles(combined, 'performed_by_profile');
     },
     enabled: permissions.canViewStockMovements,
   });
 
-  // Fetch packaging movements
+  // Helper function to enrich data with profile info
+  const enrichWithProfiles = async (data: any[], profileKey: string) => {
+    if (!data || data.length === 0) return data;
+    
+    const userIds = [...new Set(data.map((m: any) => m.created_by).filter(Boolean))];
+    if (userIds.length === 0) return data;
+    
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', userIds);
+    
+    const profileMap = new Map(profiles?.map((p: any) => [p.id, p]) || []);
+    return data.map((m: any) => ({
+      ...m,
+      [profileKey]: profileMap.get(m.created_by) || null
+    }));
+  };
+
+  // Fetch packaging movements - separate queries for dispatch vs other types
   const { data: packagingMovements, isLoading: loadingPackaging } = useQuery({
     queryKey: ["packaging-movements", movementTypeFilter, dateRange],
     queryFn: async () => {
-      let query = supabase
+      const baseSelect = `
+        id,
+        quantity,
+        movement_type,
+        notes,
+        created_at,
+        created_by,
+        packaging_item:packaging_items(name, sku)
+      `;
+
+      // If filtering by specific type, use single query
+      if (movementTypeFilter !== "all") {
+        let query = supabase
+          .from("packaging_movements")
+          .select(baseSelect)
+          .eq("movement_type", movementTypeFilter)
+          .order("created_at", { ascending: false })
+          .limit(500);
+
+        if (dateRange?.from) {
+          query = query.gte("created_at", dateRange.from.toISOString());
+        }
+        if (dateRange?.to) {
+          query = query.lte("created_at", dateRange.to.toISOString());
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return await enrichPackagingWithProfiles(data);
+      }
+
+      // For "all" filter, fetch dispatch and non-dispatch separately
+      let dispatchQuery = supabase
         .from("packaging_movements")
-        .select(`
-          id,
-          quantity,
-          movement_type,
-          notes,
-          created_at,
-          created_by,
-          packaging_item:packaging_items(name, sku)
-        `)
+        .select(baseSelect)
+        .eq("movement_type", "dispatch")
+        .order("created_at", { ascending: false })
+        .limit(300);
+
+      let otherQuery = supabase
+        .from("packaging_movements")
+        .select(baseSelect)
+        .neq("movement_type", "dispatch")
         .order("created_at", { ascending: false })
         .limit(200);
 
-      if (movementTypeFilter !== "all") {
-        query = query.eq("movement_type", movementTypeFilter);
-      }
-
       if (dateRange?.from) {
-        query = query.gte("created_at", dateRange.from.toISOString());
+        dispatchQuery = dispatchQuery.gte("created_at", dateRange.from.toISOString());
+        otherQuery = otherQuery.gte("created_at", dateRange.from.toISOString());
       }
-
       if (dateRange?.to) {
-        query = query.lte("created_at", dateRange.to.toISOString());
+        dispatchQuery = dispatchQuery.lte("created_at", dateRange.to.toISOString());
+        otherQuery = otherQuery.lte("created_at", dateRange.to.toISOString());
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      const [dispatchResult, otherResult] = await Promise.all([dispatchQuery, otherQuery]);
       
-      // Fetch user names for created_by
-      if (data && data.length > 0) {
-        const userIds = [...new Set(data.map((m: any) => m.created_by).filter(Boolean))];
-        if (userIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, full_name, email')
-            .in('id', userIds);
-          
-          const profileMap = new Map(profiles?.map((p: any) => [p.id, p]) || []);
-          return data.map((m: any) => ({
-            ...m,
-            profile: profileMap.get(m.created_by) || null
-          }));
-        }
-      }
-      return data;
+      if (dispatchResult.error) throw dispatchResult.error;
+      if (otherResult.error) throw otherResult.error;
+
+      const combined = [...(dispatchResult.data || []), ...(otherResult.data || [])];
+      return await enrichPackagingWithProfiles(combined);
     },
     enabled: permissions.canViewStockMovements,
   });
+
+  // Helper for packaging profiles
+  const enrichPackagingWithProfiles = async (data: any[]) => {
+    if (!data || data.length === 0) return data;
+    
+    const userIds = [...new Set(data.map((m: any) => m.created_by).filter(Boolean))];
+    if (userIds.length === 0) return data;
+    
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', userIds);
+    
+    const profileMap = new Map(profiles?.map((p: any) => [p.id, p]) || []);
+    return data.map((m: any) => ({
+      ...m,
+      profile: profileMap.get(m.created_by) || null
+    }));
+  };
 
   // Parse notes to extract reason and image URL
   const parseNotes = (notes: string | null): { reason: string; imageUrl?: string; details: string } => {
