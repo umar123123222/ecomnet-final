@@ -38,7 +38,6 @@ const PurchaseOrderDashboard = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [cancelDialog, setCancelDialog] = useState<{ open: boolean; po: PurchaseOrder | null }>({ open: false, po: null });
-  const [approveDialog, setApproveDialog] = useState<{ open: boolean; po: PurchaseOrder | null }>({ open: false, po: null });
   const [paymentDialog, setPaymentDialog] = useState<{ open: boolean; po: PurchaseOrder | null }>({ open: false, po: null });
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
@@ -282,28 +281,7 @@ const PurchaseOrderDashboard = () => {
     }
   });
 
-  // Approve PO mutation
-  const approveMutation = useMutation({
-    mutationFn: async (poId: string) => {
-      const { data, error } = await supabase.functions.invoke('manage-purchase-order', {
-        body: { action: 'approve', data: { po_id: poId } }
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
-      toast({
-        title: 'Purchase Order Approved',
-        description: 'The PO has been approved and sent to the supplier.'
-      });
-      setApproveDialog({ open: false, po: null });
-    },
-    onError: (error: any) => {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    }
-  });
+  // REMOVED: Approve mutation - no longer needed since POs go directly to supplier
 
   // Cancel PO
   const cancelMutation = useMutation({
@@ -418,7 +396,7 @@ const PurchaseOrderDashboard = () => {
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string, className?: string }> = {
-      pending: { variant: 'secondary', label: 'Pending Approval' },
+      pending: { variant: 'secondary', label: 'Awaiting Supplier' },
       draft: { variant: 'secondary', label: 'Draft' },
       sent: { variant: 'outline', label: 'Sent to Supplier' },
       confirmed: { variant: 'default', label: 'Confirmed' },
@@ -725,18 +703,7 @@ const PurchaseOrderDashboard = () => {
                       {getPaymentBadge((po as any).payment_status)}
                     </div>
                     <div className="flex gap-1">
-                      {/* Approve button for pending POs */}
-                      {po.status === 'pending' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setApproveDialog({ open: true, po })}
-                          className="text-green-600 hover:text-green-700"
-                        >
-                          <Send className="mr-1 h-3 w-3" />
-                          Approve & Send
-                        </Button>
-                      )}
+                      {/* Payment button for completed/partially received POs - only for super_admin and super_manager */}
                       
                       {/* Payment button for completed/partially received POs - only for finance and super_admin */}
                       {(po.status === 'completed' || po.status === 'partially_received') && 
@@ -804,26 +771,7 @@ const PurchaseOrderDashboard = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Approve Confirmation Dialog */}
-      <AlertDialog open={approveDialog.open} onOpenChange={(open) => setApproveDialog({ ...approveDialog, open })}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Approve & Send to Supplier?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will approve <strong>{approveDialog.po?.po_number}</strong> and send it to the supplier for confirmation.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => approveDialog.po && approveMutation.mutate(approveDialog.po.id)}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {approveMutation.isPending ? 'Approving...' : 'Approve & Send'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* REMOVED: Approve Confirmation Dialog - no longer needed */}
 
       {/* Payment Dialog */}
       <Dialog open={paymentDialog.open} onOpenChange={(open) => setPaymentDialog({ ...paymentDialog, open })}>

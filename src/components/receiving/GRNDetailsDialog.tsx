@@ -178,17 +178,17 @@ const GRNDetailsDialog: React.FC<GRNDetailsDialogProps> = ({ isOpen, onClose, gr
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string }> = {
-      pending_inspection: { variant: 'secondary', label: 'Pending Inspection' },
+    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string, className?: string }> = {
+      pending_inspection: { variant: 'secondary', label: 'Pending' },
       pending: { variant: 'secondary', label: 'Pending' },
       inspected: { variant: 'outline', label: 'Inspected' },
-      accepted: { variant: 'default', label: 'Accepted' },
+      accepted: { variant: 'default', label: 'Auto-Accepted', className: 'bg-green-500' },
       rejected: { variant: 'destructive', label: 'Rejected' },
       resolved: { variant: 'default', label: 'Resolved' },
-      partial_accept: { variant: 'outline', label: 'Partial Accept' }
+      partial_accept: { variant: 'outline', label: 'Partial Received', className: 'border-amber-500 text-amber-700' }
     };
     const config = variants[status] || variants.pending_inspection;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    return <Badge variant={config.variant} className={config.className}>{config.label}</Badge>;
   };
 
   const getItemStatusIcon = (item: GRNItem) => {
@@ -205,9 +205,10 @@ const GRNDetailsDialog: React.FC<GRNDetailsDialogProps> = ({ isOpen, onClose, gr
     return <Package className="h-5 w-5 text-muted-foreground" />;
   };
 
-  const isPending = grn?.status === 'pending_inspection' || grn?.status === 'pending';
-  const hasDiscrepancy = grn?.discrepancy_flag;
-  const isResolved = grn?.status === 'accepted' || grn?.status === 'rejected' || grn?.status === 'resolved';
+  // Allow rejection for pending, accepted, or partial_accept GRNs (to reverse if needed)
+  const canRejectGRN = grn && ['pending_inspection', 'pending', 'accepted', 'partial_accept'].includes(grn.status);
+  const isAutoProcessed = grn?.status === 'accepted' || grn?.status === 'partial_accept';
+  const isRejected = grn?.status === 'rejected';
 
   if (isLoading) {
     return (
@@ -273,33 +274,43 @@ const GRNDetailsDialog: React.FC<GRNDetailsDialogProps> = ({ isOpen, onClose, gr
                 </div>
               </div>
 
-              {/* Discrepancy Warning */}
-              {hasDiscrepancy && isPending && (
-                <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                  <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+              {/* Auto-Processed Info */}
+              {isAutoProcessed && (
+                <div className={`flex items-start gap-3 p-4 rounded-lg ${grn.status === 'accepted' ? 'bg-green-50 border border-green-200' : 'bg-amber-50 border border-amber-200'}`}>
+                  {grn.status === 'accepted' ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+                  )}
                   <div>
-                    <h4 className="font-semibold text-amber-900">Quantity Discrepancy Detected</h4>
-                    <p className="text-sm text-amber-800 mt-1">
-                      {canResolve 
-                        ? 'Review each item below and decide how to resolve the discrepancy.'
-                        : 'This GRN requires resolution by a super admin or super manager.'}
+                    <h4 className="font-semibold">{grn.status === 'accepted' ? 'Auto-Accepted' : 'Partial Receiving'}</h4>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {grn.status === 'accepted' 
+                        ? 'All items received as expected. Inventory has been updated automatically.'
+                        : 'Some items were under-received. Inventory updated with received quantities. Supplier has been notified.'}
                     </p>
+                    {canResolve && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        If there's an issue, you can reject this GRN to reverse the inventory update.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* Resolution Info if already resolved */}
-              {isResolved && (grn.inspector as any)?.full_name && (
-                <div className="flex items-start gap-3 p-4 bg-muted rounded-lg">
-                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+              {/* Rejected Info */}
+              {isRejected && (
+                <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
                   <div>
-                    <h4 className="font-semibold">Resolved</h4>
-                    <p className="text-sm text-muted-foreground">
-                      By {(grn.inspector as any).full_name} on {format(new Date(grn.inspected_at), 'MMM dd, yyyy HH:mm')}
+                    <h4 className="font-semibold text-red-900">Rejected</h4>
+                    <p className="text-sm text-red-800 mt-1">
+                      By {(grn.inspector as any)?.full_name || 'Manager'} on {grn.inspected_at ? format(new Date(grn.inspected_at), 'MMM dd, yyyy HH:mm') : 'N/A'}
                     </p>
                     {grn.rejection_reason && (
-                      <p className="text-sm mt-1">Reason: {grn.rejection_reason}</p>
+                      <p className="text-sm mt-2"><strong>Reason:</strong> {grn.rejection_reason}</p>
                     )}
+                    <p className="text-sm text-red-700 mt-2">Inventory updates have been reversed.</p>
                   </div>
                 </div>
               )}
@@ -368,81 +379,22 @@ const GRNDetailsDialog: React.FC<GRNDetailsDialogProps> = ({ isOpen, onClose, gr
                           </div>
                         )}
 
-                        {/* Resolution Controls - Only for super_admin/super_manager on pending GRNs */}
-                        {canResolve && isPending && hasItemDiscrepancy && resolution && (
-                          <div className="border-t pt-4 space-y-3">
-                            <h4 className="font-medium text-sm">Resolution</h4>
-                            <div className="grid grid-cols-3 gap-3">
-                              <div>
-                                <Label className="text-xs">Accept Qty</Label>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  max={item.quantity_received}
-                                  value={resolution.quantity_accepted}
-                                  onChange={(e) => updateResolution(item.id, 'quantity_accepted', parseInt(e.target.value) || 0)}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs">Reject Qty</Label>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  value={resolution.quantity_rejected}
-                                  onChange={(e) => updateResolution(item.id, 'quantity_rejected', parseInt(e.target.value) || 0)}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs">Status</Label>
-                                <Select
-                                  value={resolution.quality_status}
-                                  onValueChange={(value) => updateResolution(item.id, 'quality_status', value)}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="accepted">Accept</SelectItem>
-                                    <SelectItem value="write_off">Write Off</SelectItem>
-                                    <SelectItem value="rejected">Reject</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-                            <div>
-                              <Label className="text-xs">Resolution Notes</Label>
-                              <Input
-                                placeholder="Notes about this resolution..."
-                                value={resolution.resolution_notes}
-                                onChange={(e) => updateResolution(item.id, 'resolution_notes', e.target.value)}
-                              />
-                            </div>
-                          </div>
-                        )}
+                        {/* Resolution Controls removed - GRNs are now auto-processed */}
                       </CardContent>
                     </Card>
                   );
                 })}
               </div>
 
-              {/* Overall Notes for Resolution */}
-              {canResolve && isPending && (
-                <div className="space-y-4">
+              {/* Rejection Notes - Show for managers on non-rejected GRNs */}
+              {canResolve && canRejectGRN && (
+                <div className="space-y-4 border-t pt-4">
                   <div>
-                    <Label>Rejection Reason (required if rejecting)</Label>
+                    <Label>Rejection Reason (required to reject)</Label>
                     <Textarea
-                      placeholder="Enter reason for rejection..."
+                      placeholder="Enter reason for rejection - inventory will be reversed..."
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
-                      rows={2}
-                    />
-                  </div>
-                  <div>
-                    <Label>Overall Resolution Notes</Label>
-                    <Textarea
-                      placeholder="Add notes about this resolution..."
-                      value={overallNotes}
-                      onChange={(e) => setOverallNotes(e.target.value)}
                       rows={2}
                     />
                   </div>
@@ -457,31 +409,15 @@ const GRNDetailsDialog: React.FC<GRNDetailsDialogProps> = ({ isOpen, onClose, gr
               Close
             </Button>
             
-            {canResolve && isPending && (
-              <>
-                <Button
-                  variant="destructive"
-                  onClick={() => resolveMutation.mutate('reject')}
-                  disabled={resolveMutation.isPending || !rejectionReason.trim()}
-                >
-                  Reject GRN
-                </Button>
-                {hasDiscrepancy ? (
-                  <Button
-                    onClick={() => resolveMutation.mutate('resolve')}
-                    disabled={resolveMutation.isPending}
-                  >
-                    {resolveMutation.isPending ? 'Processing...' : 'Resolve & Accept'}
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => resolveMutation.mutate('accept')}
-                    disabled={resolveMutation.isPending}
-                  >
-                    {resolveMutation.isPending ? 'Processing...' : 'Accept GRN'}
-                  </Button>
-                )}
-              </>
+            {/* Reject button - available for super_admin/super_manager on non-rejected GRNs */}
+            {canResolve && canRejectGRN && (
+              <Button
+                variant="destructive"
+                onClick={() => resolveMutation.mutate('reject')}
+                disabled={resolveMutation.isPending || !rejectionReason.trim()}
+              >
+                {resolveMutation.isPending ? 'Processing...' : 'Reject & Reverse Inventory'}
+              </Button>
             )}
           </DialogFooter>
         </DialogContent>

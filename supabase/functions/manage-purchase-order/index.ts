@@ -35,7 +35,7 @@ async function sendStatusNotification(
     
     // Create in-app notifications for all admins
     const statusLabels: Record<string, string> = {
-      pending: 'Pending Approval',
+      pending: 'Created',
       sent: 'Sent to Supplier',
       confirmed: 'Confirmed by Supplier',
       supplier_rejected: 'Rejected by Supplier',
@@ -136,7 +136,7 @@ serve(async (req) => {
           };
         });
 
-        // Create PO with status 'pending'
+        // Create PO with status 'pending' - supplier can immediately see and confirm/reject
         const { data: po, error: poError } = await supabaseClient
           .from('purchase_orders')
           .insert({
@@ -185,7 +185,6 @@ serve(async (req) => {
 
         // Send PO lifecycle email (created)
         try {
-          // Use service role client for edge function invocation
           const serviceClient = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -204,67 +203,12 @@ serve(async (req) => {
         }
 
         return new Response(
-          JSON.stringify({ success: true, po, message: 'Purchase order created successfully' }),
+          JSON.stringify({ success: true, po, message: 'Purchase order created and sent to supplier' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      case 'approve': {
-        if (!data.po_id) {
-          throw new Error('Missing po_id');
-        }
-
-        // Get PO details first
-        const { data: po, error: poFetchError } = await supabaseClient
-          .from('purchase_orders')
-          .select('*, suppliers(name, email)')
-          .eq('id', data.po_id)
-          .single();
-        
-        if (poFetchError) throw poFetchError;
-        
-        if (po.status !== 'pending') {
-          throw new Error(`Cannot approve PO with status: ${po.status}`);
-        }
-
-        const { error } = await supabaseClient
-          .from('purchase_orders')
-          .update({
-            status: 'sent',
-            approved_by: user.id,
-            approved_at: new Date().toISOString()
-          })
-          .eq('id', data.po_id);
-
-        if (error) throw error;
-
-        // Send notification
-        await sendStatusNotification(supabaseClient, po, 'sent', user.id);
-
-        // Send PO lifecycle email (approved)
-        try {
-          const serviceClient = createClient(
-            Deno.env.get('SUPABASE_URL') ?? '',
-            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-          );
-
-          await serviceClient.functions.invoke('send-po-lifecycle-email', {
-            body: {
-              po_id: po.id,
-              notification_type: 'approved'
-            }
-          });
-
-          console.log('PO approved email sent successfully');
-        } catch (emailError) {
-          console.error('Failed to send PO approved email:', emailError);
-        }
-
-        return new Response(
-          JSON.stringify({ success: true, message: 'Purchase order approved and sent to supplier' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+      // REMOVED: 'approve' action - no longer needed since POs go directly to supplier
 
       case 'cancel': {
         if (!data.po_id) {
@@ -306,16 +250,16 @@ serve(async (req) => {
           throw new Error('Missing po_id');
         }
 
-        // Check user role - only finance and super_admin can record payments
+        // Check user role - only super_admin and super_manager can record payments
         const { data: userRoles } = await supabaseClient
           .from('user_roles')
           .select('role')
           .eq('user_id', user.id)
-          .in('role', ['super_admin', 'finance'])
+          .in('role', ['super_admin', 'super_manager'])
           .eq('is_active', true);
 
         if (!userRoles || userRoles.length === 0) {
-          throw new Error('Unauthorized: Only Finance or Super Admin can record payments');
+          throw new Error('Unauthorized: Only Super Admin or Super Manager can record payments');
         }
 
         // Get PO details
