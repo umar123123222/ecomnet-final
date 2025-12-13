@@ -92,8 +92,8 @@ const ReceivingDashboard = () => {
   });
 
   // Fetch pending POs for receiving (excluding POs that already have an active GRN)
-  const { data: pendingPOs = [] } = useQuery({
-    queryKey: ['pending-pos'],
+  const { data: pendingPOs = [], isLoading: isPendingPOsLoading } = useQuery({
+    queryKey: ['pending-pos-receiving'],
     queryFn: async () => {
       // First, get all POs with confirmed/shipped status
       const { data: allPOs, error: poError } = await supabase
@@ -124,7 +124,9 @@ const ReceivingDashboard = () => {
       // Filter out POs that already have any GRN
       const grnPoIds = new Set(existingGRNs?.map(g => g.po_id) || []);
       return allPOs.filter(po => !grnPoIds.has(po.id));
-    }
+    },
+    staleTime: 0,
+    refetchOnMount: 'always'
   });
 
   // Fetch main warehouse
@@ -484,12 +486,16 @@ const ReceivingDashboard = () => {
       </div>
 
       {/* Pending POs for Receiving */}
-      {pendingPOs.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Pending Purchase Orders</CardTitle>
-          </CardHeader>
-          <CardContent>
+      <Card>
+        <CardHeader>
+          <CardTitle>Pending Purchase Orders (Ready to Receive)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isPendingPOsLoading ? (
+            <div className="text-center py-4 text-muted-foreground">Loading pending POs...</div>
+          ) : pendingPOs.length === 0 ? (
+            <div className="text-center py-4 text-muted-foreground">No pending POs available for receiving.</div>
+          ) : (
             <div className="space-y-2">
               {pendingPOs.map((po: any) => (
                 <div key={po.id} className="flex items-center justify-between p-3 border rounded-lg">
@@ -500,8 +506,8 @@ const ReceivingDashboard = () => {
                         {po.status === 'in_transit' && (
                           <Badge className="bg-blue-500">Shipped</Badge>
                         )}
-                        {po.status === 'confirmed' && (
-                          <Badge variant="secondary">Confirmed</Badge>
+                        {po.status === 'partially_received' && (
+                          <Badge variant="secondary">Partial</Badge>
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground">
@@ -520,9 +526,9 @@ const ReceivingDashboard = () => {
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       {/* Search */}
       <Card>
