@@ -114,6 +114,22 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
         })
         .eq("id", data.id);
       if (error) throw error;
+
+      // Trigger lifecycle email for confirmation
+      try {
+        await supabase.functions.invoke('send-po-lifecycle-email', {
+          body: {
+            po_id: data.id,
+            notification_type: 'confirmed',
+            additional_data: {
+              delivery_date: data.delivery_date,
+              notes: data.notes
+            }
+          }
+        });
+      } catch (emailError) {
+        console.error('Failed to send confirmation email:', emailError);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["supplier-purchase-orders"] });
@@ -164,6 +180,23 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
         })
         .eq("id", data.id);
       if (error) throw error;
+
+      // Trigger lifecycle email for shipping
+      try {
+        await supabase.functions.invoke('send-po-lifecycle-email', {
+          body: {
+            po_id: data.id,
+            notification_type: 'shipped',
+            additional_data: {
+              tracking: data.tracking,
+              shipping_cost: data.deliveryCharges,
+              notes: data.notes
+            }
+          }
+        });
+      } catch (emailError) {
+        console.error('Failed to send shipping email:', emailError);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["supplier-purchase-orders"] });

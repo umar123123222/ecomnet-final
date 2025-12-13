@@ -364,6 +364,48 @@ serve(async (req) => {
               received_at: new Date().toISOString()
             })
             .eq('id', grn.purchase_orders.id);
+
+          // Get user's name for email
+          const { data: userProfile } = await supabaseClient
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .single();
+
+          // Send receiving email
+          try {
+            const serviceClient = createClient(
+              Deno.env.get('SUPABASE_URL') ?? '',
+              Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+            );
+
+            await serviceClient.functions.invoke('send-po-lifecycle-email', {
+              body: {
+                po_id: grn.purchase_orders.id,
+                notification_type: 'received',
+                additional_data: {
+                  grn_number: grn.grn_number,
+                  has_discrepancy: false,
+                  received_by: userProfile?.full_name || 'Warehouse Staff'
+                }
+              }
+            });
+
+            // Also send invoice email
+            await serviceClient.functions.invoke('send-po-lifecycle-email', {
+              body: {
+                po_id: grn.purchase_orders.id,
+                notification_type: 'invoice',
+                additional_data: {
+                  grn_number: grn.grn_number
+                }
+              }
+            });
+
+            console.log('GRN accept emails sent successfully');
+          } catch (emailError) {
+            console.error('Failed to send GRN accept emails:', emailError);
+          }
         }
 
         return new Response(
@@ -527,6 +569,58 @@ serve(async (req) => {
               received_at: new Date().toISOString()
             })
             .eq('id', grn.purchase_orders.id);
+
+          // Get user's name for email
+          const { data: userProfile } = await supabaseClient
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .single();
+
+          // Get credit notes total if any
+          const { data: creditNotes } = await supabaseClient
+            .from('supplier_credit_notes')
+            .select('amount')
+            .eq('po_id', grn.purchase_orders.id)
+            .eq('status', 'applied');
+
+          const creditTotal = creditNotes?.reduce((sum: number, cn: any) => sum + (cn.amount || 0), 0) || 0;
+
+          // Send receiving email with discrepancy flag
+          try {
+            const serviceClient = createClient(
+              Deno.env.get('SUPABASE_URL') ?? '',
+              Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+            );
+
+            await serviceClient.functions.invoke('send-po-lifecycle-email', {
+              body: {
+                po_id: grn.purchase_orders.id,
+                notification_type: 'received',
+                additional_data: {
+                  grn_number: grn.grn_number,
+                  has_discrepancy: true,
+                  received_by: userProfile?.full_name || 'Warehouse Staff'
+                }
+              }
+            });
+
+            // Also send invoice email with credit notes
+            await serviceClient.functions.invoke('send-po-lifecycle-email', {
+              body: {
+                po_id: grn.purchase_orders.id,
+                notification_type: 'invoice',
+                additional_data: {
+                  grn_number: grn.grn_number,
+                  credit_notes_total: creditTotal
+                }
+              }
+            });
+
+            console.log('GRN resolve emails sent successfully');
+          } catch (emailError) {
+            console.error('Failed to send GRN resolve emails:', emailError);
+          }
         }
 
         return new Response(
