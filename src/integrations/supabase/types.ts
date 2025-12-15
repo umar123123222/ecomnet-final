@@ -3951,6 +3951,12 @@ export type Database = {
       }
       returns: {
         Row: {
+          claim_amount: number | null
+          claim_notes: string | null
+          claim_reference: string | null
+          claim_status: string | null
+          claimed_at: string | null
+          claimed_by: string | null
           created_at: string | null
           id: string
           notes: string | null
@@ -3965,6 +3971,12 @@ export type Database = {
           worth: number | null
         }
         Insert: {
+          claim_amount?: number | null
+          claim_notes?: string | null
+          claim_reference?: string | null
+          claim_status?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
           created_at?: string | null
           id?: string
           notes?: string | null
@@ -3979,6 +3991,12 @@ export type Database = {
           worth?: number | null
         }
         Update: {
+          claim_amount?: number | null
+          claim_notes?: string | null
+          claim_reference?: string | null
+          claim_status?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
           created_at?: string | null
           id?: string
           notes?: string | null
@@ -3993,6 +4011,13 @@ export type Database = {
           worth?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "returns_claimed_by_fkey"
+            columns: ["claimed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "returns_order_id_fkey"
             columns: ["order_id"]
