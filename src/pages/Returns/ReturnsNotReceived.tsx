@@ -3,14 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Eye, AlertTriangle, Clock, DollarSign, RotateCcw, ChevronLeft, ChevronRight, Download, ArrowUp } from "lucide-react";
+import { Search, Eye, AlertTriangle, Clock, DollarSign, RotateCcw, ChevronLeft, ChevronRight, Download, ArrowUp, FileWarning } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from "@/components/layout";
+import ClaimDialog from "@/components/returns/ClaimDialog";
 
 interface ReturnNotReceived {
   id: string;
@@ -23,6 +25,10 @@ interface ReturnNotReceived {
   courier: string;
   trackingId: string | null;
   returnValue: number;
+  isClaimed?: boolean;
+  claimAmount?: number;
+  claimStatus?: string;
+  claimReference?: string;
 }
 
 const ITEMS_PER_PAGE = 50;
