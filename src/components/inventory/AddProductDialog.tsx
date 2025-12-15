@@ -21,7 +21,7 @@ const productSchema = z.object({
   description: z.string().trim().max(1000, "Description must be less than 1000 characters").nullable().transform(v => v ?? "").optional(),
   category: z.string().trim().max(100, "Category must be less than 100 characters").nullable().transform(v => v ?? "").optional(),
   price: z.number().min(0, "Retail price must be positive"),
-  cost: z.number().min(0, "Cost must be positive"),
+  cost: z.number().positive("Cost is required and must be greater than 0"),
   reorder_level: z.number().int().min(0, "Reorder level must be a positive integer"),
   is_active: z.boolean(),
   size: z.string().nullable().transform(v => v ?? "").optional(),
