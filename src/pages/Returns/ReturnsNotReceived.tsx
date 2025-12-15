@@ -38,9 +38,13 @@ const ReturnsNotReceived = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedReturns, setSelectedReturns] = useState<string[]>([]);
   const [allReturns, setAllReturns] = useState<ReturnNotReceived[]>([]);
+  const [claimedReturns, setClaimedReturns] = useState<ReturnNotReceived[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [activeTab, setActiveTab] = useState<'awaiting' | 'claimed'>('awaiting');
+  const [claimDialogOpen, setClaimDialogOpen] = useState(false);
+  const [selectedOrderForClaim, setSelectedOrderForClaim] = useState<ReturnNotReceived | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -52,14 +56,73 @@ const ReturnsNotReceived = () => {
 
   useEffect(() => {
     fetchReturnsNotReceived();
+    fetchClaimedReturns();
     const channel = supabase.channel('returns-not-received-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchReturnsNotReceived())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        fetchReturnsNotReceived();
+        fetchClaimedReturns();
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'dispatches' }, () => fetchReturnsNotReceived())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'returns' }, () => fetchClaimedReturns())
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  const fetchClaimedReturns = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('returns')
+        .select(`
+          *,
+          orders!returns_order_id_fkey (
+            id,
+            order_number,
+            customer_name,
+            customer_phone,
+            total_amount
+          )
+        `)
+        .eq('return_status', 'claimed')
+        .order('claimed_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formatted: ReturnNotReceived[] = (data || []).map((item: any) => ({
+        id: item.orders?.id || item.order_id,
+        orderNumber: item.orders?.order_number || 'N/A',
+        customerName: item.orders?.customer_name || 'N/A',
+        customerPhone: item.orders?.customer_phone,
+        returnReason: item.reason || 'Claimed',
+        markedReturnedDate: item.claimed_at ? new Date(item.claimed_at).toISOString().split('T')[0] : '',
+        daysSinceMarked: item.claimed_at 
+          ? Math.floor((Date.now() - new Date(item.claimed_at).getTime()) / (1000 * 60 * 60 * 24))
+          : 0,
+        courier: item.tracking_id?.includes('LP') ? 'Leopard' : item.tracking_id?.includes('PX') ? 'PostEx' : 'Unknown',
+        trackingId: item.tracking_id,
+        returnValue: item.worth || item.orders?.total_amount || 0,
+        isClaimed: true,
+        claimAmount: item.claim_amount,
+        claimStatus: item.claim_status,
+        claimReference: item.claim_reference,
+      }));
+
+      setClaimedReturns(formatted);
+    } catch (error) {
+      console.error('Error fetching claimed returns:', error);
+    }
+  };
+
+  const handleOpenClaimDialog = (returnItem: ReturnNotReceived) => {
+    setSelectedOrderForClaim(returnItem);
+    setClaimDialogOpen(true);
+  };
+
+  const handleClaimSuccess = () => {
+    fetchReturnsNotReceived();
+    fetchClaimedReturns();
+  };
 
   const fetchReturnsNotReceived = async () => {
     try {
@@ -190,26 +253,32 @@ const ReturnsNotReceived = () => {
     const criticalCount = allReturns.filter(item => item.daysSinceMarked >= 10).length;
     const highPriorityCount = allReturns.filter(item => item.daysSinceMarked >= 7 && item.daysSinceMarked < 10).length;
     const totalValue = allReturns.reduce((sum, item) => sum + (item.returnValue || 0), 0);
+    const claimedCount = claimedReturns.length;
+    const claimedValue = claimedReturns.reduce((sum, item) => sum + (item.claimAmount || item.returnValue || 0), 0);
     return {
       totalOverdue: allReturns.length,
       criticalCount,
       highPriorityCount,
-      totalValue
+      totalValue,
+      claimedCount,
+      claimedValue,
     };
-  }, [allReturns]);
+  }, [allReturns, claimedReturns]);
 
-  // Search filters ALL data
+  // Search filters current tab data
+  const currentTabData = activeTab === 'awaiting' ? allReturns : claimedReturns;
+  
   const filteredReturns = useMemo(() => {
-    if (!searchTerm.trim()) return allReturns;
+    if (!searchTerm.trim()) return currentTabData;
     const term = searchTerm.toLowerCase();
-    return allReturns.filter(returnItem => 
+    return currentTabData.filter(returnItem => 
       returnItem.orderNumber.toLowerCase().includes(term) || 
       returnItem.customerName.toLowerCase().includes(term) || 
       (returnItem.customerPhone && returnItem.customerPhone.includes(searchTerm)) || 
       (returnItem.trackingId && returnItem.trackingId.toLowerCase().includes(term)) ||
       (returnItem.courier && returnItem.courier.toLowerCase().includes(term))
     );
-  }, [allReturns, searchTerm]);
+  }, [currentTabData, searchTerm]);
 
   // Reset to page 1 when search changes
   useEffect(() => {
@@ -305,7 +374,7 @@ const ReturnsNotReceived = () => {
         </div>
       ) : (
         <>
-          <StatsGrid columns={4}>
+          <StatsGrid columns={6}>
             <StatsCard 
               title="Total Overdue" 
               value={metrics.totalOverdue.toString()} 
@@ -325,18 +394,39 @@ const ReturnsNotReceived = () => {
               variant="warning" 
             />
             <StatsCard 
-              title="Total Value at Risk" 
+              title="Value at Risk" 
               value={`₨${metrics.totalValue.toLocaleString()}`} 
+              icon={DollarSign} 
+              variant="default" 
+            />
+            <StatsCard 
+              title="Total Claimed" 
+              value={metrics.claimedCount.toString()} 
+              icon={FileWarning} 
+              variant="default" 
+            />
+            <StatsCard 
+              title="Claimed Value" 
+              value={`₨${metrics.claimedValue.toLocaleString()}`} 
               icon={DollarSign} 
               variant="default" 
             />
           </StatsGrid>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-semibold text-foreground">
-                Returns Awaiting Receipt ({filteredReturns.length})
-              </CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <div className="flex items-center gap-4">
+                <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'awaiting' | 'claimed'); setCurrentPage(1); }}>
+                  <TabsList>
+                    <TabsTrigger value="awaiting">
+                      Awaiting Receipt ({allReturns.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="claimed">
+                      Claimed ({claimedReturns.length})
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
               {selectedReturns.length > 0 && (
                 <Button variant="outline" size="sm" onClick={handleExportSelected}>
                   <Download className="h-4 w-4 mr-2" />
@@ -370,13 +460,17 @@ const ReturnsNotReceived = () => {
                       <TableHead>Order #</TableHead>
                       <TableHead>Customer</TableHead>
                       <TableHead>Phone</TableHead>
-                      <TableHead>Return Status</TableHead>
+                      <TableHead>{activeTab === 'claimed' ? 'Reason' : 'Return Status'}</TableHead>
                       <TableHead>Courier</TableHead>
                       <TableHead>Tracking ID</TableHead>
-                      <TableHead>Marked Date</TableHead>
-                      <TableHead>Days Overdue</TableHead>
-                      <TableHead>Value</TableHead>
-                      <TableHead>Priority</TableHead>
+                      <TableHead>{activeTab === 'claimed' ? 'Claimed Date' : 'Marked Date'}</TableHead>
+                      <TableHead>{activeTab === 'claimed' ? 'Days Since' : 'Days Overdue'}</TableHead>
+                      <TableHead>{activeTab === 'claimed' ? 'Claim Amount' : 'Value'}</TableHead>
+                      {activeTab === 'claimed' ? (
+                        <TableHead>Claim Status</TableHead>
+                      ) : (
+                        <TableHead>Priority</TableHead>
+                      )}
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -412,24 +506,56 @@ const ReturnsNotReceived = () => {
                         <TableCell className="font-mono text-sm text-muted-foreground">{returnItem.trackingId}</TableCell>
                         <TableCell className="text-muted-foreground">{returnItem.markedReturnedDate}</TableCell>
                         <TableCell>
-                          <span className={getPriorityColor(returnItem.daysSinceMarked)}>
+                          <span className={activeTab === 'claimed' ? 'text-muted-foreground' : getPriorityColor(returnItem.daysSinceMarked)}>
                             {returnItem.daysSinceMarked} days
                           </span>
                         </TableCell>
                         <TableCell className="font-medium text-foreground">
-                          ₨{returnItem.returnValue.toLocaleString()}
+                          ₨{(activeTab === 'claimed' && returnItem.claimAmount ? returnItem.claimAmount : returnItem.returnValue).toLocaleString()}
                         </TableCell>
                         <TableCell>
-                          <Badge className={getPriorityBadge(returnItem.daysSinceMarked)}>
-                            {returnItem.daysSinceMarked >= 10 ? 'Critical' : 
-                             returnItem.daysSinceMarked >= 7 ? 'High' : 
-                             returnItem.daysSinceMarked >= 3 ? 'Medium' : 'Low'}
-                          </Badge>
+                          {activeTab === 'claimed' ? (
+                            <Badge className={
+                              returnItem.claimStatus === 'settled' ? 'bg-green-100 text-green-800 border-green-200' :
+                              returnItem.claimStatus === 'approved' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                              returnItem.claimStatus === 'rejected' ? 'bg-red-100 text-red-800 border-red-200' :
+                              'bg-amber-100 text-amber-800 border-amber-200'
+                            }>
+                              {returnItem.claimStatus || 'pending'}
+                            </Badge>
+                          ) : (
+                            <Badge className={getPriorityBadge(returnItem.daysSinceMarked)}>
+                              {returnItem.daysSinceMarked >= 10 ? 'Critical' : 
+                               returnItem.daysSinceMarked >= 7 ? 'High' : 
+                               returnItem.daysSinceMarked >= 3 ? 'Medium' : 'Low'}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <Button variant="outline" size="sm" onClick={() => handleViewReturn(returnItem.orderNumber)}>
-                            <Eye className="h-3 w-3" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button variant="outline" size="sm" onClick={() => handleViewReturn(returnItem.orderNumber)}>
+                              <Eye className="h-3 w-3" />
+                            </Button>
+                            {activeTab === 'awaiting' && returnItem.daysSinceMarked >= 7 && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      className="text-amber-600 border-amber-300 hover:bg-amber-50"
+                                      onClick={() => handleOpenClaimDialog(returnItem)}
+                                    >
+                                      <FileWarning className="h-3 w-3" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>File courier claim</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -439,7 +565,11 @@ const ReturnsNotReceived = () => {
 
               {filteredReturns.length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-muted-foreground">No overdue returns found matching your search criteria.</p>
+                  <p className="text-muted-foreground">
+                    {activeTab === 'claimed' 
+                      ? 'No claimed returns found.' 
+                      : 'No overdue returns found matching your search criteria.'}
+                  </p>
                 </div>
               ) : (
                 <div className="flex items-center justify-between mt-4 pt-4 border-t">
@@ -473,6 +603,23 @@ const ReturnsNotReceived = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* Claim Dialog */}
+          {selectedOrderForClaim && (
+            <ClaimDialog
+              open={claimDialogOpen}
+              onOpenChange={setClaimDialogOpen}
+              order={{
+                id: selectedOrderForClaim.id,
+                orderNumber: selectedOrderForClaim.orderNumber,
+                customerName: selectedOrderForClaim.customerName,
+                returnValue: selectedOrderForClaim.returnValue,
+                trackingId: selectedOrderForClaim.trackingId,
+                courier: selectedOrderForClaim.courier,
+              }}
+              onSuccess={handleClaimSuccess}
+            />
+          )}
         </>
       )}
 

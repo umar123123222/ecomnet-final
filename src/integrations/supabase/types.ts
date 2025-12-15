@@ -6039,7 +6039,12 @@ export type Database = {
         | "delivered"
         | "returned"
         | "cancelled"
-      return_status: "in_transit" | "received" | "processed" | "completed"
+      return_status:
+        | "in_transit"
+        | "received"
+        | "processed"
+        | "completed"
+        | "claimed"
       user_role:
         | "super_admin"
         | "super_manager"
@@ -6188,7 +6193,13 @@ export const Constants = {
         "returned",
         "cancelled",
       ],
-      return_status: ["in_transit", "received", "processed", "completed"],
+      return_status: [
+        "in_transit",
+        "received",
+        "processed",
+        "completed",
+        "claimed",
+      ],
       user_role: [
         "super_admin",
         "super_manager",

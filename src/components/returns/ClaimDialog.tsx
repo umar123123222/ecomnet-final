@@ -56,7 +56,7 @@ const ClaimDialog = ({ open, onOpenChange, order, onSuccess }: ClaimDialogProps)
         claim_status: 'pending',
         claim_reference: claimReference || null,
         claim_notes: claimNotes || null,
-        return_status: 'claimed',
+        return_status: 'claimed' as const,
       };
 
       if (existingReturn) {
