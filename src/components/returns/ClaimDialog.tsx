@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, FileWarning } from 'lucide-react';
+import { useUserRoles } from '@/hooks/useUserRoles';
+import { Loader2, FileWarning, ShieldAlert } from 'lucide-react';
 
 interface ClaimDialogProps {
   open: boolean;
@@ -26,10 +28,14 @@ interface ClaimDialogProps {
 const ClaimDialog = ({ open, onOpenChange, order, onSuccess }: ClaimDialogProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { hasAnyRole } = useUserRoles();
   const [loading, setLoading] = useState(false);
   const [claimReference, setClaimReference] = useState('');
   const [claimAmount, setClaimAmount] = useState(order.returnValue.toString());
   const [claimNotes, setClaimNotes] = useState('');
+  
+  // Only super_admin and finance users can file claims
+  const canFileClaim = hasAnyRole(['super_admin', 'finance']);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,6 +155,15 @@ const ClaimDialog = ({ open, onOpenChange, order, onSuccess }: ClaimDialogProps)
             <p className="text-sm"><span className="text-muted-foreground">Tracking:</span> <span className="font-mono text-xs">{order.trackingId || 'N/A'}</span></p>
           </div>
 
+          {!canFileClaim && (
+            <Alert variant="destructive">
+              <ShieldAlert className="h-4 w-4" />
+              <AlertDescription>
+                Only Super Admins and Finance users can file courier claims.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="claimReference">Claim Reference # (Optional)</Label>
             <Input
@@ -156,6 +171,7 @@ const ClaimDialog = ({ open, onOpenChange, order, onSuccess }: ClaimDialogProps)
               placeholder="Courier ticket/claim number"
               value={claimReference}
               onChange={(e) => setClaimReference(e.target.value)}
+              disabled={!canFileClaim}
             />
           </div>
 
@@ -169,6 +185,7 @@ const ClaimDialog = ({ open, onOpenChange, order, onSuccess }: ClaimDialogProps)
               value={claimAmount}
               onChange={(e) => setClaimAmount(e.target.value)}
               required
+              disabled={!canFileClaim}
             />
             <p className="text-xs text-muted-foreground">
               Original order value: ₨{order.returnValue.toLocaleString()}
@@ -183,6 +200,7 @@ const ClaimDialog = ({ open, onOpenChange, order, onSuccess }: ClaimDialogProps)
               value={claimNotes}
               onChange={(e) => setClaimNotes(e.target.value)}
               rows={3}
+              disabled={!canFileClaim}
             />
           </div>
 
@@ -190,7 +208,11 @@ const ClaimDialog = ({ open, onOpenChange, order, onSuccess }: ClaimDialogProps)
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="bg-amber-600 hover:bg-amber-700">
+            <Button 
+              type="submit" 
+              disabled={loading || !canFileClaim} 
+              className="bg-amber-600 hover:bg-amber-700"
+            >
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
