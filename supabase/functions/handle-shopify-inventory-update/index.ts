@@ -34,8 +34,25 @@ Deno.serve(async (req) => {
     // Get body as text for HMAC verification
     const bodyText = await req.text();
 
+    // Get webhook secret from database first, then env
+    let webhookSecret = '';
+    try {
+      const { data } = await supabase
+        .from('api_settings')
+        .select('setting_value')
+        .eq('setting_key', 'SHOPIFY_WEBHOOK_SECRET')
+        .single();
+      if (data?.setting_value) {
+        webhookSecret = data.setting_value;
+      }
+    } catch (e) {
+      console.log('Could not fetch webhook secret from DB');
+    }
+    if (!webhookSecret) {
+      webhookSecret = Deno.env.get('SHOPIFY_WEBHOOK_SECRET') || '';
+    }
+
     // Verify webhook signature
-    const webhookSecret = Deno.env.get('SHOPIFY_WEBHOOK_SECRET');
     if (webhookSecret && hmacHeader) {
       const isValid = verifyWebhook(bodyText, hmacHeader, webhookSecret);
       if (!isValid) {
@@ -45,6 +62,8 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+    } else {
+      console.warn('HMAC verification skipped - no secret or header');
     }
 
     const inventoryLevel = JSON.parse(bodyText);

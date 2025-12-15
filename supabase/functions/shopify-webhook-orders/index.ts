@@ -46,10 +46,31 @@ interface ShopifyOrder {
   fulfillment_status?: string;
 }
 
-async function verifyShopifyWebhook(body: string, hmacHeader: string): Promise<boolean> {
-  const webhookSecret = Deno.env.get('SHOPIFY_WEBHOOK_SECRET');
+async function verifyShopifyWebhook(body: string, hmacHeader: string, supabase: any): Promise<boolean> {
+  // First try database, then fall back to env
+  let webhookSecret = '';
+  
+  try {
+    const { data } = await supabase
+      .from('api_settings')
+      .select('setting_value')
+      .eq('setting_key', 'SHOPIFY_WEBHOOK_SECRET')
+      .single();
+    
+    if (data?.setting_value) {
+      webhookSecret = data.setting_value;
+    }
+  } catch (e) {
+    console.log('Could not fetch webhook secret from DB, trying env');
+  }
+  
+  // Fallback to env variable
   if (!webhookSecret) {
-    console.error('SHOPIFY_WEBHOOK_SECRET not configured');
+    webhookSecret = Deno.env.get('SHOPIFY_WEBHOOK_SECRET') || '';
+  }
+  
+  if (!webhookSecret) {
+    console.error('SHOPIFY_WEBHOOK_SECRET not configured in DB or env');
     return false;
   }
 
@@ -157,7 +178,7 @@ Deno.serve(async (req) => {
     console.log('Received Shopify webhook:', { topic, shopDomain });
 
     // Verify webhook authenticity
-    if (!hmacHeader || !(await verifyShopifyWebhook(body, hmacHeader))) {
+    if (!hmacHeader || !(await verifyShopifyWebhook(body, hmacHeader, supabase))) {
       console.error('Invalid webhook signature');
       return new Response(JSON.stringify({ error: 'Invalid signature' }), {
         status: 401,

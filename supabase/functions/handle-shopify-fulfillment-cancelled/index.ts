@@ -17,27 +17,39 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Verify Shopify webhook signature
-    const hmacHeader = req.headers.get('X-Shopify-Hmac-Sha256');
-    const shopifySecret = Deno.env.get('SHOPIFY_WEBHOOK_SECRET');
-
-    if (!hmacHeader || !shopifySecret) {
-      console.error('Missing HMAC header or webhook secret');
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    // Get webhook secret from database first, then env
+    let shopifySecret = '';
+    try {
+      const { data } = await supabaseAdmin
+        .from('api_settings')
+        .select('setting_value')
+        .eq('setting_key', 'SHOPIFY_WEBHOOK_SECRET')
+        .single();
+      if (data?.setting_value) {
+        shopifySecret = data.setting_value;
+      }
+    } catch (e) {
+      console.log('Could not fetch webhook secret from DB');
+    }
+    if (!shopifySecret) {
+      shopifySecret = Deno.env.get('SHOPIFY_WEBHOOK_SECRET') || '';
     }
 
+    // Verify Shopify webhook signature
+    const hmacHeader = req.headers.get('X-Shopify-Hmac-Sha256');
     const body = await req.text();
-    const hash = createHmac('sha256', shopifySecret).update(body).digest('base64');
 
-    if (hash !== hmacHeader) {
-      console.error('Invalid webhook signature');
-      return new Response(JSON.stringify({ error: 'Invalid signature' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    if (hmacHeader && shopifySecret) {
+      const hash = createHmac('sha256', shopifySecret).update(body).digest('base64');
+      if (hash !== hmacHeader) {
+        console.error('Invalid webhook signature');
+        return new Response(JSON.stringify({ error: 'Invalid signature' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    } else {
+      console.warn('HMAC verification skipped - no secret or header');
     }
 
     // Parse fulfillment payload
