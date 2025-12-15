@@ -1178,9 +1178,15 @@ const ReturnsDashboard = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge className={returnItem.return_status === 'received' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}>
-                          {returnItem.return_status || 'in_transit'}
-                        </Badge>
+                        {returnItem.return_status === 'claimed' ? (
+                          <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+                            Claimed (Not Received)
+                          </Badge>
+                        ) : (
+                          <Badge className={returnItem.return_status === 'received' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}>
+                            {returnItem.return_status || 'in_transit'}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>{new Date(returnItem.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>
@@ -1195,6 +1201,18 @@ const ReturnsDashboard = () => {
                             <p><strong>Notes:</strong> {returnItem.notes || 'No notes available'}</p>
                             <p><strong>Received Date:</strong> {returnItem.received_at ? new Date(returnItem.received_at).toLocaleDateString() : 'Not received yet'}</p>
                             <p><strong>Tags:</strong> {returnItem.tags ? returnItem.tags.join(', ') : 'No tags'}</p>
+                            {returnItem.return_status === 'claimed' && (
+                              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                <p className="font-semibold text-amber-800 mb-2">Courier Claim Details</p>
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                  <p><strong>Claim Amount:</strong> ₨{(returnItem.claim_amount || 0).toLocaleString()}</p>
+                                  <p><strong>Claim Status:</strong> {returnItem.claim_status || 'pending'}</p>
+                                  {returnItem.claim_reference && <p><strong>Reference #:</strong> {returnItem.claim_reference}</p>}
+                                  {returnItem.claimed_at && <p><strong>Claimed On:</strong> {new Date(returnItem.claimed_at).toLocaleDateString()}</p>}
+                                  {returnItem.claim_notes && <p className="col-span-2"><strong>Notes:</strong> {returnItem.claim_notes}</p>}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>}
