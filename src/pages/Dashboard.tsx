@@ -19,6 +19,7 @@ import { SyncStatusWidget } from "@/components/dashboard/SyncStatusWidget";
 import { AlertsWidget } from "@/components/dashboard/AlertsWidget";
 import { TopPerformers } from "@/components/dashboard/TopPerformers";
 import { PerformanceMetrics } from "@/components/dashboard/PerformanceMetrics";
+import { DeficitProductsWidget } from "@/components/dashboard/DeficitProductsWidget";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar, Package, Truck, CheckCircle, XCircle, RotateCcw, TrendingUp, TrendingDown, Users, BarChart3, Upload, FileText, Settings, UserCog } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
@@ -393,7 +394,10 @@ const Dashboard = () => {
         </div>
 
         {/* Inventory Summary Widget */}
-        <InventorySummaryWidget />
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <InventorySummaryWidget />
+          <DeficitProductsWidget />
+        </div>
 
         {/* Real-time Activity, Alerts, and Sync Status */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
