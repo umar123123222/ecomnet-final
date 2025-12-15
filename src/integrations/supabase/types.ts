@@ -5346,6 +5346,54 @@ export type Database = {
         }
         Relationships: []
       }
+      sync_queue_archive: {
+        Row: {
+          action: string
+          archived_at: string | null
+          created_at: string | null
+          direction: string
+          entity_id: string
+          entity_type: string
+          error_message: string | null
+          id: string
+          payload: Json | null
+          priority: string | null
+          processed_at: string | null
+          retry_count: number | null
+          status: string
+        }
+        Insert: {
+          action: string
+          archived_at?: string | null
+          created_at?: string | null
+          direction: string
+          entity_id: string
+          entity_type: string
+          error_message?: string | null
+          id: string
+          payload?: Json | null
+          priority?: string | null
+          processed_at?: string | null
+          retry_count?: number | null
+          status: string
+        }
+        Update: {
+          action?: string
+          archived_at?: string | null
+          created_at?: string | null
+          direction?: string
+          entity_id?: string
+          entity_type?: string
+          error_message?: string | null
+          id?: string
+          payload?: Json | null
+          priority?: string | null
+          processed_at?: string | null
+          retry_count?: number | null
+          status?: string
+        }
+        Relationships: []
+      }
       tracking_update_jobs: {
         Row: {
           completed_at: string | null
