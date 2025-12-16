@@ -109,21 +109,31 @@ const TrackingTimeline = ({
 
 interface Order {
   id: string;
-  order_number: string;
+  order_number?: string;
+  orderNumber?: string;
   shopify_order_number?: string;
-  customer_name: string;
-  customer_phone: string;
-  customer_address: string;
+  shopifyOrderNumber?: string | null;
+  customer_name?: string;
+  customer?: string;
+  customer_phone?: string;
+  phone?: string;
+  customer_address?: string;
+  address?: string;
   customer_email?: string;
+  email?: string;
   city: string;
-  total_amount: number;
+  total_amount?: number;
+  totalPrice?: number;
   shipping_charges?: number;
   status: string;
   courier?: string | null;
   tracking_id?: string | null;
+  trackingId?: string;
   items: any;
-  created_at: string;
+  created_at?: string;
+  createdAtISO?: string;
   customer_id?: string | null;
+  customerId?: string;
 }
 interface OrderDetailsModalProps {
   order: Order | null;
@@ -359,7 +369,7 @@ export const OrderDetailsModal = ({
           <DialogHeader>
             <div className="flex items-center justify-between">
               <DialogTitle className="flex items-center gap-3">
-                <span>Order #{order?.order_number || order?.shopify_order_number || order?.id?.slice(0, 8) || 'N/A'}</span>
+                <span>Order #{order?.order_number || order?.orderNumber || order?.shopify_order_number || order?.shopifyOrderNumber || order?.id?.slice(0, 8) || 'N/A'}</span>
                 <Badge variant={order.status === 'delivered' ? 'success' : order.status === 'confirmed' ? 'default' : order.status === 'booked' ? 'secondary' : order.status === 'pending' ? 'warning' : order.status === 'dispatched' ? 'secondary' : order.status === 'returned' ? 'destructive' : 'outline'}>
                   {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Unknown'}
                 </Badge>
@@ -376,52 +386,56 @@ export const OrderDetailsModal = ({
               {/* Customer Info */}
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">Customer</div>
-                <div className="font-medium">{order.customer_name}</div>
-                {order.customer_phone && (
-                  <div className="text-sm text-muted-foreground">{order.customer_phone}</div>
+                <div className="font-medium">{order.customer_name || order.customer || 'N/A'}</div>
+                {(order.customer_phone || order.phone) && (
+                  <div className="text-sm text-muted-foreground">{order.customer_phone || order.phone}</div>
                 )}
-                {order.customer_email && (
-                  <div className="text-sm text-muted-foreground">{order.customer_email}</div>
+                {(order.customer_email || order.email) && (order.customer_email || order.email) !== 'N/A' && (
+                  <div className="text-sm text-muted-foreground">{order.customer_email || order.email}</div>
                 )}
               </div>
 
               {/* Order Total Breakdown */}
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">Order Total</div>
-                {order.shipping_charges !== undefined && order.shipping_charges > 0 ? (
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Subtotal:</span>
-                      <span className="font-mono">
-                        PKR {((order.total_amount || 0) - (order.shipping_charges || 0)).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
+                {(() => {
+                  const totalAmount = order.total_amount ?? order.totalPrice ?? 0;
+                  const shippingCharges = order.shipping_charges ?? 0;
+                  return shippingCharges > 0 ? (
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Subtotal:</span>
+                        <span className="font-mono">
+                          PKR {(totalAmount - shippingCharges).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Shipping:</span>
+                        <span className="font-mono">
+                          PKR {shippingCharges.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div className="border-t pt-1 mt-1"></div>
+                      <div className="flex justify-between font-semibold">
+                        <span>Total:</span>
+                        <span className="font-mono">
+                          PKR {totalAmount.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Shipping:</span>
-                      <span className="font-mono">
-                        PKR {(order.shipping_charges || 0).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
+                  ) : (
+                    <div className="font-semibold font-mono">
+                      PKR {totalAmount.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
-                    <div className="border-t pt-1 mt-1"></div>
-                    <div className="flex justify-between font-semibold">
-                      <span>Total:</span>
-                      <span className="font-mono">
-                        PKR {(order.total_amount || 0).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="font-semibold font-mono">
-                    PKR {(order.total_amount || 0).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             </div>
 
             {/* Address */}
             <div className="pt-2 border-t">
               <div className="text-sm text-muted-foreground mb-1">Delivery Address</div>
-              <div className="text-sm">{order.customer_address}, {order.city}</div>
+              <div className="text-sm">{order.customer_address || order.address || ''}, {order.city}</div>
             </div>
 
             {/* Packaging Recommendation */}
