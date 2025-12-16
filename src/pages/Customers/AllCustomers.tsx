@@ -23,7 +23,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Download, Eye, Edit, MessageCircle, RefreshCw, Loader2 } from 'lucide-react';
+import { Search, Download, Eye, Edit, MessageCircle, RefreshCw, Loader2, Users } from 'lucide-react';
+import { PageContainer, PageHeader, StatsCard, StatsGrid } from '@/components/layout';
 import TagsNotes from '@/components/TagsNotes';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -412,38 +413,24 @@ const AllCustomers = () => {
   });
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">All Customers</h1>
-          <p className="text-gray-600 mt-1">Manage all customer accounts and information</p>
-        </div>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="All Customers"
+        description="Manage all customer accounts and information"
+        icon={Users}
+      />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Active Customers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {loading ? "..." : summaryData.activeCustomers.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">New This Month</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {loading ? "..." : summaryData.newThisMonth.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <StatsGrid columns={2}>
+        <StatsCard
+          title="Active Customers"
+          value={loading ? "..." : summaryData.activeCustomers.toLocaleString()}
+        />
+        <StatsCard
+          title="New This Month"
+          value={loading ? "..." : summaryData.newThisMonth.toLocaleString()}
+        />
+      </StatsGrid>
 
       {/* Combined Filters and Customer List */}
       <Card>
@@ -831,7 +818,7 @@ const AllCustomers = () => {
           </div>
         </div>
       </Card>
-    </div>
+    </PageContainer>
   );
 };
 

@@ -114,8 +114,21 @@ const POSMain = () => {
 
   if (!activeSession) {
     return (
-      <div className="container mx-auto p-6">
-        <POSSession onSessionOpened={setActiveSession} />
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="max-w-md w-full space-y-6">
+          <div className="text-center space-y-2">
+            <div className="flex justify-center">
+              <div className="bg-primary/10 p-4 rounded-full">
+                <ShoppingCart className="h-12 w-12 text-primary" />
+              </div>
+            </div>
+            <h1 className="text-2xl font-bold">Point of Sale</h1>
+            <p className="text-muted-foreground">
+              Start a new session to begin processing sales
+            </p>
+          </div>
+          <POSSession onSessionOpened={setActiveSession} />
+        </div>
       </div>
     );
   }
@@ -149,7 +162,7 @@ const POSMain = () => {
         </div>
 
         {/* Cart & Payment - Right Side */}
-        <div className="w-[450px] border-l bg-card flex flex-col">
+        <div className="w-full md:w-[350px] lg:w-[450px] border-l bg-card flex flex-col">
           {showPayment ? (
             <PaymentPanel
               cart={cart}

@@ -873,7 +873,8 @@ const metrics = useMemo(() => {
             avgProcessingTime: Math.round(newAvg),
             totalScans: newTotal,
             scansPerMinute: Math.round((newTotal / ((Date.now() - (lastScanTime - (prev.totalScans * 3000))) / 60000)) * 10) / 10,
-            queueLength: processingQueue.length
+            queueLength: processingQueue.length,
+            currentlyProcessing: processingRef.current.size
           };
         });
 

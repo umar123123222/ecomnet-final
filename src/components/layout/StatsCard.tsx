@@ -9,7 +9,7 @@ interface StatsCardProps {
   title: string
   value: string | number
   description?: string
-  icon: LucideIcon
+  icon?: LucideIcon
   variant?: StatsVariant
   className?: string
 }
@@ -43,9 +43,11 @@ export function StatsCard({
               <p className="text-xs text-muted-foreground">{description}</p>
             )}
           </div>
-          <div className={cn("flex h-10 w-10 items-center justify-center rounded-full", styles.bg)}>
-            <Icon className={cn("h-5 w-5", styles.text)} />
-          </div>
+          {Icon && (
+            <div className={cn("flex h-10 w-10 items-center justify-center rounded-full", styles.bg)}>
+              <Icon className={cn("h-5 w-5", styles.text)} />
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

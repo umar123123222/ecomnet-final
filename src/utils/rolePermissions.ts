@@ -337,7 +337,6 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       label: 'Returns',
       href: '/returns',
       icon: 'RotateCcw',
-      badge: '12',
       subItems: [
         { label: 'All Returns', href: '/returns', icon: '' },
         { label: 'Returns Not Received', href: '/returns-not-received', icon: '' }
@@ -427,7 +426,7 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       icon: 'Users',
       subItems: [
         { label: 'All Customers', href: '/all-customers', icon: '' },
-        { label: 'Suspicious Customers', href: '/suspicious-customers', icon: '', badge: '5' }
+        { label: 'Suspicious Customers', href: '/suspicious-customers', icon: '' }
       ]
     });
   }
