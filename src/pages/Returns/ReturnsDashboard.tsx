@@ -21,6 +21,8 @@ import { logActivity, updateUserPerformance } from '@/utils/activityLogger';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHandheldScanner } from '@/contexts/HandheldScannerContext';
 import { useQueryClient } from '@tanstack/react-query';
+import { useScannerMode } from '@/hooks/useScannerMode';
+
 const ReturnsDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [returns, setReturns] = useState<any[]>([]);
@@ -35,68 +37,39 @@ const ReturnsDashboard = () => {
   const [lastKeyTime, setLastKeyTime] = useState<number>(0);
   const [fastKeyCount, setFastKeyCount] = useState<number>(0);
   const [bulkErrors, setBulkErrors] = useState<Array<{ entry: string; error: string; errorCode?: string }>>([]);
-  const [entryType, setEntryType] = useState<'tracking_id' | 'order_number'>(() => {
-    const saved = localStorage.getItem('returns_entry_type');
-    return (saved === 'order_number' ? 'order_number' : 'tracking_id') as 'tracking_id' | 'order_number';
-  });
-  
-  // Scanner Mode States
-  const [scannerModeActive, setScannerModeActive] = useState(false);
-  const [scannerStats, setScannerStats] = useState({ success: 0, errors: 0 });
-  const [recentScans, setRecentScans] = useState<Array<{
-    entry: string;
-    type: 'order_number' | 'tracking_id' | 'unknown';
-    status: 'success' | 'error';
-    message: string;
-    timestamp: Date;
-    orderId?: string;
-  }>>([]);
-  const [scanHistoryForExport, setScanHistoryForExport] = useState<any[]>([]);
-  const [lastScanTime, setLastScanTime] = useState<number>(Date.now());
-  
-  // Focus Management States
-  const [hasFocus, setHasFocus] = useState(true);
-  const [focusLostTime, setFocusLostTime] = useState<number | null>(null);
-  const [scanBuffer, setScanBuffer] = useState('');
-  const scannerInputRef = React.useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [visibleCount, setVisibleCount] = useState(100);
-  const [showScrollTop, setShowScrollTop] = useState(false);
   
-  // Performance Metrics
-  const [performanceMetrics, setPerformanceMetrics] = useState({
-    avgProcessingTime: 0,
-    totalScans: 0,
-    scansPerMinute: 0,
-    queueLength: 0
-  });
-  const [processingQueue, setProcessingQueue] = useState<string[]>([]);
+  // Use shared scanner mode hook
+  const scannerMode = useScannerMode({ storageKey: 'returns_entry_type' });
+  const {
+    scannerModeActive, setScannerModeActive,
+    scannerStats, setScannerStats,
+    recentScans, setRecentScans,
+    scanHistoryForExport, setScanHistoryForExport,
+    lastScanTime, setLastScanTime,
+    hasFocus, setHasFocus,
+    focusLostTime, setFocusLostTime,
+    scanBuffer, setScanBuffer,
+    scannerInputRef,
+    entryType, setEntryType,
+    performanceMetrics, setPerformanceMetrics,
+    processingQueue, setProcessingQueue,
+    showScrollTop, scrollToTop,
+    successSound, errorSound,
+    addScanResult, resetScannerStats
+  } = scannerMode;
   
   const { toast } = useToast();
   const { user } = useAuth();
-  const scanner = useHandheldScanner();
+  const handheldScanner = useHandheldScanner();
   const queryClient = useQueryClient();
-  
-  const successSound = useMemo(() => new Audio('/sounds/success.mp3'), []);
-  const errorSound = useMemo(() => new Audio('/sounds/error.mp3'), []);
   
   const form = useForm({
     defaultValues: {
       bulkEntries: ''
     }
   });
-  // Scroll to top button visibility
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 400);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
 
   const handleShowMore = () => {
     setVisibleCount(prev => prev + 500);
@@ -793,7 +766,7 @@ const ReturnsDashboard = () => {
       scannerInputRef.current?.focus();
       
       // Register HID scanner callback as backup
-      const cleanup = scanner.onScan((data) => {
+      const cleanup = handheldScanner.onScan((data) => {
         console.log('HID Scanner input received:', data);
         processScannerInput(data);
       });
@@ -816,7 +789,7 @@ const ReturnsDashboard = () => {
         clearInterval(focusMonitor);
       };
     }
-  }, [scannerModeActive, scanner]);
+  }, [scannerModeActive, handheldScanner]);
 
   // Scanner Mode: Auto-timeout after 5 minutes
   useEffect(() => {
