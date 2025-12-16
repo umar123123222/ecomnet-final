@@ -579,6 +579,77 @@ export type Database = {
           },
         ]
       }
+      courier_analytics_cache: {
+        Row: {
+          avg_payment_cycle_days: number | null
+          courier_code: string
+          courier_id: string | null
+          created_at: string | null
+          delivered_orders: number | null
+          delivery_charges: number | null
+          id: string
+          net_revenue: number | null
+          other_deductions: number | null
+          period_end: string
+          period_start: string
+          period_type: string
+          return_charges: number | null
+          returned_orders: number | null
+          rto_percentage: number | null
+          total_cod_collected: number | null
+          total_orders: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          avg_payment_cycle_days?: number | null
+          courier_code: string
+          courier_id?: string | null
+          created_at?: string | null
+          delivered_orders?: number | null
+          delivery_charges?: number | null
+          id?: string
+          net_revenue?: number | null
+          other_deductions?: number | null
+          period_end: string
+          period_start: string
+          period_type: string
+          return_charges?: number | null
+          returned_orders?: number | null
+          rto_percentage?: number | null
+          total_cod_collected?: number | null
+          total_orders?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          avg_payment_cycle_days?: number | null
+          courier_code?: string
+          courier_id?: string | null
+          created_at?: string | null
+          delivered_orders?: number | null
+          delivery_charges?: number | null
+          id?: string
+          net_revenue?: number | null
+          other_deductions?: number | null
+          period_end?: string
+          period_start?: string
+          period_type?: string
+          return_charges?: number | null
+          returned_orders?: number | null
+          rto_percentage?: number | null
+          total_cod_collected?: number | null
+          total_orders?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courier_analytics_cache_courier_id_fkey"
+            columns: ["courier_id"]
+            isOneToOne: false
+            referencedRelation: "couriers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courier_awbs: {
         Row: {
           batch_count: number
@@ -821,6 +892,84 @@ export type Database = {
           {
             foreignKeyName: "courier_load_sheets_generated_by_fkey"
             columns: ["generated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courier_payment_uploads: {
+        Row: {
+          courier_code: string
+          courier_id: string | null
+          created_at: string | null
+          file_data: string | null
+          file_name: string
+          file_url: string | null
+          id: string
+          invoice_period_end: string | null
+          invoice_period_start: string | null
+          matched_records: number | null
+          processing_notes: string | null
+          status: string | null
+          total_amount: number | null
+          total_records: number | null
+          unmatched_records: number | null
+          updated_at: string | null
+          upload_date: string | null
+          uploaded_by: string | null
+        }
+        Insert: {
+          courier_code: string
+          courier_id?: string | null
+          created_at?: string | null
+          file_data?: string | null
+          file_name: string
+          file_url?: string | null
+          id?: string
+          invoice_period_end?: string | null
+          invoice_period_start?: string | null
+          matched_records?: number | null
+          processing_notes?: string | null
+          status?: string | null
+          total_amount?: number | null
+          total_records?: number | null
+          unmatched_records?: number | null
+          updated_at?: string | null
+          upload_date?: string | null
+          uploaded_by?: string | null
+        }
+        Update: {
+          courier_code?: string
+          courier_id?: string | null
+          created_at?: string | null
+          file_data?: string | null
+          file_name?: string
+          file_url?: string | null
+          id?: string
+          invoice_period_end?: string | null
+          invoice_period_start?: string | null
+          matched_records?: number | null
+          processing_notes?: string | null
+          status?: string | null
+          total_amount?: number | null
+          total_records?: number | null
+          unmatched_records?: number | null
+          updated_at?: string | null
+          upload_date?: string | null
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courier_payment_uploads_courier_id_fkey"
+            columns: ["courier_id"]
+            isOneToOne: false
+            referencedRelation: "couriers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_payment_uploads_uploaded_by_fkey"
+            columns: ["uploaded_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2639,6 +2788,96 @@ export type Database = {
             columns: ["packaging_item_id"]
             isOneToOne: false
             referencedRelation: "packaging_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_reconciliation_records: {
+        Row: {
+          cod_amount: number | null
+          courier_charges: number | null
+          courier_code: string
+          created_at: string | null
+          delivery_charges: number | null
+          delivery_date: string | null
+          discrepancy_amount: number | null
+          discrepancy_reason: string | null
+          id: string
+          invoice_date: string | null
+          match_status: string | null
+          net_amount: number | null
+          notes: string | null
+          order_id: string | null
+          order_number: string | null
+          other_deductions: number | null
+          payment_cycle: string | null
+          payment_status: string | null
+          return_charges: number | null
+          tracking_id: string | null
+          updated_at: string | null
+          upload_id: string | null
+        }
+        Insert: {
+          cod_amount?: number | null
+          courier_charges?: number | null
+          courier_code: string
+          created_at?: string | null
+          delivery_charges?: number | null
+          delivery_date?: string | null
+          discrepancy_amount?: number | null
+          discrepancy_reason?: string | null
+          id?: string
+          invoice_date?: string | null
+          match_status?: string | null
+          net_amount?: number | null
+          notes?: string | null
+          order_id?: string | null
+          order_number?: string | null
+          other_deductions?: number | null
+          payment_cycle?: string | null
+          payment_status?: string | null
+          return_charges?: number | null
+          tracking_id?: string | null
+          updated_at?: string | null
+          upload_id?: string | null
+        }
+        Update: {
+          cod_amount?: number | null
+          courier_charges?: number | null
+          courier_code?: string
+          created_at?: string | null
+          delivery_charges?: number | null
+          delivery_date?: string | null
+          discrepancy_amount?: number | null
+          discrepancy_reason?: string | null
+          id?: string
+          invoice_date?: string | null
+          match_status?: string | null
+          net_amount?: number | null
+          notes?: string | null
+          order_id?: string | null
+          order_number?: string | null
+          other_deductions?: number | null
+          payment_cycle?: string | null
+          payment_status?: string | null
+          return_charges?: number | null
+          tracking_id?: string | null
+          updated_at?: string | null
+          upload_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_reconciliation_records_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_reconciliation_records_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "courier_payment_uploads"
             referencedColumns: ["id"]
           },
         ]
