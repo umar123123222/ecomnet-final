@@ -3,8 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertOctagon, TrendingDown, Loader2, ExternalLink } from "lucide-react";
+import { AlertOctagon, TrendingDown, Loader2, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 
 interface DeficitProduct {
   id: string;
@@ -23,6 +24,7 @@ interface DeficitProduct {
 
 export function DeficitProductsWidget() {
   const navigate = useNavigate();
+  const [expanded, setExpanded] = useState(false);
   
   const { data: deficitProducts, isLoading } = useQuery<DeficitProduct[]>({
     queryKey: ["deficit-products-widget"],
@@ -48,7 +50,7 @@ export function DeficitProductsWidget() {
 
   if (isLoading) {
     return (
-      <Card className="border-destructive/50">
+      <Card className="border-destructive/50 h-fit">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertOctagon className="h-5 w-5 text-destructive" />
@@ -63,9 +65,12 @@ export function DeficitProductsWidget() {
   }
 
   const deficitCount = deficitProducts?.length || 0;
+  const displayedProducts = deficitProducts && deficitProducts.length > 3 && !expanded 
+    ? deficitProducts.slice(0, 3) 
+    : deficitProducts;
 
   return (
-    <Card className={deficitCount > 0 ? "border-destructive/50 bg-destructive/5" : ""}>
+    <Card className={`h-fit ${deficitCount > 0 ? "border-destructive/50 bg-destructive/5" : ""}`}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
@@ -90,7 +95,7 @@ export function DeficitProductsWidget() {
           </div>
         ) : (
           <div className="space-y-2">
-            {deficitProducts?.map((item) => (
+            {displayedProducts?.map((item) => (
               <div
                 key={item.id}
                 className="flex items-center justify-between p-3 rounded-lg border border-destructive/30 bg-destructive/10 hover:bg-destructive/15 transition-colors"
@@ -114,10 +119,30 @@ export function DeficitProductsWidget() {
                 </div>
               </div>
             ))}
+            {deficitProducts && deficitProducts.length > 3 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                onClick={() => setExpanded(!expanded)}
+              >
+                {expanded ? (
+                  <>
+                    <ChevronUp className="h-4 w-4 mr-1" />
+                    Show Less
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-4 w-4 mr-1" />
+                    Show All ({deficitProducts.length} products)
+                  </>
+                )}
+              </Button>
+            )}
             <Button 
               variant="outline" 
               size="sm" 
-              className="w-full mt-2"
+              className="w-full"
               onClick={() => navigate('/inventory')}
             >
               <ExternalLink className="h-3 w-3 mr-1" />
