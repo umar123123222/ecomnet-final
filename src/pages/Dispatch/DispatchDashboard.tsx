@@ -1623,11 +1623,32 @@ const metrics = useMemo(() => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? <TableRow>
-                  <TableCell colSpan={6} className="text-center">Loading...</TableCell>
-                </TableRow> : filteredDispatches.length === 0 ? <TableRow>
-                  <TableCell colSpan={6} className="text-center">No dispatches found</TableCell>
-                </TableRow> : filteredDispatches.slice(0, visibleCount).map(dispatch => {
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      <span className="text-muted-foreground">Loading dispatches...</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : filteredDispatches.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-12">
+                    <div className="flex flex-col items-center justify-center text-center">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+                        <Truck className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-foreground mb-1">No dispatches found</h3>
+                      <p className="text-sm text-muted-foreground max-w-sm">
+                        {searchTerm || courierFilter !== 'all' || userFilter !== 'all'
+                          ? 'Try adjusting your filters to see more results.'
+                          : 'No dispatches in the selected date range. Try expanding the date range.'}
+                      </p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : filteredDispatches.slice(0, visibleCount).map(dispatch => {
                   // Extract just the order number without SHOP- prefix
                   const orderNumber = dispatch.orders?.order_number?.replace('SHOP-', '') || 'N/A';
                   const dispatchDate = dispatch.dispatch_date 

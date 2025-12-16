@@ -564,11 +564,19 @@ const ReturnsNotReceived = () => {
               </div>
 
               {filteredReturns.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground">
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+                    <RotateCcw className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground mb-1">
+                    {activeTab === 'claimed' ? 'No claimed returns' : 'No pending returns'}
+                  </h3>
+                  <p className="text-sm text-muted-foreground max-w-sm">
                     {activeTab === 'claimed' 
-                      ? 'No claimed returns found.' 
-                      : 'No overdue returns found matching your search criteria.'}
+                      ? 'Returns filed as claims against couriers will appear here.'
+                      : searchTerm 
+                        ? 'No overdue returns match your search criteria.'
+                        : 'Great news! There are no returns awaiting receipt at the warehouse.'}
                   </p>
                 </div>
               ) : (
