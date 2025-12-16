@@ -35,12 +35,12 @@ export function StatsCard({
   return (
     <Card className={cn("", className)}>
       <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1 min-w-0 flex-1">
-            <p className="text-sm font-medium text-muted-foreground truncate">{title}</p>
-            <p className="text-2xl font-bold text-foreground truncate">{value}</p>
+        <div className="flex items-start justify-between gap-2">
+          <div className="space-y-0.5 min-w-0 flex-1">
+            <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">{title}</p>
+            <p className="text-lg sm:text-xl lg:text-2xl font-bold text-foreground break-all">{value}</p>
             {description && (
-              <p className="text-xs text-muted-foreground truncate">{description}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{description}</p>
             )}
           </div>
           {Icon && (
