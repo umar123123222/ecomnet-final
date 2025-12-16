@@ -38,7 +38,7 @@ export function OutletStockWidget() {
   }
 
   const allOutlets = outletSummary || [];
-  const displayedOutlets = expanded ? allOutlets : allOutlets.slice(0, 3);
+  const displayedOutlets = expanded ? allOutlets : allOutlets.slice(0, 2);
 
   return (
     <Card>
@@ -90,7 +90,7 @@ export function OutletStockWidget() {
           ))}
         </div>
 
-        {allOutlets.length > 3 && (
+        {allOutlets.length > 2 && (
           <Button
             variant="ghost"
             size="sm"
