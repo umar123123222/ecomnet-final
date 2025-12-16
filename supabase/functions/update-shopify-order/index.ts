@@ -49,6 +49,7 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
   const baseUrl = `${storeUrl}/admin/api/${apiVersion}`;
   const headers = {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
     'X-Shopify-Access-Token': apiToken!,
   };
 
