@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PageContainer, PageHeader } from '@/components/layout';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -17,7 +18,7 @@ import {
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
   LineChart, Line, PieChart as RechartPieChart, Pie, Cell
 } from 'recharts';
 
@@ -530,180 +531,261 @@ const FinanceAnalyticsDashboard = () => {
       </Card>
 
       {/* Order Statistics Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  Orders Placed
-                  <span className="text-[10px] text-muted-foreground/60" title="Total number of orders received in selected period">(i)</span>
-                </p>
-                <p className="text-xl font-bold">{kpis.totalOrdersPlaced.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">{currency} {kpis.totalOrdersPlacedValue.toLocaleString()}</p>
+      <TooltipProvider>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Orders Placed
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">Total number of orders received during the selected period, including all statuses.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className="text-xl font-bold">{kpis.totalOrdersPlaced.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">{currency} {kpis.totalOrdersPlacedValue.toLocaleString()}</p>
+                </div>
+                <ShoppingCart className="h-8 w-8 text-primary/20" />
               </div>
-              <ShoppingCart className="h-8 w-8 text-primary/20" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  Cancelled
-                  <span className="text-[10px] text-muted-foreground/60" title="Orders cancelled before dispatch">(i)</span>
-                </p>
-                <p className="text-xl font-bold text-red-600">{kpis.totalOrdersCancelled.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">{currency} {kpis.cancelledValue.toLocaleString()}</p>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Cancelled
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">Orders cancelled before dispatch. Value calculated from order items.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className="text-xl font-bold text-red-600">{kpis.totalOrdersCancelled.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">{currency} {kpis.cancelledValue.toLocaleString()}</p>
+                </div>
+                <XCircle className="h-8 w-8 text-red-600/20" />
               </div>
-              <XCircle className="h-8 w-8 text-red-600/20" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  Dispatched
-                  <span className="text-[10px] text-muted-foreground/60" title="Orders sent out for delivery">(i)</span>
-                </p>
-                <p className="text-xl font-bold text-blue-600">{kpis.totalOrdersDispatched.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">{currency} {kpis.dispatchedValue.toLocaleString()}</p>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Dispatched
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">Orders that have been physically sent out for delivery via courier.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className="text-xl font-bold text-blue-600">{kpis.totalOrdersDispatched.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">{currency} {kpis.dispatchedValue.toLocaleString()}</p>
+                </div>
+                <Truck className="h-8 w-8 text-blue-600/20" />
               </div>
-              <Truck className="h-8 w-8 text-blue-600/20" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  Returns Received
-                  <span className="text-[10px] text-muted-foreground/60" title="Parcels returned and received back">(i)</span>
-                </p>
-                <p className="text-xl font-bold text-orange-600">{kpis.totalReturnsReceived.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">{currency} {kpis.returnsReceivedValue.toLocaleString()}</p>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Returns Received
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">Parcels that were returned by courier and physically received back at the warehouse.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className="text-xl font-bold text-orange-600">{kpis.totalReturnsReceived.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">{currency} {kpis.returnsReceivedValue.toLocaleString()}</p>
+                </div>
+                <RotateCcw className="h-8 w-8 text-orange-600/20" />
               </div>
-              <RotateCcw className="h-8 w-8 text-orange-600/20" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  Returns in Route
-                  <span className="text-[10px] text-muted-foreground/60" title="Parcels being returned, not yet received">(i)</span>
-                </p>
-                <p className="text-xl font-bold text-yellow-600">{kpis.returnsInRoute.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">{currency} {kpis.returnsInRouteValue.toLocaleString()}</p>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Returns in Route
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">Parcels marked as returned by courier but not yet physically received at warehouse.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className="text-xl font-bold text-yellow-600">{kpis.returnsInRoute.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">{currency} {kpis.returnsInRouteValue.toLocaleString()}</p>
+                </div>
+                <Truck className="h-8 w-8 text-yellow-600/20" />
               </div>
-              <Truck className="h-8 w-8 text-yellow-600/20" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
+      </TooltipProvider>
 
       {/* Financial KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  Net Revenue
-                  <span className="text-[10px] text-muted-foreground/60" title="COD Collected minus all charges and claims">(i)</span>
-                </p>
-                <p className="text-xl font-bold text-green-600">{currency} {kpis.totalRevenue.toLocaleString()}</p>
+      <TooltipProvider>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Net Revenue
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">COD collected minus delivery charges, return charges, and claims.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className="text-xl font-bold text-green-600">{currency} {kpis.totalRevenue.toLocaleString()}</p>
+                </div>
+                <DollarSign className="h-8 w-8 text-green-600/20" />
               </div>
-              <DollarSign className="h-8 w-8 text-green-600/20" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  COD Collected
-                  <span className="text-[10px] text-muted-foreground/60" title="Cash on Delivery amount from delivered orders">(i)</span>
-                </p>
-                <p className="text-xl font-bold">{currency} {kpis.totalCOD.toLocaleString()}</p>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    COD Collected
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">Total Cash on Delivery amount collected from successfully delivered orders.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className="text-xl font-bold">{currency} {kpis.totalCOD.toLocaleString()}</p>
+                </div>
+                <Activity className="h-8 w-8 text-primary/20" />
               </div>
-              <Activity className="h-8 w-8 text-primary/20" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  Total Deductions
-                  <span className="text-[10px] text-muted-foreground/60" title="Delivery charges + Return charges + Claims">(i)</span>
-                </p>
-                <p className="text-xl font-bold text-red-600">{currency} {kpis.totalCharges.toLocaleString()}</p>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Total Deductions
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">Sum of delivery charges + return handling charges + courier claims deductions.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className="text-xl font-bold text-red-600">{currency} {kpis.totalCharges.toLocaleString()}</p>
+                </div>
+                <TrendingDown className="h-8 w-8 text-red-600/20" />
               </div>
-              <TrendingDown className="h-8 w-8 text-red-600/20" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  Net Profit
-                  <span className="text-[10px] text-muted-foreground/60" title="Final profit after all expenses">(i)</span>
-                </p>
-                <p className="text-xl font-bold text-green-600">{currency} {kpis.netProfit.toLocaleString()}</p>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Net Profit
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">Final profit after all courier-related expenses are deducted from COD.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className="text-xl font-bold text-green-600">{currency} {kpis.netProfit.toLocaleString()}</p>
+                </div>
+                <TrendingUp className="h-8 w-8 text-green-600/20" />
               </div>
-              <TrendingUp className="h-8 w-8 text-green-600/20" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  Profit Margin
-                  <span className="text-[10px] text-muted-foreground/60" title="Net Revenue ÷ COD Collected × 100">(i)</span>
-                </p>
-                <p className="text-xl font-bold">{kpis.profitMargin.toFixed(1)}%</p>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Profit Margin
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">Percentage of profit: (Net Revenue ÷ COD Collected) × 100</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className="text-xl font-bold">{kpis.profitMargin.toFixed(1)}%</p>
+                </div>
+                <PieChart className="h-8 w-8 text-primary/20" />
               </div>
-              <PieChart className="h-8 w-8 text-primary/20" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  Delivered
-                  <span className="text-[10px] text-muted-foreground/60" title="Successfully delivered parcels">(i)</span>
-                </p>
-                <p className="text-xl font-bold">{kpis.totalParcels.toLocaleString()}</p>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Delivered
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">Number of parcels successfully delivered to customers.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className="text-xl font-bold">{kpis.totalParcels.toLocaleString()}</p>
+                </div>
+                <Package className="h-8 w-8 text-primary/20" />
               </div>
-              <Package className="h-8 w-8 text-primary/20" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
+      </TooltipProvider>
 
       {/* Smart Alerts */}
       {insights.length > 0 && (
@@ -792,7 +874,7 @@ const FinanceAnalyticsDashboard = () => {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" className="text-xs" />
                   <YAxis className="text-xs" />
-                  <Tooltip 
+                  <RechartsTooltip 
                     formatter={(value: number) => [`${currency} ${value.toLocaleString()}`, 'Revenue']}
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
                   />
@@ -816,7 +898,7 @@ const FinanceAnalyticsDashboard = () => {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" className="text-xs" />
                   <YAxis className="text-xs" />
-                  <Tooltip 
+                  <RechartsTooltip 
                     formatter={(value: number) => [value.toLocaleString(), 'Parcels']}
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
                   />
@@ -840,7 +922,7 @@ const FinanceAnalyticsDashboard = () => {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" className="text-xs" />
                   <YAxis className="text-xs" />
-                  <Tooltip 
+                  <RechartsTooltip 
                     formatter={(value: number) => [`${currency} ${value.toLocaleString()}`]}
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
                   />
