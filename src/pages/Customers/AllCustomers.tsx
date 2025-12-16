@@ -23,7 +23,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Download, Eye, Edit, MessageCircle, RefreshCw } from 'lucide-react';
+import { Search, Download, Eye, Edit, MessageCircle, RefreshCw, Loader2 } from 'lucide-react';
 import TagsNotes from '@/components/TagsNotes';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -33,6 +33,7 @@ const AllCustomers = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isSavingCustomer, setIsSavingCustomer] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [customerOrders, setCustomerOrders] = useState<any[]>([]);
@@ -232,21 +233,39 @@ const AllCustomers = () => {
     setIsEditDialogOpen(true);
   };
 
-  const handleSaveCustomer = () => {
+  const handleSaveCustomer = async () => {
     if (!editingCustomer) return;
     
-    const updatedCustomers = customers.map(customer => 
-      customer.id === editingCustomer.id ? editingCustomer : customer
-    );
-    setCustomers(updatedCustomers);
-    
-    // Update selected customer if it's currently being viewed
-    if (selectedCustomer && selectedCustomer.id === editingCustomer.id) {
-      setSelectedCustomer(editingCustomer);
+    setIsSavingCustomer(true);
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .update({
+          name: editingCustomer.name,
+          phone: editingCustomer.phone,
+          email: editingCustomer.email,
+        })
+        .eq('id', editingCustomer.id);
+
+      if (error) throw error;
+      
+      const updatedCustomers = customers.map(customer => 
+        customer.id === editingCustomer.id ? editingCustomer : customer
+      );
+      setCustomers(updatedCustomers);
+      
+      if (selectedCustomer && selectedCustomer.id === editingCustomer.id) {
+        setSelectedCustomer(editingCustomer);
+      }
+      
+      toast({ title: "Success", description: "Customer updated successfully" });
+      setIsEditDialogOpen(false);
+      setEditingCustomer(null);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to update customer", variant: "destructive" });
+    } finally {
+      setIsSavingCustomer(false);
     }
-    
-    setIsEditDialogOpen(false);
-    setEditingCustomer(null);
   };
 
   const handleEditInputChange = (field: string, value: string) => {
@@ -731,11 +750,13 @@ const AllCustomers = () => {
                                 <Button 
                                   variant="outline" 
                                   onClick={() => setIsEditDialogOpen(false)}
+                                  disabled={isSavingCustomer}
                                 >
                                   Cancel
                                 </Button>
-                                <Button onClick={handleSaveCustomer}>
-                                  Save Changes
+                                <Button onClick={handleSaveCustomer} disabled={isSavingCustomer}>
+                                  {isSavingCustomer && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                  {isSavingCustomer ? 'Saving...' : 'Save Changes'}
                                 </Button>
                               </div>
                             </div>
