@@ -117,7 +117,7 @@ const handler = async (req: Request): Promise<Response> => {
     const creatorName = po.profiles?.full_name || 'Unknown User';
     const supplierName = po.suppliers?.name || 'Supplier';
     const supplierEmail = po.suppliers?.email;
-    const timestamp = new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
+    const timestamp = new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short', timeZone: 'Asia/Karachi' });
 
     // Build items table HTML
     const items = po.purchase_order_items || [];
