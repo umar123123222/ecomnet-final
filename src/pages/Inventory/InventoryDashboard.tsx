@@ -580,11 +580,13 @@ const InventoryDashboard = () => {
         </CardContent>
       </Card>
 
-      {/* Smart Reorder and Adjustments */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <SmartReorderRecommendations />
-        <SmartReorderGlobalSettings />
-      </div>
+      {/* Smart Reorder and Adjustments - hidden from finance users */}
+      {primaryRole !== 'finance' && (
+        <div className="grid gap-6 md:grid-cols-2">
+          <SmartReorderRecommendations />
+          <SmartReorderGlobalSettings />
+        </div>
+      )}
 
       {/* Health & Quick Actions */}
       <div className="grid gap-6 md:grid-cols-3">
