@@ -2,7 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { RefreshCw, AlertCircle, CheckCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { useState } from "react";
 
 interface TurnoverItem {
   product_id: string;
@@ -16,6 +18,7 @@ interface TurnoverItem {
 }
 
 export function InventoryTurnoverWidget() {
+  const [expanded, setExpanded] = useState(false);
   const { data: turnoverData, isLoading } = useQuery({
     queryKey: ['inventory-turnover'],
     queryFn: async () => {
@@ -194,7 +197,7 @@ export function InventoryTurnoverWidget() {
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {turnoverData.map((item) => (
+          {(expanded ? turnoverData : turnoverData.slice(0, 3)).map((item) => (
             <div
               key={item.product_id}
               className="flex items-start justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors"
@@ -219,6 +222,26 @@ export function InventoryTurnoverWidget() {
               </div>
             </div>
           ))}
+          {turnoverData.length > 3 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? (
+                <>
+                  <ChevronUp className="h-4 w-4 mr-1" />
+                  Show Less
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-4 w-4 mr-1" />
+                  Show All ({turnoverData.length} products)
+                </>
+              )}
+            </Button>
+          )}
         </div>
 
         <div className="mt-4 pt-4 border-t">
