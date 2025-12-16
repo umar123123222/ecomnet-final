@@ -58,7 +58,8 @@ export function DemandForecastWidget() {
             reorder_level: movement.product?.reorder_level || 0,
           };
         }
-        productSales[productId].sales.push(movement.quantity);
+        // Use absolute value since sale movements are stored as negative (deductions)
+        productSales[productId].sales.push(Math.abs(movement.quantity));
       });
 
       // Get current inventory levels
