@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Grid3x3, CheckCircle, XCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Grid3x3, CheckCircle, XCircle, AlertCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 
@@ -15,6 +16,7 @@ interface StockAvailability {
 
 export function StockAvailabilityMatrix() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [expanded, setExpanded] = useState(false);
 
   const { data: availabilityData, isLoading } = useQuery({
     queryKey: ['stock-availability-matrix', selectedCategory],
@@ -28,7 +30,7 @@ export function StockAvailabilityMatrix() {
 
       if (!outlets || outlets.length === 0) return null;
 
-      // Get products with inventory across outlets
+      // Get products with inventory across outlets - exclude bundles
       let query = supabase
         .from('products')
         .select(`
@@ -36,23 +38,31 @@ export function StockAvailabilityMatrix() {
           name,
           sku,
           category,
-          reorder_level
+          reorder_level,
+          product_type
         `)
         .eq('is_active', true)
+        .neq('product_type', 'bundle')
         .order('name')
-        .limit(15);
+        .limit(50);
 
       if (selectedCategory !== 'all') {
         query = query.eq('category', selectedCategory);
       }
 
       const { data: products } = await query;
+      
+      // Additional filter to exclude products with "bundle" in the name
+      const filteredProducts = products?.filter(p => 
+        !p.name.toLowerCase().includes('bundle') && 
+        !p.name.toLowerCase().includes('deal')
+      ) || [];
 
       if (!products) return null;
 
       const availabilityMatrix: StockAvailability[] = [];
 
-      for (const product of products) {
+      for (const product of filteredProducts) {
         const outletStock: Record<string, { quantity: number; status: 'in-stock' | 'low-stock' | 'out-of-stock' }> = {};
 
         for (const outlet of outlets) {
@@ -205,7 +215,7 @@ export function StockAvailabilityMatrix() {
 
             {/* Product Rows */}
             <div className="space-y-2">
-              {availabilityData.matrix.map((item) => (
+              {(expanded ? availabilityData.matrix : availabilityData.matrix.slice(0, 7)).map((item) => (
                 <div key={item.product_id} className="flex gap-2 items-center">
                   <div className="w-48">
                     <p className="text-sm font-medium truncate">{item.product_name}</p>
@@ -228,6 +238,27 @@ export function StockAvailabilityMatrix() {
                 </div>
               ))}
             </div>
+
+            {availabilityData.matrix.length > 7 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full mt-2"
+                onClick={() => setExpanded(!expanded)}
+              >
+                {expanded ? (
+                  <>
+                    <ChevronUp className="h-4 w-4 mr-1" />
+                    Show Less
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-4 w-4 mr-1" />
+                    Show All ({availabilityData.matrix.length} products)
+                  </>
+                )}
+              </Button>
+            )}
 
             {/* Legend */}
             <div className="flex gap-4 mt-4 pt-4 border-t text-xs">
