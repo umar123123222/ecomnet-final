@@ -99,7 +99,7 @@ const ReturnsDashboard = () => {
 
         // Fetch in chunks to bypass 1000 row limit
         for (let i = 0; i < chunks; i++) {
-          const { data, error } = await supabase
+        const { data, error } = await supabase
             .from('returns')
             .select(`
               *,
@@ -109,7 +109,7 @@ const ReturnsDashboard = () => {
                 customer_phone,
                 customer_email
               ),
-              received_by_profile:profiles(
+              received_by_profile:profiles!returns_received_by_fkey(
                 full_name,
                 email
               )
