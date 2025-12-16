@@ -339,15 +339,45 @@ const Dashboard = () => {
     });
   };
 
-  const courierData = useMemo(() => [{
-    name: "Leopard Success Rate",
-    rate: "94.2%",
-    status: "success"
-  }, {
-    name: "PostEx Success Rate",
-    rate: "91.5%",
-    status: "success"
-  }], []);
+  // Fetch dynamic courier performance data
+  const { data: courierData = [] } = useQuery({
+    queryKey: ['courier-performance', dateRange],
+    queryFn: async () => {
+      const { data: orders, error } = await supabase
+        .from('orders')
+        .select('courier, status')
+        .not('courier', 'is', null)
+        .in('status', ['delivered', 'returned', 'cancelled']);
+      
+      if (error) throw error;
+      
+      // Group by courier and calculate success rates
+      const courierStats: Record<string, { delivered: number; total: number }> = {};
+      
+      orders?.forEach(order => {
+        if (!order.courier) return;
+        if (!courierStats[order.courier]) {
+          courierStats[order.courier] = { delivered: 0, total: 0 };
+        }
+        courierStats[order.courier].total++;
+        if (order.status === 'delivered') {
+          courierStats[order.courier].delivered++;
+        }
+      });
+      
+      return Object.entries(courierStats).map(([name, stats]) => {
+        const rate = stats.total > 0 ? ((stats.delivered / stats.total) * 100).toFixed(1) : '0.0';
+        const rateNum = parseFloat(rate);
+        return {
+          name: `${name.charAt(0).toUpperCase() + name.slice(1)} Success Rate`,
+          rate: `${rate}%`,
+          status: rateNum >= 90 ? 'success' : rateNum >= 75 ? 'warning' : 'destructive',
+          label: rateNum >= 90 ? 'Excellent' : rateNum >= 75 ? 'Good' : 'Needs Improvement'
+        };
+      });
+    },
+    staleTime: 5 * 60 * 1000,
+  });
   return <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900">
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Header */}
@@ -380,17 +410,21 @@ const Dashboard = () => {
 
         {/* Courier Performance Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {courierData.map((courier, index) => <GradientCard key={courier.name} variant="glass" className="p-4 sm:p-6 text-center">
+          {courierData.length > 0 ? courierData.map((courier) => <GradientCard key={courier.name} variant="glass" className="p-4 sm:p-6 text-center">
               <h3 className="font-semibold text-sm sm:text-base mb-2 text-foreground">
                 {courier.name}
               </h3>
               <p className="text-xl sm:text-2xl font-bold mb-2 text-foreground">
                 {courier.rate}
               </p>
-              <StatusBadge variant={courier.status as "success" | "destructive"} className="mx-auto">
-                Excellent
+              <StatusBadge variant={courier.status as "success" | "warning" | "destructive"} className="mx-auto">
+                {courier.label}
               </StatusBadge>
-            </GradientCard>)}
+            </GradientCard>) : (
+            <GradientCard variant="glass" className="p-4 sm:p-6 text-center col-span-2">
+              <p className="text-muted-foreground">No courier performance data available</p>
+            </GradientCard>
+          )}
         </div>
 
         {/* Inventory Summary Widget */}
