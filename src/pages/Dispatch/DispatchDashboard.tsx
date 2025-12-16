@@ -147,12 +147,12 @@ useEffect(() => {
         .from('dispatches')
         .select('*', { count: 'exact', head: true });
 
-      // Apply date range filters using proper gte/lte on created_at
+      // Apply date range filters using proper gte/lte on dispatch_date
       if (dateFromISO) {
-        countQuery = countQuery.gte('created_at', dateFromISO);
+        countQuery = countQuery.gte('dispatch_date', dateFromISO);
       }
       if (dateToISO) {
-        countQuery = countQuery.lte('created_at', dateToISO);
+        countQuery = countQuery.lte('dispatch_date', dateToISO);
       }
       
       // Apply courier filter server-side
@@ -199,12 +199,12 @@ useEffect(() => {
             )
           `);
 
-        // Apply date range filters
+        // Apply date range filters on dispatch_date
         if (dateFromISO) {
-          dataQuery = dataQuery.gte('created_at', dateFromISO);
+          dataQuery = dataQuery.gte('dispatch_date', dateFromISO);
         }
         if (dateToISO) {
-          dataQuery = dataQuery.lte('created_at', dateToISO);
+          dataQuery = dataQuery.lte('dispatch_date', dateToISO);
         }
         
         // Apply courier filter server-side
@@ -218,7 +218,7 @@ useEffect(() => {
         }
         
         dataQuery = dataQuery
-          .order('created_at', { ascending: false })
+          .order('dispatch_date', { ascending: false })
           .range(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE - 1);
 
         const { data, error } = await dataQuery;
@@ -309,8 +309,8 @@ useEffect(() => {
   }, [filteredByDate, searchTerm, courierFilter, userFilter]);
 const metrics = useMemo(() => {
   const totalDispatches = totalDispatchCount ?? filteredByDate.length;
-  const worthOfDispatches = filteredDispatches.reduce((total, dispatch) => {
-    return total + (dispatch.orders?.total_amount || 2500);
+  const worthOfDispatches = filteredByDate.reduce((total, dispatch) => {
+    return total + (dispatch.orders?.total_amount || 0);
   }, 0);
   const courierCounts = filteredDispatches.reduce((acc, d) => {
     acc[d.courier] = (acc[d.courier] || 0) + 1;
