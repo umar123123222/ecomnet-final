@@ -33,8 +33,10 @@ const ProductManagement = () => {
   } = useToast();
   const queryClient = useQueryClient();
   const {
-    permissions
+    permissions,
+    primaryRole
   } = useUserRoles();
+  const isFinanceUser = primaryRole === 'finance';
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
@@ -369,9 +371,11 @@ const ProductManagement = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12">
-                      <Checkbox checked={selectedProducts.length === filteredProducts?.length && filteredProducts.length > 0} onCheckedChange={handleSelectAll} />
-                    </TableHead>
+                    {!isFinanceUser && (
+                      <TableHead className="w-12">
+                        <Checkbox checked={selectedProducts.length === filteredProducts?.length && filteredProducts.length > 0} onCheckedChange={handleSelectAll} />
+                      </TableHead>
+                    )}
                     <TableHead>SKU</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Category</TableHead>
@@ -380,14 +384,16 @@ const ProductManagement = () => {
                     <TableHead className="text-right">Reserved</TableHead>
                     <TableHead className="text-right">Available</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    {!isFinanceUser && <TableHead className="text-right">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredProducts && filteredProducts.length > 0 ? filteredProducts.map(product => <TableRow key={product.id}>
-                        <TableCell>
-                          <Checkbox checked={selectedProducts.includes(product.id)} onCheckedChange={() => handleSelectProduct(product.id)} />
-                        </TableCell>
+                {filteredProducts && filteredProducts.length > 0 ? filteredProducts.map(product => <TableRow key={product.id}>
+                        {!isFinanceUser && (
+                          <TableCell>
+                            <Checkbox checked={selectedProducts.includes(product.id)} onCheckedChange={() => handleSelectProduct(product.id)} />
+                          </TableCell>
+                        )}
                         <TableCell className="font-mono text-sm">{product.sku}</TableCell>
                         <TableCell className="font-medium">{product.name}</TableCell>
                         <TableCell>
@@ -428,17 +434,19 @@ const ProductManagement = () => {
                               Inactive
                             </Badge>}
                         </TableCell>
-                        <TableCell className="text-right">
-                          {permissions.canManageProducts && <Button variant="ghost" size="sm" className="gap-2" onClick={() => {
-                      setSelectedProduct(product);
-                      setProductDialogOpen(true);
-                    }}>
-                                <Edit className="h-3 w-3" />
-                                Edit
-                              </Button>}
-                        </TableCell>
+                        {!isFinanceUser && (
+                          <TableCell className="text-right">
+                            {permissions.canManageProducts && <Button variant="ghost" size="sm" className="gap-2" onClick={() => {
+                        setSelectedProduct(product);
+                        setProductDialogOpen(true);
+                      }}>
+                                  <Edit className="h-3 w-3" />
+                                  Edit
+                                </Button>}
+                          </TableCell>
+                        )}
                       </TableRow>) : <TableRow>
-                      <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={isFinanceUser ? 9 : 10} className="text-center py-8 text-muted-foreground">
                         No products found
                       </TableCell>
                     </TableRow>}
