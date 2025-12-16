@@ -409,7 +409,7 @@ const Dashboard = () => {
         </div>
 
         {/* Courier Performance Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {courierData.length > 0 ? courierData.map((courier) => <GradientCard key={courier.name} variant="glass" className="p-4 sm:p-6 text-center">
               <h3 className="font-semibold text-sm sm:text-base mb-2 text-foreground">
                 {courier.name}
@@ -421,7 +421,7 @@ const Dashboard = () => {
                 {courier.label}
               </StatusBadge>
             </GradientCard>) : (
-            <GradientCard variant="glass" className="p-4 sm:p-6 text-center col-span-2">
+            <GradientCard variant="glass" className="p-4 sm:p-6 text-center col-span-full">
               <p className="text-muted-foreground">No courier performance data available</p>
             </GradientCard>
           )}
