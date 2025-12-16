@@ -159,7 +159,7 @@ const FinanceAnalyticsDashboard = () => {
     }
   });
 
-  // Fetch returns/claims data (no limit)
+  // Fetch returns received at warehouse (filter by received_at date)
   const { data: returns = [] } = useQuery({
     queryKey: ['finance-returns', dateRange, selectedCourier],
     queryFn: async () => {
@@ -177,8 +177,9 @@ const FinanceAnalyticsDashboard = () => {
             id, order_id, return_status, claim_amount, claimed_at, received_at,
             orders!inner(total_amount, courier, order_number)
           `)
-          .gte('created_at', fromDate)
-          .lte('created_at', toDate)
+          .not('received_at', 'is', null)
+          .gte('received_at', fromDate)
+          .lte('received_at', toDate)
           .range(offset, offset + batchSize - 1);
 
         if (error) throw error;
@@ -196,7 +197,7 @@ const FinanceAnalyticsDashboard = () => {
     }
   });
 
-  // Fetch cancelled orders with their item values (since total_amount is 0 for cancelled)
+  // Fetch cancelled orders with their item values (filter by updated_at when cancelled)
   const { data: cancelledOrderValues = [] } = useQuery({
     queryKey: ['finance-cancelled-order-values', dateRange, selectedCourier],
     queryFn: async () => {
@@ -205,10 +206,10 @@ const FinanceAnalyticsDashboard = () => {
       
       const { data, error } = await supabase
         .from('orders')
-        .select('id, courier, order_items(price, quantity)')
+        .select('id, courier, updated_at, order_items(price, quantity)')
         .eq('status', 'cancelled')
-        .gte('created_at', fromDate)
-        .lte('created_at', toDate);
+        .gte('updated_at', fromDate)
+        .lte('updated_at', toDate);
 
       if (error) throw error;
       
@@ -227,37 +228,69 @@ const FinanceAnalyticsDashboard = () => {
     }
   });
 
-  // Fetch returns that are in transit (dispatched but not yet received)
+  // Fetch returns in route - courier marked as returned but order still dispatched (not received at warehouse)
+  // This matches /returns-not-received page logic using courier_tracking_history
   const { data: returnsInRoute = [] } = useQuery({
     queryKey: ['finance-returns-in-route', dateRange, selectedCourier],
     queryFn: async () => {
       const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
       const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
       
-      // Get orders that are marked as returned status but returns table shows not received yet
-      const { data: returnedOrders, error } = await supabase
-        .from('orders')
-        .select('id, total_amount, courier')
-        .eq('status', 'returned')
-        .gte('created_at', fromDate)
-        .lte('created_at', toDate);
+      // Query courier_tracking_history for 'returned' status where order is still 'dispatched'
+      let allData: any[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from('courier_tracking_history')
+          .select(`
+            order_id,
+            tracking_id,
+            checked_at,
+            dispatches!courier_tracking_history_dispatch_id_fkey (
+              courier,
+              orders!inner (
+                id,
+                total_amount,
+                status
+              )
+            )
+          `)
+          .eq('status', 'returned')
+          .eq('dispatches.orders.status', 'dispatched')
+          .gte('checked_at', fromDate)
+          .lte('checked_at', toDate)
+          .range(offset, offset + batchSize - 1);
 
-      if (error) throw error;
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allData = [...allData, ...data];
+        if (data.length < batchSize) break;
+        offset += batchSize;
+      }
       
-      // Check which of these don't have received returns
-      const { data: receivedReturns } = await supabase
-        .from('returns')
-        .select('order_id')
-        .not('received_at', 'is', null);
+      // Deduplicate by order_id (keep latest)
+      const latestByOrder = new Map();
+      allData.forEach((tracking: any) => {
+        const order = tracking.dispatches?.orders;
+        if (!order || !order.id) return;
+        if (!latestByOrder.has(order.id)) {
+          latestByOrder.set(order.id, {
+            id: order.id,
+            total_amount: order.total_amount,
+            courier: tracking.dispatches?.courier
+          });
+        }
+      });
       
-      const receivedOrderIds = new Set((receivedReturns || []).map(r => r.order_id));
-      
-      const inRoute = (returnedOrders || []).filter(o => !receivedOrderIds.has(o.id));
+      const result = Array.from(latestByOrder.values());
       
       if (selectedCourier !== 'all') {
-        return inRoute.filter(o => o.courier === selectedCourier);
+        return result.filter(o => o.courier === selectedCourier);
       }
-      return inRoute;
+      return result;
     }
   });
 
@@ -359,22 +392,24 @@ const FinanceAnalyticsDashboard = () => {
     const profitMargin = totalCOD > 0 ? (netRevenue / totalCOD) * 100 : 0;
     const totalParcels = courierAnalytics.reduce((sum, c) => sum + c.deliveredOrders, 0);
 
-    // New metrics from allOrders
+    // Orders Placed - filtered by created_at
     const totalOrdersPlaced = allOrders.length;
-    const cancelledOrders = allOrders.filter(o => o.status === 'cancelled');
-    const totalOrdersCancelled = cancelledOrders.length;
-    // Use cancelledOrderValues to get actual value from order_items (since total_amount is 0 for cancelled)
+    const totalOrdersPlacedValue = allOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+    
+    // Cancelled orders - filtered by updated_at (when status changed to cancelled)
+    // Value calculated from order_items (since total_amount is 0 for cancelled)
+    const totalOrdersCancelled = cancelledOrderValues.length;
     const cancelledValue = cancelledOrderValues.reduce((sum, o) => sum + (Number(o.value) || 0), 0);
     
-    const dispatchedOrdersList = allOrders.filter(o => ['dispatched', 'delivered', 'returned'].includes(o.status));
-    const totalOrdersDispatched = dispatchedOrdersList.length;
-    const dispatchedValue = dispatchedOrdersList.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+    // Dispatched orders - filtered by dispatched_at
+    const totalOrdersDispatched = dispatchedOrders.length;
+    const dispatchedValue = dispatchedOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
     
-    const returnedOrders = allOrders.filter(o => o.status === 'returned');
-    const totalReturnsReceived = returnedOrders.length;
-    const returnsReceivedValue = returnedOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+    // Returns Received - uses returns table filtered by received_at
+    const totalReturnsReceived = returns.length;
+    const returnsReceivedValue = returns.reduce((sum: number, r: any) => sum + (Number(r.orders?.total_amount) || 0), 0);
     
-    // Returns in route = orders marked as returned but not physically received yet
+    // Returns in route - courier tracking shows 'returned' but order still 'dispatched' (filtered by checked_at)
     const returnsInRouteCount = returnsInRoute.length;
     const returnsInRouteValue = returnsInRoute.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
 
@@ -387,7 +422,7 @@ const FinanceAnalyticsDashboard = () => {
       totalParcels,
       // New KPIs
       totalOrdersPlaced,
-      totalOrdersPlacedValue: allOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0),
+      totalOrdersPlacedValue,
       totalOrdersCancelled,
       cancelledValue,
       totalOrdersDispatched,
@@ -397,7 +432,7 @@ const FinanceAnalyticsDashboard = () => {
       returnsInRoute: returnsInRouteCount,
       returnsInRouteValue
     };
-  }, [courierAnalytics, allOrders, cancelledOrderValues, returnsInRoute]);
+  }, [courierAnalytics, allOrders, cancelledOrderValues, dispatchedOrders, returns, returnsInRoute]);
 
   // Smart alerts/insights
   const insights = useMemo(() => {
@@ -544,7 +579,7 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Total number of orders received during the selected period, including all statuses.</p>
+                        <p className="max-w-[200px] text-xs">Orders placed (created_at) during the selected period, regardless of current status.</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
@@ -567,7 +602,7 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Orders cancelled before dispatch. Value calculated from order items.</p>
+                        <p className="max-w-[200px] text-xs">Orders cancelled (updated_at) during the selected period. Value from order items.</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
@@ -590,7 +625,7 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Orders that have been physically sent out for delivery via courier.</p>
+                        <p className="max-w-[200px] text-xs">Orders dispatched (dispatched_at) during the selected period, regardless of when placed.</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
@@ -613,7 +648,7 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Parcels that were returned by courier and physically received back at the warehouse.</p>
+                        <p className="max-w-[200px] text-xs">Returns received at warehouse (received_at) during the selected period.</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
@@ -636,7 +671,7 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Parcels marked as returned by courier but not yet physically received at warehouse.</p>
+                        <p className="max-w-[200px] text-xs">Courier marked as returned (checked_at) during this period but not yet received at warehouse.</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
