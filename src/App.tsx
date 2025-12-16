@@ -123,6 +123,12 @@ const SystemValidation = lazy(() => import("@/pages/Testing/SystemValidation").t
 const SystemDocs = lazy(() => import("@/pages/Documentation/SystemDocs").then(module => ({
   default: module.default
 })));
+const FinanceAnalyticsDashboard = lazy(() => import("@/pages/Finance/FinanceAnalyticsDashboard").then(module => ({
+  default: module.default
+})));
+const PaymentReconciliation = lazy(() => import("@/pages/Finance/PaymentReconciliation").then(module => ({
+  default: module.default
+})));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Optimized QueryClient configuration for performance
@@ -297,6 +303,12 @@ const App = () => {
                     </Suspense>} />
                   <Route path="documentation" element={<Suspense fallback={<PageLoader />}>
                       <SystemDocs />
+                    </Suspense>} />
+                  <Route path="finance-analytics" element={<Suspense fallback={<PageLoader />}>
+                      <FinanceAnalyticsDashboard />
+                    </Suspense>} />
+                  <Route path="payment-reconciliation" element={<Suspense fallback={<PageLoader />}>
+                      <PaymentReconciliation />
                     </Suspense>} />
                   <Route path="*" element={<Suspense fallback={<PageLoader />}>
                       <NotFound />

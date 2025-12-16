@@ -4,7 +4,7 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, Sid
 import { ModernButton } from "@/components/ui/modern-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Home, Package, Truck, RotateCcw, Users, Settings, Bell, Moon, Sun, Shield, MapPin, LogOut, ChevronDown, Box, Building2, ArrowRightLeft, Warehouse, Activity, Factory, RefreshCw } from "lucide-react";
+import { Home, Package, Truck, RotateCcw, Users, Settings, Bell, Moon, Sun, Shield, MapPin, LogOut, ChevronDown, Box, Building2, ArrowRightLeft, Warehouse, Activity, Factory, RefreshCw, TrendingUp } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from '@/contexts/AuthContext';
 import { getNavigationItems } from '@/utils/rolePermissions';
@@ -61,7 +61,7 @@ const Layout = () => {
 
   const getIcon = (iconName: string) => {
     const icons = {
-      Home, Package, Truck, RotateCcw, Users, Settings, Shield, MapPin, Box, Building2, ArrowRightLeft, Warehouse, Activity, Factory
+      Home, Package, Truck, RotateCcw, Users, Settings, Shield, MapPin, Box, Building2, ArrowRightLeft, Warehouse, Activity, Factory, TrendingUp
     };
     return icons[iconName as keyof typeof icons] || Package;
   };
