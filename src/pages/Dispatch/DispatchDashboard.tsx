@@ -25,6 +25,7 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { logActivity } from '@/utils/activityLogger';
 import { useHandheldScanner } from '@/contexts/HandheldScannerContext';
+import { useScannerMode } from '@/hooks/useScannerMode';
 
 const DispatchDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -43,77 +44,40 @@ const DispatchDashboard = () => {
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [allowManualEntry, setAllowManualEntry] = useState(false);
   const [selectedCourier, setSelectedCourier] = useState<string | null>(null);
-  const [entryType, setEntryType] = useState<'tracking_id' | 'order_number'>(() => {
-    const saved = localStorage.getItem('dispatch_entry_type');
-    return (saved === 'order_number' ? 'order_number' : 'tracking_id') as 'tracking_id' | 'order_number';
-  });
   const [isProcessing, setIsProcessing] = useState(false);
   const [bulkErrors, setBulkErrors] = useState<Array<{ entry: string; error: string; errorCode?: string }>>([]);
   const [visibleCount, setVisibleCount] = useState(100);
-  const [showScrollTop, setShowScrollTop] = useState(false);
   
-  // Scanner Mode States
-  const [scannerModeActive, setScannerModeActive] = useState(false);
+  // Scanner Mode Action (dispatch-specific)
   const [scannerModeAction, setScannerModeAction] = useState<'dispatch' | null>(null);
-  const [scannerStats, setScannerStats] = useState({ success: 0, errors: 0 });
-  const [recentScans, setRecentScans] = useState<Array<{
-    entry: string;
-    type: 'order_number' | 'tracking_id' | 'unknown';
-    status: 'success' | 'error';
-    message: string;
-    timestamp: Date;
-    orderId?: string;
-    courier?: string;
-  }>>([]);
-  const [scanHistoryForExport, setScanHistoryForExport] = useState<any[]>([]);
-  const [lastScanTime, setLastScanTime] = useState<number>(Date.now());
   
-  // Focus Management States
-  const [hasFocus, setHasFocus] = useState(true);
-  const [focusLostTime, setFocusLostTime] = useState<number | null>(null);
-  const [scanBuffer, setScanBuffer] = useState('');
-  const scannerInputRef = React.useRef<HTMLInputElement>(null);
-  
-  // Performance Metrics
-  const [performanceMetrics, setPerformanceMetrics] = useState({
-    avgProcessingTime: 0,
-    totalScans: 0,
-    scansPerMinute: 0,
-    queueLength: 0
-  });
-  const [processingQueue, setProcessingQueue] = useState<string[]>([]);
-  const [activeProcessing, setActiveProcessing] = useState<Set<string>>(new Set());
-  const processingRef = React.useRef<Set<string>>(new Set());
-  const MAX_CONCURRENT = 5; // Process up to 5 scans in parallel
+  // Use shared scanner mode hook
+  const scannerMode = useScannerMode({ storageKey: 'dispatch_entry_type', maxConcurrent: 5 });
+  const {
+    scannerModeActive, setScannerModeActive,
+    scannerStats, setScannerStats,
+    recentScans, setRecentScans,
+    scanHistoryForExport, setScanHistoryForExport,
+    lastScanTime, setLastScanTime,
+    hasFocus, setHasFocus,
+    focusLostTime, setFocusLostTime,
+    scanBuffer, setScanBuffer,
+    scannerInputRef,
+    entryType, setEntryType,
+    performanceMetrics, setPerformanceMetrics,
+    processingQueue, setProcessingQueue,
+    activeProcessing, setActiveProcessing,
+    processingRef, maxConcurrent,
+    showScrollTop, scrollToTop,
+    successSound, errorSound,
+    addScanResult, resetScannerStats
+  } = scannerMode;
   
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const scanner = useHandheldScanner();
+  const handheldScanner = useHandheldScanner();
   
-  // Audio for feedback with preloading
-  const successSound = useMemo(() => new Audio('/sounds/success.mp3'), []);
-  const errorSound = useMemo(() => new Audio('/sounds/error.mp3'), []);
-  
-  // Preload audio on mount for instant playback
-  useEffect(() => {
-    successSound.load();
-    errorSound.load();
-  }, [successSound, errorSound]);
-
-  // Scroll to top button visibility
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 400);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
   const handleShowMore = () => {
     setVisibleCount(prev => prev + 500);
   };
@@ -670,7 +634,7 @@ const metrics = useMemo(() => {
   useEffect(() => {
     if (!allowManualEntry && isManualEntryOpen) {
       // When manual entry is off, listen for scanner input
-      const cleanup = scanner.onScan((scannedData) => {
+      const cleanup = handheldScanner.onScan((scannedData) => {
         // Get current value from textarea
         const currentValue = form.getValues('bulkEntries');
         
@@ -685,7 +649,7 @@ const metrics = useMemo(() => {
       
       return cleanup;
     }
-  }, [allowManualEntry, isManualEntryOpen, scanner, form]);
+  }, [allowManualEntry, isManualEntryOpen, handheldScanner, form]);
 
   // Scanner Mode: Activate scanner mode
   const activateScannerMode = async () => {
@@ -1172,7 +1136,7 @@ const metrics = useMemo(() => {
       });
       
       // Register HID scanner callback as backup
-      const cleanup = scanner.onScan((data) => {
+      const cleanup = handheldScanner.onScan((data) => {
         console.log('HID Scanner input received:', data);
         processScannerInput(data);
       });
@@ -1194,7 +1158,7 @@ const metrics = useMemo(() => {
         if (rafId) cancelAnimationFrame(rafId);
       };
     }
-  }, [scannerModeActive, scanner.isConnected]);
+  }, [scannerModeActive, handheldScanner.isConnected]);
 
   // Scanner Mode: Auto-timeout after 5 minutes
   useEffect(() => {
@@ -1448,13 +1412,13 @@ const metrics = useMemo(() => {
                     field
                   }) => <FormItem>
                           <FormLabel>Bulk Entry</FormLabel>
-                          {!allowManualEntry && !scanner.isConnected && (
+                          {!allowManualEntry && !handheldScanner.isConnected && (
                             <div className="p-2 mt-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
                               <Lock className="h-4 w-4 inline mr-1" />
                               Scanner not connected. Connect scanner or enable manual entry.
                             </div>
                           )}
-                          {!allowManualEntry && scanner.isConnected && (
+                          {!allowManualEntry && handheldScanner.isConnected && (
                             <Badge variant="secondary" className="ml-2">
                               <Lock className="h-3 w-3 mr-1" />
                               Scanner Mode
@@ -1466,7 +1430,7 @@ const metrics = useMemo(() => {
                               placeholder={`${!allowManualEntry ? 'Scan' : 'Enter'} ${entryType === 'tracking_id' ? 'tracking IDs' : 'order numbers'} (one per line)...`}
                               className="min-h-[150px] font-mono text-sm" 
                               readOnly={!allowManualEntry}
-                              disabled={!allowManualEntry && !scanner.isConnected}
+                              disabled={!allowManualEntry && !handheldScanner.isConnected}
                             />
                           </FormControl>
                           {isProcessing && (
@@ -1537,7 +1501,7 @@ const metrics = useMemo(() => {
                     </Button>
                     <Button 
                       type="submit" 
-                      disabled={isProcessing || (!allowManualEntry && !scanner.isConnected)}
+                      disabled={isProcessing || (!allowManualEntry && !handheldScanner.isConnected)}
                     >
                       {isProcessing ? (
                         <>
