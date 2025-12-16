@@ -1107,6 +1107,48 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_dispatch_summaries: {
+        Row: {
+          created_at: string | null
+          id: string
+          order_count: number | null
+          packaging_items: Json | null
+          product_items: Json | null
+          summary_date: string
+          total_packaging_units: number | null
+          total_product_units: number | null
+          unique_packaging: number | null
+          unique_products: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          order_count?: number | null
+          packaging_items?: Json | null
+          product_items?: Json | null
+          summary_date: string
+          total_packaging_units?: number | null
+          total_product_units?: number | null
+          unique_packaging?: number | null
+          unique_products?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          order_count?: number | null
+          packaging_items?: Json | null
+          product_items?: Json | null
+          summary_date?: string
+          total_packaging_units?: number | null
+          total_product_units?: number | null
+          unique_packaging?: number | null
+          unique_products?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       dispatches: {
         Row: {
           courier: string

@@ -50,18 +50,20 @@ interface UnifiedMovement {
   to_outlet?: string;
 }
 
-interface DispatchBatch {
+interface DispatchSummary {
   id: string;
-  type: 'batch';
+  type: 'summary';
   date: string;
-  movements: UnifiedMovement[];
-  productCount: number;
-  packagingCount: number;
-  totalProductQty: number;
-  totalPackagingQty: number;
+  productItems: Record<string, { name: string; sku: string; total_qty: number }>;
+  packagingItems: Record<string, { name: string; sku: string; total_qty: number }>;
+  totalProductUnits: number;
+  totalPackagingUnits: number;
+  uniqueProducts: number;
+  uniquePackaging: number;
+  orderCount: number;
 }
 
-type DisplayItem = UnifiedMovement | DispatchBatch;
+type DisplayItem = UnifiedMovement | DispatchSummary;
 
 export default function StockMovementHistory() {
   const { permissions } = useUserRoles();
@@ -70,45 +72,37 @@ export default function StockMovementHistory() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
+  const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  // Fetch product movements - separate queries for dispatch vs other types to ensure all types appear
-  const { data: productMovements, isLoading: loadingProducts } = useQuery({
-    queryKey: ["product-movements", movementTypeFilter, dateRange],
+  // Fetch daily dispatch summaries (pre-aggregated data)
+  const { data: dispatchSummaries, isLoading: loadingSummaries } = useQuery({
+    queryKey: ["dispatch-summaries", dateRange],
     queryFn: async () => {
-      // If filtering by specific type, use single query
-      if (movementTypeFilter !== "all") {
-        let query = supabase
-          .from("stock_movements")
-          .select(`
-            id,
-            quantity,
-            movement_type,
-            notes,
-            created_at,
-            created_by,
-            outlet_id,
-            product:products(name, sku),
-            outlet:outlets(name)
-          `)
-          .eq("movement_type", movementTypeFilter)
-          .order("created_at", { ascending: false })
-          .limit(500);
+      let query = supabase
+        .from("daily_dispatch_summaries")
+        .select("*")
+        .order("summary_date", { ascending: false })
+        .limit(100);
 
-        if (dateRange?.from) {
-          query = query.gte("created_at", dateRange.from.toISOString());
-        }
-        if (dateRange?.to) {
-          query = query.lte("created_at", dateRange.to.toISOString());
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-        return await enrichWithProfiles(data, 'performed_by_profile');
+      if (dateRange?.from) {
+        query = query.gte("summary_date", format(dateRange.from, 'yyyy-MM-dd'));
+      }
+      if (dateRange?.to) {
+        query = query.lte("summary_date", format(dateRange.to, 'yyyy-MM-dd'));
       }
 
-      // For "all" filter, fetch dispatch and non-dispatch separately to ensure both appear
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: permissions.canViewStockMovements && (movementTypeFilter === "all" || movementTypeFilter === "sale" || movementTypeFilter === "dispatch"),
+  });
+
+  // Fetch non-dispatch product movements (adjustments, returns, transfers, purchases)
+  const { data: productMovements, isLoading: loadingProducts } = useQuery({
+    queryKey: ["product-movements-nondispatch", movementTypeFilter, dateRange],
+    queryFn: async () => {
       const baseSelect = `
         id,
         quantity,
@@ -121,40 +115,34 @@ export default function StockMovementHistory() {
         outlet:outlets(name)
       `;
 
-      // Fetch dispatch movements (limited)
-      let dispatchQuery = supabase
+      // If filtering for dispatch/sale only, don't fetch individual movements
+      if (movementTypeFilter === "sale" || movementTypeFilter === "dispatch") {
+        return [];
+      }
+
+      let query = supabase
         .from("stock_movements")
         .select(baseSelect)
-        .eq("movement_type", "dispatch")
+        .neq("movement_type", "sale") // Exclude sales - handled by summaries
         .order("created_at", { ascending: false })
         .limit(300);
 
-      // Fetch non-dispatch movements (adjustments, returns, etc.)
-      let otherQuery = supabase
-        .from("stock_movements")
-        .select(baseSelect)
-        .neq("movement_type", "dispatch")
-        .order("created_at", { ascending: false })
-        .limit(200);
+      if (movementTypeFilter !== "all") {
+        query = query.eq("movement_type", movementTypeFilter);
+      }
 
       if (dateRange?.from) {
-        dispatchQuery = dispatchQuery.gte("created_at", dateRange.from.toISOString());
-        otherQuery = otherQuery.gte("created_at", dateRange.from.toISOString());
+        query = query.gte("created_at", dateRange.from.toISOString());
       }
       if (dateRange?.to) {
-        dispatchQuery = dispatchQuery.lte("created_at", dateRange.to.toISOString());
-        otherQuery = otherQuery.lte("created_at", dateRange.to.toISOString());
+        query = query.lte("created_at", dateRange.to.toISOString());
       }
 
-      const [dispatchResult, otherResult] = await Promise.all([dispatchQuery, otherQuery]);
-      
-      if (dispatchResult.error) throw dispatchResult.error;
-      if (otherResult.error) throw otherResult.error;
-
-      const combined = [...(dispatchResult.data || []), ...(otherResult.data || [])];
-      return await enrichWithProfiles(combined, 'performed_by_profile');
+      const { data, error } = await query;
+      if (error) throw error;
+      return await enrichWithProfiles(data || [], 'performed_by_profile');
     },
-    enabled: permissions.canViewStockMovements,
+    enabled: permissions.canViewStockMovements && movementTypeFilter !== "sale" && movementTypeFilter !== "dispatch",
   });
 
   // Helper function to enrich data with profile info
@@ -176,9 +164,9 @@ export default function StockMovementHistory() {
     }));
   };
 
-  // Fetch packaging movements - separate queries for dispatch vs other types
+  // Fetch non-dispatch packaging movements
   const { data: packagingMovements, isLoading: loadingPackaging } = useQuery({
-    queryKey: ["packaging-movements", movementTypeFilter, dateRange],
+    queryKey: ["packaging-movements-nondispatch", movementTypeFilter, dateRange],
     queryFn: async () => {
       const baseSelect = `
         id,
@@ -190,60 +178,34 @@ export default function StockMovementHistory() {
         packaging_item:packaging_items(name, sku)
       `;
 
-      // If filtering by specific type, use single query
-      if (movementTypeFilter !== "all") {
-        let query = supabase
-          .from("packaging_movements")
-          .select(baseSelect)
-          .eq("movement_type", movementTypeFilter)
-          .order("created_at", { ascending: false })
-          .limit(500);
-
-        if (dateRange?.from) {
-          query = query.gte("created_at", dateRange.from.toISOString());
-        }
-        if (dateRange?.to) {
-          query = query.lte("created_at", dateRange.to.toISOString());
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-        return await enrichPackagingWithProfiles(data);
+      // If filtering for dispatch only, don't fetch individual movements
+      if (movementTypeFilter === "dispatch") {
+        return [];
       }
 
-      // For "all" filter, fetch dispatch and non-dispatch separately
-      let dispatchQuery = supabase
+      let query = supabase
         .from("packaging_movements")
         .select(baseSelect)
-        .eq("movement_type", "dispatch")
+        .neq("movement_type", "dispatch") // Exclude dispatch - handled by summaries
         .order("created_at", { ascending: false })
         .limit(300);
 
-      let otherQuery = supabase
-        .from("packaging_movements")
-        .select(baseSelect)
-        .neq("movement_type", "dispatch")
-        .order("created_at", { ascending: false })
-        .limit(200);
+      if (movementTypeFilter !== "all") {
+        query = query.eq("movement_type", movementTypeFilter);
+      }
 
       if (dateRange?.from) {
-        dispatchQuery = dispatchQuery.gte("created_at", dateRange.from.toISOString());
-        otherQuery = otherQuery.gte("created_at", dateRange.from.toISOString());
+        query = query.gte("created_at", dateRange.from.toISOString());
       }
       if (dateRange?.to) {
-        dispatchQuery = dispatchQuery.lte("created_at", dateRange.to.toISOString());
-        otherQuery = otherQuery.lte("created_at", dateRange.to.toISOString());
+        query = query.lte("created_at", dateRange.to.toISOString());
       }
 
-      const [dispatchResult, otherResult] = await Promise.all([dispatchQuery, otherQuery]);
-      
-      if (dispatchResult.error) throw dispatchResult.error;
-      if (otherResult.error) throw otherResult.error;
-
-      const combined = [...(dispatchResult.data || []), ...(otherResult.data || [])];
-      return await enrichPackagingWithProfiles(combined);
+      const { data, error } = await query;
+      if (error) throw error;
+      return await enrichPackagingWithProfiles(data || []);
     },
-    enabled: permissions.canViewStockMovements,
+    enabled: permissions.canViewStockMovements && movementTypeFilter !== "dispatch",
   });
 
   // Helper for packaging profiles
@@ -303,8 +265,8 @@ export default function StockMovementHistory() {
     return { reason, imageUrl, details };
   };
 
-  // Combine and unify movements
-  const unifiedMovements: UnifiedMovement[] = [
+  // Combine and unify individual movements (non-dispatch only)
+  const unifiedMovements: UnifiedMovement[] = useMemo(() => [
     ...(productMovements || []).map((m: any) => {
       const parsed = parseNotes(m.notes);
       return {
@@ -343,9 +305,9 @@ export default function StockMovementHistory() {
         to_outlet: undefined,
       };
     }),
-  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [productMovements, packagingMovements]);
 
-  // Filter movements
+  // Filter individual movements
   const filteredMovements = unifiedMovements.filter((movement) => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = 
@@ -359,74 +321,113 @@ export default function StockMovementHistory() {
     return matchesSearch && matchesCategory;
   });
 
-  // Group dispatch movements by date, keep others as individual items
+  // Convert dispatch summaries to display format
+  const summaryItems: DispatchSummary[] = useMemo(() => {
+    if (!dispatchSummaries || movementTypeFilter === "adjustment" || movementTypeFilter === "transfer" || movementTypeFilter === "return" || movementTypeFilter === "purchase") {
+      return [];
+    }
+
+    return dispatchSummaries
+      .filter(s => {
+        // Apply category filter
+        if (categoryFilter === 'product' && s.unique_packaging > 0 && s.unique_products === 0) return false;
+        if (categoryFilter === 'packaging' && s.unique_products > 0 && s.unique_packaging === 0) return false;
+        
+        // Apply search filter
+        if (searchTerm) {
+          const searchLower = searchTerm.toLowerCase();
+          const productItems = s.product_items as Record<string, { name: string; sku: string; total_qty: number }> || {};
+          const packagingItems = s.packaging_items as Record<string, { name: string; sku: string; total_qty: number }> || {};
+          
+          const matchesProduct = Object.values(productItems).some(
+            item => item.name?.toLowerCase().includes(searchLower) || item.sku?.toLowerCase().includes(searchLower)
+          );
+          const matchesPackaging = Object.values(packagingItems).some(
+            item => item.name?.toLowerCase().includes(searchLower) || item.sku?.toLowerCase().includes(searchLower)
+          );
+          
+          if (!matchesProduct && !matchesPackaging) return false;
+        }
+        
+        return true;
+      })
+      .map(s => ({
+        id: `summary-${s.id}`,
+        type: 'summary' as const,
+        date: s.summary_date,
+        productItems: (s.product_items as Record<string, { name: string; sku: string; total_qty: number }>) || {},
+        packagingItems: (s.packaging_items as Record<string, { name: string; sku: string; total_qty: number }>) || {},
+        totalProductUnits: s.total_product_units || 0,
+        totalPackagingUnits: s.total_packaging_units || 0,
+        uniqueProducts: s.unique_products || 0,
+        uniquePackaging: s.unique_packaging || 0,
+        orderCount: s.order_count || 0,
+      }));
+  }, [dispatchSummaries, categoryFilter, searchTerm, movementTypeFilter]);
+
+  // Combine summaries and individual movements
   const displayItems = useMemo((): DisplayItem[] => {
-    const dispatchMovements = filteredMovements.filter(m => m.movement_type === 'dispatch');
-    const otherMovements = filteredMovements.filter(m => m.movement_type !== 'dispatch');
-    
-    // Group dispatch movements by date (YYYY-MM-DD)
-    const dispatchByDate = new Map<string, UnifiedMovement[]>();
-    dispatchMovements.forEach(m => {
-      const dateKey = format(new Date(m.created_at), 'yyyy-MM-dd');
-      if (!dispatchByDate.has(dateKey)) {
-        dispatchByDate.set(dateKey, []);
-      }
-      dispatchByDate.get(dateKey)!.push(m);
-    });
-
-    // Convert dispatch groups to batch items
-    const batches: DispatchBatch[] = Array.from(dispatchByDate.entries()).map(([date, movements]) => {
-      const productMovs = movements.filter(m => m.category === 'product');
-      const packagingMovs = movements.filter(m => m.category === 'packaging');
-      
-      return {
-        id: `batch-${date}`,
-        type: 'batch' as const,
-        date,
-        movements,
-        productCount: productMovs.length,
-        packagingCount: packagingMovs.length,
-        totalProductQty: Math.abs(productMovs.reduce((sum, m) => sum + m.quantity, 0)),
-        totalPackagingQty: Math.abs(packagingMovs.reduce((sum, m) => sum + m.quantity, 0)),
-      };
-    });
-
-    // Combine batches and other movements, sort by date
-    const combined: DisplayItem[] = [...batches, ...otherMovements];
+    const combined: DisplayItem[] = [...summaryItems, ...filteredMovements];
     combined.sort((a, b) => {
       const dateA = 'date' in a ? new Date(a.date) : new Date(a.created_at);
       const dateB = 'date' in b ? new Date(b.date) : new Date(b.created_at);
       return dateB.getTime() - dateA.getTime();
     });
-
     return combined;
-  }, [filteredMovements]);
+  }, [summaryItems, filteredMovements]);
 
   const handleExportToCSV = () => {
-    if (!filteredMovements || filteredMovements.length === 0) {
+    if (displayItems.length === 0) {
       toast.error("No data to export");
       return;
     }
 
-    const csvContent = [
-      ["Date", "Batch Date", "Stock Name", "SKU", "Category", "Type", "Change", "Reason", "Details", "Performed By"].join(","),
-      ...filteredMovements.map((m) => {
-        const batchDate = m.movement_type === 'dispatch' ? format(new Date(m.created_at), "yyyy-MM-dd") : '';
-        return [
+    const rows: string[] = [];
+    rows.push(["Date", "Stock Name", "SKU", "Category", "Type", "Change", "Reason", "Performed By"].join(","));
+    
+    displayItems.forEach((item) => {
+      if ('type' in item && item.type === 'summary') {
+        // Export summary as multiple rows
+        Object.entries(item.productItems).forEach(([_, product]) => {
+          rows.push([
+            item.date,
+            `"${product.name}"`,
+            product.sku || '',
+            'product',
+            'dispatch',
+            `-${product.total_qty}`,
+            'Daily Dispatch',
+            'System (Aggregated)',
+          ].join(","));
+        });
+        Object.entries(item.packagingItems).forEach(([_, packaging]) => {
+          rows.push([
+            item.date,
+            `"${packaging.name}"`,
+            packaging.sku || '',
+            'packaging',
+            'dispatch',
+            `-${packaging.total_qty}`,
+            'Daily Dispatch',
+            'System (Aggregated)',
+          ].join(","));
+        });
+      } else {
+        const m = item as UnifiedMovement;
+        rows.push([
           format(new Date(m.created_at), "yyyy-MM-dd hh:mm:ss a"),
-          batchDate,
           `"${m.name}"`,
           m.sku,
           m.category,
           m.movement_type,
-          m.quantity > 0 ? `+${m.quantity}` : m.quantity,
+          m.quantity > 0 ? `+${m.quantity}` : String(m.quantity),
           `"${m.reason}"`,
-          `"${m.notes}"`,
           m.performed_by,
-        ].join(",");
-      }),
-    ].join("\n");
+        ].join(","));
+      }
+    });
 
+    const csvContent = rows.join("\n");
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -448,21 +449,21 @@ export default function StockMovementHistory() {
     setExpandedRows(newExpanded);
   };
 
-  const toggleBatch = (id: string) => {
-    const newExpanded = new Set(expandedBatches);
+  const toggleSummary = (id: string) => {
+    const newExpanded = new Set(expandedSummaries);
     if (newExpanded.has(id)) {
       newExpanded.delete(id);
     } else {
       newExpanded.add(id);
     }
-    setExpandedBatches(newExpanded);
+    setExpandedSummaries(newExpanded);
   };
 
-  const isBatch = (item: DisplayItem): item is DispatchBatch => {
-    return 'type' in item && item.type === 'batch';
+  const isSummary = (item: DisplayItem): item is DispatchSummary => {
+    return 'type' in item && item.type === 'summary';
   };
 
-  const isLoading = loadingProducts || loadingPackaging;
+  const isLoading = loadingProducts || loadingPackaging || loadingSummaries;
 
   if (!permissions.canViewStockMovements) {
     return (
@@ -587,15 +588,17 @@ export default function StockMovementHistory() {
     );
   };
 
-  const renderBatchRow = (batch: DispatchBatch) => {
-    const isExpanded = expandedBatches.has(batch.id);
+  const renderSummaryRow = (summary: DispatchSummary) => {
+    const isExpanded = expandedSummaries.has(summary.id);
+    const productEntries = Object.entries(summary.productItems);
+    const packagingEntries = Object.entries(summary.packagingItems);
     
     return (
       <>
         <TableRow 
-          key={batch.id}
+          key={summary.id}
           className="cursor-pointer hover:bg-primary/5 bg-primary/10 border-l-4 border-l-primary"
-          onClick={() => toggleBatch(batch.id)}
+          onClick={() => toggleSummary(summary.id)}
         >
           <TableCell>
             {isExpanded ? 
@@ -609,32 +612,36 @@ export default function StockMovementHistory() {
                 <Truck className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="font-semibold text-primary">Daily Dispatch Batch</p>
-                <p className="text-sm text-muted-foreground">{format(new Date(batch.date), "MMMM dd, yyyy")}</p>
+                <p className="font-semibold text-primary">Daily Dispatch Summary</p>
+                <p className="text-sm text-muted-foreground">{format(new Date(summary.date), "MMMM dd, yyyy")}</p>
               </div>
             </div>
           </TableCell>
           <TableCell colSpan={2}>
             <div className="flex gap-4">
-              <div className="flex items-center gap-1.5">
-                <Package className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">
-                  <strong>{batch.productCount}</strong> products
-                  <span className="text-muted-foreground ml-1">(-{batch.totalProductQty} units)</span>
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Box className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">
-                  <strong>{batch.packagingCount}</strong> packaging
-                  <span className="text-muted-foreground ml-1">(-{batch.totalPackagingQty} units)</span>
-                </span>
-              </div>
+              {summary.uniqueProducts > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <Package className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">
+                    <strong>{summary.uniqueProducts}</strong> products
+                    <span className="text-destructive ml-1">(-{summary.totalProductUnits} units)</span>
+                  </span>
+                </div>
+              )}
+              {summary.uniquePackaging > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <Box className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">
+                    <strong>{summary.uniquePackaging}</strong> packaging
+                    <span className="text-destructive ml-1">(-{summary.totalPackagingUnits} units)</span>
+                  </span>
+                </div>
+              )}
             </div>
           </TableCell>
           <TableCell>
             <Badge variant="default" className="bg-primary/80">
-              {batch.movements.length} items
+              {summary.orderCount} orders
             </Badge>
           </TableCell>
           <TableCell colSpan={2}>
@@ -643,7 +650,80 @@ export default function StockMovementHistory() {
             </span>
           </TableCell>
         </TableRow>
-        {isExpanded && batch.movements.map(movement => renderMovementRow(movement, true))}
+        {isExpanded && (
+          <>
+            {/* Product items */}
+            {productEntries.map(([productId, product]) => (
+              <TableRow key={`${summary.id}-product-${productId}`} className="bg-muted/20">
+                <TableCell className="pl-8"></TableCell>
+                <TableCell className="whitespace-nowrap">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="h-3 w-3" />
+                    {format(new Date(summary.date), "MMM dd, yyyy")}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div>
+                    <p className="font-medium">{product.name}</p>
+                    <p className="text-xs text-muted-foreground">{product.sku}</p>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="default" className="gap-1">
+                    <Package className="h-3 w-3" />
+                    Product
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">dispatch</Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    <TrendingDown className="h-4 w-4 text-destructive" />
+                    <span className="text-destructive font-medium">-{product.total_qty}</span>
+                  </div>
+                </TableCell>
+                <TableCell>Dispatch</TableCell>
+                <TableCell className="text-muted-foreground">Aggregated</TableCell>
+              </TableRow>
+            ))}
+            {/* Packaging items */}
+            {packagingEntries.map(([packagingId, packaging]) => (
+              <TableRow key={`${summary.id}-packaging-${packagingId}`} className="bg-muted/20">
+                <TableCell className="pl-8"></TableCell>
+                <TableCell className="whitespace-nowrap">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="h-3 w-3" />
+                    {format(new Date(summary.date), "MMM dd, yyyy")}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div>
+                    <p className="font-medium">{packaging.name}</p>
+                    <p className="text-xs text-muted-foreground">{packaging.sku}</p>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="secondary" className="gap-1">
+                    <Box className="h-3 w-3" />
+                    Packaging
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">dispatch</Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    <TrendingDown className="h-4 w-4 text-destructive" />
+                    <span className="text-destructive font-medium">-{packaging.total_qty}</span>
+                  </div>
+                </TableCell>
+                <TableCell>Dispatch</TableCell>
+                <TableCell className="text-muted-foreground">Aggregated</TableCell>
+              </TableRow>
+            ))}
+          </>
+        )}
       </>
     );
   };
@@ -696,10 +776,11 @@ export default function StockMovementHistory() {
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="adjustment">Adjustments</SelectItem>
-                <SelectItem value="sale">Sales</SelectItem>
-                <SelectItem value="transfer">Transfers</SelectItem>
+                <SelectItem value="sale">Sales/Dispatch</SelectItem>
+                <SelectItem value="transfer_in">Transfer In</SelectItem>
+                <SelectItem value="transfer_out">Transfer Out</SelectItem>
                 <SelectItem value="return">Returns</SelectItem>
-                <SelectItem value="dispatch">Dispatch</SelectItem>
+                <SelectItem value="purchase">Purchases</SelectItem>
               </SelectContent>
             </Select>
 
@@ -735,8 +816,8 @@ export default function StockMovementHistory() {
                 </TableRow>
               ) : displayItems.length > 0 ? (
                 displayItems.map((item) => {
-                  if (isBatch(item)) {
-                    return renderBatchRow(item);
+                  if (isSummary(item)) {
+                    return renderSummaryRow(item);
                   } else {
                     return renderMovementRow(item);
                   }
