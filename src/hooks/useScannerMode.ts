@@ -20,6 +20,7 @@ export interface PerformanceMetrics {
   totalScans: number;
   scansPerMinute: number;
   queueLength: number;
+  currentlyProcessing: number;
 }
 
 interface UseScannerModeOptions {
@@ -54,11 +55,15 @@ export function useScannerMode(options: UseScannerModeOptions) {
     avgProcessingTime: 0,
     totalScans: 0,
     scansPerMinute: 0,
-    queueLength: 0
+    queueLength: 0,
+    currentlyProcessing: 0
   });
   const [processingQueue, setProcessingQueue] = useState<string[]>([]);
   const [activeProcessing, setActiveProcessing] = useState<Set<string>>(new Set());
   const processingRef = useRef<Set<string>>(new Set());
+  
+  // Track currently processing count
+  const currentlyProcessingCount = activeProcessing.size;
 
   // Scroll to top functionality
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -196,6 +201,7 @@ export function useScannerMode(options: UseScannerModeOptions) {
     setActiveProcessing,
     processingRef,
     maxConcurrent,
+    currentlyProcessingCount,
     
     // Scroll
     showScrollTop,

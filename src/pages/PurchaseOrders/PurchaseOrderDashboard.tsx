@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, FileText, Calendar, DollarSign, XCircle, CheckCircle, Send, CreditCard, AlertCircle, Loader2 } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, DollarSign, XCircle, CheckCircle, Send, CreditCard, AlertCircle, Loader2, ClipboardList } from 'lucide-react';
+import { PageContainer, PageHeader } from '@/components/layout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCurrency } from '@/hooks/useCurrency';
 import { format } from 'date-fns';
@@ -489,24 +490,24 @@ const PurchaseOrderDashboard = () => {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Purchase Orders</h1>
-          <p className="text-muted-foreground">Manage purchase orders and supplier orders</p>
-        </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={resetForm}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create PO
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create Purchase Order</DialogTitle>
-            </DialogHeader>
+    <PageContainer>
+      <PageHeader
+        title="Purchase Orders"
+        description="Manage purchase orders and supplier orders"
+        icon={ClipboardList}
+        actions={
+          <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
+            {createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+            {createMutation.isPending ? 'Creating...' : 'Create PO'}
+          </Button>
+        }
+      />
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Purchase Order</DialogTitle>
+          </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label htmlFor="supplier_id">Supplier *</Label>
@@ -637,7 +638,7 @@ const PurchaseOrderDashboard = () => {
             </form>
           </DialogContent>
         </Dialog>
-      </div>
+
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
@@ -908,7 +909,7 @@ const PurchaseOrderDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageContainer>
   );
 };
 

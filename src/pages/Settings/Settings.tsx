@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Camera, Save, Eye, EyeOff } from "lucide-react";
+import { Camera, Save, Eye, EyeOff, Settings as SettingsIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { PageContainer, PageHeader } from "@/components/layout";
 const Settings = () => {
   const navigate = useNavigate();
   const {
@@ -116,14 +117,13 @@ const Settings = () => {
       });
     }
   };
-  return <div className="container-md spacing-md">
-      {/* Page Header */}
-      <div className="page-header">
-        <h1 className="page-title">Account Settings</h1>
-        <p className="page-description">
-          Manage your account settings and preferences to personalize your experience
-        </p>
-      </div>
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Account Settings"
+        description="Manage your account settings and preferences to personalize your experience"
+        icon={SettingsIcon}
+      />
 
       <div className="space-y-8">
         {/* Profile Information Card */}
@@ -274,6 +274,7 @@ const Settings = () => {
             </CardContent>
           </Card>}
       </div>
-    </div>;
+    </PageContainer>
+  );
 };
 export default Settings;
