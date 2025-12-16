@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -112,8 +112,19 @@ export const useOrdersData = () => {
   const [newOrdersCount, setNewOrdersCount] = useState(0);
   const [showNewOrdersNotification, setShowNewOrdersNotification] = useState(false);
 
+  // Abort controller ref to cancel stale fetches
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const fetchOrders = useCallback(async () => {
+    // Cancel any ongoing fetch to prevent race conditions
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const currentAbortController = abortControllerRef.current;
+
     setLoading(true);
+    setOrders([]); // Reset state immediately
     try {
       const effectivePageSize = Math.min(pageSize, 100);
       const offset = page * effectivePageSize;
@@ -172,20 +183,29 @@ export const useOrdersData = () => {
 
       const { data: baseOrders, error: ordersError, count } = await query;
 
+      // Check if this fetch was aborted
+      if (currentAbortController.signal.aborted) return;
+
       if (ordersError) {
         console.error('Error fetching orders:', ordersError);
-        toast({ title: "Error loading orders", description: ordersError.message, variant: "destructive" });
+        if (!currentAbortController.signal.aborted) {
+          toast({ title: "Error loading orders", description: ordersError.message, variant: "destructive" });
+        }
         setOrders([]);
         return;
       }
 
       if (!baseOrders || baseOrders.length === 0) {
-        setOrders([]);
-        setTotalCount(0);
+        if (!currentAbortController.signal.aborted) {
+          setOrders([]);
+          setTotalCount(0);
+        }
         return;
       }
 
-      setTotalCount(count || 0);
+      if (!currentAbortController.signal.aborted) {
+        setTotalCount(count || 0);
+      }
 
       const assignedIds = baseOrders.map(o => o.assigned_to).filter((id): id is string => id != null);
       const commentEmails = new Set<string>();
@@ -206,9 +226,13 @@ export const useOrdersData = () => {
         ? await supabase.from('profiles').select('id, full_name, email').in('id', assignedIds)
         : { data: [], error: null };
 
+      if (currentAbortController.signal.aborted) return;
+
       const commentProfilesResult = commentEmails.size > 0
         ? await supabase.from('profiles').select('id, full_name, email').in('email', Array.from(commentEmails))
         : { data: [], error: null };
+
+      if (currentAbortController.signal.aborted) return;
 
       const profilesById = new Map<string, any>();
       (assignedProfilesResult.data || []).forEach(p => profilesById.set(p.id, p));
@@ -271,6 +295,9 @@ export const useOrdersData = () => {
         };
       });
 
+      // Final check before updating state
+      if (currentAbortController.signal.aborted) return;
+
       setOrders(formattedOrders);
 
       // Fetch summary counts
@@ -286,6 +313,9 @@ export const useOrdersData = () => {
         });
       } else {
         const { data: statusCounts } = await supabase.rpc('get_order_counts_by_status_optimized');
+        
+        if (currentAbortController.signal.aborted) return;
+
         const counts = (statusCounts || []).reduce((acc: Record<string, number>, item: { status: string; count: number }) => {
           acc[item.status] = item.count;
           return acc;
@@ -301,21 +331,33 @@ export const useOrdersData = () => {
         });
       }
     } catch (error) {
-      console.error('Unexpected error:', error);
-      toast({ title: "Error", description: "Failed to load orders. Please try again.", variant: "destructive" });
-      setOrders([]);
+      if (!currentAbortController.signal.aborted) {
+        console.error('Unexpected error:', error);
+        toast({ title: "Error", description: "Failed to load orders. Please try again.", variant: "destructive" });
+        setOrders([]);
+      }
     } finally {
-      setLoading(false);
+      if (!currentAbortController.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [page, pageSize, filters, sortOrder, toast]);
 
   // Fetch on dependency change
   useEffect(() => {
     fetchOrders();
+    
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [fetchOrders]);
 
-  // Real-time subscription
+  // Real-time subscription with debounce
   useEffect(() => {
+    let refreshTimeout: NodeJS.Timeout;
+    
     const channel = supabase.channel('order-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
         const eventType = (payload as any).eventType;
@@ -323,12 +365,22 @@ export const useOrdersData = () => {
           setNewOrdersCount(prev => prev + 1);
           setShowNewOrdersNotification(true);
         } else if (eventType === 'UPDATE') {
-          fetchOrders();
+          // Debounce rapid consecutive changes (500ms)
+          clearTimeout(refreshTimeout);
+          refreshTimeout = setTimeout(() => {
+            fetchOrders();
+          }, 500);
         }
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => { 
+      clearTimeout(refreshTimeout);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      supabase.removeChannel(channel); 
+    };
   }, [fetchOrders]);
 
   // Lazy load order items when expanded
