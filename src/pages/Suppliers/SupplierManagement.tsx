@@ -35,7 +35,7 @@ interface Supplier {
 const SupplierManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { permissions } = useUserRoles();
+  const { permissions, hasAnyRole } = useUserRoles();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -640,18 +640,20 @@ const SupplierManagement = () => {
                         Edit
                       </Button>
                     )}
-                    <Button 
-                      size="sm" 
-                      variant="default" 
-                      className="flex-1" 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setAssignProductsDialog({ open: true, supplierId: supplier.id, supplierName: supplier.name });
-                      }}
-                    >
-                      <Package className="mr-1 h-3 w-3" />
-                      Assign
-                    </Button>
+                    {hasAnyRole(['super_admin', 'super_manager']) && (
+                      <Button 
+                        size="sm" 
+                        variant="default" 
+                        className="flex-1" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAssignProductsDialog({ open: true, supplierId: supplier.id, supplierName: supplier.name });
+                        }}
+                      >
+                        <Package className="mr-1 h-3 w-3" />
+                        Assign
+                      </Button>
+                    )}
                   </div>
 
                   {/* Portal Access & Delete Actions */}
