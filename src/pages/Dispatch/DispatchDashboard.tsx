@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -122,8 +122,18 @@ const DispatchDashboard = () => {
       bulkEntries: ''
     }
   });
+// Abort controller ref to cancel stale fetches
+const abortControllerRef = useRef<AbortController | null>(null);
+
 useEffect(() => {
   const fetchDispatches = async () => {
+    // Cancel any ongoing fetch to prevent race conditions
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const currentAbortController = abortControllerRef.current;
+    
     // Reset state immediately when dateRange changes to prevent stale data
     setDispatches([]);
     setTotalDispatchCount(null);
@@ -164,6 +174,9 @@ useEffect(() => {
       }
 
       const { count, error: countError } = await countQuery;
+      
+      // Check if this fetch was aborted
+      if (currentAbortController.signal.aborted) return;
 
       if (countError) {
         console.error('Error fetching dispatch count:', countError);
@@ -178,6 +191,9 @@ useEffect(() => {
       let allData: any[] = [];
 
       for (let i = 0; i < chunks; i++) {
+        // Check if aborted before each chunk
+        if (currentAbortController.signal.aborted) return;
+        
         let dataQuery = supabase
           .from('dispatches')
           .select(`
@@ -217,11 +233,13 @@ useEffect(() => {
 
         if (error) {
           console.error('Error fetching dispatches chunk:', error);
-          toast({
-            title: "Error",
-            description: "Failed to fetch dispatches",
-            variant: "destructive"
-          });
+          if (!currentAbortController.signal.aborted) {
+            toast({
+              title: "Error",
+              description: "Failed to fetch dispatches",
+              variant: "destructive"
+            });
+          }
           return;
         }
 
@@ -229,6 +247,9 @@ useEffect(() => {
           allData = [...allData, ...data];
         }
       }
+      
+      // Check if aborted before updating state
+      if (currentAbortController.signal.aborted) return;
 
       // Fetch profiles separately for dispatched_by users
       const userIds = [...new Set(allData?.filter(d => d.dispatched_by).map(d => d.dispatched_by) || [])];
@@ -239,6 +260,9 @@ useEffect(() => {
           .from('profiles')
           .select('id, full_name, email')
           .in('id', userIds);
+        
+        // Check if aborted after profiles fetch
+        if (currentAbortController.signal.aborted) return;
 
         if (profiles) {
           profilesById = profiles.reduce((acc, profile) => {
@@ -253,11 +277,18 @@ useEffect(() => {
         dispatched_by_user: dispatch.dispatched_by ? profilesById[dispatch.dispatched_by] : null,
       })) || [];
 
+      // Final check before updating state
+      if (currentAbortController.signal.aborted) return;
+      
       setDispatches(enrichedDispatches);
     } catch (error) {
-      console.error('Error:', error);
+      if (!currentAbortController.signal.aborted) {
+        console.error('Error:', error);
+      }
     } finally {
-      setLoading(false);
+      if (!currentAbortController.signal.aborted) {
+        setLoading(false);
+      }
     }
   };
   
@@ -272,17 +303,20 @@ useEffect(() => {
       schema: 'public',
       table: 'dispatches'
     }, () => {
-      // Debounce rapid consecutive changes
+      // Debounce rapid consecutive changes (increased to 500ms)
       clearTimeout(refreshTimeout);
       refreshTimeout = setTimeout(() => {
         console.log('Dispatch change detected, refreshing data...');
         fetchDispatches();
-      }, 300);
+      }, 500);
     })
     .subscribe();
 
   return () => {
     clearTimeout(refreshTimeout);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
     supabase.removeChannel(channel);
   };
 }, [toast, dateRange, courierFilter, userFilter]);
