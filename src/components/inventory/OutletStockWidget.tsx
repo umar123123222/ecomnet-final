@@ -2,10 +2,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Building2, Warehouse } from "lucide-react";
+import { Building2, Warehouse, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 export function OutletStockWidget() {
+  const [retailExpanded, setRetailExpanded] = useState(false);
+  
   const { data: outletSummary, isLoading } = useQuery({
     queryKey: ['outlet-stock-summary'],
     queryFn: async () => {
@@ -91,7 +95,7 @@ export function OutletStockWidget() {
               Retail Outlets ({retail.length})
             </h4>
             <div className="space-y-2">
-              {retail.map((outlet) => (
+              {(retailExpanded ? retail : retail.slice(0, 2)).map((outlet) => (
                 <div key={outlet.outlet_id} className="p-3 rounded-lg border bg-card">
                   <div className="flex items-center justify-between mb-2">
                     <p className="font-medium">{outlet.outlet_name}</p>
@@ -118,6 +122,26 @@ export function OutletStockWidget() {
                 </div>
               ))}
             </div>
+            {retail.length > 2 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                onClick={() => setRetailExpanded(!retailExpanded)}
+              >
+                {retailExpanded ? (
+                  <>
+                    <ChevronUp className="h-4 w-4 mr-1" />
+                    Show Less
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-4 w-4 mr-1" />
+                    Show All ({retail.length} outlets)
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         )}
 
