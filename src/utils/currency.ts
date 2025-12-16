@@ -24,7 +24,7 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   ZAR: 'R',
 };
 
-export const formatCurrency = (amount: number | string, currencyCode: string = 'USD'): string => {
+export const formatCurrency = (amount: number | string, currencyCode: string = 'PKR'): string => {
   const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
   
   if (isNaN(numAmount)) return `${CURRENCY_SYMBOLS[currencyCode] || currencyCode} 0.00`;
