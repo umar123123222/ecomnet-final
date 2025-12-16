@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -79,14 +79,28 @@ const ReturnsDashboard = () => {
     setVisibleCount(filteredReturns.length);
   };
 
+  // Abort controller ref to cancel stale fetches
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
     const fetchReturns = async () => {
+      // Cancel any ongoing fetch to prevent race conditions
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+      const currentAbortController = abortControllerRef.current;
+
       setLoading(true);
+      setReturns([]); // Reset state immediately
+      
       try {
         // First get the count
         const { count, error: countError } = await supabase
           .from('returns')
           .select('*', { count: 'exact', head: true });
+
+        if (currentAbortController.signal.aborted) return;
 
         if (countError) {
           console.error('Error fetching returns count:', countError);
@@ -99,7 +113,9 @@ const ReturnsDashboard = () => {
 
         // Fetch in chunks to bypass 1000 row limit
         for (let i = 0; i < chunks; i++) {
-        const { data, error } = await supabase
+          if (currentAbortController.signal.aborted) return;
+
+          const { data, error } = await supabase
             .from('returns')
             .select(`
               *,
@@ -117,13 +133,17 @@ const ReturnsDashboard = () => {
             .order('created_at', { ascending: false })
             .range(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE - 1);
 
+          if (currentAbortController.signal.aborted) return;
+
           if (error) {
             console.error('Error fetching returns chunk:', error);
-            toast({
-              title: "Error",
-              description: "Failed to fetch returns",
-              variant: "destructive"
-            });
+            if (!currentAbortController.signal.aborted) {
+              toast({
+                title: "Error",
+                description: "Failed to fetch returns",
+                variant: "destructive"
+              });
+            }
             return;
           }
 
@@ -132,14 +152,25 @@ const ReturnsDashboard = () => {
           }
         }
 
+        if (currentAbortController.signal.aborted) return;
         setReturns(allData);
       } catch (error) {
-        console.error('Error:', error);
+        if (!currentAbortController.signal.aborted) {
+          console.error('Error:', error);
+        }
       } finally {
-        setLoading(false);
+        if (!currentAbortController.signal.aborted) {
+          setLoading(false);
+        }
       }
     };
     fetchReturns();
+
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [toast]);
   const filteredByDate = useMemo(() => {
     if (!dateRange?.from) return returns;
