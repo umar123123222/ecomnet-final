@@ -301,7 +301,7 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     ];
     
     // Add Stuck Orders for managers
-    if (['super_admin', 'super_manager', 'warehouse_manager'].includes(role)) {
+    if (['super_admin', 'super_manager', 'warehouse_manager', 'finance'].includes(role)) {
       orderSubItems.splice(1, 0, { label: 'Stuck Orders', href: '/stuck-orders', icon: '' });
     }
     
