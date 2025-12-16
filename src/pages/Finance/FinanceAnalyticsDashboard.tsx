@@ -11,7 +11,8 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { 
   TrendingUp, TrendingDown, DollarSign, Package, Truck, 
   AlertTriangle, CheckCircle, ArrowUpRight, ArrowDownRight,
-  Download, BarChart3, PieChart, Activity
+  Download, BarChart3, PieChart, Activity, XCircle, RotateCcw, 
+  ShoppingCart, Info
 } from 'lucide-react';
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { DateRange } from 'react-day-picker';
@@ -49,6 +50,26 @@ const FinanceAnalyticsDashboard = () => {
         .order('name');
       if (error) throw error;
       return data;
+    }
+  });
+
+  // Fetch ALL orders for total orders placed
+  const { data: allOrders = [], isLoading: loadingAllOrders } = useQuery({
+    queryKey: ['finance-all-orders', dateRange, selectedCourier],
+    queryFn: async () => {
+      let query = supabase
+        .from('orders')
+        .select('id, order_number, total_amount, shipping_charges, courier, status, created_at, dispatched_at, delivered_at')
+        .gte('created_at', dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString())
+        .lte('created_at', dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString());
+
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      if (selectedCourier !== 'all') {
+        return (data || []).filter(o => o.courier === selectedCourier);
+      }
+      return data || [];
     }
   });
 
@@ -216,15 +237,46 @@ const FinanceAnalyticsDashboard = () => {
     const profitMargin = totalCOD > 0 ? (netRevenue / totalCOD) * 100 : 0;
     const totalParcels = courierAnalytics.reduce((sum, c) => sum + c.deliveredOrders, 0);
 
+    // New metrics from allOrders
+    const totalOrdersPlaced = allOrders.length;
+    const cancelledOrders = allOrders.filter(o => o.status === 'cancelled');
+    const totalOrdersCancelled = cancelledOrders.length;
+    const cancelledValue = cancelledOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+    
+    const dispatchedOrdersList = allOrders.filter(o => ['dispatched', 'delivered', 'returned'].includes(o.status));
+    const totalOrdersDispatched = dispatchedOrdersList.length;
+    const dispatchedValue = dispatchedOrdersList.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+    
+    const returnedOrders = allOrders.filter(o => o.status === 'returned');
+    const totalReturnsReceived = returnedOrders.length;
+    const returnsReceivedValue = returnedOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+    
+    // Returns in route = dispatched orders that may become returns (based on returns table)
+    const returnsInRoute = returns.filter((r: any) => !r.received_at && r.return_status !== 'received').length;
+    const returnsInRouteValue = returns
+      .filter((r: any) => !r.received_at && r.return_status !== 'received')
+      .reduce((sum: number, r: any) => sum + (Number(r.orders?.total_amount) || 0), 0);
+
     return {
       totalRevenue: netRevenue,
       totalCOD,
       totalCharges: totalLosses,
       netProfit: netRevenue,
       profitMargin,
-      totalParcels
+      totalParcels,
+      // New KPIs
+      totalOrdersPlaced,
+      totalOrdersPlacedValue: allOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0),
+      totalOrdersCancelled,
+      cancelledValue,
+      totalOrdersDispatched,
+      dispatchedValue,
+      totalReturnsReceived,
+      returnsReceivedValue,
+      returnsInRoute,
+      returnsInRouteValue
     };
-  }, [courierAnalytics]);
+  }, [courierAnalytics, allOrders, returns]);
 
   // Smart alerts/insights
   const insights = useMemo(() => {
@@ -357,13 +409,99 @@ const FinanceAnalyticsDashboard = () => {
         </CardContent>
       </Card>
 
-      {/* KPI Summary Cards */}
+      {/* Order Statistics Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  Orders Placed
+                  <span className="text-[10px] text-muted-foreground/60" title="Total number of orders received in selected period">(i)</span>
+                </p>
+                <p className="text-xl font-bold">{kpis.totalOrdersPlaced.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">{currency} {kpis.totalOrdersPlacedValue.toLocaleString()}</p>
+              </div>
+              <ShoppingCart className="h-8 w-8 text-primary/20" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  Cancelled
+                  <span className="text-[10px] text-muted-foreground/60" title="Orders cancelled before dispatch">(i)</span>
+                </p>
+                <p className="text-xl font-bold text-red-600">{kpis.totalOrdersCancelled.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">{currency} {kpis.cancelledValue.toLocaleString()}</p>
+              </div>
+              <XCircle className="h-8 w-8 text-red-600/20" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  Dispatched
+                  <span className="text-[10px] text-muted-foreground/60" title="Orders sent out for delivery">(i)</span>
+                </p>
+                <p className="text-xl font-bold text-blue-600">{kpis.totalOrdersDispatched.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">{currency} {kpis.dispatchedValue.toLocaleString()}</p>
+              </div>
+              <Truck className="h-8 w-8 text-blue-600/20" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  Returns Received
+                  <span className="text-[10px] text-muted-foreground/60" title="Parcels returned and received back">(i)</span>
+                </p>
+                <p className="text-xl font-bold text-orange-600">{kpis.totalReturnsReceived.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">{currency} {kpis.returnsReceivedValue.toLocaleString()}</p>
+              </div>
+              <RotateCcw className="h-8 w-8 text-orange-600/20" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  Returns in Route
+                  <span className="text-[10px] text-muted-foreground/60" title="Parcels being returned, not yet received">(i)</span>
+                </p>
+                <p className="text-xl font-bold text-yellow-600">{kpis.returnsInRoute.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">{currency} {kpis.returnsInRouteValue.toLocaleString()}</p>
+              </div>
+              <Truck className="h-8 w-8 text-yellow-600/20" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Financial KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Total Revenue</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  Net Revenue
+                  <span className="text-[10px] text-muted-foreground/60" title="COD Collected minus all charges and claims">(i)</span>
+                </p>
                 <p className="text-xl font-bold text-green-600">{currency} {kpis.totalRevenue.toLocaleString()}</p>
               </div>
               <DollarSign className="h-8 w-8 text-green-600/20" />
@@ -375,7 +513,10 @@ const FinanceAnalyticsDashboard = () => {
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">COD Collected</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  COD Collected
+                  <span className="text-[10px] text-muted-foreground/60" title="Cash on Delivery amount from delivered orders">(i)</span>
+                </p>
                 <p className="text-xl font-bold">{currency} {kpis.totalCOD.toLocaleString()}</p>
               </div>
               <Activity className="h-8 w-8 text-primary/20" />
@@ -387,7 +528,10 @@ const FinanceAnalyticsDashboard = () => {
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Total Charges</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  Total Deductions
+                  <span className="text-[10px] text-muted-foreground/60" title="Delivery charges + Return charges + Claims">(i)</span>
+                </p>
                 <p className="text-xl font-bold text-red-600">{currency} {kpis.totalCharges.toLocaleString()}</p>
               </div>
               <TrendingDown className="h-8 w-8 text-red-600/20" />
@@ -399,7 +543,10 @@ const FinanceAnalyticsDashboard = () => {
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Net Profit</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  Net Profit
+                  <span className="text-[10px] text-muted-foreground/60" title="Final profit after all expenses">(i)</span>
+                </p>
                 <p className="text-xl font-bold text-green-600">{currency} {kpis.netProfit.toLocaleString()}</p>
               </div>
               <TrendingUp className="h-8 w-8 text-green-600/20" />
@@ -411,7 +558,10 @@ const FinanceAnalyticsDashboard = () => {
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Profit Margin</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  Profit Margin
+                  <span className="text-[10px] text-muted-foreground/60" title="Net Revenue ÷ COD Collected × 100">(i)</span>
+                </p>
                 <p className="text-xl font-bold">{kpis.profitMargin.toFixed(1)}%</p>
               </div>
               <PieChart className="h-8 w-8 text-primary/20" />
@@ -423,7 +573,10 @@ const FinanceAnalyticsDashboard = () => {
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Parcels Delivered</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  Delivered
+                  <span className="text-[10px] text-muted-foreground/60" title="Successfully delivered parcels">(i)</span>
+                </p>
                 <p className="text-xl font-bold">{kpis.totalParcels.toLocaleString()}</p>
               </div>
               <Package className="h-8 w-8 text-primary/20" />
