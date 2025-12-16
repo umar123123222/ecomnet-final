@@ -26,6 +26,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { logActivity } from '@/utils/activityLogger';
 import { useHandheldScanner } from '@/contexts/HandheldScannerContext';
 import { useScannerMode } from '@/hooks/useScannerMode';
+import { useUserRoles } from '@/hooks/useUserRoles';
 
 const DispatchDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -77,6 +78,10 @@ const DispatchDashboard = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const handheldScanner = useHandheldScanner();
+  const { primaryRole } = useUserRoles();
+  
+  // Only dispatch_manager, warehouse_manager, super_manager, super_admin can use scan/bulk entry
+  const canUseDispatchActions = ['dispatch_manager', 'warehouse_manager', 'super_manager', 'super_admin'].includes(primaryRole);
   
   const handleShowMore = () => {
     setVisibleCount(prev => prev + 500);
@@ -1320,230 +1325,200 @@ const metrics = useMemo(() => {
             Refresh
           </Button>
 
-          <Button
-            onClick={activateScannerMode}
-            disabled={scannerModeActive}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
-          >
-            <ScanBarcode className="mr-2 h-4 w-4" />
-            {scannerModeActive ? 'Scanner Active...' : 'Scan to Dispatch'}
-          </Button>
-
-          <Dialog open={isManualEntryOpen} onOpenChange={(open) => {
-            if (!isProcessing || !open) {
-              setIsManualEntryOpen(open);
-            }
-          }}>
-            <DialogTrigger asChild>
-              <Button variant="outline" disabled={scannerModeActive}>
-                <Edit className="h-4 w-4 mr-2" />
-                Bulk Entry
+          {canUseDispatchActions && (
+            <>
+              <Button
+                onClick={activateScannerMode}
+                disabled={scannerModeActive}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+              >
+                <ScanBarcode className="mr-2 h-4 w-4" />
+                {scannerModeActive ? 'Scanner Active...' : 'Scan to Dispatch'}
               </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Mark Orders as Dispatched</DialogTitle>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(handleManualEntry)} className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
-                    <div className="flex items-center gap-2">
-                      <Lock className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">Allow Manual Entry</p>
-                        <p className="text-xs text-muted-foreground">Enable keyboard typing (scanners work regardless)</p>
-                      </div>
-                    </div>
-                    <Switch 
-                      checked={allowManualEntry}
-                      onCheckedChange={setAllowManualEntry}
-                    />
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-6">
-                      <FormLabel>Search By:</FormLabel>
-                      <div className="flex gap-4">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            value="tracking_id"
-                            checked={entryType === 'tracking_id'}
-                            onChange={(e) => {
-                              setEntryType('tracking_id');
-                              localStorage.setItem('dispatch_entry_type', 'tracking_id');
-                            }}
-                            className="w-4 h-4 text-primary"
-                          />
-                          <span className="text-sm">Tracking ID</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            value="order_number"
-                            checked={entryType === 'order_number'}
-                            onChange={(e) => {
-                              setEntryType('order_number');
-                              localStorage.setItem('dispatch_entry_type', 'order_number');
-                            }}
-                            className="w-4 h-4 text-primary"
-                          />
-                          <span className="text-sm">Order Number</span>
-                        </label>
-                      </div>
-                    </div>
-                    
-                    {/* Courier Selection */}
-                    <div className="space-y-2">
-                      <FormLabel>
-                        Courier Assignment (Optional)
-                        <span className="text-xs text-muted-foreground ml-2">
-                          Select if all orders are for a specific courier
-                        </span>
-                      </FormLabel>
-                      <Select 
-                        value={selectedCourier || "none"} 
-                        onValueChange={(value) => setSelectedCourier(value === "none" ? null : value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="No specific courier (Manual Entry)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">
-                            <div className="flex items-center gap-2">
-                              <Truck className="h-4 w-4 text-muted-foreground" />
-                              <span>No specific courier</span>
-                            </div>
-                          </SelectItem>
-                          {couriers.map((courier) => (
-                            <SelectItem key={courier.id} value={courier.id}>
-                              <div className="flex items-center gap-2">
-                                <Truck className={`h-4 w-4 ${courier.is_active ? 'text-primary' : 'text-muted-foreground'}`} />
-                                <span className={courier.is_active ? '' : 'text-muted-foreground'}>
-                                  {courier.name} ({courier.code})
-                                  {!courier.is_active && ' - Inactive'}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {selectedCourier && (
-                        <Badge variant="outline" className="text-xs">
-                          All orders will be assigned to {couriers.find(c => c.id === selectedCourier)?.name}
-                        </Badge>
-                      )}
-                    </div>
-                    
-                    <FormField control={form.control} name="bulkEntries" render={({
-                    field
-                  }) => <FormItem>
-                          <FormLabel>Bulk Entry</FormLabel>
-                          {!allowManualEntry && !handheldScanner.isConnected && (
-                            <div className="p-2 mt-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
-                              <Lock className="h-4 w-4 inline mr-1" />
-                              Scanner not connected. Connect scanner or enable manual entry.
-                            </div>
-                          )}
-                          {!allowManualEntry && handheldScanner.isConnected && (
-                            <Badge variant="secondary" className="ml-2">
-                              <Lock className="h-3 w-3 mr-1" />
-                              Scanner Mode
-                            </Badge>
-                          )}
-                          <FormControl>
-                            <Textarea 
-                              {...field}
-                              placeholder={`${!allowManualEntry ? 'Scan' : 'Enter'} ${entryType === 'tracking_id' ? 'tracking IDs' : 'order numbers'} (one per line)...`}
-                              className="min-h-[150px] font-mono text-sm" 
-                              readOnly={!allowManualEntry}
-                              disabled={!allowManualEntry && !handheldScanner.isConnected}
-                            />
-                          </FormControl>
-                          {isProcessing && (
-                            <div className="mt-2 p-3 bg-primary/5 border border-primary/20 rounded-md text-sm text-primary flex items-center gap-2">
-                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
-                              <span className="font-medium">Processing entries, please wait...</span>
-                            </div>
-                          )}
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {entryType === 'tracking_id' 
-                              ? 'Enter courier tracking numbers (e.g., TRK123456789)'
-                              : 'Enter order numbers (e.g., ORD-12345)'}
-                          </p>
-                          <FormMessage />
-                        </FormItem>} />
-                        
-                        {/* Bulk Errors Display */}
-                        {bulkErrors.length > 0 && (
-                          <div className="mt-4 border rounded-lg p-4 bg-destructive/5 max-h-64 overflow-y-auto">
-                            <p className="font-semibold text-destructive mb-3 flex items-center gap-2">
-                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-destructive/20 text-destructive text-xs font-bold">
-                                {bulkErrors.length}
-                              </span>
-                              Failed Entries
-                            </p>
-                            <div className="space-y-2">
-                              {bulkErrors.map((e, i) => {
-                                const getErrorIcon = (code?: string) => {
-                                  if (code === 'NOT_FOUND') return '🔍';
-                                  if (code === 'ALREADY_DISPATCHED') return '🔄';
-                                  if (code === 'NO_COURIER') return '📦';
-                                  if (code === 'INVALID_FORMAT') return '⚠️';
-                                  return '❌';
-                                };
-                                
-                                const getErrorBg = (code?: string) => {
-                                  if (code === 'NOT_FOUND') return 'bg-amber-50 border-amber-200 text-amber-900';
-                                  if (code === 'ALREADY_DISPATCHED') return 'bg-blue-50 border-blue-200 text-blue-900';
-                                  if (code === 'NO_COURIER') return 'bg-orange-50 border-orange-200 text-orange-900';
-                                  if (code === 'INVALID_FORMAT') return 'bg-yellow-50 border-yellow-200 text-yellow-900';
-                                  return 'bg-red-50 border-red-200 text-red-900';
-                                };
-                                
-                                return (
-                                  <div key={i} className={`text-sm p-3 border rounded ${getErrorBg(e.errorCode)}`}>
-                                    <div className="flex items-start gap-2">
-                                      <span className="text-base">{getErrorIcon(e.errorCode)}</span>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="font-mono font-semibold break-all">{e.entry}</p>
-                                        <p className="text-xs mt-1 opacity-90">{e.error}</p>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
+
+              <Dialog open={isManualEntryOpen} onOpenChange={(open) => {
+                if (!isProcessing || !open) {
+                  setIsManualEntryOpen(open);
+                }
+              }}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" disabled={scannerModeActive}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Bulk Entry
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Mark Orders as Dispatched</DialogTitle>
+                  </DialogHeader>
+                  <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleManualEntry)} className="space-y-4">
+                      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
+                        <div className="flex items-center gap-2">
+                          <Lock className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">Allow Manual Entry</p>
+                            <p className="text-xs text-muted-foreground">Enable keyboard typing (scanners work regardless)</p>
                           </div>
-                        )}
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      onClick={() => setIsManualEntryOpen(false)}
-                      disabled={isProcessing}
-                    >
-                      Cancel
-                    </Button>
-                    <Button 
-                      type="submit" 
-                      disabled={isProcessing || (!allowManualEntry && !handheldScanner.isConnected)}
-                    >
-                      {isProcessing ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-background border-t-transparent mr-2" />
-                          Processing...
-                        </>
-                      ) : (
-                        'Process Entries'
-                      )}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
+                        </div>
+                        <Switch 
+                          checked={allowManualEntry}
+                          onCheckedChange={setAllowManualEntry}
+                        />
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-6">
+                          <FormLabel>Search By:</FormLabel>
+                          <div className="flex gap-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                value="tracking_id"
+                                checked={entryType === 'tracking_id'}
+                                onChange={(e) => {
+                                  setEntryType('tracking_id');
+                                  localStorage.setItem('dispatch_entry_type', 'tracking_id');
+                                }}
+                                className="w-4 h-4 text-primary"
+                              />
+                              <span className="text-sm">Tracking ID</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                value="order_number"
+                                checked={entryType === 'order_number'}
+                                onChange={(e) => {
+                                  setEntryType('order_number');
+                                  localStorage.setItem('dispatch_entry_type', 'order_number');
+                                }}
+                                className="w-4 h-4 text-primary"
+                              />
+                              <span className="text-sm">Order Number</span>
+                            </label>
+                          </div>
+                        </div>
+                        
+                        {/* Courier Selection */}
+                        <div className="space-y-2">
+                          <FormLabel>
+                            Courier Assignment (Optional)
+                            <span className="text-xs text-muted-foreground ml-2">
+                              Only applied if order has no courier
+                            </span>
+                          </FormLabel>
+                          <Select
+                            value={selectedCourier || "none"}
+                            onValueChange={(value) => setSelectedCourier(value === "none" ? null : value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select courier (optional)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">No courier (use existing)</SelectItem>
+                              {couriers.filter(c => c.is_active).map((courier) => (
+                                <SelectItem key={courier.id} value={courier.id}>
+                                  {courier.name} ({courier.code})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <FormField
+                          control={form.control}
+                          name="bulkEntries"
+                          render={({
+                            field
+                          }) => <FormItem>
+                                  <FormLabel>Bulk Entry</FormLabel>
+                                  {!allowManualEntry && !handheldScanner.isConnected && (
+                                    <div className="p-2 mt-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+                                      ⚠️ Scanner mode is enabled but no handheld scanner detected. Toggle "Allow Manual Entry" to type entries.
+                                    </div>
+                                  )}
+                                  <FormControl>
+                                    <Textarea 
+                                      placeholder={`Enter ${entryType === 'tracking_id' ? 'tracking IDs' : 'order numbers'} (one per line)`}
+                                      className={`font-mono min-h-[150px] ${!allowManualEntry && !handheldScanner.isConnected ? 'bg-muted cursor-not-allowed' : ''}`}
+                                      {...field} 
+                                      readOnly={!allowManualEntry && !handheldScanner.isConnected}
+                                      autoFocus
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>}
+                        />
+                        
+                        {bulkErrors.length > 0 && (
+                              <div className="mt-4 space-y-2 max-h-48 overflow-y-auto">
+                                <p className="text-sm font-medium text-red-600 sticky top-0 bg-white py-1">
+                                  ⚠️ {bulkErrors.length} entries failed:
+                                </p>
+                                <div className="space-y-2">
+                                  {bulkErrors.map((e, i) => {
+                                    const getErrorIcon = (code?: string) => {
+                                      if (code === 'NOT_FOUND') return '🔍';
+                                      if (code === 'ALREADY_DISPATCHED') return '🔄';
+                                      if (code === 'NO_COURIER') return '🚚';
+                                      if (code === 'INVALID_FORMAT') return '⚠️';
+                                      return '❌';
+                                    };
+                                    
+                                    const getErrorBg = (code?: string) => {
+                                      if (code === 'NOT_FOUND') return 'bg-amber-50 border-amber-200 text-amber-900';
+                                      if (code === 'ALREADY_DISPATCHED') return 'bg-blue-50 border-blue-200 text-blue-900';
+                                      if (code === 'NO_COURIER') return 'bg-orange-50 border-orange-200 text-orange-900';
+                                      if (code === 'INVALID_FORMAT') return 'bg-yellow-50 border-yellow-200 text-yellow-900';
+                                      return 'bg-red-50 border-red-200 text-red-900';
+                                    };
+                                    
+                                    return (
+                                      <div key={i} className={`text-sm p-3 border rounded ${getErrorBg(e.errorCode)}`}>
+                                        <div className="flex items-start gap-2">
+                                          <span className="text-base">{getErrorIcon(e.errorCode)}</span>
+                                          <div className="flex-1 min-w-0">
+                                            <p className="font-mono font-semibold break-all">{e.entry}</p>
+                                            <p className="text-xs mt-1 opacity-90">{e.error}</p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => setIsManualEntryOpen(false)}
+                          disabled={isProcessing}
+                        >
+                          Cancel
+                        </Button>
+                        <Button 
+                          type="submit"
+                          disabled={isProcessing || (!allowManualEntry && !handheldScanner.isConnected)}
+                        >
+                          {isProcessing ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-background border-t-transparent mr-2" />
+                              Processing...
+                            </>
+                          ) : (
+                            'Process Entries'
+                          )}
+                        </Button>
+                      </div>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
         </div>
       </div>
 

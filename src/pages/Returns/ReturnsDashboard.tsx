@@ -22,6 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useHandheldScanner } from '@/contexts/HandheldScannerContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { useScannerMode } from '@/hooks/useScannerMode';
+import { useUserRoles } from '@/hooks/useUserRoles';
 
 const ReturnsDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -64,6 +65,10 @@ const ReturnsDashboard = () => {
   const { user } = useAuth();
   const handheldScanner = useHandheldScanner();
   const queryClient = useQueryClient();
+  const { primaryRole } = useUserRoles();
+  
+  // Only returns_manager, warehouse_manager, super_manager, super_admin can use scan/mark returns
+  const canUseReturnActions = ['returns_manager', 'warehouse_manager', 'super_manager', 'super_admin'].includes(primaryRole);
   
   const form = useForm({
     defaultValues: {
@@ -927,171 +932,175 @@ const ReturnsDashboard = () => {
           <p className="text-gray-600 mt-1">Track and manage returned orders</p>
         </div>
         <div className="flex gap-2">
-          <Button 
-            onClick={activateScannerMode}
-            disabled={scannerModeActive}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            <ScanBarcode className="h-4 w-4 mr-2" />
-            Scan to Return
-          </Button>
-          <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <Edit className="h-4 w-4 mr-2" />
-                Mark Returns Received
+          {canUseReturnActions && (
+            <>
+              <Button 
+                onClick={activateScannerMode}
+                disabled={scannerModeActive}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <ScanBarcode className="h-4 w-4 mr-2" />
+                Scan to Return
               </Button>
-            </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Bulk Return Receipt Entry</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(handleManualEntry)} className="space-y-4">
-                {/* Manual Entry Toggle */}
-                <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/50">
-                  <div className="flex items-center gap-2">
-                    <Lock className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Allow Manual Entry</span>
-                  </div>
-                  <Switch
-                    checked={allowManualEntry}
-                    onCheckedChange={setAllowManualEntry}
-                  />
-                </div>
-
-                {!allowManualEntry && (
-                  <div className="flex items-center gap-2 p-2 rounded-md bg-primary/10 border border-primary/20">
-                    <Badge variant="outline" className="bg-primary/5">Scanner Mode</Badge>
-                    <span className="text-xs text-muted-foreground">Use barcode scanner only</span>
-                  </div>
-                )}
-
-                <div className="space-y-4">
-                  <div className="flex items-center gap-6">
-                    <FormLabel>Search By:</FormLabel>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          value="tracking_id"
-                          checked={entryType === 'tracking_id'}
-                          onChange={(e) => {
-                            setEntryType('tracking_id');
-                            localStorage.setItem('returns_entry_type', 'tracking_id');
-                          }}
-                          className="w-4 h-4 text-primary"
-                        />
-                        <span className="text-sm">Tracking ID</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          value="order_number"
-                          checked={entryType === 'order_number'}
-                          onChange={(e) => {
-                            setEntryType('order_number');
-                            localStorage.setItem('returns_entry_type', 'order_number');
-                          }}
-                          className="w-4 h-4 text-primary"
-                        />
-                        <span className="text-sm">Order Number</span>
-                      </label>
+              <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Edit className="h-4 w-4 mr-2" />
+                    Mark Returns Received
+                  </Button>
+                </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Bulk Return Receipt Entry</DialogTitle>
+                </DialogHeader>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(handleManualEntry)} className="space-y-4">
+                    {/* Manual Entry Toggle */}
+                    <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/50">
+                      <div className="flex items-center gap-2">
+                        <Lock className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Allow Manual Entry</span>
+                      </div>
+                      <Switch
+                        checked={allowManualEntry}
+                        onCheckedChange={setAllowManualEntry}
+                      />
                     </div>
-                  </div>
 
-                  <FormField
-                    control={form.control}
-                    name="bulkEntries"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Bulk Entry</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder={`${allowManualEntry ? 'Enter' : 'Scan'} ${entryType === 'tracking_id' ? 'tracking IDs' : 'order numbers'} (one per line)...`}
-                            className={`min-h-[150px] font-mono text-sm ${!allowManualEntry ? 'bg-muted/30' : ''}`}
-                            onKeyDown={handleKeyDown}
-                            {...field}
-                          />
-                        </FormControl>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {entryType === 'tracking_id' 
-                            ? 'Enter courier tracking numbers (e.g., TRK123456789)'
-                            : 'Enter order numbers (e.g., ORD-12345)'}
-                        </p>
-                        <FormMessage />
-                      </FormItem>
+                    {!allowManualEntry && (
+                      <div className="flex items-center gap-2 p-2 rounded-md bg-primary/10 border border-primary/20">
+                        <Badge variant="outline" className="bg-primary/5">Scanner Mode</Badge>
+                        <span className="text-xs text-muted-foreground">Use barcode scanner only</span>
+                      </div>
                     )}
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsManualEntryOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading ? "Processing..." : "Process Entries"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
 
-            {/* Bulk Errors Display */}
-            {bulkErrors.length > 0 && (
-              <div className="mt-4 border rounded-lg p-4 bg-destructive/5 max-h-64 overflow-y-auto">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="font-semibold text-destructive flex items-center gap-2">
-                    <span>❌</span>
-                    Failed Entries ({bulkErrors.length})
-                  </p>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setBulkErrors([]);
-                      setIsManualEntryOpen(false);
-                      form.reset();
-                    }}
-                  >
-                    Close
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  {bulkErrors.map((e, i) => {
-                    const getErrorStyle = () => {
-                      switch (e.errorCode) {
-                        case 'NOT_FOUND':
-                          return { icon: '🔍', color: 'text-amber-700', bg: 'bg-amber-50' };
-                        case 'ALREADY_RECEIVED':
-                          return { icon: '🔄', color: 'text-blue-700', bg: 'bg-blue-50' };
-                        case 'INVALID_FORMAT':
-                          return { icon: '⚠️', color: 'text-orange-700', bg: 'bg-orange-50' };
-                        default:
-                          return { icon: '❌', color: 'text-red-700', bg: 'bg-red-50' };
-                      }
-                    };
-                    const style = getErrorStyle();
-                    
-                    return (
-                      <div key={i} className={`text-sm p-2 rounded ${style.bg}`}>
-                        <div className="flex items-start gap-2">
-                          <span className="text-base">{style.icon}</span>
-                          <div className="flex-1">
-                            <div className="font-mono font-medium">{e.entry}</div>
-                            <div className={`${style.color} text-xs mt-1`}>{e.error}</div>
-                          </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-6">
+                        <FormLabel>Search By:</FormLabel>
+                        <div className="flex gap-4">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              value="tracking_id"
+                              checked={entryType === 'tracking_id'}
+                              onChange={(e) => {
+                                setEntryType('tracking_id');
+                                localStorage.setItem('returns_entry_type', 'tracking_id');
+                              }}
+                              className="w-4 h-4 text-primary"
+                            />
+                            <span className="text-sm">Tracking ID</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              value="order_number"
+                              checked={entryType === 'order_number'}
+                              onChange={(e) => {
+                                setEntryType('order_number');
+                                localStorage.setItem('returns_entry_type', 'order_number');
+                              }}
+                              className="w-4 h-4 text-primary"
+                            />
+                            <span className="text-sm">Order Number</span>
+                          </label>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+
+                      <FormField
+                        control={form.control}
+                        name="bulkEntries"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Bulk Entry</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder={`${allowManualEntry ? 'Enter' : 'Scan'} ${entryType === 'tracking_id' ? 'tracking IDs' : 'order numbers'} (one per line)...`}
+                                className={`min-h-[150px] font-mono text-sm ${!allowManualEntry ? 'bg-muted/30' : ''}`}
+                                onKeyDown={handleKeyDown}
+                                {...field}
+                              />
+                            </FormControl>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {entryType === 'tracking_id' 
+                                ? 'Enter courier tracking numbers (e.g., TRK123456789)'
+                                : 'Enter order numbers (e.g., ORD-12345)'}
+                            </p>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsManualEntryOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={isLoading}>
+                        {isLoading ? "Processing..." : "Process Entries"}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+
+                {/* Bulk Errors Display */}
+                {bulkErrors.length > 0 && (
+                  <div className="mt-4 border rounded-lg p-4 bg-destructive/5 max-h-64 overflow-y-auto">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="font-semibold text-destructive flex items-center gap-2">
+                        <span>❌</span>
+                        Failed Entries ({bulkErrors.length})
+                      </p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setBulkErrors([]);
+                          setIsManualEntryOpen(false);
+                          form.reset();
+                        }}
+                      >
+                        Close
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {bulkErrors.map((e, i) => {
+                        const getErrorStyle = () => {
+                          switch (e.errorCode) {
+                            case 'NOT_FOUND':
+                              return { icon: '🔍', color: 'text-amber-700', bg: 'bg-amber-50' };
+                            case 'ALREADY_RECEIVED':
+                              return { icon: '🔄', color: 'text-blue-700', bg: 'bg-blue-50' };
+                            case 'INVALID_FORMAT':
+                              return { icon: '⚠️', color: 'text-orange-700', bg: 'bg-orange-50' };
+                            default:
+                              return { icon: '❌', color: 'text-red-700', bg: 'bg-red-50' };
+                          }
+                        };
+                        const style = getErrorStyle();
+                        
+                        return (
+                          <div key={i} className={`text-sm p-2 rounded ${style.bg}`}>
+                            <div className="flex items-start gap-2">
+                              <span className="text-base">{style.icon}</span>
+                              <div className="flex-1">
+                                <div className="font-mono font-medium">{e.entry}</div>
+                                <div className={`${style.color} text-xs mt-1`}>{e.error}</div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+            </>
+          )}
         </div>
       </div>
 
