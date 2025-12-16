@@ -38,12 +38,14 @@ export function InventoryTurnoverWidget() {
         .gte('created_at', ninetyDaysAgo);
 
       // Calculate COGS (Cost of Goods Sold)
-      const productCOGS: Record<string, { name: string; sku: string; cogs: number; cost: number }> = {};
+      const productCOGS: Record<string, { name: string; sku: string; cogs: number; cost: number; soldQty: number }> = {};
 
       salesData?.forEach((sale) => {
         const productId = sale.product_id;
         const cost = sale.product?.cost || 0;
-        const cogs = sale.quantity * cost;
+        // Use absolute value since sale movements are stored as negative (deductions)
+        const soldQty = Math.abs(sale.quantity);
+        const cogs = soldQty * cost;
 
         if (!productCOGS[productId]) {
           productCOGS[productId] = {
@@ -51,9 +53,11 @@ export function InventoryTurnoverWidget() {
             sku: sale.product?.sku || 'N/A',
             cogs: 0,
             cost,
+            soldQty: 0,
           };
         }
         productCOGS[productId].cogs += cogs;
+        productCOGS[productId].soldQty += soldQty;
       });
 
       // Get current inventory levels
@@ -67,12 +71,24 @@ export function InventoryTurnoverWidget() {
 
       for (const [productId, data] of Object.entries(productCOGS)) {
         const currentQty = inventory?.find(i => i.product_id === productId)?.quantity || 0;
-        const avgInventoryValue = currentQty * data.cost;
+        // Use sold quantity for turnover calculation if no current stock
+        const avgQty = currentQty > 0 ? currentQty : data.soldQty;
+        const avgInventoryValue = avgQty * data.cost;
 
-        if (avgInventoryValue > 0 && data.cogs > 0) {
+        if (data.cogs > 0) {
           // Turnover Ratio = COGS / Average Inventory Value (annualized)
-          const turnoverRatio = (data.cogs * (365 / 90)) / avgInventoryValue;
-          const turnoverDays = 365 / turnoverRatio;
+          // If avgInventoryValue is 0, use COGS/soldQty as proxy
+          let turnoverRatio: number;
+          let turnoverDays: number;
+          
+          if (avgInventoryValue > 0) {
+            turnoverRatio = (data.cogs * (365 / 90)) / avgInventoryValue;
+          } else {
+            // For products with zero/negative inventory, base turnover on sold quantity
+            turnoverRatio = data.soldQty > 0 ? (365 / 90) : 0;
+          }
+          
+          turnoverDays = turnoverRatio > 0 ? 365 / turnoverRatio : 999;
 
           let status: 'excellent' | 'good' | 'fair' | 'poor' = 'poor';
           if (turnoverRatio > 12) status = 'excellent'; // Less than 30 days

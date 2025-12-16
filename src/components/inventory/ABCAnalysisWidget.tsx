@@ -47,7 +47,8 @@ export function ABCAnalysisWidget() {
 
       salesData?.forEach((sale) => {
         const productId = sale.product_id;
-        const value = sale.quantity * (sale.product?.price || 0);
+        // Use absolute value since sale movements are stored as negative (deductions)
+        const value = Math.abs(sale.quantity) * (sale.product?.price || 0);
 
         if (!productSales[productId]) {
           productSales[productId] = {
