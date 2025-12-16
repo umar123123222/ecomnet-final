@@ -19,7 +19,7 @@ export function StockAvailabilityMatrix() {
   const [expanded, setExpanded] = useState(false);
 
   const { data: availabilityData, isLoading } = useQuery({
-    queryKey: ['stock-availability-matrix', selectedCategory],
+    queryKey: ['stock-availability-matrix-v2', selectedCategory],
     queryFn: async () => {
       // Get all active outlets
       const { data: outlets } = await supabase
@@ -42,23 +42,27 @@ export function StockAvailabilityMatrix() {
           product_type
         `)
         .eq('is_active', true)
-        .neq('product_type', 'bundle')
         .order('name')
-        .limit(50);
+        .limit(100);
 
       if (selectedCategory !== 'all') {
         query = query.eq('category', selectedCategory);
       }
 
       const { data: products } = await query;
-      
-      // Additional filter to exclude products with "bundle" in the name
-      const filteredProducts = products?.filter(p => 
-        !p.name.toLowerCase().includes('bundle') && 
-        !p.name.toLowerCase().includes('deal')
-      ) || [];
 
       if (!products) return null;
+      
+      // Filter to exclude products with "bundle", "deal", or "x " pattern in the name (like "3x", "4x", "6x")
+      const filteredProducts = products.filter(p => {
+        const nameLower = p.name.toLowerCase();
+        const isBundle = 
+          nameLower.includes('bundle') || 
+          nameLower.includes('deal') ||
+          /^\d+x\s/.test(nameLower) || // Matches "3x ", "4x ", etc. at start
+          p.product_type === 'bundle';
+        return !isBundle;
+      });
 
       const availabilityMatrix: StockAvailability[] = [];
 
