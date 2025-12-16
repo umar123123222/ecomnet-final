@@ -195,6 +195,71 @@ const FinanceAnalyticsDashboard = () => {
     }
   });
 
+  // Fetch cancelled orders with their item values (since total_amount is 0 for cancelled)
+  const { data: cancelledOrderValues = [] } = useQuery({
+    queryKey: ['finance-cancelled-order-values', dateRange, selectedCourier],
+    queryFn: async () => {
+      const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
+      const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
+      
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id, courier, order_items(price, quantity)')
+        .eq('status', 'cancelled')
+        .gte('created_at', fromDate)
+        .lte('created_at', toDate);
+
+      if (error) throw error;
+      
+      // Calculate value from order_items for each cancelled order
+      const result = (data || []).map((order: any) => ({
+        id: order.id,
+        courier: order.courier,
+        value: order.order_items?.reduce((sum: number, item: any) => 
+          sum + (Number(item.price) * Number(item.quantity)), 0) || 0
+      }));
+      
+      if (selectedCourier !== 'all') {
+        return result.filter(o => o.courier === selectedCourier);
+      }
+      return result;
+    }
+  });
+
+  // Fetch returns that are in transit (dispatched but not yet received)
+  const { data: returnsInRoute = [] } = useQuery({
+    queryKey: ['finance-returns-in-route', dateRange, selectedCourier],
+    queryFn: async () => {
+      const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
+      const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
+      
+      // Get orders that are marked as returned status but returns table shows not received yet
+      const { data: returnedOrders, error } = await supabase
+        .from('orders')
+        .select('id, total_amount, courier')
+        .eq('status', 'returned')
+        .gte('created_at', fromDate)
+        .lte('created_at', toDate);
+
+      if (error) throw error;
+      
+      // Check which of these don't have received returns
+      const { data: receivedReturns } = await supabase
+        .from('returns')
+        .select('order_id')
+        .not('received_at', 'is', null);
+      
+      const receivedOrderIds = new Set((receivedReturns || []).map(r => r.order_id));
+      
+      const inRoute = (returnedOrders || []).filter(o => !receivedOrderIds.has(o.id));
+      
+      if (selectedCourier !== 'all') {
+        return inRoute.filter(o => o.courier === selectedCourier);
+      }
+      return inRoute;
+    }
+  });
+
   // Calculate courier-wise analytics
   const courierAnalytics = useMemo(() => {
     const analytics: Record<string, {
@@ -297,7 +362,8 @@ const FinanceAnalyticsDashboard = () => {
     const totalOrdersPlaced = allOrders.length;
     const cancelledOrders = allOrders.filter(o => o.status === 'cancelled');
     const totalOrdersCancelled = cancelledOrders.length;
-    const cancelledValue = cancelledOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+    // Use cancelledOrderValues to get actual value from order_items (since total_amount is 0 for cancelled)
+    const cancelledValue = cancelledOrderValues.reduce((sum, o) => sum + (Number(o.value) || 0), 0);
     
     const dispatchedOrdersList = allOrders.filter(o => ['dispatched', 'delivered', 'returned'].includes(o.status));
     const totalOrdersDispatched = dispatchedOrdersList.length;
@@ -307,11 +373,9 @@ const FinanceAnalyticsDashboard = () => {
     const totalReturnsReceived = returnedOrders.length;
     const returnsReceivedValue = returnedOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
     
-    // Returns in route = dispatched orders that may become returns (based on returns table)
-    const returnsInRoute = returns.filter((r: any) => !r.received_at && r.return_status !== 'received').length;
-    const returnsInRouteValue = returns
-      .filter((r: any) => !r.received_at && r.return_status !== 'received')
-      .reduce((sum: number, r: any) => sum + (Number(r.orders?.total_amount) || 0), 0);
+    // Returns in route = orders marked as returned but not physically received yet
+    const returnsInRouteCount = returnsInRoute.length;
+    const returnsInRouteValue = returnsInRoute.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
 
     return {
       totalRevenue: netRevenue,
@@ -329,10 +393,10 @@ const FinanceAnalyticsDashboard = () => {
       dispatchedValue,
       totalReturnsReceived,
       returnsReceivedValue,
-      returnsInRoute,
+      returnsInRoute: returnsInRouteCount,
       returnsInRouteValue
     };
-  }, [courierAnalytics, allOrders, returns]);
+  }, [courierAnalytics, allOrders, cancelledOrderValues, returnsInRoute]);
 
   // Smart alerts/insights
   const insights = useMemo(() => {
