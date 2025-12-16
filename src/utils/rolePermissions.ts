@@ -238,10 +238,10 @@ export const getRolePermissions = (role: UserRole) => {
         // Viewing access to most pages
         canAccessDashboard: true,
         canAccessOrders: true,
-        canAccessCustomers: true,
+        canAccessCustomers: false, // Finance cannot access customers
         canAccessDispatch: true,
         canAccessReturns: true,
-        canAccessAddressVerification: true,
+        canAccessAddressVerification: false, // Finance cannot access security features
         canAccessInventory: true,
         canAccessOutlets: true,
         canAccessProducts: true,
@@ -255,7 +255,7 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessVarianceManagement: true,
         canAccessPackaging: true,
         canViewStockMovements: true,
-        canAccessFraudReporting: true,
+        canAccessFraudReporting: false, // Finance cannot access security features
         canAccessSettings: true,
         // Explicitly denied - no management/editing capabilities
         canAccessUserManagement: false,
