@@ -62,30 +62,28 @@ const InventoryDashboard = () => {
   const isWarehouseManager = primaryRole === 'warehouse_manager';
   const isOutletScoped = isStoreManager || isWarehouseManager;
 
-  // Fetch the store/warehouse manager's assigned outlet
+  // Fetch the store/warehouse manager's assigned outlet - optimized single query
   const { data: userOutlet } = useQuery({
     queryKey: ["user-assigned-outlet", profile?.id],
     queryFn: async () => {
       if (!profile?.id || !isOutletScoped) return null;
       
-      // First check if user is a manager of an outlet
-      const { data: managedOutlet } = await supabase
-        .from("outlets")
-        .select("id, name")
-        .eq("manager_id", profile.id)
-        .eq("is_active", true)
-        .single();
+      // Single query: check manager_id OR outlet_staff assignment using parallel promises
+      const [managedResult, staffResult] = await Promise.all([
+        supabase
+          .from("outlets")
+          .select("id, name")
+          .eq("manager_id", profile.id)
+          .eq("is_active", true)
+          .maybeSingle(),
+        supabase
+          .from("outlet_staff")
+          .select("outlet:outlets(id, name)")
+          .eq("user_id", profile.id)
+          .maybeSingle()
+      ]);
 
-      if (managedOutlet) return managedOutlet;
-
-      // Otherwise check outlet_staff assignment
-      const { data: staffOutlet } = await supabase
-        .from("outlet_staff")
-        .select("outlet:outlets(id, name)")
-        .eq("user_id", profile.id)
-        .single();
-
-      return staffOutlet?.outlet || null;
+      return managedResult.data || staffResult.data?.outlet || null;
     },
     enabled: !!profile?.id && isOutletScoped,
   });
