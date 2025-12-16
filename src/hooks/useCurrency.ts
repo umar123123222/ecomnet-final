@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export const useCurrency = () => {
-  const { data: currency = 'USD', isLoading } = useQuery({
+  const { data: currency = 'PKR', isLoading } = useQuery({
     queryKey: ['company-currency'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -12,11 +12,11 @@ export const useCurrency = () => {
         .single();
       
       if (error) {
-        console.log('Currency not set, using default USD');
-        return 'USD';
+        console.log('Currency not set, using default PKR');
+        return 'PKR';
       }
       
-      return data?.setting_value || 'USD';
+      return data?.setting_value || 'PKR';
     },
   });
 
