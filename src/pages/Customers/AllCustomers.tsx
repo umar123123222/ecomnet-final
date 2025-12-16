@@ -131,8 +131,8 @@ const AllCustomers = () => {
           ordersDelivered: customer.delivered_count || 0,
           ordersCancelled: 0,
           ordersReturned: customer.return_count || 0,
-          tags: [],
-          notes: [],
+          tags: Array.isArray(customer.tags) ? customer.tags : [],
+          notes: Array.isArray(customer.notes) ? customer.notes : [],
           orders: []
         };
       });
@@ -257,97 +257,125 @@ const AllCustomers = () => {
     });
   };
 
-  const handleAddTag = (customerId: string, tag: string) => {
-    // Add tag to customer functionality would be implemented here
-    const updatedCustomers = customers.map(customer => {
-      if (customer.id === customerId) {
-        const newTag = {
-          id: `tag-${Date.now()}`,
-          text: tag,
-          addedBy: profile?.full_name || user?.email || 'Current User',
-          addedAt: new Date().toLocaleString('en-US', { hour12: true }),
-          canDelete: true
-        };
-        return {
-          ...customer,
-          tags: [...customer.tags, newTag]
-        };
-      }
-      return customer;
-    });
+  const handleAddTag = async (customerId: string, tag: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer) return;
+
+    const newTag = {
+      id: `tag-${Date.now()}`,
+      text: tag,
+      addedBy: profile?.full_name || user?.email || 'Current User',
+      addedAt: new Date().toISOString(),
+      canDelete: true
+    };
+    const updatedTags = [...customer.tags, newTag];
+
+    // Persist to database
+    const { error } = await supabase
+      .from('customers')
+      .update({ tags: updatedTags })
+      .eq('id', customerId);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to add tag", variant: "destructive" });
+      return;
+    }
+
+    const updatedCustomers = customers.map(c => 
+      c.id === customerId ? { ...c, tags: updatedTags } : c
+    );
     setCustomers(updatedCustomers);
     
-    // Update selected customer if it's currently being viewed
     if (selectedCustomer && selectedCustomer.id === customerId) {
-      const updatedCustomer = updatedCustomers.find(c => c.id === customerId);
-      setSelectedCustomer(updatedCustomer);
+      setSelectedCustomer({ ...selectedCustomer, tags: updatedTags });
     }
   };
 
-  const handleAddNote = (customerId: string, note: string) => {
-    // Add note to customer functionality would be implemented here
-    const updatedCustomers = customers.map(customer => {
-      if (customer.id === customerId) {
-        const newNote = {
-          id: `note-${Date.now()}`,
-          text: note,
-          addedBy: profile?.full_name || user?.email || 'Current User',
-          addedAt: new Date().toLocaleString('en-US', { hour12: true }),
-          canDelete: true
-        };
-        return {
-          ...customer,
-          notes: [...customer.notes, newNote]
-        };
-      }
-      return customer;
-    });
+  const handleAddNote = async (customerId: string, note: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer) return;
+
+    const newNote = {
+      id: `note-${Date.now()}`,
+      text: note,
+      addedBy: profile?.full_name || user?.email || 'Current User',
+      addedAt: new Date().toISOString(),
+      canDelete: true
+    };
+    const updatedNotes = [...customer.notes, newNote];
+
+    // Persist to database
+    const { error } = await supabase
+      .from('customers')
+      .update({ notes: updatedNotes })
+      .eq('id', customerId);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to add note", variant: "destructive" });
+      return;
+    }
+
+    const updatedCustomers = customers.map(c => 
+      c.id === customerId ? { ...c, notes: updatedNotes } : c
+    );
     setCustomers(updatedCustomers);
     
-    // Update selected customer if it's currently being viewed
     if (selectedCustomer && selectedCustomer.id === customerId) {
-      const updatedCustomer = updatedCustomers.find(c => c.id === customerId);
-      setSelectedCustomer(updatedCustomer);
+      setSelectedCustomer({ ...selectedCustomer, notes: updatedNotes });
     }
   };
 
-  const handleDeleteTag = (customerId: string, tagId: string) => {
-    // Delete tag from customer functionality would be implemented here
-    const updatedCustomers = customers.map(customer => {
-      if (customer.id === customerId) {
-        return {
-          ...customer,
-          tags: customer.tags.filter(tag => tag.id !== tagId)
-        };
-      }
-      return customer;
-    });
+  const handleDeleteTag = async (customerId: string, tagId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer) return;
+
+    const updatedTags = customer.tags.filter((tag: any) => tag.id !== tagId);
+
+    // Persist to database
+    const { error } = await supabase
+      .from('customers')
+      .update({ tags: updatedTags })
+      .eq('id', customerId);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to delete tag", variant: "destructive" });
+      return;
+    }
+
+    const updatedCustomers = customers.map(c => 
+      c.id === customerId ? { ...c, tags: updatedTags } : c
+    );
     setCustomers(updatedCustomers);
     
-    // Update selected customer if it's currently being viewed
     if (selectedCustomer && selectedCustomer.id === customerId) {
-      const updatedCustomer = updatedCustomers.find(c => c.id === customerId);
-      setSelectedCustomer(updatedCustomer);
+      setSelectedCustomer({ ...selectedCustomer, tags: updatedTags });
     }
   };
 
-  const handleDeleteNote = (customerId: string, noteId: string) => {
-    // Delete note from customer functionality would be implemented here
-    const updatedCustomers = customers.map(customer => {
-      if (customer.id === customerId) {
-        return {
-          ...customer,
-          notes: customer.notes.filter(note => note.id !== noteId)
-        };
-      }
-      return customer;
-    });
+  const handleDeleteNote = async (customerId: string, noteId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer) return;
+
+    const updatedNotes = customer.notes.filter((note: any) => note.id !== noteId);
+
+    // Persist to database
+    const { error } = await supabase
+      .from('customers')
+      .update({ notes: updatedNotes })
+      .eq('id', customerId);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to delete note", variant: "destructive" });
+      return;
+    }
+
+    const updatedCustomers = customers.map(c => 
+      c.id === customerId ? { ...c, notes: updatedNotes } : c
+    );
     setCustomers(updatedCustomers);
     
-    // Update selected customer if it's currently being viewed
     if (selectedCustomer && selectedCustomer.id === customerId) {
-      const updatedCustomer = updatedCustomers.find(c => c.id === customerId);
-      setSelectedCustomer(updatedCustomer);
+      setSelectedCustomer({ ...selectedCustomer, notes: updatedNotes });
     }
   };
 

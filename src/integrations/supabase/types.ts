@@ -1049,11 +1049,13 @@ export type Database = {
           is_suspicious: boolean | null
           last_whatsapp_sent: string | null
           name: string
+          notes: Json | null
           phone: string | null
           phone_last_5_chr: string | null
           return_count: number | null
           shopify_customer_id: number | null
           suspicious_reason: string | null
+          tags: Json | null
           total_orders: number | null
           Type: string | null
           updated_at: string | null
@@ -1069,11 +1071,13 @@ export type Database = {
           is_suspicious?: boolean | null
           last_whatsapp_sent?: string | null
           name: string
+          notes?: Json | null
           phone?: string | null
           phone_last_5_chr?: string | null
           return_count?: number | null
           shopify_customer_id?: number | null
           suspicious_reason?: string | null
+          tags?: Json | null
           total_orders?: number | null
           Type?: string | null
           updated_at?: string | null
@@ -1089,11 +1093,13 @@ export type Database = {
           is_suspicious?: boolean | null
           last_whatsapp_sent?: string | null
           name?: string
+          notes?: Json | null
           phone?: string | null
           phone_last_5_chr?: string | null
           return_count?: number | null
           shopify_customer_id?: number | null
           suspicious_reason?: string | null
+          tags?: Json | null
           total_orders?: number | null
           Type?: string | null
           updated_at?: string | null

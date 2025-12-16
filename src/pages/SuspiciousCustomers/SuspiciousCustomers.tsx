@@ -30,6 +30,7 @@ import TagsNotes from '@/components/TagsNotes';
 
 interface Customer {
   id: string;
+  customerId: string;
   name: string;
   phone: string;
   email: string;
@@ -73,12 +74,15 @@ const SuspiciousCustomers = () => {
           .select(`
             *,
             customers!fk_suspicious_customers_customer (
+              id,
               name,
               phone,
               email,
               total_orders,
               delivered_count,
-              return_count
+              return_count,
+              tags,
+              notes
             )
           `)
           .order('created_at', { ascending: false });
@@ -93,6 +97,7 @@ const SuspiciousCustomers = () => {
         } else {
           const formattedCustomers = (data || []).map(sc => ({
             id: sc.id,
+            customerId: sc.customers?.id || sc.customer_id,
             name: sc.customers?.name || 'N/A',
             phone: sc.customers?.phone || 'N/A',
             email: sc.customers?.email || 'N/A',
@@ -103,8 +108,8 @@ const SuspiciousCustomers = () => {
             lastMessages: Array.isArray(sc.message_log) ? 
               sc.message_log.slice(-3).map(msg => String(msg)) : 
               ['No recent messages'],
-            tags: [],
-            notes: []
+            tags: Array.isArray(sc.customers?.tags) ? sc.customers.tags as Customer['tags'] : [],
+            notes: Array.isArray(sc.customers?.notes) ? sc.customers.notes as Customer['notes'] : []
           }));
 
           setCustomers(formattedCustomers);
@@ -179,65 +184,101 @@ const SuspiciousCustomers = () => {
     }
   };
 
-  const handleAddTag = (customerId: string, tag: string) => {
-    setCustomers(prev => prev.map(customer => 
-      customer.id === customerId 
-        ? {
-            ...customer,
-            tags: [
-              ...(customer.tags || []),
-              {
-                id: Date.now().toString(),
-                text: tag,
-                addedBy: profile?.full_name || user?.email || 'Current User',
-                addedAt: new Date().toLocaleString(),
-                canDelete: true
-              }
-            ]
-          }
-        : customer
+  const handleAddTag = async (customerId: string, tag: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer || !customer.customerId) return;
+
+    const newTag = {
+      id: `tag-${Date.now()}`,
+      text: tag,
+      addedBy: profile?.full_name || user?.email || 'Current User',
+      addedAt: new Date().toISOString(),
+      canDelete: true
+    };
+    const updatedTags = [...(customer.tags || []), newTag];
+
+    const { error } = await supabase
+      .from('customers')
+      .update({ tags: updatedTags })
+      .eq('id', customer.customerId);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to add tag", variant: "destructive" });
+      return;
+    }
+
+    setCustomers(prev => prev.map(c => 
+      c.id === customerId ? { ...c, tags: updatedTags } : c
     ));
   };
 
-  const handleAddNote = (customerId: string, note: string) => {
-    setCustomers(prev => prev.map(customer => 
-      customer.id === customerId 
-        ? {
-            ...customer,
-            notes: [
-              ...(customer.notes || []),
-              {
-                id: Date.now().toString(),
-                text: note,
-                addedBy: profile?.full_name || user?.email || 'Current User',
-                addedAt: new Date().toLocaleString(),
-                canDelete: true
-              }
-            ]
-          }
-        : customer
+  const handleAddNote = async (customerId: string, note: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer || !customer.customerId) return;
+
+    const newNote = {
+      id: `note-${Date.now()}`,
+      text: note,
+      addedBy: profile?.full_name || user?.email || 'Current User',
+      addedAt: new Date().toISOString(),
+      canDelete: true
+    };
+    const updatedNotes = [...(customer.notes || []), newNote];
+
+    const { error } = await supabase
+      .from('customers')
+      .update({ notes: updatedNotes })
+      .eq('id', customer.customerId);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to add note", variant: "destructive" });
+      return;
+    }
+
+    setCustomers(prev => prev.map(c => 
+      c.id === customerId ? { ...c, notes: updatedNotes } : c
     ));
   };
 
-  const handleDeleteTag = (customerId: string, tagId: string) => {
-    setCustomers(prev => prev.map(customer => 
-      customer.id === customerId 
-        ? {
-            ...customer,
-            tags: customer.tags?.filter(tag => tag.id !== tagId)
-          }
-        : customer
+  const handleDeleteTag = async (customerId: string, tagId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer || !customer.customerId) return;
+
+    const updatedTags = (customer.tags || []).filter((tag: any) => tag.id !== tagId);
+
+    const { error } = await supabase
+      .from('customers')
+      .update({ tags: updatedTags })
+      .eq('id', customer.customerId);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to delete tag", variant: "destructive" });
+      return;
+    }
+
+    setCustomers(prev => prev.map(c => 
+      c.id === customerId ? { ...c, tags: updatedTags } : c
     ));
   };
 
-  const handleDeleteNote = (customerId: string, noteId: string) => {
-    setCustomers(prev => prev.map(customer => 
-      customer.id === customerId 
-        ? {
-            ...customer,
-            notes: customer.notes?.filter(note => note.id !== noteId)
-          }
-        : customer
+  const handleDeleteNote = async (customerId: string, noteId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer || !customer.customerId) return;
+
+    const updatedNotes = (customer.notes || []).filter((note: any) => note.id !== noteId);
+
+    const { error } = await supabase
+      .from('customers')
+      .update({ notes: updatedNotes })
+      .eq('id', customer.customerId);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to delete note", variant: "destructive" });
+      return;
+    }
+
+    setCustomers(prev => prev.map(c => 
+      c.id === customerId ? { ...c, notes: updatedNotes } : c
     ));
   };
 
