@@ -135,7 +135,10 @@ export default function StockMovementHistory() {
         query = query.gte("created_at", dateRange.from.toISOString());
       }
       if (dateRange?.to) {
-        query = query.lte("created_at", dateRange.to.toISOString());
+        // Set to end of day (23:59:59.999) to include all records from the selected end date
+        const endOfDay = new Date(dateRange.to);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.lte("created_at", endOfDay.toISOString());
       }
 
       const { data, error } = await query;
@@ -198,7 +201,10 @@ export default function StockMovementHistory() {
         query = query.gte("created_at", dateRange.from.toISOString());
       }
       if (dateRange?.to) {
-        query = query.lte("created_at", dateRange.to.toISOString());
+        // Set to end of day (23:59:59.999) to include all records from the selected end date
+        const endOfDay = new Date(dateRange.to);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.lte("created_at", endOfDay.toISOString());
       }
 
       const { data, error } = await query;
