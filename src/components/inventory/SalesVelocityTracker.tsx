@@ -56,14 +56,16 @@ export function SalesVelocityTracker() {
             quantity: 0,
           };
         }
-        currentVelocityMap[sale.product_id].quantity += sale.quantity;
+        // Use absolute value since sale movements are stored as negative (deductions)
+        currentVelocityMap[sale.product_id].quantity += Math.abs(sale.quantity);
       });
 
       // Calculate previous velocity
       const previousVelocityMap: Record<string, number> = {};
       previousSales?.forEach((sale) => {
+        // Use absolute value since sale movements are stored as negative (deductions)
         previousVelocityMap[sale.product_id] = 
-          (previousVelocityMap[sale.product_id] || 0) + sale.quantity;
+          (previousVelocityMap[sale.product_id] || 0) + Math.abs(sale.quantity);
       });
 
       // Generate velocity items
