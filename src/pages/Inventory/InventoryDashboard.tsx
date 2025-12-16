@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2, Settings, X, Save, Filter, PlayCircle, History, FileSpreadsheet, ArrowRight } from "lucide-react";
+import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2, Settings, X, Save, Filter, PlayCircle, History, FileSpreadsheet, ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from "@/components/layout";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
@@ -57,6 +57,7 @@ const InventoryDashboard = () => {
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [presetName, setPresetName] = useState('');
   const [triggering, setTriggering] = useState(false);
+  const [isTableExpanded, setIsTableExpanded] = useState(false);
 
   const isStoreManager = primaryRole === 'store_manager';
   const isWarehouseManager = primaryRole === 'warehouse_manager';
@@ -476,7 +477,7 @@ const InventoryDashboard = () => {
                   </TableHeader>
                   <TableBody>
                     {filteredInventory && filteredInventory.length > 0 ? (
-                      filteredInventory.map((item) => {
+                      (isTableExpanded ? filteredInventory : filteredInventory.slice(0, 5)).map((item) => {
                         const isLowStock = item.available_quantity <= (item.product?.reorder_level || 10);
                         const isOutOfStock = item.available_quantity === 0;
                         const isDeficit = item.available_quantity < 0;
@@ -552,6 +553,28 @@ const InventoryDashboard = () => {
                   </TableBody>
                 </Table>
               </div>
+              {filteredInventory && filteredInventory.length > 5 && (
+                <div className="p-3 border-t flex justify-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsTableExpanded(!isTableExpanded)}
+                    className="gap-2"
+                  >
+                    {isTableExpanded ? (
+                      <>
+                        <ChevronUp className="h-4 w-4" />
+                        Show Less
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-4 w-4" />
+                        Show All ({filteredInventory.length} items)
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </>
           )}
         </CardContent>
