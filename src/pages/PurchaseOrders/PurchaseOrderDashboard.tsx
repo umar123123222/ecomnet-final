@@ -768,8 +768,10 @@ const PurchaseOrderDashboard = () => {
                       {/* Payment button for completed/partially received POs - only for super_admin and super_manager */}
                       
                       {/* Payment button for completed/partially received POs - only for finance and super_admin */}
+                      {/* Hide when fully paid OR when supplier has confirmed payment receipt */}
                       {(po.status === 'completed' || po.status === 'partially_received') && 
                        (po as any).payment_status !== 'paid' &&
+                       !(po as any).supplier_payment_confirmed &&
                        (profile?.role === 'super_admin' || profile?.role === 'finance') && (
                         <Button
                           variant="outline"
