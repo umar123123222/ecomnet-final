@@ -20,7 +20,15 @@ import {
   LineChart, Line, PieChart as RechartPieChart, Pie, Cell
 } from 'recharts';
 
-const CHART_COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
+// Courier-specific chart colors - matching the theme
+const getCourierChartColor = (courierCode: string): string => {
+  const code = courierCode.toLowerCase();
+  if (code.includes('postex')) return 'hsl(var(--courier-postex))';
+  if (code.includes('tcs')) return 'hsl(var(--courier-tcs))';
+  if (code.includes('leopard')) return 'hsl(var(--courier-leopard))';
+  // Fallback colors for other couriers
+  return 'hsl(var(--primary))';
+};
 
 const FinanceAnalyticsDashboard = () => {
   const { currency } = useCurrency();
@@ -564,8 +572,8 @@ const FinanceAnalyticsDashboard = () => {
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
                   />
                   <Legend />
-                  {couriers.slice(0, 5).map((c, idx) => (
-                    <Bar key={c.code} dataKey={c.code} name={c.name} fill={CHART_COLORS[idx % CHART_COLORS.length]} stackId="a" />
+                  {couriers.slice(0, 5).map((c) => (
+                    <Bar key={c.code} dataKey={c.code} name={c.name} fill={getCourierChartColor(c.code)} stackId="a" />
                   ))}
                 </BarChart>
               </ResponsiveContainer>
