@@ -189,47 +189,68 @@ export default function StockMovementHistory() {
 
   // Fetch non-dispatch packaging movements
   const { data: packagingMovements, isLoading: loadingPackaging } = useQuery({
-    queryKey: ["packaging-movements-nondispatch", movementTypeFilter, dateRange],
+    queryKey: ["packaging-movements-nondispatch", movementTypeFilter, dateRange, outletFilter],
     queryFn: async () => {
-      const baseSelect = `
-        id,
-        quantity,
-        movement_type,
-        notes,
-        created_at,
-        created_by,
-        packaging_item:packaging_items(name, sku)
-      `;
-
       // If filtering for dispatch only, don't fetch individual movements
       if (movementTypeFilter === "dispatch") {
         return [];
       }
 
-      let query = supabase
+      const { data: rawData, error } = await supabase
         .from("packaging_movements")
-        .select(baseSelect)
-        .neq("movement_type", "dispatch") // Exclude dispatch - handled by summaries
+        .select(`
+          id,
+          quantity,
+          movement_type,
+          notes,
+          created_at,
+          created_by,
+          outlet_id,
+          packaging_item:packaging_items(name, sku)
+        `)
+        .neq("movement_type", "dispatch")
         .order("created_at", { ascending: false })
-        .limit(300);
-
+        .limit(300) as { data: any[] | null; error: any };
+      
+      if (error) throw error;
+      
+      let filteredData = rawData || [];
+      
+      // Apply filters
       if (movementTypeFilter !== "all") {
-        query = query.eq("movement_type", movementTypeFilter);
+        filteredData = filteredData.filter((m: any) => m.movement_type === movementTypeFilter);
+      }
+
+      if (outletFilter !== "all") {
+        filteredData = filteredData.filter((m: any) => m.outlet_id === outletFilter);
       }
 
       if (dateRange?.from) {
-        query = query.gte("created_at", dateRange.from.toISOString());
+        filteredData = filteredData.filter((m: any) => new Date(m.created_at) >= dateRange.from!);
       }
       if (dateRange?.to) {
-        // Set to end of day (23:59:59.999) to include all records from the selected end date
         const endOfDay = new Date(dateRange.to);
         endOfDay.setHours(23, 59, 59, 999);
-        query = query.lte("created_at", endOfDay.toISOString());
+        filteredData = filteredData.filter((m: any) => new Date(m.created_at) <= endOfDay);
       }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return await enrichPackagingWithProfiles(data || []);
+      
+      // Enrich with outlet names
+      const outletIds = [...new Set(filteredData.map((m: any) => m.outlet_id).filter(Boolean))];
+      let outletMap = new Map<string, string>();
+      if (outletIds.length > 0) {
+        const { data: outletData } = await supabase
+          .from('outlets')
+          .select('id, name')
+          .in('id', outletIds);
+        outletMap = new Map((outletData || []).map((o: any) => [o.id, o.name]));
+      }
+      
+      const enrichedData = filteredData.map((m: any) => ({
+        ...m,
+        outlet: { name: outletMap.get(m.outlet_id) || null }
+      }));
+      
+      return await enrichPackagingWithProfiles(enrichedData);
     },
     enabled: permissions.canViewStockMovements && movementTypeFilter !== "dispatch",
   });
@@ -326,7 +347,7 @@ export default function StockMovementHistory() {
         image_url: parsed.imageUrl,
         created_at: m.created_at,
         performed_by: m.profile?.full_name || m.profile?.email || 'System',
-        outlet_name: '-',
+        outlet_name: m.outlet?.name || '-',
         from_outlet: undefined,
         to_outlet: undefined,
       };
@@ -409,11 +430,34 @@ export default function StockMovementHistory() {
     }
 
     const rows: string[] = [];
-    rows.push(["Date", "Stock Name", "SKU", "Category", "Type", "Change", "Reason", "Performed By"].join(","));
+    rows.push(["Date", "Stock Name", "SKU", "Category", "Type", "Outlet", "Change", "Reason", "Performed By"].join(","));
+    
+    // Track outlet-wise totals for products and packaging
+    const outletTotals: Record<string, {
+      products: Record<string, { name: string; addition: number; deduction: number }>;
+      packaging: Record<string, { name: string; addition: number; deduction: number }>;
+    }> = {};
+
+    const updateOutletTotals = (outletName: string, category: 'product' | 'packaging', itemName: string, sku: string, qty: number) => {
+      const outlet = outletName || 'Unspecified';
+      if (!outletTotals[outlet]) {
+        outletTotals[outlet] = { products: {}, packaging: {} };
+      }
+      const key = `${itemName}__${sku}`;
+      const items = category === 'product' ? outletTotals[outlet].products : outletTotals[outlet].packaging;
+      if (!items[key]) {
+        items[key] = { name: itemName, addition: 0, deduction: 0 };
+      }
+      if (qty > 0) {
+        items[key].addition += qty;
+      } else {
+        items[key].deduction += Math.abs(qty);
+      }
+    };
     
     displayItems.forEach((item) => {
       if ('type' in item && item.type === 'summary') {
-        // Export summary as multiple rows
+        // Export summary as multiple rows (dispatch movements are warehouse-based)
         Object.entries(item.productItems).forEach(([_, product]) => {
           rows.push([
             item.date,
@@ -421,10 +465,12 @@ export default function StockMovementHistory() {
             product.sku || '',
             'product',
             'dispatch',
+            'Warehouse (Dispatch)',
             `-${product.total_qty}`,
             'Daily Dispatch',
             'System (Aggregated)',
           ].join(","));
+          updateOutletTotals('Warehouse (Dispatch)', 'product', product.name, product.sku || '', -product.total_qty);
         });
         Object.entries(item.packagingItems).forEach(([_, packaging]) => {
           rows.push([
@@ -433,10 +479,12 @@ export default function StockMovementHistory() {
             packaging.sku || '',
             'packaging',
             'dispatch',
+            'Warehouse (Dispatch)',
             `-${packaging.total_qty}`,
             'Daily Dispatch',
             'System (Aggregated)',
           ].join(","));
+          updateOutletTotals('Warehouse (Dispatch)', 'packaging', packaging.name, packaging.sku || '', -packaging.total_qty);
         });
       } else {
         const m = item as UnifiedMovement;
@@ -446,11 +494,60 @@ export default function StockMovementHistory() {
           m.sku,
           m.category,
           m.movement_type,
+          `"${m.outlet_name || '-'}"`,
           m.quantity > 0 ? `+${m.quantity}` : String(m.quantity),
           `"${m.reason}"`,
           m.performed_by,
         ].join(","));
+        updateOutletTotals(m.outlet_name, m.category, m.name, m.sku, m.quantity);
       }
+    });
+
+    // Add outlet-wise totals at the end
+    rows.push(""); // Empty row separator
+    rows.push("=== OUTLET/WAREHOUSE WISE TOTALS ===");
+    rows.push("");
+
+    Object.entries(outletTotals).sort().forEach(([outletName, data]) => {
+      rows.push(`"${outletName}"`);
+      
+      // Products section
+      const productEntries = Object.entries(data.products);
+      if (productEntries.length > 0) {
+        rows.push(",PRODUCTS:");
+        rows.push(",Item Name,SKU,Total Addition,Total Deduction,Net Change");
+        productEntries.forEach(([key, item]) => {
+          const net = item.addition - item.deduction;
+          rows.push([
+            '',
+            `"${item.name}"`,
+            key.split('__')[1] || '',
+            `+${item.addition}`,
+            `-${item.deduction}`,
+            net >= 0 ? `+${net}` : String(net),
+          ].join(","));
+        });
+      }
+      
+      // Packaging section
+      const packagingEntries = Object.entries(data.packaging);
+      if (packagingEntries.length > 0) {
+        rows.push(",PACKAGING:");
+        rows.push(",Item Name,SKU,Total Addition,Total Deduction,Net Change");
+        packagingEntries.forEach(([key, item]) => {
+          const net = item.addition - item.deduction;
+          rows.push([
+            '',
+            `"${item.name}"`,
+            key.split('__')[1] || '',
+            `+${item.addition}`,
+            `-${item.deduction}`,
+            net >= 0 ? `+${net}` : String(net),
+          ].join(","));
+        });
+      }
+      
+      rows.push(""); // Empty row between outlets
     });
 
     const csvContent = rows.join("\n");
