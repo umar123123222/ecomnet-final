@@ -124,36 +124,34 @@ const DispatchDashboard = () => {
   });
 useEffect(() => {
   const fetchDispatches = async () => {
+    // Reset state immediately when dateRange changes to prevent stale data
+    setDispatches([]);
+    setTotalDispatchCount(null);
     setLoading(true);
+    
     try {
-      // Build date filter conditions
-      let dateFromISO = '';
-      let dateToISO = '';
+      // REQUIRE valid date range - don't fetch all data if missing
+      if (!dateRange?.from || !dateRange?.to) {
+        console.warn('Date range required for dispatch fetch');
+        setLoading(false);
+        return;
+      }
       
-      if (dateRange?.from) {
-        const fromDate = new Date(dateRange.from);
-        fromDate.setHours(0, 0, 0, 0);
-        dateFromISO = fromDate.toISOString();
-      }
+      // Build date filter conditions
+      const fromDate = new Date(dateRange.from);
+      fromDate.setHours(0, 0, 0, 0);
+      const dateFromISO = fromDate.toISOString();
 
-      if (dateRange?.to) {
-        const toDate = new Date(dateRange.to);
-        toDate.setHours(23, 59, 59, 999);
-        dateToISO = toDate.toISOString();
-      }
+      const toDate = new Date(dateRange.to);
+      toDate.setHours(23, 59, 59, 999);
+      const dateToISO = toDate.toISOString();
 
       // Count query (no row limit) to get accurate total dispatches for applied filters
       let countQuery = supabase
         .from('dispatches')
-        .select('*', { count: 'exact', head: true });
-
-      // Apply date range filters using proper gte/lte on dispatch_date
-      if (dateFromISO) {
-        countQuery = countQuery.gte('dispatch_date', dateFromISO);
-      }
-      if (dateToISO) {
-        countQuery = countQuery.lte('dispatch_date', dateToISO);
-      }
+        .select('*', { count: 'exact', head: true })
+        .gte('dispatch_date', dateFromISO)
+        .lte('dispatch_date', dateToISO);
       
       // Apply courier filter server-side
       if (courierFilter && courierFilter !== "all") {
@@ -197,15 +195,9 @@ useEffect(() => {
                 packaging_items (name, sku)
               )
             )
-          `);
-
-        // Apply date range filters on dispatch_date
-        if (dateFromISO) {
-          dataQuery = dataQuery.gte('dispatch_date', dateFromISO);
-        }
-        if (dateToISO) {
-          dataQuery = dataQuery.lte('dispatch_date', dateToISO);
-        }
+          `)
+          .gte('dispatch_date', dateFromISO)
+          .lte('dispatch_date', dateToISO);
         
         // Apply courier filter server-side
         if (courierFilter && courierFilter !== "all") {
