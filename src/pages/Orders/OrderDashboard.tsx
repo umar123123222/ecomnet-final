@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -349,7 +350,7 @@ const OrderDashboard = () => {
         return;
       }
 
-      const { error } = await supabase.from('orders').update({ status: newStatus, ...additionalData }).eq('id', orderId);
+      const { error } = await supabase.from('orders').update({ status: newStatus as Database['public']['Enums']['order_status'], ...additionalData }).eq('id', orderId);
       if (error) throw error;
 
       await logActivity({ action: 'order_updated', entityType: 'order', entityId: orderId, details: { field: 'status', new_value: newStatus } });
@@ -636,8 +637,8 @@ const OrderDashboard = () => {
                   <div className="space-y-3">
                     <Label className="text-base font-semibold">Date Range</Label>
                     <DatePickerWithRange
-                      value={filters.statusDateRange}
-                      onChange={(range) => updateFilter('statusDateRange', range)}
+                      date={filters.statusDateRange}
+                      setDate={(range) => updateFilter('statusDateRange', range)}
                     />
                   </div>
                 </div>
@@ -742,7 +743,7 @@ const OrderDashboard = () => {
       </Card>
 
       {/* Modals */}
-      <OrderDetailsModal open={detailsModalOpen} onOpenChange={setDetailsModalOpen} order={selectedOrder} />
+      <OrderDetailsModal open={detailsModalOpen} onOpenChange={setDetailsModalOpen} order={selectedOrder as any} />
       <CancelOrderDialog
         open={cancelDialogOpen}
         onOpenChange={setCancelDialogOpen}
