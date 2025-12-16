@@ -69,7 +69,7 @@ export function InventorySummaryWidget() {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div className="space-y-1">
             <div className="text-sm text-muted-foreground flex items-center gap-1">
               <Package className="h-3 w-3" />
