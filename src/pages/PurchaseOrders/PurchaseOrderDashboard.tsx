@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, FileText, Calendar, DollarSign, XCircle, CheckCircle, Send, CreditCard, AlertCircle } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, DollarSign, XCircle, CheckCircle, Send, CreditCard, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCurrency } from '@/hooks/useCurrency';
 import { format } from 'date-fns';
@@ -630,6 +630,7 @@ const PurchaseOrderDashboard = () => {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={createMutation.isPending || !formData.supplier_id || !formData.outlet_id || selectedItems.length === 0}>
+                  {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   {createMutation.isPending ? 'Creating...' : 'Create PO'}
                 </Button>
               </div>

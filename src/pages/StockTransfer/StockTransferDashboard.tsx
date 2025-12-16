@@ -40,6 +40,7 @@ const StockTransferDashboard = () => {
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [selectedTransfer, setSelectedTransfer] = useState<TransferWithRelations | null>(null);
+  const [loadingActions, setLoadingActions] = useState<Record<string, 'approve' | 'dispatch' | null>>({});
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { primaryRole } = useUserRoles();
@@ -140,6 +141,7 @@ const StockTransferDashboard = () => {
   };
 
   const handleDispatch = async (transferId: string) => {
+    setLoadingActions(prev => ({ ...prev, [transferId]: 'dispatch' }));
     try {
       const { error } = await supabase.functions.invoke("stock-transfer-request", {
         body: { action: "dispatch", transfer_id: transferId }
@@ -149,6 +151,8 @@ const StockTransferDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
     } catch (error: any) {
       toast({ title: "Error", description: error.message || "Failed to dispatch transfer", variant: "destructive" });
+    } finally {
+      setLoadingActions(prev => ({ ...prev, [transferId]: null }));
     }
   };
 
@@ -334,7 +338,9 @@ const StockTransferDashboard = () => {
                                   size="sm"
                                   className="text-green-600 hover:bg-green-50 hover:text-green-700"
                                   onClick={() => handleApprove(transfer.id)}
+                                  disabled={loadingActions[transfer.id] === 'approve'}
                                 >
+                                  {loadingActions[transfer.id] === 'approve' && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
                                   Approve
                                 </Button>
                                 <Button
@@ -342,6 +348,7 @@ const StockTransferDashboard = () => {
                                   size="sm"
                                   className="text-red-600 hover:bg-red-50 hover:text-red-700"
                                   onClick={() => openRejectDialog(transfer)}
+                                  disabled={!!loadingActions[transfer.id]}
                                 >
                                   Reject
                                 </Button>
@@ -355,8 +362,9 @@ const StockTransferDashboard = () => {
                                 size="sm"
                                 className="gap-1"
                                 onClick={() => handleDispatch(transfer.id)}
+                                disabled={loadingActions[transfer.id] === 'dispatch'}
                               >
-                                <Truck className="h-4 w-4" />
+                                {loadingActions[transfer.id] === 'dispatch' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
                                 Dispatch
                               </Button>
                             )}
