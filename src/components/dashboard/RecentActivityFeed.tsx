@@ -122,11 +122,16 @@ export const RecentActivityFeed: React.FC = () => {
                 key={`${activity.type}-${activity.id}`}
                 className="flex items-start gap-3 p-3 rounded-lg hover:bg-accent/50 transition-colors"
               >
-                <div className="p-2 rounded-full bg-primary/10 text-primary">
+                <div className="p-2 rounded-full bg-primary/10 text-primary flex-shrink-0">
                   {getIcon(activity.type)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">{activity.title}</p>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-medium text-sm truncate">{activity.title}</p>
+                    <Badge className={`${getStatusColor(activity.status)} flex-shrink-0 text-xs`} variant="secondary">
+                      {activity.status}
+                    </Badge>
+                  </div>
                   <p className="text-xs text-muted-foreground truncate">
                     {activity.description}
                   </p>
@@ -134,9 +139,6 @@ export const RecentActivityFeed: React.FC = () => {
                     {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
                   </p>
                 </div>
-                <Badge className={getStatusColor(activity.status)} variant="secondary">
-                  {activity.status}
-                </Badge>
               </div>
             ))}
             {(!activities || activities.length === 0) && (
