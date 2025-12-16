@@ -216,7 +216,7 @@ export function ABCAnalysisWidget() {
           <div className="space-y-2">
             <h4 className="text-sm font-medium">Top Performing Products</h4>
             <div className="space-y-2">
-              {(expanded ? abcData.items : abcData.items.slice(0, 3)).map((item) => (
+              {(expanded ? abcData.items : abcData.items.slice(0, 5)).map((item) => (
                 <div
                   key={item.product_id}
                   className="flex items-center justify-between p-2 border rounded hover:bg-accent/50 transition-colors"
@@ -238,7 +238,7 @@ export function ABCAnalysisWidget() {
                 </div>
               ))}
             </div>
-            {abcData.items.length > 3 && (
+            {abcData.items.length > 5 && (
               <Button
                 variant="ghost"
                 size="sm"
