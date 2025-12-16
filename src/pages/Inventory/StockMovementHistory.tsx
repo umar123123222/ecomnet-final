@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Search, Download, TrendingUp, TrendingDown, ArrowLeftRight, Package, Calendar, ChevronDown, ChevronRight, Image as ImageIcon, Box, Truck } from "lucide-react";
+import { Search, Download, TrendingUp, TrendingDown, ArrowLeftRight, Package, Calendar, ChevronDown, ChevronRight, Image as ImageIcon, Box, Truck, Building2 } from "lucide-react";
 import { format } from "date-fns";
 import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import { DateRange } from "react-day-picker";
@@ -70,10 +70,26 @@ export default function StockMovementHistory() {
   const [searchTerm, setSearchTerm] = useState("");
   const [movementTypeFilter, setMovementTypeFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [outletFilter, setOutletFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  // Fetch outlets for filter
+  const { data: outlets } = useQuery({
+    queryKey: ["outlets-for-filter"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("outlets")
+        .select("id, name, outlet_type")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: permissions.canViewStockMovements,
+  });
 
   // Fetch daily dispatch summaries (pre-aggregated data)
   const { data: dispatchSummaries, isLoading: loadingSummaries } = useQuery({
@@ -101,7 +117,7 @@ export default function StockMovementHistory() {
 
   // Fetch non-dispatch product movements (adjustments, returns, transfers, purchases)
   const { data: productMovements, isLoading: loadingProducts } = useQuery({
-    queryKey: ["product-movements-nondispatch", movementTypeFilter, dateRange],
+    queryKey: ["product-movements-nondispatch", movementTypeFilter, dateRange, outletFilter],
     queryFn: async () => {
       const baseSelect = `
         id,
@@ -129,6 +145,10 @@ export default function StockMovementHistory() {
 
       if (movementTypeFilter !== "all") {
         query = query.eq("movement_type", movementTypeFilter);
+      }
+
+      if (outletFilter !== "all") {
+        query = query.eq("outlet_id", outletFilter);
       }
 
       if (dateRange?.from) {
@@ -532,6 +552,12 @@ export default function StockMovementHistory() {
             </Badge>
           </TableCell>
           <TableCell>
+            <div className="flex items-center gap-1 text-sm">
+              <Building2 className="h-3 w-3 text-muted-foreground" />
+              <span>{movement.outlet_name || '-'}</span>
+            </div>
+          </TableCell>
+          <TableCell>
             <div className="flex items-center gap-1">
               {movement.quantity > 0 ? (
                 <TrendingUp className="h-4 w-4 text-success" />
@@ -555,7 +581,7 @@ export default function StockMovementHistory() {
         </TableRow>
         {isExpanded && hasDetails && (
           <TableRow key={`${movement.id}-details`}>
-            <TableCell colSpan={8} className="bg-muted/30 p-4">
+            <TableCell colSpan={9} className="bg-muted/30 p-4">
               <div className="space-y-3">
                 {movement.notes && (
                   <div>
@@ -623,7 +649,7 @@ export default function StockMovementHistory() {
               </div>
             </div>
           </TableCell>
-          <TableCell colSpan={2}>
+          <TableCell colSpan={3}>
             <div className="flex gap-4">
               {summary.uniqueProducts > 0 && (
                 <div className="flex items-center gap-1.5">
@@ -683,6 +709,7 @@ export default function StockMovementHistory() {
                 <TableCell>
                   <Badge variant="outline">dispatch</Badge>
                 </TableCell>
+                <TableCell className="text-muted-foreground">-</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
                     <TrendingDown className="h-4 w-4 text-destructive" />
@@ -718,6 +745,7 @@ export default function StockMovementHistory() {
                 <TableCell>
                   <Badge variant="outline">dispatch</Badge>
                 </TableCell>
+                <TableCell className="text-muted-foreground">-</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
                     <TrendingDown className="h-4 w-4 text-destructive" />
@@ -754,7 +782,7 @@ export default function StockMovementHistory() {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-5">
             <div className="flex items-center gap-2">
               <Search className="h-4 w-4 text-muted-foreground" />
               <Input
@@ -790,6 +818,24 @@ export default function StockMovementHistory() {
               </SelectContent>
             </Select>
 
+            <Select value={outletFilter} onValueChange={setOutletFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Outlets" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Outlets</SelectItem>
+                {outlets?.map((outlet) => (
+                  <SelectItem key={outlet.id} value={outlet.id}>
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-3 w-3" />
+                      {outlet.name}
+                      <span className="text-xs text-muted-foreground capitalize">({outlet.outlet_type})</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <DatePickerWithRange
               date={dateRange}
               setDate={setDateRange}
@@ -808,6 +854,7 @@ export default function StockMovementHistory() {
                 <TableHead>Stock Name</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Type</TableHead>
+                <TableHead>Outlet</TableHead>
                 <TableHead>Change</TableHead>
                 <TableHead>Reason</TableHead>
                 <TableHead>Performed By</TableHead>
@@ -816,7 +863,7 @@ export default function StockMovementHistory() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8">
+                  <TableCell colSpan={9} className="text-center py-8">
                     Loading movements...
                   </TableCell>
                 </TableRow>
@@ -830,14 +877,14 @@ export default function StockMovementHistory() {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-12">
+                  <TableCell colSpan={9} className="py-12">
                     <div className="flex flex-col items-center justify-center text-center">
                       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
                         <Package className="h-8 w-8 text-muted-foreground" />
                       </div>
                       <h3 className="text-lg font-semibold text-foreground mb-1">No stock movements found</h3>
                       <p className="text-sm text-muted-foreground max-w-sm">
-                        {searchTerm || categoryFilter !== 'all' || movementTypeFilter !== 'all' || dateRange?.from
+                        {searchTerm || categoryFilter !== 'all' || movementTypeFilter !== 'all' || dateRange?.from || outletFilter !== 'all'
                           ? 'Try adjusting your filters to see more results.'
                           : 'Stock movements will appear here when inventory changes occur.'}
                       </p>
