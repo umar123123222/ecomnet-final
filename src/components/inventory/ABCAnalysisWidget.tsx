@@ -2,9 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BarChart3, Star, TrendingUp, Package, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { BarChart3, Star, TrendingUp, Package, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { formatCurrency } from "@/utils/currency";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useState } from "react";
 
 interface ABCItem {
   product_id: string;
@@ -18,6 +20,7 @@ interface ABCItem {
 
 export function ABCAnalysisWidget() {
   const { currency } = useCurrency();
+  const [expanded, setExpanded] = useState(false);
 
   const { data: abcData, isLoading } = useQuery({
     queryKey: ['abc-analysis'],
@@ -212,8 +215,8 @@ export function ABCAnalysisWidget() {
           {/* Product List */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium">Top Performing Products</h4>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {abcData.items.map((item) => (
+            <div className="space-y-2">
+              {(expanded ? abcData.items : abcData.items.slice(0, 3)).map((item) => (
                 <div
                   key={item.product_id}
                   className="flex items-center justify-between p-2 border rounded hover:bg-accent/50 transition-colors"
@@ -235,6 +238,26 @@ export function ABCAnalysisWidget() {
                 </div>
               ))}
             </div>
+            {abcData.items.length > 3 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                onClick={() => setExpanded(!expanded)}
+              >
+                {expanded ? (
+                  <>
+                    <ChevronUp className="h-4 w-4 mr-1" />
+                    Show Less
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-4 w-4 mr-1" />
+                    Show All ({abcData.items.length} products)
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </div>
       </CardContent>
