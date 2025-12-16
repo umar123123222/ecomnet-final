@@ -48,6 +48,7 @@ export const getRolePermissions = (role: UserRole) => {
     canBulkAdjustStock: false,
     canAccessPOS: false,
     canAssignCouriers: false,
+    canAccessFinanceAnalytics: false,
   };
 
   switch (role) {
@@ -97,6 +98,7 @@ export const getRolePermissions = (role: UserRole) => {
         canBulkAdjustStock: true,
         canAccessPOS: true,
         canAssignCouriers: true,
+        canAccessFinanceAnalytics: true,
       };
     
     case 'super_manager':
@@ -137,6 +139,7 @@ export const getRolePermissions = (role: UserRole) => {
         canBulkAdjustStock: true,
         canAccessPOS: true,
         canAssignCouriers: true,
+        canAccessFinanceAnalytics: true,
         // No admin panel access
       };
     
@@ -273,6 +276,7 @@ export const getRolePermissions = (role: UserRole) => {
         canBulkAdjustStock: false,
         canAccessPOS: false,
         canAssignCouriers: false,
+        canAccessFinanceAnalytics: true,
       };
     
     default:
@@ -493,6 +497,19 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       label: 'Activity Logs',
       href: '/activity-logs',
       icon: 'Activity'
+    });
+  }
+
+  // 14. FINANCE - Analytics & Reconciliation (finance, super_admin, super_manager only)
+  if (permissions.canAccessFinanceAnalytics) {
+    items.push({
+      label: 'Finance',
+      href: '/finance-analytics',
+      icon: 'TrendingUp',
+      subItems: [
+        { label: 'Analytics', href: '/finance-analytics', icon: '' },
+        { label: 'Payment Reconciliation', href: '/payment-reconciliation', icon: '' }
+      ]
     });
   }
 
