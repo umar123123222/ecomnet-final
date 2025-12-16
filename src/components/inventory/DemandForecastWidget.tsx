@@ -171,8 +171,8 @@ export function DemandForecastWidget() {
     );
   }
 
-  const displayedForecasts = forecasts.length > 3 && !expanded 
-    ? forecasts.slice(0, 3) 
+  const displayedForecasts = forecasts.length > 2 && !expanded 
+    ? forecasts.slice(0, 2) 
     : forecasts;
 
   return (
@@ -229,7 +229,7 @@ export function DemandForecastWidget() {
               </div>
             </div>
           ))}
-          {forecasts.length > 3 && (
+          {forecasts.length > 2 && (
             <Button
               variant="ghost"
               size="sm"
