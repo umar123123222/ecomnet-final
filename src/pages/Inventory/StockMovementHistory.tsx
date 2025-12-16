@@ -188,15 +188,17 @@ export default function StockMovementHistory() {
   };
 
   // Fetch non-dispatch packaging movements
+  // Note: packaging_movements table doesn't have outlet_id column
   const { data: packagingMovements, isLoading: loadingPackaging } = useQuery({
-    queryKey: ["packaging-movements-nondispatch", movementTypeFilter, dateRange, outletFilter],
+    queryKey: ["packaging-movements-nondispatch", movementTypeFilter, dateRange],
     queryFn: async () => {
       // If filtering for dispatch only, don't fetch individual movements
       if (movementTypeFilter === "dispatch") {
         return [];
       }
 
-      const { data: rawData, error } = await supabase
+      // Note: packaging_movements doesn't have outlet_id - packaging is tracked centrally
+      let query = supabase
         .from("packaging_movements")
         .select(`
           id,
@@ -205,49 +207,33 @@ export default function StockMovementHistory() {
           notes,
           created_at,
           created_by,
-          outlet_id,
           packaging_item:packaging_items(name, sku)
         `)
         .neq("movement_type", "dispatch")
         .order("created_at", { ascending: false })
-        .limit(300) as { data: any[] | null; error: any };
-      
-      if (error) throw error;
-      
-      let filteredData = rawData || [];
-      
-      // Apply filters
-      if (movementTypeFilter !== "all") {
-        filteredData = filteredData.filter((m: any) => m.movement_type === movementTypeFilter);
-      }
+        .limit(500);
 
-      if (outletFilter !== "all") {
-        filteredData = filteredData.filter((m: any) => m.outlet_id === outletFilter);
+      if (movementTypeFilter !== "all") {
+        query = query.eq("movement_type", movementTypeFilter);
       }
 
       if (dateRange?.from) {
-        filteredData = filteredData.filter((m: any) => new Date(m.created_at) >= dateRange.from!);
+        query = query.gte("created_at", dateRange.from.toISOString());
       }
       if (dateRange?.to) {
         const endOfDay = new Date(dateRange.to);
         endOfDay.setHours(23, 59, 59, 999);
-        filteredData = filteredData.filter((m: any) => new Date(m.created_at) <= endOfDay);
+        query = query.lte("created_at", endOfDay.toISOString());
       }
+
+      const { data: rawData, error } = await query;
       
-      // Enrich with outlet names
-      const outletIds = [...new Set(filteredData.map((m: any) => m.outlet_id).filter(Boolean))];
-      let outletMap = new Map<string, string>();
-      if (outletIds.length > 0) {
-        const { data: outletData } = await supabase
-          .from('outlets')
-          .select('id, name')
-          .in('id', outletIds);
-        outletMap = new Map((outletData || []).map((o: any) => [o.id, o.name]));
-      }
+      if (error) throw error;
       
-      const enrichedData = filteredData.map((m: any) => ({
+      // Add placeholder outlet (packaging is tracked at warehouse level)
+      const enrichedData = (rawData || []).map((m: any) => ({
         ...m,
-        outlet: { name: outletMap.get(m.outlet_id) || null }
+        outlet: { name: 'Main Warehouse' } // Packaging is centrally tracked
       }));
       
       return await enrichPackagingWithProfiles(enrichedData);
@@ -432,14 +418,31 @@ export default function StockMovementHistory() {
     const rows: string[] = [];
     rows.push(["Date", "Stock Name", "SKU", "Category", "Type", "Outlet", "Change", "Reason", "Performed By"].join(","));
     
-    // Track outlet-wise totals for products and packaging
+    // Get the main warehouse name for dispatch consolidation
+    const mainWarehouse = outlets?.find(o => o.outlet_type === 'warehouse')?.name || 'Main Warehouse';
+    
+    // Initialize all outlets with zero values (products and packaging)
     const outletTotals: Record<string, {
       products: Record<string, { name: string; addition: number; deduction: number }>;
       packaging: Record<string, { name: string; addition: number; deduction: number }>;
     }> = {};
 
+    // Pre-initialize all outlets from the outlets list
+    outlets?.forEach(outlet => {
+      outletTotals[outlet.name] = { products: {}, packaging: {} };
+    });
+    // Also add Main Warehouse if not in list
+    if (!outletTotals[mainWarehouse]) {
+      outletTotals[mainWarehouse] = { products: {}, packaging: {} };
+    }
+
     const updateOutletTotals = (outletName: string, category: 'product' | 'packaging', itemName: string, sku: string, qty: number) => {
-      const outlet = outletName || 'Unspecified';
+      // Consolidate dispatch warehouse entries to main warehouse
+      let outlet = outletName || 'Unspecified';
+      if (outlet === 'Warehouse (Dispatch)' || outlet === '-' || outlet.toLowerCase().includes('dispatch')) {
+        outlet = mainWarehouse;
+      }
+      
       if (!outletTotals[outlet]) {
         outletTotals[outlet] = { products: {}, packaging: {} };
       }
@@ -457,7 +460,7 @@ export default function StockMovementHistory() {
     
     displayItems.forEach((item) => {
       if ('type' in item && item.type === 'summary') {
-        // Export summary as multiple rows (dispatch movements are warehouse-based)
+        // Export summary as multiple rows - use main warehouse name
         Object.entries(item.productItems).forEach(([_, product]) => {
           rows.push([
             item.date,
@@ -465,12 +468,12 @@ export default function StockMovementHistory() {
             product.sku || '',
             'product',
             'dispatch',
-            'Warehouse (Dispatch)',
+            `"${mainWarehouse}"`,
             `-${product.total_qty}`,
             'Daily Dispatch',
             'System (Aggregated)',
           ].join(","));
-          updateOutletTotals('Warehouse (Dispatch)', 'product', product.name, product.sku || '', -product.total_qty);
+          updateOutletTotals(mainWarehouse, 'product', product.name, product.sku || '', -product.total_qty);
         });
         Object.entries(item.packagingItems).forEach(([_, packaging]) => {
           rows.push([
@@ -479,27 +482,28 @@ export default function StockMovementHistory() {
             packaging.sku || '',
             'packaging',
             'dispatch',
-            'Warehouse (Dispatch)',
+            `"${mainWarehouse}"`,
             `-${packaging.total_qty}`,
             'Daily Dispatch',
             'System (Aggregated)',
           ].join(","));
-          updateOutletTotals('Warehouse (Dispatch)', 'packaging', packaging.name, packaging.sku || '', -packaging.total_qty);
+          updateOutletTotals(mainWarehouse, 'packaging', packaging.name, packaging.sku || '', -packaging.total_qty);
         });
       } else {
         const m = item as UnifiedMovement;
+        const outletForExport = m.outlet_name === '-' ? mainWarehouse : m.outlet_name;
         rows.push([
           format(new Date(m.created_at), "yyyy-MM-dd hh:mm:ss a"),
           `"${m.name}"`,
           m.sku,
           m.category,
           m.movement_type,
-          `"${m.outlet_name || '-'}"`,
+          `"${outletForExport}"`,
           m.quantity > 0 ? `+${m.quantity}` : String(m.quantity),
           `"${m.reason}"`,
           m.performed_by,
         ].join(","));
-        updateOutletTotals(m.outlet_name, m.category, m.name, m.sku, m.quantity);
+        updateOutletTotals(outletForExport, m.category, m.name, m.sku, m.quantity);
       }
     });
 
@@ -508,14 +512,15 @@ export default function StockMovementHistory() {
     rows.push("=== OUTLET/WAREHOUSE WISE TOTALS ===");
     rows.push("");
 
-    Object.entries(outletTotals).sort().forEach(([outletName, data]) => {
+    // Sort outlets alphabetically
+    Object.entries(outletTotals).sort((a, b) => a[0].localeCompare(b[0])).forEach(([outletName, data]) => {
       rows.push(`"${outletName}"`);
       
-      // Products section
+      // Products section - always show header even if empty
+      rows.push(",PRODUCTS:");
+      rows.push(",Item Name,SKU,Total Addition,Total Deduction,Net Change");
       const productEntries = Object.entries(data.products);
       if (productEntries.length > 0) {
-        rows.push(",PRODUCTS:");
-        rows.push(",Item Name,SKU,Total Addition,Total Deduction,Net Change");
         productEntries.forEach(([key, item]) => {
           const net = item.addition - item.deduction;
           rows.push([
@@ -527,13 +532,15 @@ export default function StockMovementHistory() {
             net >= 0 ? `+${net}` : String(net),
           ].join(","));
         });
+      } else {
+        rows.push(",No product movements");
       }
       
-      // Packaging section
+      // Packaging section - always show header even if empty
+      rows.push(",PACKAGING:");
+      rows.push(",Item Name,SKU,Total Addition,Total Deduction,Net Change");
       const packagingEntries = Object.entries(data.packaging);
       if (packagingEntries.length > 0) {
-        rows.push(",PACKAGING:");
-        rows.push(",Item Name,SKU,Total Addition,Total Deduction,Net Change");
         packagingEntries.forEach(([key, item]) => {
           const net = item.addition - item.deduction;
           rows.push([
@@ -545,6 +552,8 @@ export default function StockMovementHistory() {
             net >= 0 ? `+${net}` : String(net),
           ].join(","));
         });
+      } else {
+        rows.push(",No packaging movements");
       }
       
       rows.push(""); // Empty row between outlets
@@ -555,7 +564,8 @@ export default function StockMovementHistory() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `stock-movements-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    const filterSuffix = movementTypeFilter !== 'all' ? `-${movementTypeFilter}` : '';
+    a.download = `stock-movements${filterSuffix}-${format(new Date(), "yyyy-MM-dd")}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
 
