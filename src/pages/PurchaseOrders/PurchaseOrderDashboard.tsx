@@ -25,6 +25,10 @@ interface PurchaseOrder {
   order_date: string;
   expected_delivery_date: string | null;
   total_amount: number;
+  paid_amount: number | null;
+  payment_reference: string | null;
+  payment_status: string | null;
+  supplier_payment_confirmed: boolean | null;
   suppliers: { name: string } | null;
   outlets: { name: string } | null;
   profiles: { full_name: string | null; email: string } | null;
@@ -756,13 +760,22 @@ const PurchaseOrderDashboard = () => {
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                         <span>{currency} {po.total_amount.toLocaleString()}</span>
                       </div>
+                      {po.paid_amount && po.paid_amount > 0 && (
+                        <div className="flex items-center gap-2 text-green-600">
+                          <CheckCircle className="h-4 w-4" />
+                          <span>Paid: {currency} {po.paid_amount.toLocaleString()}</span>
+                          {po.payment_reference && (
+                            <span className="text-muted-foreground">({po.payment_reference})</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   
                   <div className="flex flex-col items-end gap-2">
                     <div className="flex gap-2">
                       {getStatusBadge(po.status)}
-                      {getPaymentBadge((po as any).payment_status)}
+                      {getPaymentBadge(po.payment_status)}
                     </div>
                     <div className="flex gap-1">
                       {/* Payment button for completed/partially received POs - only for super_admin and super_manager */}
@@ -770,8 +783,8 @@ const PurchaseOrderDashboard = () => {
                       {/* Payment button for completed/partially received POs - only for finance and super_admin */}
                       {/* Hide when fully paid OR when supplier has confirmed payment receipt */}
                       {(po.status === 'completed' || po.status === 'partially_received') && 
-                       (po as any).payment_status !== 'paid' &&
-                       !(po as any).supplier_payment_confirmed &&
+                       po.payment_status !== 'paid' &&
+                       !po.supplier_payment_confirmed &&
                        (profile?.role === 'super_admin' || profile?.role === 'finance') && (
                         <Button
                           variant="outline"
