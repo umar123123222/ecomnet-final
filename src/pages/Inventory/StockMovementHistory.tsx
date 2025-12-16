@@ -743,10 +743,17 @@ export default function StockMovementHistory() {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8">
-                    <div className="flex flex-col items-center gap-2">
-                      <Package className="h-12 w-12 text-muted-foreground" />
-                      <p className="text-muted-foreground">No stock movements found</p>
+                  <TableCell colSpan={8} className="py-12">
+                    <div className="flex flex-col items-center justify-center text-center">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+                        <Package className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-foreground mb-1">No stock movements found</h3>
+                      <p className="text-sm text-muted-foreground max-w-sm">
+                        {searchTerm || categoryFilter !== 'all' || movementTypeFilter !== 'all' || dateRange?.from
+                          ? 'Try adjusting your filters to see more results.'
+                          : 'Stock movements will appear here when inventory changes occur.'}
+                      </p>
                     </div>
                   </TableCell>
                 </TableRow>
