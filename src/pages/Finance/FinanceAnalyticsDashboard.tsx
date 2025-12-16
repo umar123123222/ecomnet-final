@@ -53,89 +53,145 @@ const FinanceAnalyticsDashboard = () => {
     }
   });
 
-  // Fetch ALL orders for total orders placed
+  // Fetch ALL orders for total orders placed (no limit)
   const { data: allOrders = [], isLoading: loadingAllOrders } = useQuery({
     queryKey: ['finance-all-orders', dateRange, selectedCourier],
     queryFn: async () => {
-      let query = supabase
-        .from('orders')
-        .select('id, order_number, total_amount, shipping_charges, courier, status, created_at, dispatched_at, delivered_at')
-        .gte('created_at', dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString())
-        .lte('created_at', dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString());
+      const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
+      const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
+      
+      // Fetch in batches to overcome 1000 row limit
+      let allData: any[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('id, order_number, total_amount, shipping_charges, courier, status, created_at, dispatched_at, delivered_at')
+          .gte('created_at', fromDate)
+          .lte('created_at', toDate)
+          .range(offset, offset + batchSize - 1);
 
-      const { data, error } = await query;
-      if (error) throw error;
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allData = [...allData, ...data];
+        if (data.length < batchSize) break;
+        offset += batchSize;
+      }
       
       if (selectedCourier !== 'all') {
-        return (data || []).filter(o => o.courier === selectedCourier);
+        return allData.filter(o => o.courier === selectedCourier);
       }
-      return data || [];
+      return allData;
     }
   });
 
-  // Fetch delivered orders with COD data
+  // Fetch delivered orders with COD data (no limit)
   const { data: deliveredOrders = [], isLoading: loadingOrders } = useQuery({
     queryKey: ['finance-delivered-orders', dateRange, selectedCourier],
     queryFn: async () => {
-      let query = supabase
-        .from('orders')
-        .select('id, order_number, total_amount, shipping_charges, courier, status, delivered_at, created_at')
-        .in('status', ['delivered', 'returned'])
-        .gte('created_at', dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString())
-        .lte('created_at', dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString());
-
-      const { data, error } = await query;
-      if (error) throw error;
+      const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
+      const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
       
-      // Filter by courier client-side to avoid type issues
-      if (selectedCourier !== 'all') {
-        return (data || []).filter(o => o.courier === selectedCourier);
+      let allData: any[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('id, order_number, total_amount, shipping_charges, courier, status, delivered_at, created_at')
+          .in('status', ['delivered', 'returned'])
+          .gte('created_at', fromDate)
+          .lte('created_at', toDate)
+          .range(offset, offset + batchSize - 1);
+
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allData = [...allData, ...data];
+        if (data.length < batchSize) break;
+        offset += batchSize;
       }
-      return data || [];
+      
+      if (selectedCourier !== 'all') {
+        return allData.filter(o => o.courier === selectedCourier);
+      }
+      return allData;
     }
   });
 
-  // Fetch dispatched orders for total parcels
+  // Fetch dispatched orders for total parcels (no limit)
   const { data: dispatchedOrders = [] } = useQuery({
     queryKey: ['finance-dispatched-orders', dateRange, selectedCourier],
     queryFn: async () => {
-      let query = supabase
-        .from('orders')
-        .select('id, order_number, total_amount, courier, status, dispatched_at')
-        .in('status', ['dispatched', 'delivered', 'returned'])
-        .gte('dispatched_at', dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString())
-        .lte('dispatched_at', dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString());
+      const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
+      const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
+      
+      let allData: any[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('id, order_number, total_amount, courier, status, dispatched_at')
+          .in('status', ['dispatched', 'delivered', 'returned'])
+          .gte('dispatched_at', fromDate)
+          .lte('dispatched_at', toDate)
+          .range(offset, offset + batchSize - 1);
 
-      const { data, error } = await query;
-      if (error) throw error;
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allData = [...allData, ...data];
+        if (data.length < batchSize) break;
+        offset += batchSize;
+      }
       
       if (selectedCourier !== 'all') {
-        return (data || []).filter(o => o.courier === selectedCourier);
+        return allData.filter(o => o.courier === selectedCourier);
       }
-      return data || [];
+      return allData;
     }
   });
 
-  // Fetch returns/claims data
+  // Fetch returns/claims data (no limit)
   const { data: returns = [] } = useQuery({
     queryKey: ['finance-returns', dateRange, selectedCourier],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('returns')
-        .select(`
-          id, order_id, return_status, claim_amount, claimed_at,
-          orders!inner(total_amount, courier, order_number)
-        `)
-        .gte('created_at', dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString())
-        .lte('created_at', dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString());
-
-      if (error) throw error;
+      const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
+      const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
       
-      // Filter by courier if selected
-      if (selectedCourier !== 'all') {
-        return (data || []).filter((r: any) => r.orders?.courier === selectedCourier);
+      let allData: any[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from('returns')
+          .select(`
+            id, order_id, return_status, claim_amount, claimed_at, received_at,
+            orders!inner(total_amount, courier, order_number)
+          `)
+          .gte('created_at', fromDate)
+          .lte('created_at', toDate)
+          .range(offset, offset + batchSize - 1);
+
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allData = [...allData, ...data];
+        if (data.length < batchSize) break;
+        offset += batchSize;
       }
-      return data || [];
+      
+      if (selectedCourier !== 'all') {
+        return allData.filter((r: any) => r.orders?.courier === selectedCourier);
+      }
+      return allData;
     }
   });
 
