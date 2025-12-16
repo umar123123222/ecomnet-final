@@ -12,6 +12,8 @@ export interface OrderFilters {
   statusDateRange: { from: Date; to?: Date } | null;
   amountMin: number | undefined;
   amountMax: number | undefined;
+  city: string;
+  hasTrackingId: string;
 }
 
 export interface FormattedOrder {
@@ -106,7 +108,9 @@ export const useOrdersData = () => {
     verificationStatus: 'all',
     statusDateRange: null,
     amountMin: undefined,
-    amountMax: undefined
+    amountMax: undefined,
+    city: 'all',
+    hasTrackingId: 'all'
   });
 
   const [newOrdersCount, setNewOrdersCount] = useState(0);
@@ -176,6 +180,16 @@ export const useOrdersData = () => {
       }
       if (filters.amountMax !== undefined) {
         query = query.lte('total_amount', filters.amountMax);
+      }
+
+      if (filters.city !== 'all') {
+        query = query.ilike('city', `%${filters.city}%`);
+      }
+
+      if (filters.hasTrackingId === 'yes') {
+        query = query.not('tracking_id', 'is', null);
+      } else if (filters.hasTrackingId === 'no') {
+        query = query.is('tracking_id', null);
       }
 
       query = query.order('created_at', { ascending: sortOrder === 'oldest' });
@@ -465,6 +479,9 @@ export const useOrdersData = () => {
 
       if (filters.amountMin !== undefined) query = query.gte('total_amount', filters.amountMin);
       if (filters.amountMax !== undefined) query = query.lte('total_amount', filters.amountMax);
+      if (filters.city !== 'all') query = query.ilike('city', `%${filters.city}%`);
+      if (filters.hasTrackingId === 'yes') query = query.not('tracking_id', 'is', null);
+      else if (filters.hasTrackingId === 'no') query = query.is('tracking_id', null);
 
       const { data } = await query;
       if (data && data.length > 0) {
@@ -501,7 +518,9 @@ export const useOrdersData = () => {
       verificationStatus: 'all',
       statusDateRange: null,
       amountMin: undefined,
-      amountMax: undefined
+      amountMax: undefined,
+      city: 'all',
+      hasTrackingId: 'all'
     });
     setPage(0);
   }, []);
@@ -521,6 +540,8 @@ export const useOrdersData = () => {
     if (filters.verificationStatus !== 'all') count++;
     if (filters.statusDateRange) count++;
     if (filters.amountMin !== undefined || filters.amountMax !== undefined) count++;
+    if (filters.city !== 'all') count++;
+    if (filters.hasTrackingId !== 'all') count++;
     return count;
   }, [filters]);
 

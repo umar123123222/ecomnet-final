@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Label } from '@/components/ui/label';
-import { Search, Upload, Filter, X, RefreshCw, AlertTriangle, AlertCircle, MapPin, Eye, EyeOff } from 'lucide-react';
+import { Search, Upload, Filter, X, RefreshCw, AlertTriangle, AlertCircle, MapPin, Eye, EyeOff, Package, DollarSign, Smartphone } from 'lucide-react';
 import NewOrderDialog from '@/components/NewOrderDialog';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { useUserRoles } from '@/hooks/useUserRoles';
@@ -640,6 +640,76 @@ const OrderDashboard = () => {
                       date={filters.statusDateRange}
                       setDate={(range) => updateFilter('statusDateRange', range)}
                     />
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      City
+                    </Label>
+                    <Input
+                      placeholder="Filter by city..."
+                      value={filters.city === 'all' ? '' : filters.city}
+                      onChange={e => updateFilter('city', e.target.value || 'all')}
+                      className="bg-background"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Amount Range
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        placeholder="Min"
+                        value={filters.amountMin ?? ''}
+                        onChange={e => updateFilter('amountMin', e.target.value ? Number(e.target.value) : undefined)}
+                        className="bg-background"
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Max"
+                        value={filters.amountMax ?? ''}
+                        onChange={e => updateFilter('amountMax', e.target.value ? Number(e.target.value) : undefined)}
+                        className="bg-background"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold flex items-center gap-2">
+                      <Smartphone className="h-4 w-4" />
+                      Order Source
+                    </Label>
+                    <Select value={filters.orderType} onValueChange={value => updateFilter('orderType', value)}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Select source" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-50">
+                        <SelectItem value="all">All Sources</SelectItem>
+                        <SelectItem value="COD">COD</SelectItem>
+                        <SelectItem value="Prepaid">Prepaid</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold flex items-center gap-2">
+                      <Package className="h-4 w-4" />
+                      Has Tracking ID
+                    </Label>
+                    <Select value={filters.hasTrackingId} onValueChange={value => updateFilter('hasTrackingId', value)}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-50">
+                        <SelectItem value="all">All Orders</SelectItem>
+                        <SelectItem value="yes">With Tracking ID</SelectItem>
+                        <SelectItem value="no">Without Tracking ID</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </SheetContent>
