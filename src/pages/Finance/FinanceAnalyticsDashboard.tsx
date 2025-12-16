@@ -89,7 +89,7 @@ const FinanceAnalyticsDashboard = () => {
     }
   });
 
-  // Fetch delivered orders with COD data (no limit)
+  // Fetch delivered orders with COD data (filtered by created_at for courier analytics)
   const { data: deliveredOrders = [], isLoading: loadingOrders } = useQuery({
     queryKey: ['finance-delivered-orders', dateRange, selectedCourier],
     queryFn: async () => {
@@ -107,6 +107,42 @@ const FinanceAnalyticsDashboard = () => {
           .in('status', ['delivered', 'returned'])
           .gte('created_at', fromDate)
           .lte('created_at', toDate)
+          .range(offset, offset + batchSize - 1);
+
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allData = [...allData, ...data];
+        if (data.length < batchSize) break;
+        offset += batchSize;
+      }
+      
+      if (selectedCourier !== 'all') {
+        return allData.filter(o => o.courier === selectedCourier);
+      }
+      return allData;
+    }
+  });
+
+  // Fetch delivered orders filtered by delivered_at for stats card
+  const { data: deliveredByDate = [] } = useQuery({
+    queryKey: ['finance-delivered-by-date', dateRange, selectedCourier],
+    queryFn: async () => {
+      const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
+      const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
+      
+      let allData: any[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('id, total_amount, courier')
+          .eq('status', 'delivered')
+          .not('delivered_at', 'is', null)
+          .gte('delivered_at', fromDate)
+          .lte('delivered_at', toDate)
           .range(offset, offset + batchSize - 1);
 
         if (error) throw error;
@@ -405,6 +441,10 @@ const FinanceAnalyticsDashboard = () => {
     const totalOrdersDispatched = dispatchedOrders.length;
     const dispatchedValue = dispatchedOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
     
+    // Delivered orders - filtered by delivered_at
+    const totalDelivered = deliveredByDate.length;
+    const deliveredValue = deliveredByDate.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+    
     // Returns Received - uses returns table filtered by received_at
     const totalReturnsReceived = returns.length;
     const returnsReceivedValue = returns.reduce((sum: number, r: any) => sum + (Number(r.orders?.total_amount) || 0), 0);
@@ -427,12 +467,14 @@ const FinanceAnalyticsDashboard = () => {
       cancelledValue,
       totalOrdersDispatched,
       dispatchedValue,
+      totalDelivered,
+      deliveredValue,
       totalReturnsReceived,
       returnsReceivedValue,
       returnsInRoute: returnsInRouteCount,
       returnsInRouteValue
     };
-  }, [courierAnalytics, allOrders, cancelledOrderValues, dispatchedOrders, returns, returnsInRoute]);
+  }, [courierAnalytics, allOrders, cancelledOrderValues, dispatchedOrders, deliveredByDate, returns, returnsInRoute]);
 
   // Smart alerts/insights
   const insights = useMemo(() => {
@@ -567,7 +609,7 @@ const FinanceAnalyticsDashboard = () => {
 
       {/* Order Statistics Cards */}
       <TooltipProvider>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
           <Card>
             <CardContent className="pt-4">
               <div className="flex items-center justify-between">
@@ -633,6 +675,29 @@ const FinanceAnalyticsDashboard = () => {
                   <p className="text-xs text-muted-foreground">{currency} {kpis.dispatchedValue.toLocaleString()}</p>
                 </div>
                 <Truck className="h-8 w-8 text-blue-600/20" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Delivered
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">Orders delivered (delivered_at) during the selected period.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className="text-xl font-bold text-green-600">{kpis.totalDelivered.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">{currency} {kpis.deliveredValue.toLocaleString()}</p>
+                </div>
+                <CheckCircle className="h-8 w-8 text-green-600/20" />
               </div>
             </CardContent>
           </Card>
