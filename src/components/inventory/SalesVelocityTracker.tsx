@@ -2,7 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, ArrowUp, ArrowDown, Minus, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Activity, ArrowUp, ArrowDown, Minus, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { useState } from "react";
 
 interface VelocityItem {
   product_id: string;
@@ -16,6 +18,8 @@ interface VelocityItem {
 }
 
 export function SalesVelocityTracker() {
+  const [expanded, setExpanded] = useState(false);
+  
   const { data: velocityItems, isLoading } = useQuery({
     queryKey: ['sales-velocity'],
     queryFn: async () => {
@@ -162,8 +166,12 @@ export function SalesVelocityTracker() {
     );
   }
 
+  const displayedItems = velocityItems.length > 3 && !expanded 
+    ? velocityItems.slice(0, 3) 
+    : velocityItems;
+
   return (
-    <Card>
+    <Card className="h-fit">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -178,7 +186,7 @@ export function SalesVelocityTracker() {
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {velocityItems.map((item) => (
+          {displayedItems.map((item) => (
             <div
               key={item.product_id}
               className="flex items-start justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors"
@@ -216,6 +224,26 @@ export function SalesVelocityTracker() {
               </div>
             </div>
           ))}
+          {velocityItems.length > 3 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? (
+                <>
+                  <ChevronUp className="h-4 w-4 mr-1" />
+                  Show Less
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-4 w-4 mr-1" />
+                  Show All ({velocityItems.length} products)
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

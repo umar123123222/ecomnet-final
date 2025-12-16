@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Calendar, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, Calendar, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 
@@ -20,6 +21,7 @@ interface ForecastItem {
 
 export function DemandForecastWidget() {
   const [timeframe, setTimeframe] = useState<'7' | '30'>('7');
+  const [expanded, setExpanded] = useState(false);
 
   const { data: forecasts, isLoading } = useQuery({
     queryKey: ['demand-forecast', timeframe],
@@ -169,8 +171,12 @@ export function DemandForecastWidget() {
     );
   }
 
+  const displayedForecasts = forecasts.length > 3 && !expanded 
+    ? forecasts.slice(0, 3) 
+    : forecasts;
+
   return (
-    <Card>
+    <Card className="h-fit">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -193,7 +199,7 @@ export function DemandForecastWidget() {
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {forecasts.map((item) => (
+          {displayedForecasts.map((item) => (
             <div
               key={item.product_id}
               className="flex items-start justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors"
@@ -223,6 +229,26 @@ export function DemandForecastWidget() {
               </div>
             </div>
           ))}
+          {forecasts.length > 3 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? (
+                <>
+                  <ChevronUp className="h-4 w-4 mr-1" />
+                  Show Less
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-4 w-4 mr-1" />
+                  Show All ({forecasts.length} products)
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
