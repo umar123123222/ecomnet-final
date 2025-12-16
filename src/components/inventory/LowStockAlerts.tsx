@@ -3,10 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Package, TrendingDown, Loader2 } from "lucide-react";
+import { AlertTriangle, Package, TrendingDown, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { Inventory } from "@/types/inventory";
+import { useState } from "react";
 
 export function LowStockAlerts() {
+  const [expanded, setExpanded] = useState(false);
+  
   const { data: lowStockItems, isLoading } = useQuery<Inventory[]>({
     queryKey: ["low-stock-alerts"],
     queryFn: async () => {
@@ -27,12 +30,12 @@ export function LowStockAlerts() {
 
       return lowStock.slice(0, 10) as Inventory[];
     },
-    refetchInterval: 120000, // Reduced from 30s to 2 minutes
+    refetchInterval: 120000,
   });
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="h-fit">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-orange-500" />
@@ -46,8 +49,12 @@ export function LowStockAlerts() {
     );
   }
 
+  const displayedItems = lowStockItems && lowStockItems.length > 3 && !expanded 
+    ? lowStockItems.slice(0, 3) 
+    : lowStockItems;
+
   return (
-    <Card>
+    <Card className="h-fit">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
@@ -70,7 +77,7 @@ export function LowStockAlerts() {
           </div>
         ) : (
           <div className="space-y-3">
-            {lowStockItems.map((item) => (
+            {displayedItems?.map((item) => (
               <div
                 key={item.id}
                 className="flex items-center justify-between p-3 rounded-lg border border-orange-200 bg-orange-50/50 hover:bg-orange-50 transition-colors"
@@ -97,6 +104,26 @@ export function LowStockAlerts() {
                 </div>
               </div>
             ))}
+            {lowStockItems.length > 3 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full mt-2"
+                onClick={() => setExpanded(!expanded)}
+              >
+                {expanded ? (
+                  <>
+                    <ChevronUp className="h-4 w-4 mr-1" />
+                    Show Less
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-4 w-4 mr-1" />
+                    Show All ({lowStockItems.length} items)
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         )}
       </CardContent>

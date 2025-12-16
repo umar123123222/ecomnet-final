@@ -2,10 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowUpCircle, ArrowDownCircle, ArrowRightLeft, RotateCcw, Package, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ArrowUpCircle, ArrowDownCircle, ArrowRightLeft, RotateCcw, Package, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { format } from "date-fns";
+import { useState } from "react";
 
 export function RecentStockMovements() {
+  const [expanded, setExpanded] = useState(false);
+  
   const { data: movements, isLoading } = useQuery({
     queryKey: ["recent-stock-movements"],
     queryFn: async () => {
@@ -22,7 +26,7 @@ export function RecentStockMovements() {
       if (error) throw error;
       return data;
     },
-    refetchInterval: 120000, // Reduced from 30s to 2 minutes
+    refetchInterval: 120000,
   });
 
   const getMovementIcon = (type: string) => {
@@ -61,7 +65,7 @@ export function RecentStockMovements() {
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="h-fit">
         <CardHeader>
           <CardTitle>Recent Stock Movements</CardTitle>
         </CardHeader>
@@ -72,8 +76,12 @@ export function RecentStockMovements() {
     );
   }
 
+  const displayedMovements = movements && movements.length > 3 && !expanded 
+    ? movements.slice(0, 3) 
+    : movements;
+
   return (
-    <Card>
+    <Card className="h-fit">
       <CardHeader>
         <CardTitle>Recent Stock Movements</CardTitle>
         <CardDescription>Latest inventory transactions</CardDescription>
@@ -86,7 +94,7 @@ export function RecentStockMovements() {
           </div>
         ) : (
           <div className="space-y-2">
-            {movements.map((movement: any) => (
+            {displayedMovements?.map((movement: any) => (
               <div
                 key={movement.id}
                 className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
@@ -114,6 +122,26 @@ export function RecentStockMovements() {
                 </div>
               </div>
             ))}
+            {movements.length > 3 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full mt-2"
+                onClick={() => setExpanded(!expanded)}
+              >
+                {expanded ? (
+                  <>
+                    <ChevronUp className="h-4 w-4 mr-1" />
+                    Show Less
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-4 w-4 mr-1" />
+                    Show All ({movements.length} movements)
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         )}
       </CardContent>
