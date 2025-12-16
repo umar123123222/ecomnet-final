@@ -79,7 +79,8 @@ export default function PackagingManagement() {
   const [selectedOutlet, setSelectedOutlet] = useState<string>("all");
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { permissions } = useUserRoles();
+  const { permissions, primaryRole } = useUserRoles();
+  const isFinanceUser = primaryRole === 'finance';
   const { progress, executeBulkOperation, resetProgress } = useBulkOperations();
   
   // Date filter for reserved quantities
@@ -411,7 +412,7 @@ export default function PackagingManagement() {
         <Table>
           <TableHeader>
             <TableRow>
-              {permissions.canManagePackaging && (
+              {!isFinanceUser && permissions.canManagePackaging && (
                 <TableHead className="w-12">
                   <Checkbox
                     checked={selectedItems.length === filteredItems?.length && filteredItems?.length > 0}
@@ -430,19 +431,19 @@ export default function PackagingManagement() {
               <TableHead className="text-right">Reorder Level</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Cost</TableHead>
-              <TableHead>Actions</TableHead>
+              {!isFinanceUser && <TableHead>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={permissions.canManagePackaging ? 13 : 12} className="text-center">
+                <TableCell colSpan={isFinanceUser ? 12 : (permissions.canManagePackaging ? 13 : 12)} className="text-center">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : filteredItems?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={permissions.canManagePackaging ? 13 : 12} className="text-center">
+                <TableCell colSpan={isFinanceUser ? 12 : (permissions.canManagePackaging ? 13 : 12)} className="text-center">
                   No packaging items found
                 </TableCell>
               </TableRow>
@@ -457,7 +458,7 @@ export default function PackagingManagement() {
                 }[item.allocation_type || 'none'];
                 return (
                   <TableRow key={item.id}>
-                    {permissions.canManagePackaging && (
+                    {!isFinanceUser && permissions.canManagePackaging && (
                       <TableCell>
                         <Checkbox
                           checked={selectedItems.includes(item.id)}
@@ -504,20 +505,22 @@ export default function PackagingManagement() {
                       <Badge variant={status.variant}>{status.label}</Badge>
                     </TableCell>
                     <TableCell className="text-right">PKR {item.cost.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        {permissions.canManagePackaging && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(item)}
-                          >
-                            <Edit className="h-3 w-3 mr-1" />
-                            Edit
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
+                    {!isFinanceUser && (
+                      <TableCell>
+                        <div className="flex gap-2">
+                          {permissions.canManagePackaging && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(item)}
+                            >
+                              <Edit className="h-3 w-3 mr-1" />
+                              Edit
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })
