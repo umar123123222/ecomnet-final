@@ -273,10 +273,12 @@ const ProductManagement = () => {
   };
   return <PageContainer>
       <PageHeader title="Product Management" description="Manage your product catalog" icon={Package} actions={<>
-            <Button onClick={handleSyncFromShopify} disabled={isSyncingShopify} variant="outline" className="gap-2">
-              {isSyncingShopify ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Sync from Shopify
-            </Button>
+            {!isFinanceUser && (
+              <Button onClick={handleSyncFromShopify} disabled={isSyncingShopify} variant="outline" className="gap-2">
+                {isSyncingShopify ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Sync from Shopify
+              </Button>
+            )}
             {permissions.canManageProducts && <>
                 <Button onClick={() => setStockAdjustmentDialogOpen(true)} variant="outline" className="gap-2">
                   <SlidersHorizontal className="h-4 w-4" />
