@@ -43,10 +43,12 @@ export function PODetailsDialog({ po, supplierId, onClose }: PODetailsDialogProp
           received_date,
           grn_items(
             id,
+            po_item_id,
             quantity_expected,
             quantity_received,
             quantity_accepted,
             quantity_rejected,
+            unit_cost,
             defect_type,
             quality_status,
             notes,
@@ -131,6 +133,57 @@ export function PODetailsDialog({ po, supplierId, onClose }: PODetailsDialogProp
                 <div className="text-muted-foreground font-semibold">Total:</div>
                 <div className="font-bold">PKR {po.total_amount?.toLocaleString()}</div>
               </div>
+
+              {/* Payment Breakdown - explain why amount differs */}
+              {(po.paid_amount > 0 || grnData) && (() => {
+                const receivedTotal = grnData?.grn_items?.reduce((sum: number, item: any) => {
+                  const unitCost = item.unit_cost || items.find((i: any) => i.id === item.po_item_id)?.unit_price || 0;
+                  return sum + (item.quantity_received * unitCost);
+                }, 0) || 0;
+                const shippingCost = po.shipping_cost || 0;
+                const payableAmount = receivedTotal + shippingCost;
+                const amountDifference = po.total_amount - payableAmount;
+                const hasReceivingDifference = grnData && amountDifference > 0;
+
+                return (
+                  <div className="mt-4 pt-3 border-t border-border">
+                    <h4 className="font-medium text-sm mb-2">Payment Breakdown</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {grnData && (
+                        <>
+                          <div className="text-muted-foreground">Received Items Value:</div>
+                          <div>PKR {receivedTotal.toLocaleString()}</div>
+                          {shippingCost > 0 && (
+                            <>
+                              <div className="text-muted-foreground">Shipping:</div>
+                              <div>PKR {shippingCost.toLocaleString()}</div>
+                            </>
+                          )}
+                          <div className="text-muted-foreground font-medium">Payable Amount:</div>
+                          <div className="font-semibold">PKR {payableAmount.toLocaleString()}</div>
+                        </>
+                      )}
+                      {po.paid_amount > 0 && (
+                        <>
+                          <div className="text-muted-foreground">Paid:</div>
+                          <div className="text-green-600">PKR {po.paid_amount.toLocaleString()}</div>
+                        </>
+                      )}
+                      {hasReceivingDifference && (
+                        <>
+                          <div className="text-muted-foreground">Difference:</div>
+                          <div className="text-orange-600">PKR {amountDifference.toLocaleString()}</div>
+                        </>
+                      )}
+                    </div>
+                    {hasReceivingDifference && (
+                      <p className="text-xs text-muted-foreground mt-2 italic">
+                        * Payment differs from PO total due to quantity variance (received {grnData.grn_items?.reduce((s: number, i: any) => s + i.quantity_received, 0)} of {items.reduce((s: number, i: any) => s + i.quantity_ordered, 0)} items ordered)
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Receiving Issues Section */}
