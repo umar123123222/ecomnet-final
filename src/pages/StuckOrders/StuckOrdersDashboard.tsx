@@ -11,6 +11,7 @@ import { formatDistanceToNow, differenceInDays } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { PageContainer, PageHeader, StatsGrid, StatsCard } from '@/components/layout';
 import { useToast } from '@/hooks/use-toast';
+import { useUserRoles } from '@/hooks/useUserRoles';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 interface StuckOrder {
   id: string;
@@ -43,7 +44,9 @@ const StuckOrdersDashboard = () => {
   const {
     toast
   } = useToast();
+  const { primaryRole } = useUserRoles();
   const queryClient = useQueryClient();
+  const canPerformActions = primaryRole !== 'finance';
   const twoDaysAgo = new Date();
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
   const twoDaysAgoISO = twoDaysAgo.toISOString();
@@ -521,69 +524,69 @@ const StuckOrdersDashboard = () => {
   return <PageContainer>
       <PageHeader title="Stuck Orders" description="Orders with no status or tracking updates for 2+ days" />
 
-      {/* Cleanup Actions */}
-      <Card className="p-4">
-        <div className="flex flex-wrap gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openConfirmDialog('shopify_sync')}
-            disabled={isProcessing !== null}
-          >
-            {isProcessing === 'shopify_sync' ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <CloudDownload className="h-4 w-4 mr-2" />
-            )}
-            Sync from Shopify ({pendingOrdersCount?.toLocaleString() || 0})
-          </Button>
+      {/* Cleanup Actions - Hidden for finance users */}
+      {canPerformActions && (
+        <Card className="p-4">
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => openConfirmDialog('shopify_sync')}
+              disabled={isProcessing !== null}
+            >
+              {isProcessing === 'shopify_sync' ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CloudDownload className="h-4 w-4 mr-2" />
+              )}
+              Sync from Shopify ({pendingOrdersCount?.toLocaleString() || 0})
+            </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openConfirmDialog('fix_booked')}
-            disabled={isProcessing !== null}
-          >
-            {isProcessing === 'fix_booked' ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Wrench className="h-4 w-4 mr-2" />
-            )}
-            Fix Booked Orders ({stats?.bookedWithTracking?.toLocaleString() || 0})
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => openConfirmDialog('fix_booked')}
+              disabled={isProcessing !== null}
+            >
+              {isProcessing === 'fix_booked' ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Wrench className="h-4 w-4 mr-2" />
+              )}
+              Fix Booked Orders ({stats?.bookedWithTracking?.toLocaleString() || 0})
+            </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openConfirmDialog('tracking')}
-            disabled={isProcessing !== null}
-          >
-            {isProcessing === 'tracking' ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
-            )}
-            Update All Tracking ({stats?.atCourierEnd?.toLocaleString() || 0})
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => openConfirmDialog('tracking')}
+              disabled={isProcessing !== null}
+            >
+              {isProcessing === 'tracking' ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Update All Tracking ({stats?.atCourierEnd?.toLocaleString() || 0})
+            </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openConfirmDialog('cancel_old')}
-            disabled={isProcessing !== null}
-            className="text-destructive hover:text-destructive"
-          >
-            {isProcessing === 'cancel_old' ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <XCircle className="h-4 w-4 mr-2" />
-            )}
-            Cancel Old Orders ({oldOrdersCount?.toLocaleString() || 0})
-          </Button>
-        </div>
-      </Card>
-
-      
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => openConfirmDialog('cancel_old')}
+              disabled={isProcessing !== null}
+              className="text-destructive hover:text-destructive"
+            >
+              {isProcessing === 'cancel_old' ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <XCircle className="h-4 w-4 mr-2" />
+              )}
+              Cancel Old Orders ({oldOrdersCount?.toLocaleString() || 0})
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Stats Cards */}
       <StatsGrid columns={4}>
