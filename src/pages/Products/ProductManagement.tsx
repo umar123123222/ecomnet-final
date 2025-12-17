@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw, Filter, PackagePlus, SlidersHorizontal, DollarSign, Layers, Pencil, MapPin } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw, Filter, PackagePlus, SlidersHorizontal, DollarSign, Layers, Pencil, MapPin, ChevronDown, CheckSquare, Square, ListChecks } from "lucide-react";
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from "@/components/layout";
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
@@ -16,6 +17,7 @@ import { SmartReorderSettings } from "@/components/inventory/SmartReorderSetting
 import { BulkStockAdditionDialog } from "@/components/inventory/BulkStockAdditionDialog";
 import { StockAdjustmentDialog } from "@/components/inventory/StockAdjustmentDialog";
 import { BulkEditProductsDialog } from "@/components/products/BulkEditProductsDialog";
+import { InlineEditableCell } from "@/components/products/InlineEditableCell";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useBulkOperations, BulkOperation } from '@/hooks/useBulkOperations';
@@ -28,14 +30,9 @@ import { useReservationDateFilter } from "@/hooks/useReservationDateFilter";
 import { ReservationDateFilter } from "@/components/ReservationDateFilter";
 
 const ProductManagement = () => {
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
-  const {
-    permissions,
-    primaryRole
-  } = useUserRoles();
+  const { permissions, primaryRole } = useUserRoles();
   const isFinanceUser = primaryRole === 'finance';
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -49,10 +46,7 @@ const ProductManagement = () => {
   const [pageSize] = useState(50);
   const [isSyncingShopify, setIsSyncingShopify] = useState(false);
   const [selectedOutlet, setSelectedOutlet] = useState<string>("all");
-  const {
-    progress,
-    executeBulkOperation
-  } = useBulkOperations();
+  const { progress, executeBulkOperation } = useBulkOperations();
   
   // Date filter for reserved quantities
   const {
@@ -64,39 +58,25 @@ const ProductManagement = () => {
     clearDateFilter
   } = useReservationDateFilter();
 
-  // Fetch products with pagination
-  const {
-    data: productsData,
-    isLoading
-  } = useQuery({
-    queryKey: ["products", currentPage],
+  // Fetch ALL products for filtering (no pagination here)
+  const { data: allProducts = [], isLoading } = useQuery({
+    queryKey: ["products-all"],
     queryFn: async () => {
-      const from = (currentPage - 1) * pageSize;
-      const to = from + pageSize - 1;
-      const [countResult, dataResult] = await Promise.all([supabase.from("products").select("*", {
-        count: 'exact',
-        head: true
-      }), supabase.from("products").select("*").order("name").range(from, to)]);
-      if (dataResult.error) throw dataResult.error;
-      return {
-        products: dataResult.data || [],
-        totalCount: countResult.count || 0
-      };
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .order("name");
+      if (error) throw error;
+      return data || [];
     }
   });
-  const products = productsData?.products || [];
-  const totalCount = productsData?.totalCount || 0;
-  const totalPages = Math.ceil(totalCount / pageSize);
 
   // Fetch inventory data aggregated by product (filtered by outlet if selected)
-  const {
-    data: inventoryData
-  } = useQuery({
+  const { data: inventoryData } = useQuery({
     queryKey: ["products-inventory-aggregated", selectedOutlet],
     queryFn: async () => {
       let query = supabase.from("inventory").select("product_id, quantity, reserved_quantity, outlet_id");
       
-      // Filter by outlet if selected
       if (selectedOutlet !== "all") {
         query = query.eq("outlet_id", selectedOutlet);
       }
@@ -104,7 +84,6 @@ const ProductManagement = () => {
       const { data, error } = await query;
       if (error) throw error;
 
-      // Aggregate by product_id
       const aggregated = data.reduce((acc: any, item: any) => {
         if (!acc[item.product_id]) {
           acc[item.product_id] = {
@@ -121,36 +100,26 @@ const ProductManagement = () => {
   });
 
   // Fetch suppliers for smart reorder
-  const {
-    data: suppliers = []
-  } = useQuery({
+  const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers-active'],
     queryFn: async () => {
-      const {
-        data,
-        error
-      } = await supabase.from('suppliers').select('id, name').eq('status', 'active').order('name');
+      const { data, error } = await supabase.from('suppliers').select('id, name').eq('status', 'active').order('name');
       if (error) throw error;
       return data;
     }
   });
 
   // Fetch outlets for stock adjustment
-  const {
-    data: outlets = []
-  } = useQuery({
+  const { data: outlets = [] } = useQuery({
     queryKey: ['outlets-active'],
     queryFn: async () => {
-      const {
-        data,
-        error
-      } = await supabase.from('outlets').select('id, name').eq('is_active', true).order('name');
+      const { data, error } = await supabase.from('outlets').select('id, name').eq('is_active', true).order('name');
       if (error) throw error;
       return data;
     }
   });
 
-  // Advanced filtering
+  // Advanced filtering on ALL products
   const {
     filters,
     filteredData: filteredProducts,
@@ -162,7 +131,7 @@ const ProductManagement = () => {
     loadPreset,
     deletePreset,
     activeFiltersCount
-  } = useAdvancedFilters(products || [], {
+  } = useAdvancedFilters(allProducts, {
     searchFields: ['name', 'sku', 'category', 'description'],
     categoryField: 'category',
     amountField: 'price',
@@ -170,11 +139,28 @@ const ProductManagement = () => {
       status: (product, value) => value === 'active' ? product.is_active : !product.is_active
     }
   });
+
+  // Paginate the filtered results
+  const totalFiltered = filteredProducts?.length || 0;
+  const totalPages = Math.ceil(totalFiltered / pageSize);
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    return filteredProducts?.slice(start, end) || [];
+  }, [filteredProducts, currentPage, pageSize]);
+
+  // Reset to page 1 when filters change
+  useMemo(() => {
+    if (currentPage > 1 && totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [totalFiltered]);
+
   const activeProducts = filteredProducts?.filter(p => p.is_active).length || 0;
   const totalValue = filteredProducts?.reduce((sum, p) => sum + (p.price || 0), 0) || 0;
 
-  // Get unique categories
-  const categories = Array.from(new Set(products?.map(p => p.category).filter(Boolean))) as string[];
+  // Get unique categories from ALL products
+  const categories = Array.from(new Set(allProducts?.map(p => p.category).filter(Boolean))) as string[];
   const categoryOptions = categories.map(cat => ({
     value: cat,
     label: cat
@@ -215,7 +201,7 @@ const ProductManagement = () => {
     label: 'Export Selected',
     icon: Download,
     action: async ids => {
-      const selectedProductsData = products?.filter(p => ids.includes(p.id)) || [];
+      const selectedProductsData = allProducts?.filter(p => ids.includes(p.id)) || [];
       exportToCSV(selectedProductsData, `products-${new Date().toISOString().split('T')[0]}`);
       return {
         success: ids.length,
@@ -223,39 +209,52 @@ const ProductManagement = () => {
       };
     }
   }];
+
   const handleBulkOperation = (operation: BulkOperation) => {
     executeBulkOperation(operation, selectedProducts, () => {
       setSelectedProducts([]);
-      // Refetch products after bulk operations
-      queryClient.invalidateQueries({
-        queryKey: ["products"]
-      });
+      queryClient.invalidateQueries({ queryKey: ["products-all"] });
     });
   };
+
   const handleSelectProduct = (productId: string) => {
     setSelectedProducts(prev => prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]);
   };
-  const handleSelectAll = () => {
-    setSelectedProducts(selectedProducts.length === filteredProducts?.length ? [] : filteredProducts?.map(p => p.id) || []);
+
+  // Selection handlers
+  const handleSelectNone = () => {
+    setSelectedProducts([]);
   };
+
+  const handleSelectThisPage = () => {
+    const pageIds = paginatedProducts.map(p => p.id);
+    setSelectedProducts(prev => {
+      const newSet = new Set(prev);
+      pageIds.forEach(id => newSet.add(id));
+      return Array.from(newSet);
+    });
+  };
+
+  const handleSelectAllFiltered = () => {
+    setSelectedProducts(filteredProducts?.map(p => p.id) || []);
+  };
+
+  // Check selection state for current page
+  const allPageSelected = paginatedProducts.length > 0 && paginatedProducts.every(p => selectedProducts.includes(p.id));
+  const somePageSelected = paginatedProducts.some(p => selectedProducts.includes(p.id)) && !allPageSelected;
+
   const handleSyncFromShopify = async () => {
     setIsSyncingShopify(true);
     try {
-      const {
-        data,
-        error
-      } = await supabase.functions.invoke('sync-shopify-products');
+      const { data, error } = await supabase.functions.invoke('sync-shopify-products');
       if (error) throw error;
       toast({
         title: 'Sync Started',
         description: 'Products are being synced from Shopify. This may take a few moments.'
       });
 
-      // Wait a bit and refetch products
       setTimeout(() => {
-        queryClient.invalidateQueries({
-          queryKey: ["products"]
-        });
+        queryClient.invalidateQueries({ queryKey: ["products-all"] });
         toast({
           title: 'Sync Complete',
           description: 'Products have been synced successfully from Shopify.'
@@ -271,39 +270,81 @@ const ProductManagement = () => {
       setIsSyncingShopify(false);
     }
   };
-  return <PageContainer>
-      <PageHeader title="Product Management" description="Manage your product catalog" icon={Package} actions={<>
+
+  // Inline edit handler
+  const handleInlineUpdate = async (productId: string, field: string, value: string | number) => {
+    const { error } = await supabase
+      .from('products')
+      .update({ [field]: value, updated_at: new Date().toISOString() })
+      .eq('id', productId);
+    
+    if (error) {
+      toast({
+        title: 'Update Failed',
+        description: error.message,
+        variant: 'destructive'
+      });
+      throw error;
+    }
+    
+    toast({
+      title: 'Updated',
+      description: `Product ${field} updated successfully`
+    });
+    
+    queryClient.invalidateQueries({ queryKey: ["products-all"] });
+  };
+
+  return (
+    <PageContainer>
+      <PageHeader 
+        title="Product Management" 
+        description="Manage your product catalog" 
+        icon={Package} 
+        actions={
+          <>
             {!isFinanceUser && (
               <Button onClick={handleSyncFromShopify} disabled={isSyncingShopify} variant="outline" className="gap-2">
                 {isSyncingShopify ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Sync from Shopify
               </Button>
             )}
-            {permissions.canManageProducts && <>
+            {permissions.canManageProducts && (
+              <>
                 <Button onClick={() => setStockAdjustmentDialogOpen(true)} variant="outline" className="gap-2">
                   <SlidersHorizontal className="h-4 w-4" />
                   Adjust Stock
                 </Button>
                 
                 <Button onClick={() => {
-          setSelectedProduct(null);
-          setProductDialogOpen(true);
-        }} className="gap-2">
+                  setSelectedProduct(null);
+                  setProductDialogOpen(true);
+                }} className="gap-2">
                   <Plus className="h-4 w-4" />
                   Add Product
                 </Button>
-              </>}
-          </>} />
+              </>
+            )}
+          </>
+        } 
+      />
 
       {/* Summary Cards */}
       <StatsGrid columns={3}>
-        <StatsCard title="Total Products" value={products?.length || 0} description={`${activeProducts} active`} icon={Package} />
-        <StatsCard title="Categories" value={new Set(products?.map(p => p.category)).size} description="Unique categories" icon={Layers} />
-        <StatsCard title="Avg. Price" value={`Rs. ${products && products.length > 0 ? Math.round(totalValue / products.length) : 0}`} description="Average product price" icon={DollarSign} />
+        <StatsCard title="Total Products" value={allProducts?.length || 0} description={`${activeProducts} active`} icon={Package} />
+        <StatsCard title="Categories" value={new Set(allProducts?.map(p => p.category)).size} description="Unique categories" icon={Layers} />
+        <StatsCard title="Avg. Price" value={`Rs. ${allProducts && allProducts.length > 0 ? Math.round(totalValue / allProducts.length) : 0}`} description="Average product price" icon={DollarSign} />
       </StatsGrid>
 
       {/* Bulk Operations Panel */}
-      {selectedProducts.length > 0 && <BulkOperationsPanel selectedCount={selectedProducts.length} operations={bulkOperations} onExecute={handleBulkOperation} progress={progress} />}
+      {selectedProducts.length > 0 && (
+        <BulkOperationsPanel 
+          selectedCount={selectedProducts.length} 
+          operations={bulkOperations} 
+          onExecute={handleBulkOperation} 
+          progress={progress} 
+        />
+      )}
 
       {/* Products List */}
       <Card>
@@ -319,16 +360,24 @@ const ProductManagement = () => {
           <div className="flex items-center gap-4 mt-4 flex-wrap">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search by name, SKU, category..." value={filters.search || ''} onChange={e => updateFilter('search', e.target.value)} className="pl-10" />
+              <Input 
+                placeholder="Search by name, SKU, category..." 
+                value={filters.search || ''} 
+                onChange={e => updateFilter('search', e.target.value)} 
+                className="pl-10" 
+              />
             </div>
             
-            <Select value={filters.customValues?.status || 'all'} onValueChange={value => {
-            if (value === 'all') {
-              updateCustomFilter('status', undefined);
-            } else {
-              updateCustomFilter('status', value);
-            }
-          }}>
+            <Select 
+              value={filters.customValues?.status || 'all'} 
+              onValueChange={value => {
+                if (value === 'all') {
+                  updateCustomFilter('status', undefined);
+                } else {
+                  updateCustomFilter('status', value);
+                }
+              }}
+            >
               <SelectTrigger className="w-[180px]">
                 <Filter className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Filter by status" />
@@ -360,28 +409,61 @@ const ProductManagement = () => {
               isLoading={isLoadingReservations}
             />
 
-            {activeFiltersCount > 0 && <Button variant="ghost" size="sm" onClick={resetFilters} className="gap-2">
+            {activeFiltersCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={resetFilters} className="gap-2">
                 <XCircle className="h-4 w-4" />
                 Clear Filters
-              </Button>}
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
-            </div> : <div className="rounded-md border">
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
                     {!isFinanceUser && (
                       <TableHead className="w-12">
-                        <Checkbox checked={selectedProducts.length === filteredProducts?.length && filteredProducts.length > 0} onCheckedChange={handleSelectAll} />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              {allPageSelected ? (
+                                <CheckSquare className="h-4 w-4" />
+                              ) : somePageSelected ? (
+                                <ListChecks className="h-4 w-4" />
+                              ) : (
+                                <Square className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem onClick={handleSelectNone}>
+                              <Square className="h-4 w-4 mr-2" />
+                              Select None
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleSelectThisPage}>
+                              <CheckSquare className="h-4 w-4 mr-2" />
+                              Select This Page ({paginatedProducts.length})
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={handleSelectAllFiltered}>
+                              <ListChecks className="h-4 w-4 mr-2" />
+                              Select All ({totalFiltered} filtered)
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableHead>
                     )}
                     <TableHead>SKU</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Category</TableHead>
-                    <TableHead className="text-right">Price</TableHead>
+                    <TableHead className="text-right">Cost</TableHead>
+                    <TableHead className="text-right">Retail Price</TableHead>
                     <TableHead className="text-right">Current Stock</TableHead>
                     <TableHead className="text-right">Reserved</TableHead>
                     <TableHead className="text-right">Available</TableHead>
@@ -390,100 +472,182 @@ const ProductManagement = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                {filteredProducts && filteredProducts.length > 0 ? filteredProducts.map(product => <TableRow key={product.id}>
-                        {!isFinanceUser && (
-                          <TableCell>
-                            <Checkbox checked={selectedProducts.includes(product.id)} onCheckedChange={() => handleSelectProduct(product.id)} />
-                          </TableCell>
-                        )}
-                        <TableCell className="font-mono text-sm">{product.sku}</TableCell>
-                        <TableCell className="font-medium">{product.name}</TableCell>
+                  {paginatedProducts.length > 0 ? paginatedProducts.map(product => (
+                    <TableRow key={product.id}>
+                      {!isFinanceUser && (
                         <TableCell>
+                          <Checkbox 
+                            checked={selectedProducts.includes(product.id)} 
+                            onCheckedChange={() => handleSelectProduct(product.id)} 
+                          />
+                        </TableCell>
+                      )}
+                      <TableCell className="font-mono text-sm">{product.sku}</TableCell>
+                      <TableCell className="font-medium">{product.name}</TableCell>
+                      <TableCell>
+                        {permissions.canManageProducts ? (
+                          <InlineEditableCell
+                            value={product.category || ''}
+                            onSave={(val) => handleInlineUpdate(product.id, 'category', val)}
+                            type="select"
+                            options={[
+                              ...categoryOptions,
+                              { value: '__add_new__', label: '+ Add New Category' }
+                            ]}
+                            placeholder="Uncategorized"
+                            disabled={isFinanceUser}
+                            formatDisplay={(val) => val ? String(val) : 'Uncategorized'}
+                          />
+                        ) : (
                           <Badge variant="outline">{product.category || 'Uncategorized'}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">Rs. {product.price?.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">
-                          <span className="font-medium">
-                            {inventoryData?.[product.id]?.total_quantity || 0}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {isDateFiltered ? (
-                            <span className="text-primary font-medium">
-                              {filteredReservations?.get(product.id) || 0}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">
-                              {inventoryData?.[product.id]?.total_reserved || 0}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {isDateFiltered ? (
-                            <span className="font-medium text-primary">
-                              {(inventoryData?.[product.id]?.total_quantity || 0) - (filteredReservations?.get(product.id) || 0)}
-                            </span>
-                          ) : (
-                            <span className="font-medium text-primary">
-                              {(inventoryData?.[product.id]?.total_quantity || 0) - (inventoryData?.[product.id]?.total_reserved || 0)}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {product.is_active ? <Badge variant="outline" className="border-green-500 text-green-500">
-                              Active
-                            </Badge> : <Badge variant="outline" className="border-gray-500 text-gray-500">
-                              Inactive
-                            </Badge>}
-                        </TableCell>
-                        {!isFinanceUser && (
-                          <TableCell className="text-right">
-                            {permissions.canManageProducts && <Button variant="ghost" size="sm" className="gap-2" onClick={() => {
-                        setSelectedProduct(product);
-                        setProductDialogOpen(true);
-                      }}>
-                                  <Edit className="h-3 w-3" />
-                                  Edit
-                                </Button>}
-                          </TableCell>
                         )}
-                      </TableRow>) : <TableRow>
-                      <TableCell colSpan={isFinanceUser ? 9 : 10} className="text-center py-8 text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {permissions.canManageProducts ? (
+                          <InlineEditableCell
+                            value={product.cost ?? 0}
+                            onSave={(val) => handleInlineUpdate(product.id, 'cost', val)}
+                            type="number"
+                            prefix="Rs. "
+                            disabled={isFinanceUser}
+                            formatDisplay={(val) => `Rs. ${(val as number)?.toLocaleString() || '0'}`}
+                          />
+                        ) : (
+                          <span>Rs. {product.cost?.toLocaleString() || '0'}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {permissions.canManageProducts ? (
+                          <InlineEditableCell
+                            value={product.price ?? 0}
+                            onSave={(val) => handleInlineUpdate(product.id, 'price', val)}
+                            type="number"
+                            prefix="Rs. "
+                            disabled={isFinanceUser}
+                            formatDisplay={(val) => `Rs. ${(val as number)?.toLocaleString() || '0'}`}
+                          />
+                        ) : (
+                          <span>Rs. {product.price?.toLocaleString()}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className="font-medium">
+                          {inventoryData?.[product.id]?.total_quantity || 0}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {isDateFiltered ? (
+                          <span className="text-primary font-medium">
+                            {filteredReservations?.get(product.id) || 0}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">
+                            {inventoryData?.[product.id]?.total_reserved || 0}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {isDateFiltered ? (
+                          <span className="font-medium text-primary">
+                            {(inventoryData?.[product.id]?.total_quantity || 0) - (filteredReservations?.get(product.id) || 0)}
+                          </span>
+                        ) : (
+                          <span className="font-medium text-primary">
+                            {(inventoryData?.[product.id]?.total_quantity || 0) - (inventoryData?.[product.id]?.total_reserved || 0)}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {product.is_active ? (
+                          <Badge variant="outline" className="border-green-500 text-green-500">Active</Badge>
+                        ) : (
+                          <Badge variant="outline" className="border-gray-500 text-gray-500">Inactive</Badge>
+                        )}
+                      </TableCell>
+                      {!isFinanceUser && (
+                        <TableCell className="text-right">
+                          {permissions.canManageProducts && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="gap-2" 
+                              onClick={() => {
+                                setSelectedProduct(product);
+                                setProductDialogOpen(true);
+                              }}
+                            >
+                              <Edit className="h-3 w-3" />
+                              Edit
+                            </Button>
+                          )}
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={isFinanceUser ? 10 : 11} className="text-center py-8 text-muted-foreground">
                         No products found
                       </TableCell>
-                    </TableRow>}
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
-            </div>}
+            </div>
+          )}
         </CardContent>
 
         {/* Pagination Controls */}
         <div className="flex items-center justify-between px-6 py-4 border-t">
           <div className="text-sm text-muted-foreground">
-            Showing {Math.min((currentPage - 1) * pageSize + 1, totalCount)} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount.toLocaleString()} products
+            {selectedProducts.length > 0 && (
+              <span className="font-medium text-foreground mr-2">
+                {selectedProducts.length} selected
+                {selectedProducts.length > paginatedProducts.length && ' (across pages)'}
+              </span>
+            )}
+            Showing {Math.min((currentPage - 1) * pageSize + 1, totalFiltered)} to {Math.min(currentPage * pageSize, totalFiltered)} of {totalFiltered.toLocaleString()} products
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoading}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+              disabled={currentPage === 1 || isLoading}
+            >
               Previous
             </Button>
             <div className="flex items-center gap-1">
               {[...Array(Math.min(5, totalPages))].map((_, idx) => {
-              let pageNumber: number;
-              if (totalPages <= 5) {
-                pageNumber = idx + 1;
-              } else if (currentPage <= 3) {
-                pageNumber = idx + 1;
-              } else if (currentPage >= totalPages - 2) {
-                pageNumber = totalPages - 4 + idx;
-              } else {
-                pageNumber = currentPage - 2 + idx;
-              }
-              return <Button key={pageNumber} variant={currentPage === pageNumber ? "default" : "outline"} size="sm" onClick={() => setCurrentPage(pageNumber)} disabled={isLoading}>
+                let pageNumber: number;
+                if (totalPages <= 5) {
+                  pageNumber = idx + 1;
+                } else if (currentPage <= 3) {
+                  pageNumber = idx + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNumber = totalPages - 4 + idx;
+                } else {
+                  pageNumber = currentPage - 2 + idx;
+                }
+                if (pageNumber < 1 || pageNumber > totalPages) return null;
+                return (
+                  <Button 
+                    key={pageNumber} 
+                    variant={currentPage === pageNumber ? "default" : "outline"} 
+                    size="sm" 
+                    onClick={() => setCurrentPage(pageNumber)} 
+                    disabled={isLoading}
+                  >
                     {pageNumber}
-                  </Button>;
-            })}
+                  </Button>
+                );
+              })}
             </div>
-            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || isLoading}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+              disabled={currentPage === totalPages || totalPages === 0 || isLoading}
+            >
               Next
             </Button>
           </div>
@@ -491,25 +655,34 @@ const ProductManagement = () => {
       </Card>
 
       {/* Dialogs */}
-      <AddProductDialog open={productDialogOpen} onOpenChange={open => {
-      setProductDialogOpen(open);
-      if (!open) setSelectedProduct(null);
-    }} product={selectedProduct} />
+      <AddProductDialog 
+        open={productDialogOpen} 
+        onOpenChange={open => {
+          setProductDialogOpen(open);
+          if (!open) setSelectedProduct(null);
+        }} 
+        product={selectedProduct} 
+      />
 
       <Dialog open={reorderSettingsOpen} onOpenChange={setReorderSettingsOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Smart Reorder Settings</DialogTitle>
           </DialogHeader>
-          {reorderProduct && <SmartReorderSettings item={reorderProduct} itemType="product" suppliers={suppliers} onUpdate={() => {
-          setReorderSettingsOpen(false);
-        }} />}
+          {reorderProduct && (
+            <SmartReorderSettings 
+              item={reorderProduct} 
+              itemType="product" 
+              suppliers={suppliers} 
+              onUpdate={() => setReorderSettingsOpen(false)} 
+            />
+          )}
         </DialogContent>
       </Dialog>
 
-      <BulkStockAdditionDialog open={bulkStockDialogOpen} onOpenChange={setBulkStockDialogOpen} products={products} />
+      <BulkStockAdditionDialog open={bulkStockDialogOpen} onOpenChange={setBulkStockDialogOpen} products={allProducts} />
 
-      <StockAdjustmentDialog open={stockAdjustmentDialogOpen} onOpenChange={setStockAdjustmentDialogOpen} products={products} outlets={outlets} />
+      <StockAdjustmentDialog open={stockAdjustmentDialogOpen} onOpenChange={setStockAdjustmentDialogOpen} products={allProducts} outlets={outlets} />
 
       <BulkEditProductsDialog 
         open={bulkEditDialogOpen} 
@@ -518,9 +691,11 @@ const ProductManagement = () => {
         categories={categories}
         onComplete={() => {
           setSelectedProducts([]);
-          queryClient.invalidateQueries({ queryKey: ["products"] });
+          queryClient.invalidateQueries({ queryKey: ["products-all"] });
         }}
       />
-    </PageContainer>;
+    </PageContainer>
+  );
 };
+
 export default ProductManagement;
