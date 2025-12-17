@@ -267,7 +267,8 @@ const FinanceAnalyticsDashboard = () => {
     }
   });
 
-  // Fetch dispatched orders for total parcels and COGS (no limit)
+  // Fetch dispatched orders for total parcels, COGS, and courier analytics (cohort-based)
+  // This is the single source of truth for per-courier metrics
   const { data: dispatchedOrders = [] } = useQuery({
     queryKey: ['finance-dispatched-orders', dateRange, selectedCourier],
     queryFn: async () => {
@@ -281,7 +282,7 @@ const FinanceAnalyticsDashboard = () => {
       while (true) {
         const { data, error } = await supabase
           .from('orders')
-          .select('id, order_number, total_amount, courier, status, dispatched_at, items')
+          .select('id, order_number, total_amount, shipping_charges, courier_delivery_fee, courier_return_fee, courier, status, dispatched_at, items')
           .in('status', ['dispatched', 'delivered', 'returned'])
           .gte('dispatched_at', fromDate)
           .lte('dispatched_at', toDate)
@@ -487,7 +488,8 @@ const FinanceAnalyticsDashboard = () => {
     }
   });
 
-  // Calculate courier-wise analytics
+  // Calculate courier-wise analytics using COHORT-BASED approach
+  // dispatchedOrders is the single source of truth - all metrics derived from same dataset
   const courierAnalytics = useMemo(() => {
     const analytics: Record<string, {
       name: string;
@@ -520,7 +522,8 @@ const FinanceAnalyticsDashboard = () => {
       };
     });
 
-    // Process dispatched orders
+    // Process dispatched orders - derive ALL metrics from this single cohort
+    // This ensures Total Orders >= Delivered + Returned (logically consistent)
     dispatchedOrders.forEach(order => {
       const courierCode = order.courier || 'other';
       if (!analytics[courierCode]) {
@@ -538,14 +541,11 @@ const FinanceAnalyticsDashboard = () => {
           rtoPercentage: 0
         };
       }
-      analytics[courierCode].totalOrders++;
-    });
-
-    // Process delivered orders - use actual courier fees when available
-    deliveredOrders.forEach(order => {
-      const courierCode = order.courier || 'other';
-      if (!analytics[courierCode]) return;
       
+      // Count total orders dispatched
+      analytics[courierCode].totalOrders++;
+      
+      // Derive delivered/returned counts from the SAME dataset by status
       if (order.status === 'delivered') {
         analytics[courierCode].deliveredOrders++;
         analytics[courierCode].totalCOD += Number(order.total_amount) || 0;
@@ -581,7 +581,7 @@ const FinanceAnalyticsDashboard = () => {
     });
 
     return Object.values(analytics).filter(a => a.totalOrders > 0);
-  }, [couriers, deliveredOrders, dispatchedOrders, returns]);
+  }, [couriers, dispatchedOrders, returns]);
 
   // Calculate overall KPIs with corrected formulas
   const kpis = useMemo(() => {
