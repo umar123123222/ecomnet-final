@@ -939,13 +939,13 @@ const FinanceAnalyticsDashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    Returns Marked (Period)
+                    Returns in Route
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">All returns marked by courier within selected period. "Returns Not Received" page shows only overdue returns (3+ days).</p>
+                        <p className="max-w-[200px] text-xs">Courier marked as returned (checked_at) during this period but not yet received at warehouse.</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
