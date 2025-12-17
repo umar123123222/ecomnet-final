@@ -15,7 +15,7 @@ import {
   Download, BarChart3, PieChart, Activity, XCircle, RotateCcw, 
   ShoppingCart, Info, Boxes, Calculator
 } from 'lucide-react';
-import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
@@ -164,8 +164,8 @@ const FinanceAnalyticsDashboard = () => {
   const { data: allOrders = [], isLoading: loadingAllOrders } = useQuery({
     queryKey: ['finance-all-orders', dateRange, selectedCourier],
     queryFn: async () => {
-      const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
-      const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
+      const fromDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : startOfMonth(new Date()).toISOString();
+      const toDate = dateRange?.to ? endOfDay(dateRange.to).toISOString() : endOfMonth(new Date()).toISOString();
       
       // Fetch in batches to overcome 1000 row limit
       let allData: any[] = [];
@@ -199,8 +199,8 @@ const FinanceAnalyticsDashboard = () => {
   const { data: deliveredOrders = [], isLoading: loadingOrders } = useQuery({
     queryKey: ['finance-delivered-orders', dateRange, selectedCourier],
     queryFn: async () => {
-      const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
-      const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
+      const fromDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : startOfMonth(new Date()).toISOString();
+      const toDate = dateRange?.to ? endOfDay(dateRange.to).toISOString() : endOfMonth(new Date()).toISOString();
       
       let allData: any[] = [];
       let offset = 0;
@@ -235,8 +235,8 @@ const FinanceAnalyticsDashboard = () => {
   const { data: deliveredByDate = [] } = useQuery({
     queryKey: ['finance-delivered-by-date', dateRange, selectedCourier],
     queryFn: async () => {
-      const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
-      const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
+      const fromDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : startOfMonth(new Date()).toISOString();
+      const toDate = dateRange?.to ? endOfDay(dateRange.to).toISOString() : endOfMonth(new Date()).toISOString();
       
       let allData: any[] = [];
       let offset = 0;
@@ -272,8 +272,8 @@ const FinanceAnalyticsDashboard = () => {
   const { data: dispatchedOrders = [] } = useQuery({
     queryKey: ['finance-dispatched-orders-v2', dateRange, selectedCourier],
     queryFn: async () => {
-      const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
-      const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
+      const fromDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : startOfMonth(new Date()).toISOString();
+      const toDate = dateRange?.to ? endOfDay(dateRange.to).toISOString() : endOfMonth(new Date()).toISOString();
       
       let allData: any[] = [];
       let offset = 0;
@@ -344,8 +344,8 @@ const FinanceAnalyticsDashboard = () => {
   const { data: returns = [] } = useQuery({
     queryKey: ['finance-returns', dateRange, selectedCourier],
     queryFn: async () => {
-      const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
-      const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
+      const fromDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : startOfMonth(new Date()).toISOString();
+      const toDate = dateRange?.to ? endOfDay(dateRange.to).toISOString() : endOfMonth(new Date()).toISOString();
       
       let allData: any[] = [];
       let offset = 0;
@@ -382,8 +382,8 @@ const FinanceAnalyticsDashboard = () => {
   const { data: cancelledOrderValues = [] } = useQuery({
     queryKey: ['finance-cancelled-order-values', dateRange, selectedCourier],
     queryFn: async () => {
-      const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
-      const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
+      const fromDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : startOfMonth(new Date()).toISOString();
+      const toDate = dateRange?.to ? endOfDay(dateRange.to).toISOString() : endOfMonth(new Date()).toISOString();
       
       // Batch pagination to fetch ALL cancelled orders beyond 1000 limit
       let allData: any[] = [];
@@ -427,8 +427,8 @@ const FinanceAnalyticsDashboard = () => {
   const { data: returnsInRoute = [] } = useQuery({
     queryKey: ['finance-returns-in-route', dateRange, selectedCourier],
     queryFn: async () => {
-      const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
-      const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
+      const fromDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : startOfMonth(new Date()).toISOString();
+      const toDate = dateRange?.to ? endOfDay(dateRange.to).toISOString() : endOfMonth(new Date()).toISOString();
       
       // Query courier_tracking_history for 'returned' status where order is still 'dispatched'
       let allData: any[] = [];
