@@ -690,7 +690,6 @@ const ProductManagement = () => {
         selectedProductIds={selectedProducts}
         categories={categories}
         onComplete={() => {
-          setSelectedProducts([]);
           queryClient.invalidateQueries({ queryKey: ["products-all"] });
         }}
       />
