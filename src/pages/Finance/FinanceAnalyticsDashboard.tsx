@@ -453,6 +453,9 @@ const FinanceAnalyticsDashboard = () => {
     const returnsInRouteCount = returnsInRoute.length;
     const returnsInRouteValue = returnsInRoute.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
 
+    // Orders placed in this period that have been delivered (conversion metric)
+    const totalParcelsValue = deliveredOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+
     return {
       totalRevenue: netRevenue,
       totalCOD,
@@ -460,6 +463,7 @@ const FinanceAnalyticsDashboard = () => {
       netProfit: netRevenue,
       profitMargin,
       totalParcels,
+      totalParcelsValue,
       // New KPIs
       totalOrdersPlaced,
       totalOrdersPlacedValue,
@@ -690,7 +694,7 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Orders delivered (delivered_at) during the selected period.</p>
+                        <p className="max-w-[200px] text-xs">Orders delivered during this period (delivery date).</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
@@ -874,11 +878,12 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Number of parcels successfully delivered to customers.</p>
+                        <p className="max-w-[200px] text-xs">Orders placed during this period that have been delivered (conversion metric).</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
                   <p className="text-xl font-bold">{kpis.totalParcels.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">{currency} {kpis.totalParcelsValue.toLocaleString()}</p>
                 </div>
                 <Package className="h-8 w-8 text-primary/20" />
               </div>
