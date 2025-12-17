@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -13,7 +13,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, Package, Truck, 
   AlertTriangle, CheckCircle, ArrowUpRight, ArrowDownRight,
   Download, BarChart3, PieChart, Activity, XCircle, RotateCcw, 
-  ShoppingCart, Info
+  ShoppingCart, Info, Boxes, Calculator
 } from 'lucide-react';
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { DateRange } from 'react-day-picker';
@@ -53,6 +53,36 @@ const FinanceAnalyticsDashboard = () => {
       return data;
     }
   });
+
+  // Fetch products with costs for COGS calculation
+  const { data: productCosts = [] } = useQuery({
+    queryKey: ['products-costs'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, shopify_product_id, cost')
+        .not('cost', 'is', null);
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  // Create a map for quick product cost lookup by shopify_product_id
+  const productCostMap = useMemo(() => {
+    const map = new Map<string, number>();
+    productCosts.forEach(p => {
+      if (p.shopify_product_id) {
+        // Store both string and number versions for matching
+        map.set(String(p.shopify_product_id), Number(p.cost) || 0);
+        map.set(p.shopify_product_id.toString(), Number(p.cost) || 0);
+      }
+      // Also map by name for fallback
+      if (p.name) {
+        map.set(p.name.toLowerCase(), Number(p.cost) || 0);
+      }
+    });
+    return map;
+  }, [productCosts]);
 
   // Fetch ALL orders for total orders placed (no limit)
   const { data: allOrders = [], isLoading: loadingAllOrders } = useQuery({
@@ -160,7 +190,7 @@ const FinanceAnalyticsDashboard = () => {
     }
   });
 
-  // Fetch dispatched orders for total parcels (no limit)
+  // Fetch dispatched orders for total parcels and COGS (no limit)
   const { data: dispatchedOrders = [] } = useQuery({
     queryKey: ['finance-dispatched-orders', dateRange, selectedCourier],
     queryFn: async () => {
@@ -174,7 +204,7 @@ const FinanceAnalyticsDashboard = () => {
       while (true) {
         const { data, error } = await supabase
           .from('orders')
-          .select('id, order_number, total_amount, courier, status, dispatched_at')
+          .select('id, order_number, total_amount, courier, status, dispatched_at, items')
           .in('status', ['dispatched', 'delivered', 'returned'])
           .gte('dispatched_at', fromDate)
           .lte('dispatched_at', toDate)
@@ -194,6 +224,35 @@ const FinanceAnalyticsDashboard = () => {
       return allData;
     }
   });
+
+  // Calculate COGS for an order based on its items
+  const calculateOrderCOGS = useCallback((order: any): number => {
+    if (!order.items || !Array.isArray(order.items)) return 0;
+    
+    let totalCOGS = 0;
+    order.items.forEach((item: any) => {
+      const quantity = Number(item.quantity) || 1;
+      let cost = 0;
+      
+      // Try to match by product_id (Shopify product ID)
+      if (item.product_id) {
+        const productIdStr = String(item.product_id);
+        cost = productCostMap.get(productIdStr) || 0;
+      }
+      
+      // Fallback: try to match by product name
+      if (cost === 0 && item.title) {
+        cost = productCostMap.get(item.title.toLowerCase()) || 0;
+      }
+      if (cost === 0 && item.name) {
+        cost = productCostMap.get(item.name.toLowerCase()) || 0;
+      }
+      
+      totalCOGS += cost * quantity;
+    });
+    
+    return totalCOGS;
+  }, [productCostMap]);
 
   // Fetch returns received at warehouse (filter by received_at date)
   const { data: returns = [] } = useQuery({
@@ -428,6 +487,21 @@ const FinanceAnalyticsDashboard = () => {
     const profitMargin = totalCOD > 0 ? (netRevenue / totalCOD) * 100 : 0;
     const totalParcels = courierAnalytics.reduce((sum, c) => sum + c.deliveredOrders, 0);
 
+    // COGS Calculation - sum of product costs for all dispatched orders
+    const totalCOGS = dispatchedOrders.reduce((sum, order) => sum + calculateOrderCOGS(order), 0);
+    const ordersWithCOGS = dispatchedOrders.filter(order => calculateOrderCOGS(order) > 0).length;
+    const ordersWithoutCOGS = dispatchedOrders.length - ordersWithCOGS;
+    
+    // Gross Profit = Revenue (dispatched value) - COGS
+    const grossProfit = dispatchedOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0) - totalCOGS;
+    const grossMargin = dispatchedOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0) > 0 
+      ? (grossProfit / dispatchedOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0)) * 100 
+      : 0;
+    
+    // True Net Profit = Gross Profit - Courier Charges - Claims
+    const trueNetProfit = grossProfit - totalLosses;
+    const trueNetMargin = totalCOD > 0 ? (trueNetProfit / totalCOD) * 100 : 0;
+
     // Orders Placed - filtered by created_at
     const totalOrdersPlaced = allOrders.length;
     const totalOrdersPlacedValue = allOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
@@ -460,10 +534,16 @@ const FinanceAnalyticsDashboard = () => {
       totalRevenue: netRevenue,
       totalCOD,
       totalCharges: totalLosses,
-      netProfit: netRevenue,
-      profitMargin,
+      netProfit: trueNetProfit,
+      profitMargin: trueNetMargin,
       totalParcels,
       totalParcelsValue,
+      // COGS KPIs
+      totalCOGS,
+      grossProfit,
+      grossMargin,
+      ordersWithCOGS,
+      ordersWithoutCOGS,
       // New KPIs
       totalOrdersPlaced,
       totalOrdersPlacedValue,
@@ -478,7 +558,7 @@ const FinanceAnalyticsDashboard = () => {
       returnsInRoute: returnsInRouteCount,
       returnsInRouteValue
     };
-  }, [courierAnalytics, allOrders, cancelledOrderValues, dispatchedOrders, deliveredByDate, returns, returnsInRoute]);
+  }, [courierAnalytics, allOrders, cancelledOrderValues, dispatchedOrders, deliveredByDate, returns, returnsInRoute, calculateOrderCOGS]);
 
   // Smart alerts/insights
   const insights = useMemo(() => {
@@ -834,11 +914,13 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Final profit after all courier-related expenses are deducted from COD.</p>
+                        <p className="max-w-[200px] text-xs">Gross Profit minus COGS minus courier charges, return charges, and claims.</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
-                  <p className="text-xl font-bold text-green-600">{currency} {kpis.netProfit.toLocaleString()}</p>
+                  <p className={`text-xl font-bold ${kpis.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {currency} {kpis.netProfit.toLocaleString()}
+                  </p>
                 </div>
                 <TrendingUp className="h-8 w-8 text-green-600/20" />
               </div>
@@ -856,11 +938,13 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Percentage of profit: (Net Revenue ÷ COD Collected) × 100</p>
+                        <p className="max-w-[200px] text-xs">Net Profit as percentage of COD Collected: (Net Profit ÷ COD) × 100</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
-                  <p className="text-xl font-bold">{kpis.profitMargin.toFixed(1)}%</p>
+                  <p className={`text-xl font-bold ${kpis.profitMargin >= 0 ? 'text-foreground' : 'text-red-600'}`}>
+                    {kpis.profitMargin.toFixed(1)}%
+                  </p>
                 </div>
                 <PieChart className="h-8 w-8 text-primary/20" />
               </div>
@@ -886,6 +970,153 @@ const FinanceAnalyticsDashboard = () => {
                   <p className="text-xs text-muted-foreground">{currency} {kpis.totalParcelsValue.toLocaleString()}</p>
                 </div>
                 <Package className="h-8 w-8 text-primary/20" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </TooltipProvider>
+
+      {/* COGS & Profitability Cards */}
+      <TooltipProvider>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    COGS
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">Cost of Goods Sold: Total product costs for all dispatched orders in this period.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className="text-xl font-bold text-amber-600">{currency} {kpis.totalCOGS.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">{kpis.ordersWithCOGS} orders matched</p>
+                </div>
+                <Boxes className="h-8 w-8 text-amber-600/20" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Gross Profit
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">Dispatched Order Value minus COGS. (Before courier deductions)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className={`text-xl font-bold ${kpis.grossProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {currency} {kpis.grossProfit.toLocaleString()}
+                  </p>
+                </div>
+                <Calculator className="h-8 w-8 text-green-600/20" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Gross Margin
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">Gross Profit as percentage of Dispatched Value: (Gross Profit ÷ Dispatched Value) × 100</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className="text-xl font-bold">{kpis.grossMargin.toFixed(1)}%</p>
+                </div>
+                <PieChart className="h-8 w-8 text-primary/20" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    True Net Profit
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">Gross Profit minus all courier charges, return charges, and claims.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className={`text-xl font-bold ${kpis.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {currency} {kpis.netProfit.toLocaleString()}
+                  </p>
+                </div>
+                <TrendingUp className="h-8 w-8 text-green-600/20" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Net Margin
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">True Net Profit as percentage of COD Collected.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className={`text-xl font-bold ${kpis.profitMargin >= 0 ? 'text-foreground' : 'text-red-600'}`}>
+                    {kpis.profitMargin.toFixed(1)}%
+                  </p>
+                </div>
+                <BarChart3 className="h-8 w-8 text-primary/20" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    Unmatched Orders
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[200px] text-xs">Orders where product costs couldn't be calculated (products not found in database).</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p className={`text-xl font-bold ${kpis.ordersWithoutCOGS > 0 ? 'text-yellow-600' : 'text-green-600'}`}>
+                    {kpis.ordersWithoutCOGS.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-muted-foreground">of {kpis.totalOrdersDispatched} dispatched</p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-yellow-600/20" />
               </div>
             </CardContent>
           </Card>
