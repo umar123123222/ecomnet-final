@@ -209,7 +209,7 @@ const FinanceAnalyticsDashboard = () => {
       while (true) {
         const { data, error } = await supabase
           .from('orders')
-          .select('id, order_number, total_amount, shipping_charges, courier_delivery_fee, courier_return_fee, courier, status, delivered_at, created_at')
+          .select('id, order_number, total_amount, shipping_charges, courier_delivery_fee, courier_return_fee, courier, status, delivered_at, created_at, items')
           .in('status', ['delivered', 'returned'])
           .not('delivered_at', 'is', null)
           .gte('delivered_at', fromDate)
@@ -627,10 +627,11 @@ const FinanceAnalyticsDashboard = () => {
     const returnsInRouteCount = returnsInRoute.length;
     const returnsInRouteValue = returnsInRoute.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
 
-    // COGS Calculation - sum of product costs for all dispatched orders
-    const totalCOGS = dispatchedOrders.reduce((sum, order) => sum + calculateOrderCOGS(order), 0);
-    const ordersWithCOGS = dispatchedOrders.filter(order => calculateOrderCOGS(order) > 0).length;
-    const ordersWithoutCOGS = dispatchedOrders.length - ordersWithCOGS;
+    // COGS Calculation - sum of product costs for all delivered orders
+    const deliveredOnlyOrders = deliveredOrders.filter(o => o.status === 'delivered');
+    const totalCOGS = deliveredOnlyOrders.reduce((sum, order) => sum + calculateOrderCOGS(order), 0);
+    const ordersWithCOGS = deliveredOnlyOrders.filter(order => calculateOrderCOGS(order) > 0).length;
+    const ordersWithoutCOGS = deliveredOnlyOrders.length - ordersWithCOGS;
     
     // GROSS PROFIT = COD Collected - Total Deductions - COGS
     const grossProfit = totalCOD - totalDeductions - totalCOGS;
@@ -1007,7 +1008,7 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[250px] text-xs">Cost of Goods Sold for dispatched orders. Bundles use sum of component costs × quantities for accuracy.</p>
+                        <p className="max-w-[250px] text-xs">Cost of Goods Sold for delivered orders. Bundles use sum of component costs × quantities for accuracy.</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
