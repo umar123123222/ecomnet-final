@@ -384,17 +384,30 @@ const FinanceAnalyticsDashboard = () => {
       const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
       const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
       
-      const { data, error } = await supabase
-        .from('orders')
-        .select('id, courier, updated_at, order_items(price, quantity)')
-        .eq('status', 'cancelled')
-        .gte('updated_at', fromDate)
-        .lte('updated_at', toDate);
+      // Batch pagination to fetch ALL cancelled orders beyond 1000 limit
+      let allData: any[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('id, courier, updated_at, order_items(price, quantity)')
+          .eq('status', 'cancelled')
+          .gte('updated_at', fromDate)
+          .lte('updated_at', toDate)
+          .range(offset, offset + batchSize - 1);
 
-      if (error) throw error;
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allData = [...allData, ...data];
+        if (data.length < batchSize) break;
+        offset += batchSize;
+      }
       
       // Calculate value from order_items for each cancelled order
-      const result = (data || []).map((order: any) => ({
+      const result = allData.map((order: any) => ({
         id: order.id,
         courier: order.courier,
         value: order.order_items?.reduce((sum: number, item: any) => 
