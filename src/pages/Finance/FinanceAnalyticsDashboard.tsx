@@ -67,6 +67,41 @@ const FinanceAnalyticsDashboard = () => {
     }
   });
 
+  // Fetch bundle products to identify which products are bundles
+  const { data: bundleProducts = [] } = useQuery({
+    queryKey: ['bundle-products'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, shopify_product_id')
+        .eq('is_bundle', true);
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  // Fetch bundle components with their costs
+  const { data: bundleComponents = [] } = useQuery({
+    queryKey: ['bundle-components'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('product_bundle_items')
+        .select(`
+          bundle_product_id,
+          component_product_id,
+          quantity,
+          component:products!component_product_id(id, cost, shopify_product_id)
+        `);
+      if (error) throw error;
+      return data as Array<{
+        bundle_product_id: string;
+        component_product_id: string;
+        quantity: number;
+        component: { id: string; cost: number | null; shopify_product_id: number | null } | null;
+      }>;
+    }
+  });
+
   // Create a map for quick product cost lookup by shopify_product_id
   const productCostMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -83,6 +118,47 @@ const FinanceAnalyticsDashboard = () => {
     });
     return map;
   }, [productCosts]);
+
+  // Create set of bundle product IDs (both internal ID and Shopify ID)
+  const bundleProductIds = useMemo(() => {
+    const set = new Set<string>();
+    bundleProducts.forEach(p => {
+      set.add(p.id);
+      if (p.shopify_product_id) {
+        set.add(String(p.shopify_product_id));
+      }
+    });
+    return set;
+  }, [bundleProducts]);
+
+  // Create bundle cost map - calculates COGS from component costs
+  const bundleCostMap = useMemo(() => {
+    const map = new Map<string, number>();
+    
+    // Group components by bundle_product_id
+    const bundleGroups = bundleComponents.reduce((acc, item) => {
+      if (!acc[item.bundle_product_id]) acc[item.bundle_product_id] = [];
+      acc[item.bundle_product_id].push(item);
+      return acc;
+    }, {} as Record<string, typeof bundleComponents>);
+    
+    // Calculate total component cost for each bundle
+    Object.entries(bundleGroups).forEach(([bundleId, components]) => {
+      const totalCost = components.reduce((sum, comp) => {
+        const componentCost = Number(comp.component?.cost) || 0;
+        return sum + (componentCost * comp.quantity);
+      }, 0);
+      map.set(bundleId, totalCost);
+      
+      // Also map by Shopify product ID for matching
+      const bundleProduct = bundleProducts.find(p => p.id === bundleId);
+      if (bundleProduct?.shopify_product_id) {
+        map.set(String(bundleProduct.shopify_product_id), totalCost);
+      }
+    });
+    
+    return map;
+  }, [bundleComponents, bundleProducts]);
 
   // Fetch ALL orders for total orders placed (no limit)
   const { data: allOrders = [], isLoading: loadingAllOrders } = useQuery({
@@ -227,6 +303,8 @@ const FinanceAnalyticsDashboard = () => {
   });
 
   // Calculate COGS for an order based on its items
+  // For bundles: uses sum of component costs × quantities
+  // For regular products: uses product cost field
   const calculateOrderCOGS = useCallback((order: any): number => {
     if (!order.items || !Array.isArray(order.items)) return 0;
     
@@ -235,9 +313,15 @@ const FinanceAnalyticsDashboard = () => {
       const quantity = Number(item.quantity) || 1;
       let cost = 0;
       
-      // Try to match by product_id (Shopify product ID)
-      if (item.product_id) {
-        const productIdStr = String(item.product_id);
+      const productIdStr = item.product_id ? String(item.product_id) : null;
+      
+      // Check if this is a bundle product - use component costs
+      if (productIdStr && bundleProductIds.has(productIdStr)) {
+        cost = bundleCostMap.get(productIdStr) || 0;
+      }
+      
+      // If not a bundle or no bundle cost found, use regular product cost
+      if (cost === 0 && productIdStr) {
         cost = productCostMap.get(productIdStr) || 0;
       }
       
@@ -253,7 +337,7 @@ const FinanceAnalyticsDashboard = () => {
     });
     
     return totalCOGS;
-  }, [productCostMap]);
+  }, [productCostMap, bundleCostMap, bundleProductIds]);
 
   // Fetch returns received at warehouse (filter by received_at date)
   const { data: returns = [] } = useQuery({
@@ -923,7 +1007,7 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Cost of Goods Sold: Total product costs for all dispatched orders in this period.</p>
+                        <p className="max-w-[250px] text-xs">Cost of Goods Sold for dispatched orders. Bundles use sum of component costs × quantities for accuracy.</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
