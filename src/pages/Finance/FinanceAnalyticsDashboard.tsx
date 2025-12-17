@@ -549,17 +549,17 @@ const FinanceAnalyticsDashboard = () => {
       if (order.status === 'delivered') {
         analytics[courierCode].deliveredOrders++;
         analytics[courierCode].totalCOD += Number(order.total_amount) || 0;
-        // Prefer actual courier_delivery_fee, fallback to shipping_charges
-        const deliveryFee = order.courier_delivery_fee !== null 
-          ? Number(order.courier_delivery_fee) 
-          : Number(order.shipping_charges || 0);
+        // Prefer actual courier_delivery_fee, fallback to shipping_charges, default to 0
+        const deliveryFee = order.courier_delivery_fee != null 
+          ? (Number(order.courier_delivery_fee) || 0)
+          : (Number(order.shipping_charges) || 0);
         analytics[courierCode].deliveryCharges += deliveryFee;
       } else if (order.status === 'returned') {
         analytics[courierCode].returnedOrders++;
-        // Prefer actual courier_return_fee, fallback to shipping_charges
-        const returnFee = order.courier_return_fee !== null
-          ? Number(order.courier_return_fee)
-          : Number(order.shipping_charges || 0);
+        // Prefer actual courier_return_fee, fallback to shipping_charges, default to 0
+        const returnFee = order.courier_return_fee != null
+          ? (Number(order.courier_return_fee) || 0)
+          : (Number(order.shipping_charges) || 0);
         analytics[courierCode].returnCharges += returnFee;
       }
     });
