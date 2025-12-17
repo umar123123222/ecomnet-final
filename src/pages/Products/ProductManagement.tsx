@@ -211,6 +211,11 @@ const ProductManagement = () => {
   }];
 
   const handleBulkOperation = (operation: BulkOperation) => {
+    // Don't clear selection for bulk-edit as the dialog needs the selection
+    if (operation.id === 'bulk-edit') {
+      executeBulkOperation(operation, selectedProducts);
+      return;
+    }
     executeBulkOperation(operation, selectedProducts, () => {
       setSelectedProducts([]);
       queryClient.invalidateQueries({ queryKey: ["products-all"] });
