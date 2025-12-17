@@ -221,6 +221,28 @@ export const useOrdersData = () => {
         setTotalCount(count || 0);
       }
 
+      // Fetch order_items for orders with total_amount = 0 to calculate actual total
+      const zeroAmountOrderIds = baseOrders
+        .filter(o => !o.total_amount || o.total_amount === 0)
+        .map(o => o.id);
+      
+      let orderItemsTotals = new Map<string, number>();
+      if (zeroAmountOrderIds.length > 0) {
+        const { data: itemsData } = await supabase
+          .from('order_items')
+          .select('order_id, price, quantity')
+          .in('order_id', zeroAmountOrderIds);
+        
+        if (currentAbortController.signal.aborted) return;
+        
+        if (itemsData) {
+          itemsData.forEach(item => {
+            const currentTotal = orderItemsTotals.get(item.order_id) || 0;
+            orderItemsTotals.set(item.order_id, currentTotal + (Number(item.price) * Number(item.quantity)));
+          });
+        }
+      }
+
       const assignedIds = baseOrders.map(o => o.assigned_to).filter((id): id is string => id != null);
       const commentEmails = new Set<string>();
       baseOrders.forEach(order => {
@@ -266,6 +288,9 @@ export const useOrdersData = () => {
           return { ...comment, addedBy: addedByProfile?.full_name || comment.addedBy };
         });
 
+        // Calculate actual total: use total_amount if available, otherwise calculate from order_items
+        const actualTotal = order.total_amount || orderItemsTotals.get(order.id) || 0;
+
         return {
           id: order.id,
           orderNumber: order.order_number,
@@ -279,12 +304,12 @@ export const useOrdersData = () => {
           courier: order.courier || 'N/A',
           status: order.status,
           verificationStatus: order.verification_status || 'pending',
-          amount: `PKR ${order.total_amount?.toLocaleString() || '0'}`,
+          amount: `PKR ${actualTotal.toLocaleString()}`,
           date: new Date(order.created_at || '').toLocaleDateString(),
           createdAtISO: order.created_at,
           address: order.customer_address,
           gptScore: order.gpt_score || 0,
-          totalPrice: order.total_amount || 0,
+          totalPrice: actualTotal,
           shipping_charges: order.shipping_charges || 0,
           orderType: order.order_type || 'COD',
           city: order.city,
