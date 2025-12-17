@@ -13,6 +13,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from "@/components/layout";
 import ClaimDialog from "@/components/returns/ClaimDialog";
+import { DatePickerWithRange } from "@/components/DatePickerWithRange";
+import { DateRange } from "react-day-picker";
+import { subDays, startOfDay, endOfDay } from "date-fns";
 
 interface ReturnNotReceived {
   id: string;
@@ -45,6 +48,12 @@ const ReturnsNotReceived = () => {
   const [activeTab, setActiveTab] = useState<'awaiting' | 'claimed'>('awaiting');
   const [claimDialogOpen, setClaimDialogOpen] = useState(false);
   const [selectedOrderForClaim, setSelectedOrderForClaim] = useState<ReturnNotReceived | null>(null);
+  
+  // Date range filter - default to last 30 days
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: subDays(new Date(), 30),
+    to: new Date(),
+  });
 
   useEffect(() => {
     const handleScroll = () => {
@@ -68,7 +77,7 @@ const ReturnsNotReceived = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [dateRange]);
 
   const fetchClaimedReturns = async () => {
     try {
@@ -127,8 +136,10 @@ const ReturnsNotReceived = () => {
   const fetchReturnsNotReceived = async () => {
     try {
       setLoading(true);
-      const threeDaysAgo = new Date();
-      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      
+      // Use date range filter instead of 3-day threshold
+      const fromDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : subDays(new Date(), 30).toISOString();
+      const toDate = dateRange?.to ? endOfDay(dateRange.to).toISOString() : new Date().toISOString();
 
       // Use chunked fetching to get all records
       const CHUNK_SIZE = 1000;
@@ -163,8 +174,9 @@ const ReturnsNotReceived = () => {
           `)
           .eq('status', 'returned')
           .eq('dispatches.orders.status', 'dispatched')
-          .lt('checked_at', threeDaysAgo.toISOString())
-          .order('checked_at', { ascending: true })
+          .gte('checked_at', fromDate)
+          .lte('checked_at', toDate)
+          .order('checked_at', { ascending: false })
           .range(offset, offset + CHUNK_SIZE - 1);
 
         if (trackingError) throw trackingError;
@@ -256,7 +268,7 @@ const ReturnsNotReceived = () => {
     const claimedCount = claimedReturns.length;
     const claimedValue = claimedReturns.reduce((sum, item) => sum + (item.claimAmount || item.returnValue || 0), 0);
     return {
-      totalOverdue: allReturns.length,
+      totalReturns: allReturns.length,
       criticalCount,
       highPriorityCount,
       totalValue,
@@ -364,8 +376,11 @@ const ReturnsNotReceived = () => {
     <PageContainer>
       <PageHeader 
         title="Returns Not Received" 
-        description="Orders marked as returned but not received at warehouse for more than 3 days" 
-        icon={RotateCcw} 
+        description="Orders marked as returned by courier but not yet received at warehouse" 
+        icon={RotateCcw}
+        actions={
+          <DatePickerWithRange date={dateRange} setDate={setDateRange} />
+        }
       />
 
       {loading ? (
@@ -376,10 +391,10 @@ const ReturnsNotReceived = () => {
         <>
           <StatsGrid columns={6}>
             <StatsCard 
-              title="Total Overdue" 
-              value={metrics.totalOverdue.toString()} 
+              title="Returns in Route" 
+              value={metrics.totalReturns.toString()} 
               icon={AlertTriangle} 
-              variant="danger" 
+              variant="warning" 
             />
             <StatsCard 
               title="Critical (10+ days)" 
