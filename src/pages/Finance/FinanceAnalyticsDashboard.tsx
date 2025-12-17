@@ -119,7 +119,7 @@ const FinanceAnalyticsDashboard = () => {
     }
   });
 
-  // Fetch delivered orders with COD data (filtered by created_at for courier analytics)
+  // Fetch delivered orders with COD data (filtered by delivered_at for accurate COD tracking)
   const { data: deliveredOrders = [], isLoading: loadingOrders } = useQuery({
     queryKey: ['finance-delivered-orders', dateRange, selectedCourier],
     queryFn: async () => {
@@ -133,10 +133,11 @@ const FinanceAnalyticsDashboard = () => {
       while (true) {
         const { data, error } = await supabase
           .from('orders')
-          .select('id, order_number, total_amount, shipping_charges, courier, status, delivered_at, created_at')
+          .select('id, order_number, total_amount, shipping_charges, courier_delivery_fee, courier_return_fee, courier, status, delivered_at, created_at')
           .in('status', ['delivered', 'returned'])
-          .gte('created_at', fromDate)
-          .lte('created_at', toDate)
+          .not('delivered_at', 'is', null)
+          .gte('delivered_at', fromDate)
+          .lte('delivered_at', toDate)
           .range(offset, offset + batchSize - 1);
 
         if (error) throw error;
@@ -443,7 +444,7 @@ const FinanceAnalyticsDashboard = () => {
       analytics[courierCode].totalOrders++;
     });
 
-    // Process delivered orders
+    // Process delivered orders - use actual courier fees when available
     deliveredOrders.forEach(order => {
       const courierCode = order.courier || 'other';
       if (!analytics[courierCode]) return;
@@ -451,10 +452,18 @@ const FinanceAnalyticsDashboard = () => {
       if (order.status === 'delivered') {
         analytics[courierCode].deliveredOrders++;
         analytics[courierCode].totalCOD += Number(order.total_amount) || 0;
-        analytics[courierCode].deliveryCharges += Number(order.shipping_charges) || 0;
+        // Prefer actual courier_delivery_fee, fallback to shipping_charges
+        const deliveryFee = order.courier_delivery_fee !== null 
+          ? Number(order.courier_delivery_fee) 
+          : Number(order.shipping_charges || 0);
+        analytics[courierCode].deliveryCharges += deliveryFee;
       } else if (order.status === 'returned') {
         analytics[courierCode].returnedOrders++;
-        analytics[courierCode].returnCharges += Number(order.shipping_charges) || 0;
+        // Prefer actual courier_return_fee, fallback to shipping_charges
+        const returnFee = order.courier_return_fee !== null
+          ? Number(order.courier_return_fee)
+          : Number(order.shipping_charges || 0);
+        analytics[courierCode].returnCharges += returnFee;
       }
     });
 
@@ -477,39 +486,46 @@ const FinanceAnalyticsDashboard = () => {
     return Object.values(analytics).filter(a => a.totalOrders > 0);
   }, [couriers, deliveredOrders, dispatchedOrders, returns]);
 
-  // Calculate overall KPIs
+  // Calculate overall KPIs with corrected formulas
   const kpis = useMemo(() => {
-    const totalCOD = courierAnalytics.reduce((sum, c) => sum + c.totalCOD, 0);
-    const totalCharges = courierAnalytics.reduce((sum, c) => sum + c.deliveryCharges + c.returnCharges, 0);
-    const totalClaims = courierAnalytics.reduce((sum, c) => sum + c.claimAmount, 0);
-    const totalLosses = totalCharges + totalClaims;
-    const netRevenue = totalCOD - totalLosses;
-    const profitMargin = totalCOD > 0 ? (netRevenue / totalCOD) * 100 : 0;
-    const totalParcels = courierAnalytics.reduce((sum, c) => sum + c.deliveredOrders, 0);
-
-    // COGS Calculation - sum of product costs for all dispatched orders
-    const totalCOGS = dispatchedOrders.reduce((sum, order) => sum + calculateOrderCOGS(order), 0);
-    const ordersWithCOGS = dispatchedOrders.filter(order => calculateOrderCOGS(order) > 0).length;
-    const ordersWithoutCOGS = dispatchedOrders.length - ordersWithCOGS;
+    // COD Collected - from orders delivered in date range (uses deliveredByDate filtered by delivered_at)
+    const totalCOD = deliveredByDate.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
     
-    // Gross Profit = Revenue (dispatched value) - COGS
-    const grossProfit = dispatchedOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0) - totalCOGS;
-    const grossMargin = dispatchedOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0) > 0 
-      ? (grossProfit / dispatchedOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0)) * 100 
-      : 0;
+    // Total Deductions: Use actual courier fees if available, fall back to shipping_charges
+    // Actual fees come from payment reconciliation, shipping_charges is customer-facing
+    const actualDeliveryCharges = deliveredOrders.reduce((sum, o) => {
+      // Prefer actual courier fee, fallback to shipping_charges
+      const fee = o.courier_delivery_fee !== null ? Number(o.courier_delivery_fee) : Number(o.shipping_charges || 0);
+      return sum + fee;
+    }, 0);
     
-    // True Net Profit = Gross Profit - Courier Charges - Claims
-    const trueNetProfit = grossProfit - totalLosses;
-    const trueNetMargin = totalCOD > 0 ? (trueNetProfit / totalCOD) * 100 : 0;
+    const actualReturnCharges = deliveredOrders
+      .filter(o => o.status === 'returned')
+      .reduce((sum, o) => {
+        const fee = o.courier_return_fee !== null ? Number(o.courier_return_fee) : Number(o.shipping_charges || 0);
+        return sum + fee;
+      }, 0);
+    
+    const totalCharges = actualDeliveryCharges + actualReturnCharges;
+    const totalClaims = returns.reduce((sum: number, r: any) => sum + (Number(r.claim_amount) || 0), 0);
+    const totalDeductions = totalCharges + totalClaims;
+    
+    // Check how many orders have actual vs estimated fees
+    const ordersWithActualFees = deliveredOrders.filter(o => o.courier_delivery_fee !== null).length;
+    const ordersWithEstimatedFees = deliveredOrders.length - ordersWithActualFees;
+    
+    const totalParcels = deliveredByDate.length;
 
     // Orders Placed - filtered by created_at
     const totalOrdersPlaced = allOrders.length;
     const totalOrdersPlacedValue = allOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
     
     // Cancelled orders - filtered by updated_at (when status changed to cancelled)
-    // Value calculated from order_items (since total_amount is 0 for cancelled)
     const totalOrdersCancelled = cancelledOrderValues.length;
     const cancelledValue = cancelledOrderValues.reduce((sum, o) => sum + (Number(o.value) || 0), 0);
+    
+    // NET REVENUE = Orders Placed Value - Cancelled Orders Value
+    const netRevenue = totalOrdersPlacedValue - cancelledValue;
     
     // Dispatched orders - filtered by dispatched_at
     const totalOrdersDispatched = dispatchedOrders.length;
@@ -523,28 +539,41 @@ const FinanceAnalyticsDashboard = () => {
     const totalReturnsReceived = returns.length;
     const returnsReceivedValue = returns.reduce((sum: number, r: any) => sum + (Number(r.orders?.total_amount) || 0), 0);
     
-    // Returns in route - courier tracking shows 'returned' but order still 'dispatched' (filtered by checked_at)
+    // Returns in route - courier tracking shows 'returned' but order still 'dispatched'
     const returnsInRouteCount = returnsInRoute.length;
     const returnsInRouteValue = returnsInRoute.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
 
-    // Orders placed in this period that have been delivered (conversion metric)
-    const totalParcelsValue = deliveredOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+    // COGS Calculation - sum of product costs for all dispatched orders
+    const totalCOGS = dispatchedOrders.reduce((sum, order) => sum + calculateOrderCOGS(order), 0);
+    const ordersWithCOGS = dispatchedOrders.filter(order => calculateOrderCOGS(order) > 0).length;
+    const ordersWithoutCOGS = dispatchedOrders.length - ordersWithCOGS;
+    
+    // GROSS PROFIT = Net Revenue - Total Deductions - COGS
+    const grossProfit = netRevenue - totalDeductions - totalCOGS;
+    const grossMargin = netRevenue > 0 ? (grossProfit / netRevenue) * 100 : 0;
+    
+    // Net Profit (same as Gross Profit in this context)
+    const netProfit = grossProfit;
+    const profitMargin = netRevenue > 0 ? (netProfit / netRevenue) * 100 : 0;
 
     return {
       totalRevenue: netRevenue,
       totalCOD,
-      totalCharges: totalLosses,
-      netProfit: trueNetProfit,
-      profitMargin: trueNetMargin,
+      totalCharges: totalDeductions,
+      netProfit,
+      profitMargin,
       totalParcels,
-      totalParcelsValue,
+      totalParcelsValue: deliveredValue,
       // COGS KPIs
       totalCOGS,
       grossProfit,
       grossMargin,
       ordersWithCOGS,
       ordersWithoutCOGS,
-      // New KPIs
+      // Fee tracking
+      ordersWithActualFees,
+      ordersWithEstimatedFees,
+      // Order KPIs
       totalOrdersPlaced,
       totalOrdersPlacedValue,
       totalOrdersCancelled,
@@ -556,9 +585,13 @@ const FinanceAnalyticsDashboard = () => {
       totalReturnsReceived,
       returnsReceivedValue,
       returnsInRoute: returnsInRouteCount,
-      returnsInRouteValue
+      returnsInRouteValue,
+      // Breakdown
+      deliveryCharges: actualDeliveryCharges,
+      returnCharges: actualReturnCharges,
+      claimAmount: totalClaims
     };
-  }, [courierAnalytics, allOrders, cancelledOrderValues, dispatchedOrders, deliveredByDate, returns, returnsInRoute, calculateOrderCOGS]);
+  }, [allOrders, cancelledOrderValues, dispatchedOrders, deliveredByDate, deliveredOrders, returns, returnsInRoute, calculateOrderCOGS]);
 
   // Smart alerts/insights
   const insights = useMemo(() => {
@@ -848,7 +881,7 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">COD collected minus delivery charges, return charges, and claims.</p>
+                        <p className="max-w-[200px] text-xs">Orders Placed Value minus Cancelled Orders Value. Formula: Total Orders Placed - Cancelled</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
@@ -870,7 +903,7 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Total Cash on Delivery amount collected from successfully delivered orders.</p>
+                        <p className="max-w-[200px] text-xs">Total COD from orders delivered during this period (filtered by delivered_at date).</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
@@ -892,11 +925,14 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Sum of delivery charges + return handling charges + courier claims deductions.</p>
+                        <p className="max-w-[200px] text-xs">Courier delivery charges + return charges + claims. {kpis.ordersWithActualFees > 0 ? `${kpis.ordersWithActualFees} orders with actual fees, ${kpis.ordersWithEstimatedFees} estimated.` : 'Using estimated fees (upload payment files to get actual fees).'}</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
                   <p className="text-xl font-bold text-red-600">{currency} {kpis.totalCharges.toLocaleString()}</p>
+                  {kpis.ordersWithEstimatedFees > 0 && (
+                    <p className="text-xs text-amber-600">{kpis.ordersWithEstimatedFees} est.</p>
+                  )}
                 </div>
                 <TrendingDown className="h-8 w-8 text-red-600/20" />
               </div>
@@ -1013,7 +1049,7 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Dispatched Order Value minus COGS. (Before courier deductions)</p>
+                        <p className="max-w-[200px] text-xs">Net Revenue - Total Deductions - COGS. Formula: (Placed - Cancelled) - Deductions - COGS</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
@@ -1037,7 +1073,7 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Gross Profit as percentage of Dispatched Value: (Gross Profit ÷ Dispatched Value) × 100</p>
+                        <p className="max-w-[200px] text-xs">Gross Profit as percentage of Net Revenue: (Gross Profit ÷ Net Revenue) × 100</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
