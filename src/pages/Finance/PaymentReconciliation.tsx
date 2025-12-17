@@ -242,6 +242,7 @@ const PaymentReconciliation = () => {
           }
         }
 
+        // Insert reconciliation record
         await supabase
           .from('payment_reconciliation_records')
           .insert({
@@ -258,6 +259,18 @@ const PaymentReconciliation = () => {
             delivery_date: matchedOrder?.delivered_at || null,
             invoice_date: uploadForm.invoice_period_end
           });
+
+        // Update actual courier fees on the matched order
+        if (matchedOrder) {
+          const returnCharges = parseFloat(row.return_charges || row.return_fee || row.RTO_charges || '0');
+          await supabase
+            .from('orders')
+            .update({
+              courier_delivery_fee: charges > 0 ? charges : null,
+              courier_return_fee: returnCharges > 0 ? returnCharges : null
+            })
+            .eq('id', matchedOrder.id);
+        }
       }
 
       // Update upload record with counts

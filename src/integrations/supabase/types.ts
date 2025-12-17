@@ -2263,6 +2263,8 @@ export type Database = {
           comments: Json | null
           confirmation_required: boolean | null
           courier: Database["public"]["Enums"]["courier_type"] | null
+          courier_delivery_fee: number | null
+          courier_return_fee: number | null
           created_at: string | null
           customer_address: string
           customer_email: string | null
@@ -2322,6 +2324,8 @@ export type Database = {
           comments?: Json | null
           confirmation_required?: boolean | null
           courier?: Database["public"]["Enums"]["courier_type"] | null
+          courier_delivery_fee?: number | null
+          courier_return_fee?: number | null
           created_at?: string | null
           customer_address: string
           customer_email?: string | null
@@ -2381,6 +2385,8 @@ export type Database = {
           comments?: Json | null
           confirmation_required?: boolean | null
           courier?: Database["public"]["Enums"]["courier_type"] | null
+          courier_delivery_fee?: number | null
+          courier_return_fee?: number | null
           created_at?: string | null
           customer_address?: string
           customer_email?: string | null
