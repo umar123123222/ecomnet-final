@@ -271,6 +271,11 @@ serve(async (req) => {
         
         if (poFetchError) throw poFetchError;
 
+        // FIX 1: Prevent payment on cancelled POs
+        if (po.status === 'cancelled') {
+          throw new Error('Cannot record payment for a cancelled purchase order. Please reverse any existing payments first.');
+        }
+
         // Get credit notes sum for this PO
         const { data: creditNotes } = await supabaseClient
           .from('supplier_credit_notes')
@@ -354,6 +359,105 @@ serve(async (req) => {
             payment_status: paymentStatus,
             paid_amount: newPaidAmount,
             net_payable: netPayable
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // FIX 2: Payment reversal action
+      case 'reverse_payment': {
+        if (!data.po_id) {
+          throw new Error('Missing po_id');
+        }
+
+        // Check user role - only super_admin and super_manager can reverse payments
+        const { data: reverseUserRoles } = await supabaseClient
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .in('role', ['super_admin', 'super_manager'])
+          .eq('is_active', true);
+
+        if (!reverseUserRoles || reverseUserRoles.length === 0) {
+          throw new Error('Unauthorized: Only Super Admin or Super Manager can reverse payments');
+        }
+
+        // Get PO details
+        const { data: reversePO, error: reversePOFetchError } = await supabaseClient
+          .from('purchase_orders')
+          .select('*, suppliers(name)')
+          .eq('id', data.po_id)
+          .single();
+        
+        if (reversePOFetchError) throw reversePOFetchError;
+
+        // Check if there's any payment to reverse
+        if (!reversePO.paid_amount || reversePO.paid_amount <= 0) {
+          throw new Error('No payment to reverse for this purchase order');
+        }
+
+        const previousPaidAmount = reversePO.paid_amount;
+        const reverseAmount = data.amount || previousPaidAmount; // Reverse full amount if not specified
+        const newPaidAmount = Math.max(0, previousPaidAmount - reverseAmount);
+
+        // Determine new payment status
+        let newPaymentStatus = 'pending';
+        if (newPaidAmount > 0) {
+          // Get credit notes sum for this PO
+          const { data: reverseCreditNotes } = await supabaseClient
+            .from('supplier_credit_notes')
+            .select('amount')
+            .eq('po_id', data.po_id)
+            .eq('status', 'applied');
+          
+          const reverseCreditTotal = reverseCreditNotes?.reduce((sum: number, cn: any) => sum + (cn.amount || 0), 0) || 0;
+          const reverseNetPayable = reversePO.total_amount - reverseCreditTotal;
+          
+          if (newPaidAmount >= reverseNetPayable) {
+            newPaymentStatus = 'paid';
+          } else {
+            newPaymentStatus = 'partial';
+          }
+        }
+
+        // Update PO with reversed payment
+        const { error: reverseError } = await supabaseClient
+          .from('purchase_orders')
+          .update({
+            paid_amount: newPaidAmount,
+            payment_status: newPaymentStatus,
+            payment_notes: `${reversePO.payment_notes || ''}\n[REVERSED: ${new Date().toISOString()}] Amount: ${reverseAmount}. Reason: ${data.reason || 'Payment reversal'}`.trim(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', data.po_id);
+
+        if (reverseError) throw reverseError;
+
+        // Get user profile for notification
+        const { data: reverseUserProfile } = await supabaseClient
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single();
+
+        // Send notification
+        await sendStatusNotification(supabaseClient, reversePO, 'payment_reversed', user.id, {
+          reversed_amount: reverseAmount,
+          previous_paid: previousPaidAmount,
+          new_paid_amount: newPaidAmount,
+          reason: data.reason || 'Payment reversal',
+          reversed_by: reverseUserProfile?.full_name || 'Finance Team'
+        });
+
+        console.log(`Payment reversed for PO ${reversePO.po_number}: ${reverseAmount} reversed`);
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: `Payment reversed successfully. Amount: ${reverseAmount}`,
+            reversed_amount: reverseAmount,
+            new_paid_amount: newPaidAmount,
+            payment_status: newPaymentStatus
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
