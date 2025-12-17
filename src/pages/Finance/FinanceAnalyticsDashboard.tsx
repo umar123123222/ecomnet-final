@@ -270,7 +270,7 @@ const FinanceAnalyticsDashboard = () => {
   // Fetch dispatched orders for total parcels, COGS, and courier analytics (cohort-based)
   // This is the single source of truth for per-courier metrics
   const { data: dispatchedOrders = [] } = useQuery({
-    queryKey: ['finance-dispatched-orders', dateRange, selectedCourier],
+    queryKey: ['finance-dispatched-orders-v2', dateRange, selectedCourier],
     queryFn: async () => {
       const fromDate = dateRange?.from?.toISOString() || startOfMonth(new Date()).toISOString();
       const toDate = dateRange?.to?.toISOString() || endOfMonth(new Date()).toISOString();
