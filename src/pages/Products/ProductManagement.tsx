@@ -140,6 +140,14 @@ const ProductManagement = () => {
     }
   });
 
+  // Extract unique categories from all products
+  const uniqueCategories = useMemo(() => {
+    const categories = allProducts
+      .map(p => p.category)
+      .filter((c): c is string => Boolean(c));
+    return [...new Set(categories)].sort();
+  }, [allProducts]);
+
   // Paginate the filtered results
   const totalFiltered = filteredProducts?.length || 0;
   const totalPages = Math.ceil(totalFiltered / pageSize);
@@ -391,6 +399,22 @@ const ProductManagement = () => {
                 <SelectItem value="all">All Products</SelectItem>
                 <SelectItem value="active">Active Only</SelectItem>
                 <SelectItem value="inactive">Inactive Only</SelectItem>
+            </SelectContent>
+            </Select>
+
+            <Select 
+              value={filters.category || 'all'} 
+              onValueChange={value => updateFilter('category', value === 'all' ? '' : value)}
+            >
+              <SelectTrigger className="w-[180px]">
+                <Layers className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Filter by category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {uniqueCategories.map((category) => (
+                  <SelectItem key={category} value={category}>{category}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
