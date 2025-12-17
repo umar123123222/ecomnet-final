@@ -29,6 +29,8 @@ import {
   bulkToggleSmartReorder,
   bulkToggleBundle,
   bulkAssignPackaging,
+  bulkUpdateProductCost,
+  bulkUpdateProductPrice,
 } from "@/utils/bulkOperations";
 
 type EditField = 
@@ -37,7 +39,9 @@ type EditField =
   | "reorder_level" 
   | "smart_reorder" 
   | "bundle" 
-  | "packaging";
+  | "packaging"
+  | "cost"
+  | "retail_price";
 
 interface BulkEditProductsDialogProps {
   open: boolean;
@@ -66,6 +70,8 @@ export function BulkEditProductsDialog({
   const [isBundle, setIsBundle] = useState(false);
   const [packagingItemId, setPackagingItemId] = useState("");
   const [packagingQuantity, setPackagingQuantity] = useState(1);
+  const [costValue, setCostValue] = useState<number>(0);
+  const [retailPriceValue, setRetailPriceValue] = useState<number>(0);
 
   // Fetch suppliers
   const { data: suppliers = [] } = useQuery({
@@ -106,6 +112,8 @@ export function BulkEditProductsDialog({
     setIsBundle(false);
     setPackagingItemId("");
     setPackagingQuantity(1);
+    setCostValue(0);
+    setRetailPriceValue(0);
   };
 
   const handleSubmit = async () => {
@@ -159,6 +167,20 @@ export function BulkEditProductsDialog({
             packagingItemId, 
             packagingQuantity
           );
+          break;
+        case "cost":
+          if (costValue < 0) {
+            toast({ title: "Cost must be positive", variant: "destructive" });
+            return;
+          }
+          result = await bulkUpdateProductCost(selectedProductIds, costValue);
+          break;
+        case "retail_price":
+          if (retailPriceValue < 0) {
+            toast({ title: "Retail price must be positive", variant: "destructive" });
+            return;
+          }
+          result = await bulkUpdateProductPrice(selectedProductIds, retailPriceValue);
           break;
       }
 
@@ -288,6 +310,34 @@ export function BulkEditProductsDialog({
             </div>
           </div>
         );
+      case "cost":
+        return (
+          <div className="space-y-2">
+            <Label>Cost (Rs.)</Label>
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={costValue}
+              onChange={(e) => setCostValue(parseFloat(e.target.value) || 0)}
+              placeholder="Enter cost price"
+            />
+          </div>
+        );
+      case "retail_price":
+        return (
+          <div className="space-y-2">
+            <Label>Retail Price (Rs.)</Label>
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={retailPriceValue}
+              onChange={(e) => setRetailPriceValue(parseFloat(e.target.value) || 0)}
+              placeholder="Enter retail price"
+            />
+          </div>
+        );
       default:
         return (
           <p className="text-sm text-muted-foreground text-center py-4">
@@ -319,6 +369,8 @@ export function BulkEditProductsDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="category">Category</SelectItem>
+                <SelectItem value="cost">Cost Price</SelectItem>
+                <SelectItem value="retail_price">Retail Price</SelectItem>
                 <SelectItem value="supplier">Supplier</SelectItem>
                 <SelectItem value="reorder_level">Reorder Level</SelectItem>
                 <SelectItem value="smart_reorder">Smart Reorder On/Off</SelectItem>
