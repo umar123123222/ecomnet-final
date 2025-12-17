@@ -548,20 +548,14 @@ const FinanceAnalyticsDashboard = () => {
     const ordersWithCOGS = dispatchedOrders.filter(order => calculateOrderCOGS(order) > 0).length;
     const ordersWithoutCOGS = dispatchedOrders.length - ordersWithCOGS;
     
-    // GROSS PROFIT = Net Revenue - Total Deductions - COGS
-    const grossProfit = netRevenue - totalDeductions - totalCOGS;
-    const grossMargin = netRevenue > 0 ? (grossProfit / netRevenue) * 100 : 0;
-    
-    // Net Profit (same as Gross Profit in this context)
-    const netProfit = grossProfit;
-    const profitMargin = netRevenue > 0 ? (netProfit / netRevenue) * 100 : 0;
+    // GROSS PROFIT = COD Collected - Total Deductions - COGS
+    const grossProfit = totalCOD - totalDeductions - totalCOGS;
+    const grossMargin = totalCOD > 0 ? (grossProfit / totalCOD) * 100 : 0;
 
     return {
       totalRevenue: netRevenue,
       totalCOD,
       totalCharges: totalDeductions,
-      netProfit,
-      profitMargin,
       totalParcels,
       totalParcelsValue: deliveredValue,
       // COGS KPIs
@@ -867,31 +861,9 @@ const FinanceAnalyticsDashboard = () => {
         </div>
       </TooltipProvider>
 
-      {/* Financial KPI Cards */}
+      {/* Financial KPI Cards - COD, Deductions, COGS, Gross Profit, Gross Margin */}
       <TooltipProvider>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    Net Revenue
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Orders Placed Value minus Cancelled Orders Value. Formula: Total Orders Placed - Cancelled</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </p>
-                  <p className="text-xl font-bold text-green-600">{currency} {kpis.totalRevenue.toLocaleString()}</p>
-                </div>
-                <DollarSign className="h-8 w-8 text-green-600/20" />
-              </div>
-            </CardContent>
-          </Card>
-
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
           <Card>
             <CardContent className="pt-4">
               <div className="flex items-center justify-between">
@@ -903,13 +875,14 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Total COD from orders delivered during this period (filtered by delivered_at date).</p>
+                        <p className="max-w-[200px] text-xs">Total COD from orders delivered during this period (before courier deductions).</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
-                  <p className="text-xl font-bold">{currency} {kpis.totalCOD.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-green-600">{currency} {kpis.totalCOD.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">{kpis.totalDelivered} orders delivered</p>
                 </div>
-                <Activity className="h-8 w-8 text-primary/20" />
+                <Activity className="h-8 w-8 text-green-600/20" />
               </div>
             </CardContent>
           </Card>
@@ -944,82 +917,6 @@ const FinanceAnalyticsDashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    Net Profit
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Gross Profit minus COGS minus courier charges, return charges, and claims.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </p>
-                  <p className={`text-xl font-bold ${kpis.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {currency} {kpis.netProfit.toLocaleString()}
-                  </p>
-                </div>
-                <TrendingUp className="h-8 w-8 text-green-600/20" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    Profit Margin
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Net Profit as percentage of COD Collected: (Net Profit ÷ COD) × 100</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </p>
-                  <p className={`text-xl font-bold ${kpis.profitMargin >= 0 ? 'text-foreground' : 'text-red-600'}`}>
-                    {kpis.profitMargin.toFixed(1)}%
-                  </p>
-                </div>
-                <PieChart className="h-8 w-8 text-primary/20" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    Delivered
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Orders placed during this period that have been delivered (conversion metric).</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </p>
-                  <p className="text-xl font-bold">{kpis.totalParcels.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">{currency} {kpis.totalParcelsValue.toLocaleString()}</p>
-                </div>
-                <Package className="h-8 w-8 text-primary/20" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </TooltipProvider>
-
-      {/* COGS & Profitability Cards */}
-      <TooltipProvider>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
                     COGS
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -1049,7 +946,7 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Net Revenue - Total Deductions - COGS. Formula: (Placed - Cancelled) - Deductions - COGS</p>
+                        <p className="max-w-[200px] text-xs">COD Collected - Total Deductions - COGS</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
@@ -1073,86 +970,15 @@ const FinanceAnalyticsDashboard = () => {
                         <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Gross Profit as percentage of Net Revenue: (Gross Profit ÷ Net Revenue) × 100</p>
+                        <p className="max-w-[200px] text-xs">Gross Profit as percentage of COD Collected: (Gross Profit ÷ COD) × 100</p>
                       </TooltipContent>
                     </Tooltip>
                   </p>
-                  <p className="text-xl font-bold">{kpis.grossMargin.toFixed(1)}%</p>
+                  <p className={`text-xl font-bold ${kpis.grossMargin >= 0 ? 'text-foreground' : 'text-red-600'}`}>
+                    {kpis.grossMargin.toFixed(1)}%
+                  </p>
                 </div>
                 <PieChart className="h-8 w-8 text-primary/20" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    True Net Profit
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Gross Profit minus all courier charges, return charges, and claims.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </p>
-                  <p className={`text-xl font-bold ${kpis.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {currency} {kpis.netProfit.toLocaleString()}
-                  </p>
-                </div>
-                <TrendingUp className="h-8 w-8 text-green-600/20" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    Net Margin
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="max-w-[200px] text-xs">True Net Profit as percentage of COD Collected.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </p>
-                  <p className={`text-xl font-bold ${kpis.profitMargin >= 0 ? 'text-foreground' : 'text-red-600'}`}>
-                    {kpis.profitMargin.toFixed(1)}%
-                  </p>
-                </div>
-                <BarChart3 className="h-8 w-8 text-primary/20" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    Unmatched Orders
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3 w-3 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="max-w-[200px] text-xs">Orders where product costs couldn't be calculated (products not found in database).</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </p>
-                  <p className={`text-xl font-bold ${kpis.ordersWithoutCOGS > 0 ? 'text-yellow-600' : 'text-green-600'}`}>
-                    {kpis.ordersWithoutCOGS.toLocaleString()}
-                  </p>
-                  <p className="text-xs text-muted-foreground">of {kpis.totalOrdersDispatched} dispatched</p>
-                </div>
-                <AlertTriangle className="h-8 w-8 text-yellow-600/20" />
               </div>
             </CardContent>
           </Card>
