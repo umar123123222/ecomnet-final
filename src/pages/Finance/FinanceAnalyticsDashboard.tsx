@@ -231,7 +231,8 @@ const FinanceAnalyticsDashboard = () => {
     }
   });
 
-  // Fetch delivered orders filtered by delivered_at for stats card
+  // Fetch delivered orders filtered by delivered_at for stats card AND courier analytics
+  // Includes courier fee fields for accurate charge calculations per courier
   const { data: deliveredByDate = [] } = useQuery({
     queryKey: ['finance-delivered-by-date', dateRange, selectedCourier],
     queryFn: async () => {
@@ -245,7 +246,7 @@ const FinanceAnalyticsDashboard = () => {
       while (true) {
         const { data, error } = await supabase
           .from('orders')
-          .select('id, total_amount, courier')
+          .select('id, total_amount, courier, courier_delivery_fee, courier_return_fee, shipping_charges')
           .eq('status', 'delivered')
           .not('delivered_at', 'is', null)
           .gte('delivered_at', fromDate)
@@ -341,6 +342,7 @@ const FinanceAnalyticsDashboard = () => {
   }, [productCostMap, bundleCostMap, bundleProductIds]);
 
   // Fetch returns received at warehouse (filter by received_at date)
+  // Includes courier fee fields for accurate charge calculations per courier
   const { data: returns = [] } = useQuery({
     queryKey: ['finance-returns', dateRange, selectedCourier],
     queryFn: async () => {
@@ -356,7 +358,7 @@ const FinanceAnalyticsDashboard = () => {
           .from('returns')
           .select(`
             id, order_id, return_status, claim_amount, claimed_at, received_at,
-            orders!inner(total_amount, courier, order_number)
+            orders!inner(total_amount, courier, order_number, courier_return_fee, shipping_charges)
           `)
           .not('received_at', 'is', null)
           .gte('received_at', fromDate)
@@ -488,8 +490,8 @@ const FinanceAnalyticsDashboard = () => {
     }
   });
 
-  // Calculate courier-wise analytics using COHORT-BASED approach
-  // dispatchedOrders is the single source of truth - all metrics derived from same dataset
+  // Calculate courier-wise analytics using ACTIVITY-BASED approach
+  // Aligns with top metric cards: deliveredByDate (delivered_at) + returns (received_at)
   const courierAnalytics = useMemo(() => {
     const analytics: Record<string, {
       name: string;
@@ -505,31 +507,12 @@ const FinanceAnalyticsDashboard = () => {
       rtoPercentage: number;
     }> = {};
 
-    // Initialize with all couriers
-    couriers.forEach(c => {
-      analytics[c.code] = {
-        name: c.name,
-        code: c.code,
-        totalOrders: 0,
-        deliveredOrders: 0,
-        returnedOrders: 0,
-        totalCOD: 0,
-        deliveryCharges: 0,
-        returnCharges: 0,
-        claimAmount: 0,
-        netRevenue: 0,
-        rtoPercentage: 0
-      };
-    });
-
-    // Process dispatched orders - derive ALL metrics from this single cohort
-    // This ensures Total Orders >= Delivered + Returned (logically consistent)
-    dispatchedOrders.forEach(order => {
-      const courierCode = order.courier || 'other';
-      if (!analytics[courierCode]) {
-        analytics[courierCode] = {
-          name: courierCode,
-          code: courierCode,
+    // Helper to initialize courier analytics
+    const initCourier = (code: string, name?: string) => {
+      if (!analytics[code]) {
+        analytics[code] = {
+          name: name || code,
+          code: code,
           totalOrders: 0,
           deliveredOrders: 0,
           returnedOrders: 0,
@@ -541,47 +524,58 @@ const FinanceAnalyticsDashboard = () => {
           rtoPercentage: 0
         };
       }
+    };
+
+    // Initialize with all known couriers
+    couriers.forEach(c => initCourier(c.code, c.name));
+
+    // DELIVERED: Use deliveredByDate (filtered by delivered_at)
+    // This matches the "Delivered" metric card exactly
+    deliveredByDate.forEach(order => {
+      const courierCode = order.courier || 'other';
+      initCourier(courierCode);
       
-      // Count total orders dispatched
-      analytics[courierCode].totalOrders++;
+      analytics[courierCode].deliveredOrders++;
+      analytics[courierCode].totalCOD += Number(order.total_amount) || 0;
       
-      // Derive delivered/returned counts from the SAME dataset by status
-      if (order.status === 'delivered') {
-        analytics[courierCode].deliveredOrders++;
-        analytics[courierCode].totalCOD += Number(order.total_amount) || 0;
-        // Prefer actual courier_delivery_fee, fallback to shipping_charges, default to 0
-        const deliveryFee = order.courier_delivery_fee != null 
-          ? (Number(order.courier_delivery_fee) || 0)
-          : (Number(order.shipping_charges) || 0);
-        analytics[courierCode].deliveryCharges += deliveryFee;
-      } else if (order.status === 'returned') {
-        analytics[courierCode].returnedOrders++;
-        // Prefer actual courier_return_fee, fallback to shipping_charges, default to 0
-        const returnFee = order.courier_return_fee != null
-          ? (Number(order.courier_return_fee) || 0)
-          : (Number(order.shipping_charges) || 0);
-        analytics[courierCode].returnCharges += returnFee;
-      }
+      // Prefer actual courier_delivery_fee, fallback to shipping_charges
+      const deliveryFee = order.courier_delivery_fee != null 
+        ? (Number(order.courier_delivery_fee) || 0)
+        : (Number(order.shipping_charges) || 0);
+      analytics[courierCode].deliveryCharges += deliveryFee;
     });
 
-    // Process claims
+    // RETURNED: Use returns table (filtered by received_at)
+    // This matches the "Returns Received" metric card exactly
     returns.forEach((ret: any) => {
       const courierCode = ret.orders?.courier || 'other';
-      if (!analytics[courierCode]) return;
+      initCourier(courierCode);
+      
+      analytics[courierCode].returnedOrders++;
+      
+      // Add return charges - use courier_return_fee if available
+      const returnFee = ret.orders?.courier_return_fee != null
+        ? (Number(ret.orders.courier_return_fee) || 0)
+        : (Number(ret.orders?.shipping_charges) || 0);
+      analytics[courierCode].returnCharges += returnFee;
+      
+      // Process claims
       if (ret.claim_amount) {
         analytics[courierCode].claimAmount += Number(ret.claim_amount) || 0;
       }
     });
 
-    // Calculate net revenue and RTO percentage
+    // Calculate total orders (Delivered + Returned) and derived metrics
     Object.keys(analytics).forEach(code => {
       const a = analytics[code];
+      // Total is activity-based: completed orders (delivered + returned in period)
+      a.totalOrders = a.deliveredOrders + a.returnedOrders;
       a.netRevenue = a.totalCOD - a.deliveryCharges - a.returnCharges - a.claimAmount;
       a.rtoPercentage = a.totalOrders > 0 ? (a.returnedOrders / a.totalOrders) * 100 : 0;
     });
 
     return Object.values(analytics).filter(a => a.totalOrders > 0);
-  }, [couriers, dispatchedOrders, returns]);
+  }, [couriers, deliveredByDate, returns]);
 
   // Calculate overall KPIs with corrected formulas
   const kpis = useMemo(() => {
