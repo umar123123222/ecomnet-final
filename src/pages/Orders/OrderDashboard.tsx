@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Label } from '@/components/ui/label';
-import { Search, Upload, Filter, X, RefreshCw, AlertTriangle, AlertCircle, MapPin, Eye, EyeOff, Package, DollarSign, Smartphone } from 'lucide-react';
+import { Search, Upload, Filter, X, RefreshCw, AlertTriangle, AlertCircle, MapPin, Eye, EyeOff, Package, DollarSign, Smartphone, FileSpreadsheet } from 'lucide-react';
 import NewOrderDialog from '@/components/NewOrderDialog';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { useUserRoles } from '@/hooks/useUserRoles';
@@ -21,6 +21,7 @@ import { logActivity } from '@/utils/activityLogger';
 import { useBulkOperations } from '@/hooks/useBulkOperations';
 import { BulkOperationsPanel } from '@/components/BulkOperationsPanel';
 import { bulkUpdateOrderStatus, bulkUnassignCouriers, exportToCSV } from '@/utils/bulkOperations';
+import { exportOrdersToExcel } from '@/utils/excelExport';
 import { useToast } from '@/hooks/use-toast';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { BulkUploadDialog } from '@/components/orders/BulkUploadDialog';
@@ -456,6 +457,93 @@ const OrderDashboard = () => {
     setSearchInput('');
   };
 
+  // Export all filtered orders to Excel
+  const [exporting, setExporting] = useState(false);
+  const handleExportToExcel = async () => {
+    try {
+      setExporting(true);
+      toast({ title: "Preparing Export...", description: "Fetching all filtered orders..." });
+
+      // Build the same query as useOrdersData but without pagination
+      let query = supabase
+        .from('orders')
+        .select(`
+          id, order_number, status, customer_name, customer_phone, customer_email, 
+          customer_address, city, total, shipping_charges, courier, tracking_id, tags,
+          created_at, confirmed_at, booked_at, dispatched_at, delivered_at,
+          cancellation_reason, notes,
+          order_items(id, name, quantity, price, product_id)
+        `)
+        .order('created_at', { ascending: sortOrder === 'oldest' });
+
+      // Apply filters
+      if (filters.status && filters.status !== 'all') {
+        query = query.eq('status', filters.status as any);
+      }
+      if (filters.courier && filters.courier !== 'all') {
+        if (filters.courier === 'none') {
+          query = query.is('courier', null);
+        } else {
+          query = query.eq('courier', filters.courier as any);
+        }
+      }
+      if (filters.search) {
+        query = query.or(`order_number.ilike.%${filters.search}%,customer_name.ilike.%${filters.search}%,customer_phone.ilike.%${filters.search}%,tracking_id.ilike.%${filters.search}%`);
+      }
+      if (filters.city) {
+        query = query.ilike('city', `%${filters.city}%`);
+      }
+      if (filters.statusDateRange?.from) {
+        query = query.gte('created_at', filters.statusDateRange.from.toISOString());
+      }
+      if (filters.statusDateRange?.to) {
+        query = query.lte('created_at', filters.statusDateRange.to.toISOString());
+      }
+
+      const { data, error } = await query.limit(10000);
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        toast({ title: "No Orders", description: "No orders found with current filters", variant: "destructive" });
+        return;
+      }
+
+      // Transform data for export
+      const exportData = data.map((order: any) => ({
+        id: order.id,
+        orderNumber: order.order_number,
+        status: order.status,
+        customerName: order.customer_name,
+        customerPhone: order.customer_phone,
+        customerEmail: order.customer_email,
+        customerAddress: order.customer_address,
+        city: order.city,
+        total: order.total,
+        shippingCharges: order.shipping_charges,
+        courier: order.courier,
+        tracking_id: order.tracking_id,
+        tags: order.tags,
+        items: order.order_items,
+        createdAt: order.created_at,
+        confirmedAt: order.confirmed_at,
+        bookedAt: order.booked_at,
+        dispatchedAt: order.dispatched_at,
+        deliveredAt: order.delivered_at,
+        cancellationReason: order.cancellation_reason,
+        notes: order.notes,
+      }));
+
+      const count = exportOrdersToExcel(exportData);
+      toast({ title: "Export Complete", description: `Exported ${count} orders to Excel` });
+    } catch (error: any) {
+      console.error('Export error:', error);
+      toast({ title: "Export Failed", description: error.message || "Failed to export orders", variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // Permission flags
   const canUpdateStatus = isManager() || isSeniorStaff() || primaryRole === 'staff';
   const canOverrideDispatchLock = hasAnyRole(['super_admin', 'super_manager', 'warehouse_manager']);
@@ -500,6 +588,10 @@ const OrderDashboard = () => {
             <Button variant="outline" onClick={() => setShowBulkUpload(true)}>
               <Upload className="h-4 w-4 mr-2" />
               Bulk Upload
+            </Button>
+            <Button variant="outline" onClick={handleExportToExcel} disabled={exporting}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              {exporting ? 'Exporting...' : 'Export Excel'}
             </Button>
             <BulkUploadDialog open={showBulkUpload} onOpenChange={setShowBulkUpload} onSuccess={handleNewOrderCreated} />
           </div>
