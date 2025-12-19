@@ -462,55 +462,118 @@ const OrderDashboard = () => {
   const handleExportToExcel = async () => {
     try {
       setExporting(true);
-      toast({ title: "Preparing Export...", description: "Fetching all filtered orders..." });
+      toast({ title: "Preparing Export...", description: "Fetching all orders that match your current filters..." });
 
-      // Build the same query as useOrdersData but without pagination
-      let query = supabase
-        .from('orders')
-        .select(`
-          id, order_number, status, customer_name, customer_phone, customer_email, 
-          customer_address, city, total_amount, shipping_charges, courier, tracking_id, tags,
-          created_at, booked_at, dispatched_at, delivered_at,
-          cancellation_reason, notes,
-          order_items(id, item_name, quantity, price, product_id)
-        `)
-        .order('created_at', { ascending: sortOrder === 'oldest' });
+      const getStatusDateField = (status: string): string => {
+        switch (status) {
+          case 'pending':
+            return 'created_at';
+          case 'booked':
+            return 'booked_at';
+          case 'dispatched':
+            return 'dispatched_at';
+          case 'delivered':
+            return 'delivered_at';
+          case 'returned':
+          case 'cancelled':
+            return 'updated_at';
+          default:
+            return 'created_at';
+        }
+      };
 
-      // Apply filters
-      if (filters.status && filters.status !== 'all') {
-        query = query.eq('status', filters.status as any);
-      }
-      if (filters.courier && filters.courier !== 'all') {
+      const buildQuery = () => {
+        let query = supabase
+          .from('orders')
+          .select(`
+            id, order_number, status, customer_name, customer_phone, customer_email,
+            customer_address, city, total_amount, shipping_charges, courier, tracking_id, tags,
+            created_at, booked_at, dispatched_at, delivered_at,
+            cancellation_reason, notes,
+            order_items(id, item_name, quantity, price, product_id)
+          `)
+          .order('created_at', { ascending: sortOrder === 'oldest' });
+
+        // Mirror filtering logic from useOrdersData (but without pagination)
+        if (filters.search) {
+          query = query.or(
+            `order_number.ilike.%${filters.search}%,shopify_order_number.ilike.%${filters.search}%,customer_name.ilike.%${filters.search}%,customer_phone.ilike.%${filters.search}%,customer_email.ilike.%${filters.search}%,tracking_id.ilike.%${filters.search}%,city.ilike.%${filters.search}%`
+          );
+        }
+
+        if (filters.status !== 'all') {
+          query = query.eq('status', filters.status as any);
+        }
+
         if (filters.courier === 'none') {
           query = query.is('courier', null);
-        } else {
+        } else if (filters.courier !== 'all') {
           query = query.eq('courier', filters.courier as any);
         }
-      }
-      if (filters.search) {
-        query = query.or(`order_number.ilike.%${filters.search}%,customer_name.ilike.%${filters.search}%,customer_phone.ilike.%${filters.search}%,tracking_id.ilike.%${filters.search}%`);
-      }
-      if (filters.city) {
-        query = query.ilike('city', `%${filters.city}%`);
-      }
-      if (filters.statusDateRange?.from) {
-        query = query.gte('created_at', filters.statusDateRange.from.toISOString());
-      }
-      if (filters.statusDateRange?.to) {
-        query = query.lte('created_at', filters.statusDateRange.to.toISOString());
+
+        if (filters.orderType !== 'all') {
+          query = query.eq('order_type', filters.orderType);
+        }
+
+        if (filters.verificationStatus !== 'all') {
+          query = query.eq('verification_status', filters.verificationStatus as any);
+        }
+
+        if (filters.statusDateRange?.from) {
+          const statusDateField = getStatusDateField(filters.status);
+          const startOfDay = new Date(filters.statusDateRange.from);
+          startOfDay.setHours(0, 0, 0, 0);
+          query = query.gte(statusDateField, startOfDay.toISOString());
+
+          if (filters.statusDateRange.to) {
+            const endOfDay = new Date(filters.statusDateRange.to);
+            endOfDay.setHours(23, 59, 59, 999);
+            query = query.lte(statusDateField, endOfDay.toISOString());
+          }
+        }
+
+        if (filters.amountMin !== undefined) {
+          query = query.gte('total_amount', filters.amountMin);
+        }
+        if (filters.amountMax !== undefined) {
+          query = query.lte('total_amount', filters.amountMax);
+        }
+
+        if (filters.city !== 'all') {
+          query = query.ilike('city', `%${filters.city}%`);
+        }
+
+        if (filters.hasTrackingId === 'yes') {
+          query = query.not('tracking_id', 'is', null);
+        } else if (filters.hasTrackingId === 'no') {
+          query = query.is('tracking_id', null);
+        }
+
+        return query;
+      };
+
+      // Fetch ALL matching records in pages (Supabase defaults to 1000 max per request)
+      const batchSize = 1000;
+      let offset = 0;
+      const allOrders: any[] = [];
+
+      while (true) {
+        const { data, error } = await buildQuery().range(offset, offset + batchSize - 1);
+        if (error) throw error;
+
+        const batch = data || [];
+        allOrders.push(...batch);
+
+        if (batch.length < batchSize) break;
+        offset += batchSize;
       }
 
-      const { data, error } = await query.limit(10000);
-
-      if (error) throw error;
-
-      if (!data || data.length === 0) {
+      if (allOrders.length === 0) {
         toast({ title: "No Orders", description: "No orders found with current filters", variant: "destructive" });
         return;
       }
 
-      // Transform data for export
-      const exportData = data.map((order: any) => ({
+      const exportData = allOrders.map((order: any) => ({
         id: order.id,
         orderNumber: order.order_number,
         status: order.status,
