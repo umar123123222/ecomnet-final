@@ -472,7 +472,7 @@ const OrderDashboard = () => {
           customer_address, city, total, shipping_charges, courier, tracking_id, tags,
           created_at, confirmed_at, booked_at, dispatched_at, delivered_at,
           cancellation_reason, notes,
-          order_items(id, name, quantity, price, product_id)
+          order_items(id, item_name, quantity, price, product_id)
         `)
         .order('created_at', { ascending: sortOrder === 'oldest' });
 
