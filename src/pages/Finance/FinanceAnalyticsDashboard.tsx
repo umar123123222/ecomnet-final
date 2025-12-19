@@ -11,6 +11,7 @@ import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { useCurrency } from '@/hooks/useCurrency';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import DataQualityWidget from '@/components/finance/DataQualityWidget';
 import { 
   TrendingUp, TrendingDown, DollarSign, Package, Truck, 
   AlertTriangle, CheckCircle, ArrowUpRight, ArrowDownRight,
@@ -1237,25 +1238,39 @@ const FinanceAnalyticsDashboard = () => {
       </TooltipProvider>
 
       {/* Smart Alerts */}
-      {insights.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {insights.map((insight, idx) => (
-            <Card key={idx} className={`border-l-4 ${
-              insight.type === 'warning' ? 'border-l-yellow-500 bg-yellow-50/50 dark:bg-yellow-950/20' :
-              insight.type === 'success' ? 'border-l-green-500 bg-green-50/50 dark:bg-green-950/20' :
-              'border-l-blue-500 bg-blue-50/50 dark:bg-blue-950/20'
-            }`}>
-              <CardContent className="pt-4 flex items-center gap-3">
-                <insight.Icon className={`h-5 w-5 ${
-                  insight.type === 'warning' ? 'text-yellow-600' :
-                  insight.type === 'success' ? 'text-green-600' : 'text-blue-600'
-                }`} />
-                <p className="text-sm font-medium">{insight.message}</p>
-              </CardContent>
-            </Card>
-          ))}
+      {/* Insights and Data Quality Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+        {/* Insights - take 3 columns */}
+        <div className="lg:col-span-3">
+          {insights.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {insights.map((insight, idx) => (
+                <Card key={idx} className={`border-l-4 ${
+                  insight.type === 'warning' ? 'border-l-yellow-500 bg-yellow-50/50 dark:bg-yellow-950/20' :
+                  insight.type === 'success' ? 'border-l-green-500 bg-green-50/50 dark:bg-green-950/20' :
+                  'border-l-blue-500 bg-blue-50/50 dark:bg-blue-950/20'
+                }`}>
+                  <CardContent className="pt-4 flex items-center gap-3">
+                    <insight.Icon className={`h-5 w-5 ${
+                      insight.type === 'warning' ? 'text-yellow-600' :
+                      insight.type === 'success' ? 'text-green-600' : 'text-blue-600'
+                    }`} />
+                    <p className="text-sm font-medium">{insight.message}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+        
+        {/* Data Quality Widget - takes 1 column */}
+        <div className="lg:col-span-1">
+          <DataQualityWidget 
+            dateRange={dateRange} 
+            selectedCourier={selectedCourier} 
+          />
+        </div>
+      </div>
 
       {/* Courier Analytics Cards */}
       <Card className="mb-6">
