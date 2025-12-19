@@ -221,3 +221,6 @@ verify_jwt = false
 
 [functions.send-po-lifecycle-email]
 verify_jwt = false
+
+[functions.verify-postex-orders]
+verify_jwt = false
