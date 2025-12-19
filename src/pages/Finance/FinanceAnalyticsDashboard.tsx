@@ -9,11 +9,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { PageContainer, PageHeader } from '@/components/layout';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { useCurrency } from '@/hooks/useCurrency';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { 
   TrendingUp, TrendingDown, DollarSign, Package, Truck, 
   AlertTriangle, CheckCircle, ArrowUpRight, ArrowDownRight,
   Download, BarChart3, PieChart, Activity, XCircle, RotateCcw, 
-  ShoppingCart, Info, Boxes, Calculator
+  ShoppingCart, Info, Boxes, Calculator, AlertCircle
 } from 'lucide-react';
 import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay } from 'date-fns';
 import { DateRange } from 'react-day-picker';
@@ -39,6 +41,8 @@ const FinanceAnalyticsDashboard = () => {
     to: endOfMonth(new Date())
   });
   const [selectedCourier, setSelectedCourier] = useState<string>('all');
+  // Toggle for Courier View (cohort-based by booked_at) vs Delivery View (activity-based by delivered_at)
+  const [useCourierView, setUseCourierView] = useState<boolean>(false);
 
   // Fetch couriers
   const { data: couriers = [] } = useQuery({
@@ -233,6 +237,7 @@ const FinanceAnalyticsDashboard = () => {
 
   // Fetch delivered orders filtered by delivered_at for stats card AND courier analytics
   // Includes courier fee fields for accurate charge calculations per courier
+  // Also includes booked_at for cohort-based courier view
   const { data: deliveredByDate = [] } = useQuery({
     queryKey: ['finance-delivered-by-date', dateRange, selectedCourier],
     queryFn: async () => {
@@ -246,7 +251,7 @@ const FinanceAnalyticsDashboard = () => {
       while (true) {
         const { data, error } = await supabase
           .from('orders')
-          .select('id, total_amount, courier, courier_delivery_fee, courier_return_fee, shipping_charges')
+          .select('id, total_amount, courier, courier_delivery_fee, courier_return_fee, shipping_charges, booked_at, dispatched_at')
           .eq('status', 'delivered')
           .not('delivered_at', 'is', null)
           .gte('delivered_at', fromDate)
@@ -263,6 +268,80 @@ const FinanceAnalyticsDashboard = () => {
       
       if (selectedCourier !== 'all') {
         return allData.filter(o => o.courier === selectedCourier);
+      }
+      return allData;
+    }
+  });
+
+  // Fetch orders booked during the period for cohort-based courier view
+  // This matches courier portal logic: orders booked in period, grouped by current status
+  const { data: bookedInPeriod = [] } = useQuery({
+    queryKey: ['finance-booked-in-period', dateRange, selectedCourier],
+    queryFn: async () => {
+      const fromDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : startOfMonth(new Date()).toISOString();
+      const toDate = dateRange?.to ? endOfDay(dateRange.to).toISOString() : endOfMonth(new Date()).toISOString();
+      
+      let allData: any[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('id, total_amount, courier, courier_delivery_fee, courier_return_fee, shipping_charges, status, booked_at')
+          .not('booked_at', 'is', null)
+          .gte('booked_at', fromDate)
+          .lte('booked_at', toDate)
+          .range(offset, offset + batchSize - 1);
+
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allData = [...allData, ...data];
+        if (data.length < batchSize) break;
+        offset += batchSize;
+      }
+      
+      if (selectedCourier !== 'all') {
+        return allData.filter(o => o.courier === selectedCourier);
+      }
+      return allData;
+    }
+  });
+
+  // Fetch returns with booked_at info for cohort-based view
+  const { data: returnsWithBookedAt = [] } = useQuery({
+    queryKey: ['finance-returns-booked-at', dateRange, selectedCourier],
+    queryFn: async () => {
+      const fromDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : startOfMonth(new Date()).toISOString();
+      const toDate = dateRange?.to ? endOfDay(dateRange.to).toISOString() : endOfMonth(new Date()).toISOString();
+      
+      let allData: any[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from('returns')
+          .select(`
+            id, order_id, return_status, claim_amount, claimed_at, received_at,
+            orders!inner(total_amount, courier, order_number, courier_return_fee, shipping_charges, booked_at)
+          `)
+          .not('orders.booked_at', 'is', null)
+          .gte('orders.booked_at', fromDate)
+          .lte('orders.booked_at', toDate)
+          .range(offset, offset + batchSize - 1);
+
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allData = [...allData, ...data];
+        if (data.length < batchSize) break;
+        offset += batchSize;
+      }
+      
+      if (selectedCourier !== 'all') {
+        return allData.filter((r: any) => r.orders?.courier === selectedCourier);
       }
       return allData;
     }
@@ -490,8 +569,10 @@ const FinanceAnalyticsDashboard = () => {
     }
   });
 
-  // Calculate courier-wise analytics using ACTIVITY-BASED approach
-  // Aligns with top metric cards: deliveredByDate (delivered_at) + returns (received_at)
+  // Calculate courier-wise analytics
+  // Supports two views:
+  // 1. ACTIVITY-BASED (Delivery View): deliveredByDate (delivered_at) + returns (received_at)
+  // 2. COHORT-BASED (Courier View): bookedInPeriod (booked_at) - matches courier portals
   const courierAnalytics = useMemo(() => {
     const analytics: Record<string, {
       name: string;
@@ -499,12 +580,16 @@ const FinanceAnalyticsDashboard = () => {
       totalOrders: number;
       deliveredOrders: number;
       returnedOrders: number;
+      inTransit: number;
       totalCOD: number;
       deliveryCharges: number;
       returnCharges: number;
       claimAmount: number;
       netRevenue: number;
       rtoPercentage: number;
+      // Data quality indicators
+      ordersWithBookedAt: number;
+      ordersWithoutBookedAt: number;
     }> = {};
 
     // Helper to initialize courier analytics
@@ -516,12 +601,15 @@ const FinanceAnalyticsDashboard = () => {
           totalOrders: 0,
           deliveredOrders: 0,
           returnedOrders: 0,
+          inTransit: 0,
           totalCOD: 0,
           deliveryCharges: 0,
           returnCharges: 0,
           claimAmount: 0,
           netRevenue: 0,
-          rtoPercentage: 0
+          rtoPercentage: 0,
+          ordersWithBookedAt: 0,
+          ordersWithoutBookedAt: 0
         };
       }
     };
@@ -529,53 +617,124 @@ const FinanceAnalyticsDashboard = () => {
     // Initialize with all known couriers
     couriers.forEach(c => initCourier(c.code, c.name));
 
-    // DELIVERED: Use deliveredByDate (filtered by delivered_at)
-    // This matches the "Delivered" metric card exactly
-    deliveredByDate.forEach(order => {
-      const courierCode = order.courier || 'other';
-      initCourier(courierCode);
-      
-      analytics[courierCode].deliveredOrders++;
-      analytics[courierCode].totalCOD += Number(order.total_amount) || 0;
-      
-      // Prefer actual courier_delivery_fee, fallback to shipping_charges
-      const deliveryFee = order.courier_delivery_fee != null 
-        ? (Number(order.courier_delivery_fee) || 0)
-        : (Number(order.shipping_charges) || 0);
-      analytics[courierCode].deliveryCharges += deliveryFee;
-    });
+    if (useCourierView) {
+      // COHORT-BASED VIEW: Use bookedInPeriod (filtered by booked_at)
+      // This matches courier portal logic
+      bookedInPeriod.forEach(order => {
+        const courierCode = order.courier || 'other';
+        initCourier(courierCode);
+        
+        analytics[courierCode].totalOrders++;
+        analytics[courierCode].ordersWithBookedAt++;
+        
+        if (order.status === 'delivered') {
+          analytics[courierCode].deliveredOrders++;
+          analytics[courierCode].totalCOD += Number(order.total_amount) || 0;
+          
+          const deliveryFee = order.courier_delivery_fee != null 
+            ? (Number(order.courier_delivery_fee) || 0)
+            : (Number(order.shipping_charges) || 0);
+          analytics[courierCode].deliveryCharges += deliveryFee;
+        } else if (order.status === 'returned') {
+          analytics[courierCode].returnedOrders++;
+          
+          const returnFee = order.courier_return_fee != null
+            ? (Number(order.courier_return_fee) || 0)
+            : (Number(order.shipping_charges) || 0);
+          analytics[courierCode].returnCharges += returnFee;
+        } else if (order.status === 'dispatched' || order.status === 'booked') {
+          analytics[courierCode].inTransit++;
+        }
+      });
 
-    // RETURNED: Use returns table (filtered by received_at)
-    // This matches the "Returns Received" metric card exactly
-    returns.forEach((ret: any) => {
-      const courierCode = ret.orders?.courier || 'other';
-      initCourier(courierCode);
-      
-      analytics[courierCode].returnedOrders++;
-      
-      // Add return charges - use courier_return_fee if available
-      const returnFee = ret.orders?.courier_return_fee != null
-        ? (Number(ret.orders.courier_return_fee) || 0)
-        : (Number(ret.orders?.shipping_charges) || 0);
-      analytics[courierCode].returnCharges += returnFee;
-      
-      // Process claims
-      if (ret.claim_amount) {
-        analytics[courierCode].claimAmount += Number(ret.claim_amount) || 0;
-      }
-    });
+      // Add claims from returnsWithBookedAt
+      returnsWithBookedAt.forEach((ret: any) => {
+        const courierCode = ret.orders?.courier || 'other';
+        initCourier(courierCode);
+        
+        if (ret.claim_amount) {
+          analytics[courierCode].claimAmount += Number(ret.claim_amount) || 0;
+        }
+      });
+    } else {
+      // ACTIVITY-BASED VIEW: Use deliveredByDate (filtered by delivered_at)
+      // This matches the "Delivered" metric card exactly
+      deliveredByDate.forEach(order => {
+        const courierCode = order.courier || 'other';
+        initCourier(courierCode);
+        
+        analytics[courierCode].deliveredOrders++;
+        analytics[courierCode].totalCOD += Number(order.total_amount) || 0;
+        
+        // Track data quality
+        if (order.booked_at) {
+          analytics[courierCode].ordersWithBookedAt++;
+        } else {
+          analytics[courierCode].ordersWithoutBookedAt++;
+        }
+        
+        // Prefer actual courier_delivery_fee, fallback to shipping_charges
+        const deliveryFee = order.courier_delivery_fee != null 
+          ? (Number(order.courier_delivery_fee) || 0)
+          : (Number(order.shipping_charges) || 0);
+        analytics[courierCode].deliveryCharges += deliveryFee;
+      });
 
-    // Calculate total orders (Delivered + Returned) and derived metrics
+      // RETURNED: Use returns table (filtered by received_at)
+      // This matches the "Returns Received" metric card exactly
+      returns.forEach((ret: any) => {
+        const courierCode = ret.orders?.courier || 'other';
+        initCourier(courierCode);
+        
+        analytics[courierCode].returnedOrders++;
+        
+        // Add return charges - use courier_return_fee if available
+        const returnFee = ret.orders?.courier_return_fee != null
+          ? (Number(ret.orders.courier_return_fee) || 0)
+          : (Number(ret.orders?.shipping_charges) || 0);
+        analytics[courierCode].returnCharges += returnFee;
+        
+        // Process claims
+        if (ret.claim_amount) {
+          analytics[courierCode].claimAmount += Number(ret.claim_amount) || 0;
+        }
+      });
+    }
+
+    // Calculate derived metrics
     Object.keys(analytics).forEach(code => {
       const a = analytics[code];
-      // Total is activity-based: completed orders (delivered + returned in period)
-      a.totalOrders = a.deliveredOrders + a.returnedOrders;
+      
+      if (useCourierView) {
+        // Cohort view: totalOrders is already set from bookedInPeriod
+        // RTO = returned / (delivered + returned) 
+        const completedOrders = a.deliveredOrders + a.returnedOrders;
+        a.rtoPercentage = completedOrders > 0 ? (a.returnedOrders / completedOrders) * 100 : 0;
+      } else {
+        // Activity view: total = delivered + returned in period
+        a.totalOrders = a.deliveredOrders + a.returnedOrders;
+        a.rtoPercentage = a.totalOrders > 0 ? (a.returnedOrders / a.totalOrders) * 100 : 0;
+      }
+      
       a.netRevenue = a.totalCOD - a.deliveryCharges - a.returnCharges - a.claimAmount;
-      a.rtoPercentage = a.totalOrders > 0 ? (a.returnedOrders / a.totalOrders) * 100 : 0;
     });
 
-    return Object.values(analytics).filter(a => a.totalOrders > 0);
-  }, [couriers, deliveredByDate, returns]);
+    return Object.values(analytics).filter(a => a.totalOrders > 0 || a.deliveredOrders > 0);
+  }, [couriers, deliveredByDate, returns, useCourierView, bookedInPeriod, returnsWithBookedAt]);
+
+  // Data quality stats for the toggle section
+  const dataQualityStats = useMemo(() => {
+    const ordersWithoutBookedAt = deliveredByDate.filter(o => !o.booked_at).length;
+    const ordersWithBookedAt = deliveredByDate.filter(o => o.booked_at).length;
+    
+    return {
+      ordersWithoutBookedAt,
+      ordersWithBookedAt,
+      percentageComplete: deliveredByDate.length > 0 
+        ? Math.round((ordersWithBookedAt / deliveredByDate.length) * 100) 
+        : 100
+    };
+  }, [deliveredByDate]);
 
   // Calculate overall KPIs with corrected formulas
   const kpis = useMemo(() => {
@@ -1099,55 +1258,147 @@ const FinanceAnalyticsDashboard = () => {
       )}
 
       {/* Courier Analytics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        {courierAnalytics.map(courier => (
-          <Card key={courier.code}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Truck className="h-5 w-5" />
-                  {courier.name}
-                </CardTitle>
-                <Badge variant={courier.rtoPercentage > 15 ? 'destructive' : courier.rtoPercentage > 10 ? 'secondary' : 'default'}>
-                  {courier.rtoPercentage.toFixed(1)}% RTO
-                </Badge>
+      <Card className="mb-6">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                Courier Performance
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 cursor-pointer text-muted-foreground/60 hover:text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[300px]">
+                    <p className="text-xs">
+                      <strong>Delivery View:</strong> Shows orders delivered/returned during this period (activity-based).<br/><br/>
+                      <strong>Courier View:</strong> Shows orders booked during this period and their current status (cohort-based). This matches courier portal numbers like PostEx, Leopard, TCS.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </CardTitle>
+              <CardDescription>
+                {useCourierView 
+                  ? 'Showing orders booked in period (matches courier portals)'
+                  : 'Showing orders delivered/returned in period'}
+              </CardDescription>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              {/* Data quality warning */}
+              {!useCourierView && dataQualityStats.ordersWithoutBookedAt > 0 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/20 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {dataQualityStats.ordersWithoutBookedAt} missing booking
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[250px]">
+                      <p className="text-xs">
+                        {dataQualityStats.ordersWithoutBookedAt} orders are missing booking records (booked_at is null). 
+                        These may have been uploaded manually or have incomplete data. 
+                        Switch to Courier View to see only properly booked orders.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+              
+              {/* View toggle */}
+              <div className="flex items-center gap-2">
+                <Label htmlFor="courier-view-toggle" className="text-sm text-muted-foreground whitespace-nowrap">
+                  Delivery View
+                </Label>
+                <Switch
+                  id="courier-view-toggle"
+                  checked={useCourierView}
+                  onCheckedChange={setUseCourierView}
+                />
+                <Label htmlFor="courier-view-toggle" className="text-sm text-muted-foreground whitespace-nowrap">
+                  Courier View
+                </Label>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Orders</span>
-                  <span className="font-medium">{courier.totalOrders}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Delivered</span>
-                  <span className="font-medium text-green-600">{courier.deliveredOrders}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Returned</span>
-                  <span className="font-medium text-red-600">{courier.returnedOrders}</span>
-                </div>
-                <div className="border-t pt-2 mt-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">COD Collected</span>
-                    <span className="font-medium">{currency} {courier.totalCOD.toLocaleString()}</span>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {courierAnalytics.map(courier => (
+              <Card key={courier.code} className="border shadow-sm">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Truck className="h-5 w-5" />
+                      {courier.name}
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      {/* Data quality indicator for this courier */}
+                      {!useCourierView && courier.ordersWithoutBookedAt > 0 && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="outline" className="text-amber-600 border-amber-200 text-xs px-1.5">
+                                <AlertCircle className="h-3 w-3" />
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs">{courier.ordersWithoutBookedAt} orders missing booking record</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      <Badge variant={courier.rtoPercentage > 15 ? 'destructive' : courier.rtoPercentage > 10 ? 'secondary' : 'default'}>
+                        {courier.rtoPercentage.toFixed(1)}% RTO
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Deductions</span>
-                    <span className="font-medium text-red-600">
-                      {currency} {(courier.deliveryCharges + courier.returnCharges + courier.claimAmount).toLocaleString()}
-                    </span>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        {useCourierView ? 'Booked' : 'Total Orders'}
+                      </span>
+                      <span className="font-medium">{courier.totalOrders}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Delivered</span>
+                      <span className="font-medium text-green-600">{courier.deliveredOrders}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Returned</span>
+                      <span className="font-medium text-red-600">{courier.returnedOrders}</span>
+                    </div>
+                    {useCourierView && courier.inTransit > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">In Transit</span>
+                        <span className="font-medium text-blue-600">{courier.inTransit}</span>
+                      </div>
+                    )}
+                    <div className="border-t pt-2 mt-2">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">COD Collected</span>
+                        <span className="font-medium">{currency} {courier.totalCOD.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Deductions</span>
+                        <span className="font-medium text-red-600">
+                          {currency} {(courier.deliveryCharges + courier.returnCharges + courier.claimAmount).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between font-semibold">
+                        <span>Net Revenue</span>
+                        <span className="text-green-600">{currency} {courier.netRevenue.toLocaleString()}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between font-semibold">
-                    <span>Net Revenue</span>
-                    <span className="text-green-600">{currency} {courier.netRevenue.toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
