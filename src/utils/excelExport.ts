@@ -16,7 +16,7 @@ interface OrderExportData {
   tracking_id?: string;
   tags?: string[];
   items?: Array<{
-    name: string;
+    item_name: string;
     quantity: number;
     price: number;
   }>;
@@ -34,7 +34,7 @@ export function exportOrdersToExcel(orders: OrderExportData[], filename?: string
   const excelData = orders.map((order, index) => {
     // Format items as a readable string
     const itemsList = order.items?.map(item => 
-      `${item.name} (x${item.quantity}) @ ${item.price}`
+      `${item.item_name} (x${item.quantity}) @ ${item.price}`
     ).join('; ') || '';
 
     return {
