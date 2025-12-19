@@ -469,7 +469,7 @@ const OrderDashboard = () => {
         .from('orders')
         .select(`
           id, order_number, status, customer_name, customer_phone, customer_email, 
-          customer_address, city, total, shipping_charges, courier, tracking_id, tags,
+          customer_address, city, total_amount, shipping_charges, courier, tracking_id, tags,
           created_at, confirmed_at, booked_at, dispatched_at, delivered_at,
           cancellation_reason, notes,
           order_items(id, item_name, quantity, price, product_id)
@@ -519,7 +519,7 @@ const OrderDashboard = () => {
         customerEmail: order.customer_email,
         customerAddress: order.customer_address,
         city: order.city,
-        total: order.total,
+        total: order.total_amount,
         shippingCharges: order.shipping_charges,
         courier: order.courier,
         tracking_id: order.tracking_id,
