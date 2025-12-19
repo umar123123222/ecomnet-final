@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Download, ChevronDown, ChevronUp, Edit, Lock, ScanBarcode, RotateCcw, DollarSign, ArrowUp } from 'lucide-react';
+import { Search, Download, ChevronDown, ChevronUp, Edit, Lock, ScanBarcode, RotateCcw, DollarSign, ArrowUp, AlertTriangle } from 'lucide-react';
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from '@/components/layout';
 import { Switch } from '@/components/ui/switch';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
@@ -20,9 +20,10 @@ import { useToast } from '@/hooks/use-toast';
 import { logActivity, updateUserPerformance } from '@/utils/activityLogger';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHandheldScanner } from '@/contexts/HandheldScannerContext';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useScannerMode } from '@/hooks/useScannerMode';
 import { useUserRoles } from '@/hooks/useUserRoles';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const ReturnsDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -69,6 +70,39 @@ const ReturnsDashboard = () => {
   
   // Only returns_manager, warehouse_manager, super_manager, super_admin can use scan/mark returns
   const canUseReturnActions = ['returns_manager', 'warehouse_manager', 'super_manager', 'super_admin'].includes(primaryRole);
+  
+  // Query to find returns where order status doesn't match 'returned'
+  const { data: mismatchedReturns } = useQuery({
+    queryKey: ['mismatched-returns'],
+    queryFn: async () => {
+      // Get returns and check if their corresponding order has status != 'returned'
+      const { data, error } = await supabase
+        .from('returns')
+        .select(`
+          id,
+          order_id,
+          orders!returns_order_id_fkey (
+            id,
+            order_number,
+            status
+          )
+        `)
+        .limit(1000);
+      
+      if (error) {
+        console.error('Error fetching mismatched returns:', error);
+        return [];
+      }
+      
+      // Filter to find mismatched orders (where order status is not 'returned')
+      return (data || []).filter(r => 
+        r.orders && r.orders.status !== 'returned'
+      );
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+  
+  const mismatchedCount = mismatchedReturns?.length || 0;
   
   const form = useForm({
     defaultValues: {
@@ -1108,8 +1142,23 @@ const ReturnsDashboard = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Returned Orders (Selected Period)
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between">
+              <span>Returned Orders (Selected Period)</span>
+              {mismatchedCount > 0 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 gap-1 cursor-help">
+                        <AlertTriangle className="h-3 w-3" />
+                        {mismatchedCount} mismatched
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p>{mismatchedCount} returns have orders with status other than 'returned'. This may indicate data sync issues.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1118,7 +1167,7 @@ const ReturnsDashboard = () => {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Worth of Returns (Selected Period)
             </CardTitle>
           </CardHeader>
