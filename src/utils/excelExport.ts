@@ -21,7 +21,6 @@ interface OrderExportData {
     price: number;
   }>;
   createdAt: string;
-  confirmedAt?: string | null;
   bookedAt?: string | null;
   dispatchedAt?: string | null;
   deliveredAt?: string | null;
@@ -54,7 +53,6 @@ export function exportOrdersToExcel(orders: OrderExportData[], filename?: string
       'Item Count': order.items?.reduce((sum, item) => sum + item.quantity, 0) || 0,
       'Tags': order.tags?.join(', ') || '',
       'Order Date': order.createdAt ? format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm') : '',
-      'Confirmed At': order.confirmedAt ? format(new Date(order.confirmedAt), 'dd/MM/yyyy HH:mm') : '',
       'Booked At': order.bookedAt ? format(new Date(order.bookedAt), 'dd/MM/yyyy HH:mm') : '',
       'Dispatched At': order.dispatchedAt ? format(new Date(order.dispatchedAt), 'dd/MM/yyyy HH:mm') : '',
       'Delivered At': order.deliveredAt ? format(new Date(order.deliveredAt), 'dd/MM/yyyy HH:mm') : '',
@@ -85,7 +83,6 @@ export function exportOrdersToExcel(orders: OrderExportData[], filename?: string
     { wch: 10 },  // Item Count
     { wch: 30 },  // Tags
     { wch: 18 },  // Order Date
-    { wch: 18 },  // Confirmed At
     { wch: 18 },  // Booked At
     { wch: 18 },  // Dispatched At
     { wch: 18 },  // Delivered At

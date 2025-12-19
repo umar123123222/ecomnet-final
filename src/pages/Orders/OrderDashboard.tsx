@@ -470,7 +470,7 @@ const OrderDashboard = () => {
         .select(`
           id, order_number, status, customer_name, customer_phone, customer_email, 
           customer_address, city, total_amount, shipping_charges, courier, tracking_id, tags,
-          created_at, confirmed_at, booked_at, dispatched_at, delivered_at,
+          created_at, booked_at, dispatched_at, delivered_at,
           cancellation_reason, notes,
           order_items(id, item_name, quantity, price, product_id)
         `)
@@ -526,7 +526,6 @@ const OrderDashboard = () => {
         tags: order.tags,
         items: order.order_items,
         createdAt: order.created_at,
-        confirmedAt: order.confirmed_at,
         bookedAt: order.booked_at,
         dispatchedAt: order.dispatched_at,
         deliveredAt: order.delivered_at,
