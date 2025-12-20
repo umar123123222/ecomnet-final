@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { ModernButton } from "@/components/ui/modern-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,36 +16,59 @@ import { Switch } from "@/components/ui/switch";
 // PostEx Delivery Date Backfill Component
 const PostExBackfillSection = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [isRunning, setIsRunning] = useState(false);
-  const [dryRun, setDryRun] = useState(true);
+  const [dryRun, setDryRun] = useState(false);
   const [result, setResult] = useState<any>(null);
 
   const runBackfill = async () => {
+    if (!dryRun) {
+      const ok = confirm(
+        'This will UPDATE delivered_at for PostEx delivered orders based on tracking history. Continue?'
+      );
+      if (!ok) return;
+    }
+
     setIsRunning(true);
     setResult(null);
-    
+
     try {
       const { data, error } = await supabase.functions.invoke('backfill-postex-delivery-dates', {
-        body: { 
+        body: {
           dryRun,
           batchSize: 500,
-          maxBatches: 50
-        }
+          maxBatches: 50,
+        },
       });
 
       if (error) throw error;
 
       setResult(data);
+
+      if (!dryRun) {
+        await queryClient.invalidateQueries({
+          predicate: (q) => {
+            const key0 = Array.isArray(q.queryKey) ? q.queryKey[0] : undefined;
+            return (
+              typeof key0 === 'string' &&
+              (key0.startsWith('finance-') || key0 === 'courier-performance')
+            );
+          },
+        });
+      }
+
       toast({
-        title: dryRun ? "Dry Run Complete" : "Backfill Complete",
-        description: `${dryRun ? 'Would update' : 'Updated'} ${data?.updated || 0} orders. Scanned ${data?.scannedRecords || 0} tracking records.`,
+        title: dryRun ? 'Dry Run Complete' : 'Backfill Complete',
+        description: `${dryRun ? 'Would update' : 'Updated'} ${data?.updated || 0} orders. Scanned ${data?.scannedRecords || 0} tracking records.${
+          dryRun ? '' : ' Finance Analytics has been refreshed.'
+        }`,
       });
     } catch (error: any) {
       console.error('Backfill error:', error);
       toast({
-        title: "Backfill Failed",
-        description: error.message || "Failed to run backfill",
-        variant: "destructive"
+        title: 'Backfill Failed',
+        description: error.message || 'Failed to run backfill',
+        variant: 'destructive',
       });
     } finally {
       setIsRunning(false);
