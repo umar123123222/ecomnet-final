@@ -88,46 +88,92 @@ async function fetchLeopardTracking(trackingId: string, apiSettings: any): Promi
   return response.json();
 }
 
-async function fetchTCSTracking(trackingId: string, apiSettings: any): Promise<any> {
-  const apiKey = apiSettings.TCS_API_KEY;
+// TCS Authorization - get bearer token from TCS Auth API
+async function getTCSBearerToken(apiSettings: any): Promise<string> {
+  // TCS uses clientId and clientsecret for auth - stored as TCS_API_KEY and TCS_API_PASSWORD
+  const clientId = apiSettings.TCS_API_KEY;
+  const clientSecret = apiSettings.TCS_API_PASSWORD;
   
-  if (!apiKey) {
-    throw new Error('TCS API key not configured (TCS_API_KEY)');
+  if (!clientId || !clientSecret) {
+    throw new Error('TCS credentials not configured (TCS_API_KEY and TCS_API_PASSWORD required)');
   }
 
-  // TCS tracking endpoint - use the ecom/api/shipmentTracking endpoint with consignee query param
-  // This is what the courier-tracking function uses for TCS
-  const url = `https://devconnect.tcscourier.com/ecom/api/shipmentTracking/track?consignee=${trackingId}`;
+  // TCS Auth endpoint - Production: https://ociconnect.tcscourier.com/auth/api/auth
+  const authUrl = 'https://ociconnect.tcscourier.com/auth/api/auth';
+  
+  console.log(`[TCS] Fetching bearer token from auth endpoint`);
+  
+  const response = await fetch(authUrl, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'clientId': clientId,
+      'clientsecret': clientSecret,
+    },
+  });
+
+  const responseText = await response.text();
+  console.log(`[TCS] Auth response status: ${response.status}`);
+  
+  if (!response.ok) {
+    console.log(`[TCS] Auth failed: ${responseText.substring(0, 200)}`);
+    throw new Error(`TCS authentication failed: ${response.status}`);
+  }
+  
+  try {
+    const data = JSON.parse(responseText);
+    if (data.accesstoken || data.access_token || data.token) {
+      const token = data.accesstoken || data.access_token || data.token;
+      console.log(`[TCS] Got bearer token (length: ${token.length})`);
+      return token;
+    }
+    console.log(`[TCS] Auth response:`, JSON.stringify(data, null, 2).substring(0, 300));
+    throw new Error('TCS auth response missing token');
+  } catch (e) {
+    console.log(`[TCS] Auth parse error: ${responseText.substring(0, 200)}`);
+    throw new Error('Failed to parse TCS auth response');
+  }
+}
+
+async function fetchTCSTracking(trackingId: string, apiSettings: any): Promise<any> {
+  // Get fresh bearer token from TCS Auth API
+  const bearerToken = await getTCSBearerToken(apiSettings);
+
+  // TCS tracking endpoint - Production
+  const url = `https://ociconnect.tcscourier.com/tracking/api/Tracking/GetDynamicTrackDetail?consignee=${encodeURIComponent(trackingId)}`;
   
   console.log(`[TCS] Fetching tracking for ${trackingId}`);
   
   const response = await fetch(url, {
     method: 'GET',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
+      'Authorization': `Bearer ${bearerToken}`,
       'Content-Type': 'application/json',
     },
   });
 
   const responseText = await response.text();
+  console.log(`[TCS] Response status: ${response.status}, Length: ${responseText.length}`);
   
-  // Log response status for debugging
-  console.log(`[TCS] Response status: ${response.status}`);
+  if (response.status === 401) {
+    throw new Error('TCS API authorization failed');
+  }
   
   if (responseText.trim() === '' || response.status === 404) {
-    // TCS API may return 404 for old orders or orders not in their system
     console.log(`[TCS] Empty response or 404 for ${trackingId}`);
     return null;
   }
   
-  // Try to parse as JSON
   try {
     const data = JSON.parse(responseText);
+    if (data.message === 'FAIL') {
+      console.log(`[TCS] No data found for ${trackingId}: ${data.shipmentsummary}`);
+      return null;
+    }
     console.log(`[TCS] Response for ${trackingId}:`, JSON.stringify(data, null, 2).substring(0, 500));
     return data;
   } catch {
-    // If response is not JSON, return null
-    console.log(`[TCS] Invalid JSON response for ${trackingId}: ${responseText.substring(0, 100)}`);
+    console.log(`[TCS] Invalid JSON response for ${trackingId}: ${responseText.substring(0, 200)}`);
     return null;
   }
 }
@@ -227,16 +273,16 @@ function extractDeliveryDateLeopard(trackingData: any): string | null {
 }
 
 // TCS response parser - returns the FIRST (earliest) delivered date
-// TCS format: "Friday Dec 5, 2025 21:05"
+// TCS format: "Thursday Oct 17, 2024 12:58"
 function parseTCSDateTime(datetime: string): Date | null {
   if (!datetime) return null;
   try {
-    // TCS format: "Friday Dec 5, 2025 21:05"
+    // TCS format: "Thursday Oct 17, 2024 12:58"
     // Remove day name first
     const withoutDay = datetime.replace(/^[A-Za-z]+ /, '');
     
     // Parse the components manually
-    // Format: "Dec 5, 2025 21:05"
+    // Format: "Oct 17, 2024 12:58"
     const match = withoutDay.match(/([A-Za-z]+)\s+(\d+),\s+(\d{4})\s+(\d{1,2}):(\d{2})/);
     if (!match) return new Date(datetime);
     
@@ -265,13 +311,14 @@ function parseTCSDateTime(datetime: string): Date | null {
 }
 
 function extractDeliveryDateTCS(trackingData: any): string | null {
-  // TCS returns checkpoints at root level
-  const checkpoints = trackingData?.checkpoints || [];
+  // TCS returns deliveryinfo array with tracking events (per API guide)
+  // Also check checkpoints for backwards compatibility
+  const deliveryInfo = trackingData?.deliveryinfo || trackingData?.checkpoints || [];
   
-  if (checkpoints.length === 0) return null;
+  if (deliveryInfo.length === 0) return null;
 
   // Find ALL "Delivered" events (status contains "DELIVERED")
-  const deliveredEvents = checkpoints.filter((event: any) => {
+  const deliveredEvents = deliveryInfo.filter((event: any) => {
     const status = (event.status || '').toUpperCase();
     return status.includes('DELIVERED');
   });
