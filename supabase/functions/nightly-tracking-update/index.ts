@@ -161,23 +161,37 @@ serve(async (req) => {
               // Update order status based on tracking status
               if (tracking.status === 'delivered') {
                 // Extract actual delivery timestamp from tracking history
+                // IMPORTANT: Use the FIRST (earliest) delivered event, not the last
                 let actualDeliveryDate = new Date().toISOString();
                 
                 // Try to get the actual delivery date from statusHistory
                 if (tracking.statusHistory && Array.isArray(tracking.statusHistory)) {
-                  const deliveredEvent = tracking.statusHistory.find(
+                  // Filter all delivered events and sort by timestamp to get earliest
+                  const deliveredEvents = tracking.statusHistory.filter(
                     (event: any) => event.status?.toLowerCase() === 'delivered'
                   );
-                  if (deliveredEvent?.timestamp) {
-                    const parsed = new Date(deliveredEvent.timestamp);
-                    if (!isNaN(parsed.getTime())) {
-                      actualDeliveryDate = parsed.toISOString();
+                  
+                  if (deliveredEvents.length > 0) {
+                    // Sort by timestamp ascending and take the first (earliest)
+                    deliveredEvents.sort((a: any, b: any) => {
+                      const dateA = new Date(a.timestamp || 0).getTime();
+                      const dateB = new Date(b.timestamp || 0).getTime();
+                      return dateA - dateB;
+                    });
+                    
+                    const firstDeliveredEvent = deliveredEvents[0];
+                    if (firstDeliveredEvent?.timestamp) {
+                      const parsed = new Date(firstDeliveredEvent.timestamp);
+                      if (!isNaN(parsed.getTime())) {
+                        actualDeliveryDate = parsed.toISOString();
+                        console.log(`📅 Found ${deliveredEvents.length} delivered events, using earliest: ${actualDeliveryDate}`);
+                      }
                     }
                   }
                 }
                 
                 // Fallback: check raw tracking data for PostEx-specific fields
-                if (tracking.rawData) {
+                if (tracking.rawData && actualDeliveryDate === new Date().toISOString()) {
                   const raw = tracking.rawData;
                   const candidate = raw.updatedAt || raw.transactionDateTime;
                   if (candidate) {
@@ -204,22 +218,36 @@ serve(async (req) => {
                 
               } else if (tracking.status === 'returned') {
                 // Extract actual return timestamp from tracking history
+                // IMPORTANT: Use the FIRST (earliest) returned event
                 let actualReturnDate = new Date().toISOString();
                 
                 if (tracking.statusHistory && Array.isArray(tracking.statusHistory)) {
-                  const returnedEvent = tracking.statusHistory.find(
+                  // Filter all returned events and sort by timestamp to get earliest
+                  const returnedEvents = tracking.statusHistory.filter(
                     (event: any) => event.status?.toLowerCase() === 'returned'
                   );
-                  if (returnedEvent?.timestamp) {
-                    const parsed = new Date(returnedEvent.timestamp);
-                    if (!isNaN(parsed.getTime())) {
-                      actualReturnDate = parsed.toISOString();
+                  
+                  if (returnedEvents.length > 0) {
+                    // Sort by timestamp ascending and take the first (earliest)
+                    returnedEvents.sort((a: any, b: any) => {
+                      const dateA = new Date(a.timestamp || 0).getTime();
+                      const dateB = new Date(b.timestamp || 0).getTime();
+                      return dateA - dateB;
+                    });
+                    
+                    const firstReturnedEvent = returnedEvents[0];
+                    if (firstReturnedEvent?.timestamp) {
+                      const parsed = new Date(firstReturnedEvent.timestamp);
+                      if (!isNaN(parsed.getTime())) {
+                        actualReturnDate = parsed.toISOString();
+                        console.log(`↩️ Found ${returnedEvents.length} returned events, using earliest: ${actualReturnDate}`);
+                      }
                     }
                   }
                 }
                 
                 // Fallback: check raw tracking data
-                if (tracking.rawData) {
+                if (tracking.rawData && actualReturnDate === new Date().toISOString()) {
                   const raw = tracking.rawData;
                   const candidate = raw.updatedAt || raw.transactionDateTime;
                   if (candidate) {

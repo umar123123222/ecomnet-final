@@ -58,15 +58,46 @@ async function fetchPostExTracking(trackingId: string, apiSettings: any): Promis
   return response.json();
 }
 
+async function fetchLeopardTracking(trackingId: string, apiSettings: any): Promise<any> {
+  const apiKey = apiSettings.LEOPARD_API_KEY;
+  const apiPassword = apiSettings.LEOPARD_API_PASSWORD;
+  
+  if (!apiKey || !apiPassword) {
+    throw new Error('Leopard API credentials not configured (LEOPARD_API_KEY and LEOPARD_API_PASSWORD)');
+  }
+
+  const url = 'https://merchantapi.leopardscourier.com/api/trackBookedPacket/format/json/';
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      api_key: apiKey,
+      api_password: apiPassword,
+      track_numbers: trackingId
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Leopard API error: ${response.status} - ${errorText}`);
+  }
+
+  return response.json();
+}
+
 // PostEx response has the data in data.dist.transactionStatusHistory format
-function extractDeliveryDate(trackingData: any): string | null {
+// IMPORTANT: Returns the FIRST (earliest) delivered date
+function extractDeliveryDatePostEx(trackingData: any): string | null {
   // PostEx returns: { dist: { transactionStatusHistory: [...], ... } }
   const dist = trackingData?.dist;
   if (!dist) return null;
 
-  // Find the "Delivered" event in history (code 0005 = Delivered)
+  // Find ALL "Delivered" events in history (code 0005 = Delivered)
   const historyList = dist.transactionStatusHistory || [];
-  const deliveredEvent = historyList.find(
+  const deliveredEvents = historyList.filter(
     (event: any) => {
       const code = event.transactionStatusMessageCode;
       const message = (event.transactionStatusMessage || '').toLowerCase();
@@ -74,27 +105,77 @@ function extractDeliveryDate(trackingData: any): string | null {
     }
   );
 
-  if (deliveredEvent) {
-    const dateStr = deliveredEvent.updatedAt || deliveredEvent.transactionDateTime;
-    if (dateStr) {
-      const parsed = new Date(dateStr);
-      if (!isNaN(parsed.getTime())) {
-        return parsed.toISOString();
-      }
+  if (deliveredEvents.length === 0) return null;
+
+  // Sort by date ascending to get the FIRST (earliest) delivered event
+  deliveredEvents.sort((a: any, b: any) => {
+    const dateA = new Date(a.updatedAt || a.transactionDateTime || 0).getTime();
+    const dateB = new Date(b.updatedAt || b.transactionDateTime || 0).getTime();
+    return dateA - dateB;
+  });
+
+  const firstDelivered = deliveredEvents[0];
+  const dateStr = firstDelivered.updatedAt || firstDelivered.transactionDateTime;
+  if (dateStr) {
+    const parsed = new Date(dateStr);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString();
     }
   }
 
-  // Fallback to the latest event with 0005 code or any "delivered" status
-  const anyDeliveredEvent = historyList.find(
-    (event: any) => event.transactionStatusMessageCode === '0005'
-  );
-  if (anyDeliveredEvent) {
-    const dateStr = anyDeliveredEvent.updatedAt || anyDeliveredEvent.transactionDateTime;
-    if (dateStr) {
-      const parsed = new Date(dateStr);
-      if (!isNaN(parsed.getTime())) {
-        return parsed.toISOString();
-      }
+  return null;
+}
+
+// Leopard response parser - returns the FIRST (earliest) delivered date
+function extractDeliveryDateLeopard(trackingData: any): string | null {
+  const packet = trackingData?.packet_list?.[0];
+  if (!packet) return null;
+
+  const trackingDetail = packet['Tracking Detail'] || [];
+  
+  // Find ALL "Delivered" events
+  const deliveredEvents = trackingDetail.filter((event: any) => {
+    const status = (event.Status || '').toUpperCase();
+    return status.includes('DELIVERED');
+  });
+
+  if (deliveredEvents.length === 0) return null;
+
+  // Sort by date ascending to get the FIRST (earliest) delivered event
+  deliveredEvents.sort((a: any, b: any) => {
+    let timestampA = a.Activity_datetime;
+    if (!timestampA && a.Activity_Date) {
+      timestampA = a.Activity_Time 
+        ? `${a.Activity_Date} ${a.Activity_Time}`
+        : a.Activity_Date;
+    }
+    
+    let timestampB = b.Activity_datetime;
+    if (!timestampB && b.Activity_Date) {
+      timestampB = b.Activity_Time 
+        ? `${b.Activity_Date} ${b.Activity_Time}`
+        : b.Activity_Date;
+    }
+    
+    const dateA = new Date(timestampA || 0).getTime();
+    const dateB = new Date(timestampB || 0).getTime();
+    return dateA - dateB;
+  });
+
+  const firstDelivered = deliveredEvents[0];
+  
+  // Build timestamp from Activity_datetime or Activity_Date + Activity_Time
+  let timestamp = firstDelivered.Activity_datetime;
+  if (!timestamp && firstDelivered.Activity_Date) {
+    timestamp = firstDelivered.Activity_Time 
+      ? `${firstDelivered.Activity_Date} ${firstDelivered.Activity_Time}`
+      : firstDelivered.Activity_Date;
+  }
+  
+  if (timestamp) {
+    const parsed = new Date(timestamp);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString();
     }
   }
 
@@ -207,10 +288,22 @@ Deno.serve(async (req) => {
         results.processed++;
 
         try {
-          // Call PostEx API to get actual tracking data
-          const trackingData = await fetchPostExTracking(order.tracking_id, apiSettings);
+          let trackingData: any;
+          let actualDate: string | null = null;
           
-          const actualDate = extractDeliveryDate(trackingData);
+          // Call appropriate courier API based on courier code
+          if (courierCode === 'postex') {
+            trackingData = await fetchPostExTracking(order.tracking_id, apiSettings);
+            actualDate = extractDeliveryDatePostEx(trackingData);
+          } else if (courierCode === 'leopard') {
+            trackingData = await fetchLeopardTracking(order.tracking_id, apiSettings);
+            actualDate = extractDeliveryDateLeopard(trackingData);
+          } else {
+            console.log(`⚠️ Order ${order.order_number}: Unsupported courier ${courierCode}`);
+            results.skipped++;
+            continue;
+          }
+          
           const fieldToUpdate = 'delivered_at';
           const currentValue = order.delivered_at;
 

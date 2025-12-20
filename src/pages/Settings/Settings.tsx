@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { PageContainer, PageHeader } from "@/components/layout";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // PostEx Delivery Date Backfill Component
 const PostExBackfillSection = () => {
@@ -153,7 +154,7 @@ const PostExBackfillSection = () => {
   );
 };
 
-// Fix Delivery Dates from PostEx API - calls PostEx API directly for each order
+// Fix Delivery Dates from Courier API - calls courier API directly for each order
 const FixDeliveryDatesFromAPISection = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -162,11 +163,12 @@ const FixDeliveryDatesFromAPISection = () => {
   const [result, setResult] = useState<any>(null);
   const [batchSize, setBatchSize] = useState(50);
   const [maxBatches, setMaxBatches] = useState(10);
+  const [courierCode, setCourierCode] = useState('postex');
 
   const runFix = async () => {
     if (!dryRun) {
       const ok = confirm(
-        'This will UPDATE delivered_at for PostEx orders by calling the PostEx API directly to get actual delivery dates. Continue?'
+        `This will UPDATE delivered_at for ${courierCode.toUpperCase()} orders by calling the courier API directly to get actual delivery dates (using the FIRST/earliest delivered event). Continue?`
       );
       if (!ok) return;
     }
@@ -180,6 +182,7 @@ const FixDeliveryDatesFromAPISection = () => {
           dryRun,
           batchSize,
           maxBatches,
+          courierCode,
         },
       });
 
@@ -217,13 +220,27 @@ const FixDeliveryDatesFromAPISection = () => {
 
   return (
     <div>
-      <Label className="text-sm font-medium mb-2 block">Fix Delivery Dates from PostEx API</Label>
+      <Label className="text-sm font-medium mb-2 block">Fix Delivery Dates from Courier API</Label>
       <p className="text-sm text-muted-foreground mb-3">
-        Calls the PostEx API directly for each delivered order to get the actual delivery timestamp,
-        then updates delivered_at accordingly. This is more accurate than the tracking history backfill.
+        Calls the courier API directly for each delivered order to get the actual delivery timestamp
+        (using the FIRST/earliest delivered event), then updates delivered_at accordingly.
       </p>
       
       <div className="flex flex-wrap items-center gap-4 mb-4">
+        <div className="flex items-center gap-2">
+          <Label htmlFor="api-courier" className="text-sm">
+            Courier:
+          </Label>
+          <Select value={courierCode} onValueChange={setCourierCode}>
+            <SelectTrigger className="w-32 h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="postex">PostEx</SelectItem>
+              <SelectItem value="leopard">Leopard</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="flex items-center gap-2">
           <Switch
             id="api-dry-run"
