@@ -227,3 +227,6 @@ verify_jwt = false
 
 [functions.backfill-postex-delivery-dates]
 verify_jwt = false
+
+[functions.fix-delivery-dates-from-api]
+verify_jwt = false
