@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Camera, Save, Eye, EyeOff, Settings as SettingsIcon, Calendar, Loader2 } from "lucide-react";
+import { Camera, Save, Eye, EyeOff, Settings as SettingsIcon, Calendar, Loader2, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -152,6 +152,159 @@ const PostExBackfillSection = () => {
     </div>
   );
 };
+
+// Verify Untracked PostEx Orders Component
+const VerifyUntrackedPostExSection = () => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isRunning, setIsRunning] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [batchSize, setBatchSize] = useState(50);
+
+  const runVerification = async () => {
+    const ok = confirm(
+      'This will check PostEx orders marked as "delivered" that have NO tracking history, and downgrade any that are NOT actually delivered. Continue?'
+    );
+    if (!ok) return;
+
+    setIsRunning(true);
+    setResult(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-postex-orders', {
+        body: {
+          batchSize,
+          includeUntracked: true,
+        },
+      });
+
+      if (error) throw error;
+
+      setResult(data);
+
+      if (data?.downgraded > 0) {
+        await queryClient.invalidateQueries({
+          predicate: (q) => {
+            const key0 = Array.isArray(q.queryKey) ? q.queryKey[0] : undefined;
+            return (
+              typeof key0 === 'string' &&
+              (key0.startsWith('finance-') || key0 === 'courier-performance' || key0 === 'orders')
+            );
+          },
+        });
+      }
+
+      toast({
+        title: 'Verification Complete',
+        description: `Processed ${data?.processed || 0} orders. ${data?.verified || 0} confirmed delivered, ${data?.downgraded || 0} corrected.`,
+        variant: data?.downgraded > 0 ? 'default' : 'default',
+      });
+    } catch (error: any) {
+      console.error('Verification error:', error);
+      toast({
+        title: 'Verification Failed',
+        description: error.message || 'Failed to verify orders',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  return (
+    <div>
+      <Label className="text-sm font-medium mb-2 block">Verify Untracked PostEx Orders</Label>
+      <p className="text-sm text-muted-foreground mb-3">
+        Finds PostEx orders marked as "delivered" but with NO tracking history, calls PostEx API to verify
+        their actual status, and corrects any that aren't actually delivered.
+      </p>
+      
+      <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center gap-2">
+          <Label htmlFor="batch-size" className="text-sm">
+            Batch Size:
+          </Label>
+          <Input
+            id="batch-size"
+            type="number"
+            value={batchSize}
+            onChange={(e) => setBatchSize(Math.min(200, Math.max(1, parseInt(e.target.value) || 50)))}
+            className="w-20 h-8"
+            min={1}
+            max={200}
+          />
+        </div>
+      </div>
+
+      <ModernButton 
+        variant="default"
+        onClick={runVerification}
+        disabled={isRunning}
+        className="gap-2"
+      >
+        {isRunning ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Verifying...
+          </>
+        ) : (
+          <>
+            <ShieldCheck className="h-4 w-4" />
+            Verify Untracked Orders
+          </>
+        )}
+      </ModernButton>
+
+      {result && (
+        <div className="mt-4 p-4 bg-muted rounded-lg text-sm">
+          <div className="grid grid-cols-2 gap-2">
+            <div>Processed:</div>
+            <div className="font-medium">{result.processed?.toLocaleString()}</div>
+            <div>Confirmed Delivered:</div>
+            <div className="font-medium text-green-600">{result.verified?.toLocaleString()}</div>
+            <div>Corrected (Downgraded):</div>
+            <div className="font-medium text-amber-600">{result.downgraded?.toLocaleString()}</div>
+            {result.errors > 0 && (
+              <>
+                <div>Errors:</div>
+                <div className="font-medium text-destructive">{result.errors}</div>
+              </>
+            )}
+          </div>
+          
+          {result.downgradedOrders && result.downgradedOrders.length > 0 && (
+            <div className="mt-4">
+              <div className="font-medium mb-2">Corrected Orders:</div>
+              <div className="max-h-40 overflow-auto space-y-1 text-xs">
+                {result.downgradedOrders.map((o: any, i: number) => (
+                  <div key={i} className="flex gap-2">
+                    <span className="font-mono">{o.order_number}</span>
+                    <span className="text-muted-foreground">PostEx: {o.postex_status} → {o.new_status}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {result.errorDetails && result.errorDetails.length > 0 && (
+            <div className="mt-4">
+              <div className="font-medium mb-2 text-destructive">Errors:</div>
+              <div className="max-h-40 overflow-auto space-y-1 text-xs">
+                {result.errorDetails.slice(0, 10).map((e: any, i: number) => (
+                  <div key={i} className="flex gap-2">
+                    <span className="font-mono">{e.order_number}</span>
+                    <span className="text-destructive">{e.error}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -383,6 +536,11 @@ const Settings = () => {
               <div className="space-y-6">
                 {/* PostEx Delivery Date Backfill */}
                 <PostExBackfillSection />
+
+                <div className="border-t border-border pt-4">
+                  {/* Verify Untracked PostEx Orders */}
+                  <VerifyUntrackedPostExSection />
+                </div>
 
                 <div className="border-t border-border pt-4">
                   <Label className="text-sm font-medium mb-2 block">Reset All Orders Status</Label>

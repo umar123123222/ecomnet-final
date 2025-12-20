@@ -8,6 +8,7 @@ const corsHeaders = {
 type VerifyRequest = {
   batchSize?: number;
   onlyUnverified?: boolean;
+  includeUntracked?: boolean; // NEW: include orders without any tracking history
 };
 
 function toISOIfValid(value: any): string | null {
@@ -18,14 +19,12 @@ function toISOIfValid(value: any): string | null {
 }
 
 function extractPostExDeliveredAt(tracking: any): string | null {
-  // Preferred: top-level timestamp fields
   const direct =
     toISOIfValid(tracking?.updatedAt) ||
     toISOIfValid(tracking?.transactionDateTime) ||
     toISOIfValid(tracking?.deliveredAt);
   if (direct) return direct;
 
-  // Fallback: statusHistory events
   const history = Array.isArray(tracking?.statusHistory) ? tracking.statusHistory : [];
   const deliveredEvent = history.find(
     (e: any) =>
@@ -51,56 +50,91 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { batchSize = 50, onlyUnverified = true } = (await req.json().catch(() => ({}))) as VerifyRequest;
+    const { batchSize = 50, onlyUnverified = true, includeUntracked = false } = (await req.json().catch(() => ({}))) as VerifyRequest;
     const limit = Math.min(Math.max(batchSize, 1), 200);
 
-    console.log(`Starting PostEx verification (batch=${limit}, onlyUnverified=${onlyUnverified})...`);
+    console.log(`Starting PostEx verification (batch=${limit}, onlyUnverified=${onlyUnverified}, includeUntracked=${includeUntracked})...`);
 
-    // IMPORTANT: do NOT filter by delivered_at here; many records have a system-marked delivered_at.
-    const { data: deliveredOrders, error: fetchError } = await supabaseAdmin
-      .from('orders')
-      .select('id, order_number, status, courier, tracking_id, tags, delivered_at')
-      .eq('status', 'delivered')
-      .eq('courier', 'postex')
-      .not('tracking_id', 'is', null)
-      .order('delivered_at', { ascending: true })
-      .limit(limit);
+    let ordersToVerify: any[] = [];
 
-    if (fetchError) {
-      console.error('Error fetching PostEx orders:', fetchError);
-      throw fetchError;
-    }
+    if (includeUntracked) {
+      // MODE: Find orders marked delivered but with NO tracking history at all
+      console.log('Mode: Verifying untracked PostEx orders...');
+      
+      // Get all PostEx delivered orders
+      const { data: allDelivered, error: fetchError } = await supabaseAdmin
+        .from('orders')
+        .select('id, order_number, status, courier, tracking_id, tags, delivered_at')
+        .eq('status', 'delivered')
+        .eq('courier', 'postex')
+        .not('tracking_id', 'is', null)
+        .limit(5000); // Get more to filter
 
-    if (!deliveredOrders || deliveredOrders.length === 0) {
-      return new Response(
-        JSON.stringify({ success: true, message: 'No PostEx orders to verify', verified: 0, downgraded: 0 }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+      if (fetchError) throw fetchError;
 
-    let ordersToVerify = deliveredOrders;
+      if (allDelivered && allDelivered.length > 0) {
+        const orderIds = allDelivered.map((o) => o.id);
+        
+        // Find which orders have ANY tracking history
+        const { data: trackingHistory } = await supabaseAdmin
+          .from('courier_tracking_history')
+          .select('order_id')
+          .in('order_id', orderIds);
 
-    if (onlyUnverified) {
-      const orderIds = deliveredOrders.map((o) => o.id);
-      const { data: trackingHistory } = await supabaseAdmin
-        .from('courier_tracking_history')
-        .select('order_id')
-        .in('order_id', orderIds)
-        .eq('status', 'delivered');
+        const ordersWithTracking = new Set(trackingHistory?.map((t) => t.order_id) || []);
+        
+        // Filter to orders WITHOUT any tracking history
+        const untrackedOrders = allDelivered.filter((o) => !ordersWithTracking.has(o.id));
+        console.log(`Found ${untrackedOrders.length} PostEx delivered orders without tracking history`);
+        
+        ordersToVerify = untrackedOrders.slice(0, limit);
+      }
+    } else {
+      // Original behavior: check orders that have tracking IDs
+      const { data: deliveredOrders, error: fetchError } = await supabaseAdmin
+        .from('orders')
+        .select('id, order_number, status, courier, tracking_id, tags, delivered_at')
+        .eq('status', 'delivered')
+        .eq('courier', 'postex')
+        .not('tracking_id', 'is', null)
+        .order('delivered_at', { ascending: true })
+        .limit(limit);
 
-      const verifiedOrderIds = new Set(trackingHistory?.map((t) => t.order_id) || []);
-      ordersToVerify = deliveredOrders.filter((o) => !verifiedOrderIds.has(o.id));
-      console.log(`Filtered to ${ordersToVerify.length} unverified orders out of ${deliveredOrders.length}`);
+      if (fetchError) throw fetchError;
+
+      if (!deliveredOrders || deliveredOrders.length === 0) {
+        return new Response(
+          JSON.stringify({ success: true, message: 'No PostEx orders to verify', verified: 0, downgraded: 0 }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      ordersToVerify = deliveredOrders;
+
+      if (onlyUnverified) {
+        const orderIds = deliveredOrders.map((o) => o.id);
+        const { data: trackingHistory } = await supabaseAdmin
+          .from('courier_tracking_history')
+          .select('order_id')
+          .in('order_id', orderIds)
+          .eq('status', 'delivered');
+
+        const verifiedOrderIds = new Set(trackingHistory?.map((t) => t.order_id) || []);
+        ordersToVerify = deliveredOrders.filter((o) => !verifiedOrderIds.has(o.id));
+        console.log(`Filtered to ${ordersToVerify.length} unverified orders out of ${deliveredOrders.length}`);
+      }
     }
 
     if (ordersToVerify.length === 0) {
       return new Response(
         JSON.stringify({
           success: true,
-          message: 'All PostEx orders in this batch already verified',
+          message: includeUntracked 
+            ? 'No untracked PostEx orders found' 
+            : 'All PostEx orders in this batch already verified',
           verified: 0,
           downgraded: 0,
-          skipped: deliveredOrders.length,
+          totalUntracked: 0,
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -169,6 +203,8 @@ Deno.serve(async (req) => {
             newStatus = 'returned';
           } else if (courierStatus.includes('cancel')) {
             newStatus = 'cancelled';
+          } else if (courierStatus.includes('warehouse') || courierStatus.includes('hub')) {
+            newStatus = 'dispatched';
           }
 
           console.log(`✗ ${order.order_number} NOT delivered (PostEx: ${courierStatus}), downgrading to ${newStatus}`);
@@ -202,7 +238,9 @@ Deno.serve(async (req) => {
               new_status: newStatus,
               courier_status: courierStatus,
               tracking_id: order.tracking_id,
-              reason: 'PostEx API verification - order not actually delivered',
+              reason: includeUntracked 
+                ? 'PostEx API verification - untracked order not actually delivered'
+                : 'PostEx API verification - order not actually delivered',
             },
             user_id: '00000000-0000-0000-0000-000000000000',
           });
@@ -234,6 +272,7 @@ Deno.serve(async (req) => {
         verified: verifiedCount,
         downgraded: downgradedCount,
         errors: errorCount,
+        mode: includeUntracked ? 'untracked' : 'standard',
         downgradedOrders: downgradedOrders.length > 0 ? downgradedOrders : undefined,
         errorDetails: errors.length > 0 ? errors : undefined,
       }),
