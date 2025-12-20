@@ -160,30 +160,87 @@ serve(async (req) => {
               
               // Update order status based on tracking status
               if (tracking.status === 'delivered') {
+                // Extract actual delivery timestamp from tracking history
+                let actualDeliveryDate = new Date().toISOString();
+                
+                // Try to get the actual delivery date from statusHistory
+                if (tracking.statusHistory && Array.isArray(tracking.statusHistory)) {
+                  const deliveredEvent = tracking.statusHistory.find(
+                    (event: any) => event.status?.toLowerCase() === 'delivered'
+                  );
+                  if (deliveredEvent?.timestamp) {
+                    const parsed = new Date(deliveredEvent.timestamp);
+                    if (!isNaN(parsed.getTime())) {
+                      actualDeliveryDate = parsed.toISOString();
+                    }
+                  }
+                }
+                
+                // Fallback: check raw tracking data for PostEx-specific fields
+                if (tracking.rawData) {
+                  const raw = tracking.rawData;
+                  const candidate = raw.updatedAt || raw.transactionDateTime;
+                  if (candidate) {
+                    const parsed = new Date(candidate);
+                    if (!isNaN(parsed.getTime())) {
+                      actualDeliveryDate = parsed.toISOString();
+                    }
+                  }
+                }
+                
+                console.log(`📅 Order ${order.order_number} actual delivery date: ${actualDeliveryDate}`);
+                
                 await supabase
                   .from('orders')
                   .update({
                     status: 'delivered',
-                    delivered_at: new Date().toISOString()
+                    delivered_at: actualDeliveryDate
                   })
                   .eq('id', order.id);
                 
                 results.delivered++;
                 results.updated++;
-                console.log(`✅ Order ${order.order_number} marked as DELIVERED`);
+                console.log(`✅ Order ${order.order_number} marked as DELIVERED at ${actualDeliveryDate}`);
                 
               } else if (tracking.status === 'returned') {
+                // Extract actual return timestamp from tracking history
+                let actualReturnDate = new Date().toISOString();
+                
+                if (tracking.statusHistory && Array.isArray(tracking.statusHistory)) {
+                  const returnedEvent = tracking.statusHistory.find(
+                    (event: any) => event.status?.toLowerCase() === 'returned'
+                  );
+                  if (returnedEvent?.timestamp) {
+                    const parsed = new Date(returnedEvent.timestamp);
+                    if (!isNaN(parsed.getTime())) {
+                      actualReturnDate = parsed.toISOString();
+                    }
+                  }
+                }
+                
+                // Fallback: check raw tracking data
+                if (tracking.rawData) {
+                  const raw = tracking.rawData;
+                  const candidate = raw.updatedAt || raw.transactionDateTime;
+                  if (candidate) {
+                    const parsed = new Date(candidate);
+                    if (!isNaN(parsed.getTime())) {
+                      actualReturnDate = parsed.toISOString();
+                    }
+                  }
+                }
+                
                 await supabase
                   .from('orders')
                   .update({
                     status: 'returned',
-                    returned_at: new Date().toISOString()
+                    returned_at: actualReturnDate
                   })
                   .eq('id', order.id);
                 
                 results.returned++;
                 results.updated++;
-                console.log(`↩️ Order ${order.order_number} marked as RETURNED`);
+                console.log(`↩️ Order ${order.order_number} marked as RETURNED at ${actualReturnDate}`);
                 
               } else {
                 results.noChange++;
