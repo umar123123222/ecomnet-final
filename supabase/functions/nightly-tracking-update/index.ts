@@ -162,7 +162,7 @@ serve(async (req) => {
               if (tracking.status === 'delivered') {
                 // Extract actual delivery timestamp from tracking history
                 // IMPORTANT: Use the FIRST (earliest) delivered event, not the last
-                let actualDeliveryDate = new Date().toISOString();
+                let actualDeliveryDate: string | null = null;
                 
                 // Try to get the actual delivery date from statusHistory
                 if (tracking.statusHistory && Array.isArray(tracking.statusHistory)) {
@@ -191,7 +191,7 @@ serve(async (req) => {
                 }
                 
                 // Fallback: check raw tracking data for PostEx-specific fields
-                if (tracking.rawData && actualDeliveryDate === new Date().toISOString()) {
+                if (!actualDeliveryDate && tracking.rawData) {
                   const raw = tracking.rawData;
                   const candidate = raw.updatedAt || raw.transactionDateTime;
                   if (candidate) {
@@ -202,24 +202,55 @@ serve(async (req) => {
                   }
                 }
                 
-                console.log(`📅 Order ${order.order_number} actual delivery date: ${actualDeliveryDate}`);
+                // Get current order to check existing delivered_at
+                const { data: currentOrder } = await supabase
+                  .from('orders')
+                  .select('delivered_at')
+                  .eq('id', order.id)
+                  .single();
+                
+                const existingDeliveredAt = currentOrder?.delivered_at;
+                
+                // Determine the final delivery date:
+                // - If no existing delivered_at, use the new one (or now as fallback)
+                // - If existing delivered_at, keep the EARLIER date
+                let finalDeliveryDate: string;
+                
+                if (!existingDeliveredAt) {
+                  // No existing date, use the new one
+                  finalDeliveryDate = actualDeliveryDate || new Date().toISOString();
+                } else if (actualDeliveryDate) {
+                  // Both exist, use the earlier one
+                  const existingTime = new Date(existingDeliveredAt).getTime();
+                  const newTime = new Date(actualDeliveryDate).getTime();
+                  finalDeliveryDate = newTime < existingTime ? actualDeliveryDate : existingDeliveredAt;
+                  
+                  if (newTime >= existingTime) {
+                    console.log(`📅 Keeping existing earlier delivery date: ${existingDeliveredAt} (new date was ${actualDeliveryDate})`);
+                  }
+                } else {
+                  // No new date found, keep existing
+                  finalDeliveryDate = existingDeliveredAt;
+                }
+                
+                console.log(`📅 Order ${order.order_number} final delivery date: ${finalDeliveryDate}`);
                 
                 await supabase
                   .from('orders')
                   .update({
                     status: 'delivered',
-                    delivered_at: actualDeliveryDate
+                    delivered_at: finalDeliveryDate
                   })
                   .eq('id', order.id);
                 
                 results.delivered++;
                 results.updated++;
-                console.log(`✅ Order ${order.order_number} marked as DELIVERED at ${actualDeliveryDate}`);
+                console.log(`✅ Order ${order.order_number} marked as DELIVERED at ${finalDeliveryDate}`);
                 
               } else if (tracking.status === 'returned') {
                 // Extract actual return timestamp from tracking history
                 // IMPORTANT: Use the FIRST (earliest) returned event
-                let actualReturnDate = new Date().toISOString();
+                let actualReturnDate: string | null = null;
                 
                 if (tracking.statusHistory && Array.isArray(tracking.statusHistory)) {
                   // Filter all returned events and sort by timestamp to get earliest
@@ -247,7 +278,7 @@ serve(async (req) => {
                 }
                 
                 // Fallback: check raw tracking data
-                if (tracking.rawData && actualReturnDate === new Date().toISOString()) {
+                if (!actualReturnDate && tracking.rawData) {
                   const raw = tracking.rawData;
                   const candidate = raw.updatedAt || raw.transactionDateTime;
                   if (candidate) {
@@ -258,17 +289,45 @@ serve(async (req) => {
                   }
                 }
                 
+                // Get current order to check existing returned_at
+                const { data: currentOrderReturn } = await supabase
+                  .from('orders')
+                  .select('returned_at')
+                  .eq('id', order.id)
+                  .single();
+                
+                const existingReturnedAt = currentOrderReturn?.returned_at;
+                
+                // Determine the final return date:
+                // - If no existing returned_at, use the new one (or now as fallback)
+                // - If existing returned_at, keep the EARLIER date
+                let finalReturnDate: string;
+                
+                if (!existingReturnedAt) {
+                  finalReturnDate = actualReturnDate || new Date().toISOString();
+                } else if (actualReturnDate) {
+                  const existingTime = new Date(existingReturnedAt).getTime();
+                  const newTime = new Date(actualReturnDate).getTime();
+                  finalReturnDate = newTime < existingTime ? actualReturnDate : existingReturnedAt;
+                  
+                  if (newTime >= existingTime) {
+                    console.log(`↩️ Keeping existing earlier return date: ${existingReturnedAt} (new date was ${actualReturnDate})`);
+                  }
+                } else {
+                  finalReturnDate = existingReturnedAt;
+                }
+                
                 await supabase
                   .from('orders')
                   .update({
                     status: 'returned',
-                    returned_at: actualReturnDate
+                    returned_at: finalReturnDate
                   })
                   .eq('id', order.id);
                 
                 results.returned++;
                 results.updated++;
-                console.log(`↩️ Order ${order.order_number} marked as RETURNED at ${actualReturnDate}`);
+                console.log(`↩️ Order ${order.order_number} marked as RETURNED at ${finalReturnDate}`);
                 
               } else {
                 results.noChange++;
