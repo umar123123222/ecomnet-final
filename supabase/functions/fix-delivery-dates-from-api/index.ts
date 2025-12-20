@@ -88,61 +88,39 @@ async function fetchLeopardTracking(trackingId: string, apiSettings: any): Promi
   return response.json();
 }
 
-// TCS Authorization - get bearer token from TCS Auth API
-async function getTCSBearerToken(apiSettings: any): Promise<string> {
-  // TCS uses clientId and clientsecret for auth - stored as TCS_API_KEY and TCS_API_PASSWORD
-  const clientId = apiSettings.TCS_API_KEY;
-  const clientSecret = apiSettings.TCS_API_PASSWORD;
+// TCS Authorization - get bearer token
+// TCS_API_KEY stores a pre-generated JWT bearer token (not clientId)
+function getTCSBearerToken(apiSettings: any): string {
+  const token = apiSettings.TCS_API_KEY;
   
-  if (!clientId || !clientSecret) {
-    throw new Error('TCS credentials not configured (TCS_API_KEY and TCS_API_PASSWORD required)');
-  }
-
-  // TCS Auth endpoint - Production: https://ociconnect.tcscourier.com/auth/api/auth
-  const authUrl = 'https://ociconnect.tcscourier.com/auth/api/auth';
-  
-  console.log(`[TCS] Fetching bearer token from auth endpoint`);
-  
-  const response = await fetch(authUrl, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'clientId': clientId,
-      'clientsecret': clientSecret,
-    },
-  });
-
-  const responseText = await response.text();
-  console.log(`[TCS] Auth response status: ${response.status}`);
-  
-  if (!response.ok) {
-    console.log(`[TCS] Auth failed: ${responseText.substring(0, 200)}`);
-    throw new Error(`TCS authentication failed: ${response.status}`);
+  if (!token) {
+    throw new Error('TCS API token not configured (TCS_API_KEY required)');
   }
   
-  try {
-    const data = JSON.parse(responseText);
-    if (data.accesstoken || data.access_token || data.token) {
-      const token = data.accesstoken || data.access_token || data.token;
-      console.log(`[TCS] Got bearer token (length: ${token.length})`);
-      return token;
-    }
-    console.log(`[TCS] Auth response:`, JSON.stringify(data, null, 2).substring(0, 300));
-    throw new Error('TCS auth response missing token');
-  } catch (e) {
-    console.log(`[TCS] Auth parse error: ${responseText.substring(0, 200)}`);
-    throw new Error('Failed to parse TCS auth response');
-  }
+  // The stored TCS_API_KEY is already a bearer token (JWT)
+  console.log(`[TCS] Using stored bearer token (length: ${token.length})`);
+  return token;
 }
 
-async function fetchTCSTracking(trackingId: string, apiSettings: any): Promise<any> {
-  // Get fresh bearer token from TCS Auth API
-  const bearerToken = await getTCSBearerToken(apiSettings);
+async function fetchTCSTracking(trackingId: string, apiSettings: any, supabase: any): Promise<any> {
+  // Get bearer token (already stored as JWT in TCS_API_KEY)
+  const bearerToken = getTCSBearerToken(apiSettings);
 
-  // TCS tracking endpoint - Production
-  const url = `https://ociconnect.tcscourier.com/tracking/api/Tracking/GetDynamicTrackDetail?consignee=${encodeURIComponent(trackingId)}`;
+  // Get tracking endpoint from courier configuration to match courier-tracking function
+  const { data: courier, error: courierError } = await supabase
+    .from('couriers')
+    .select('tracking_endpoint')
+    .eq('code', 'tcs')
+    .single();
+
+  if (courierError || !courier?.tracking_endpoint) {
+    throw new Error('TCS courier not configured or tracking_endpoint not set');
+  }
+
+  // TCS tracking uses query parameter for consignee (from API guide)
+  const url = `${courier.tracking_endpoint}?consignee=${encodeURIComponent(trackingId)}`;
   
-  console.log(`[TCS] Fetching tracking for ${trackingId}`);
+  console.log(`[TCS] Fetching tracking for ${trackingId} from ${url.substring(0, 60)}...`);
   
   const response = await fetch(url, {
     method: 'GET',
@@ -156,7 +134,8 @@ async function fetchTCSTracking(trackingId: string, apiSettings: any): Promise<a
   console.log(`[TCS] Response status: ${response.status}, Length: ${responseText.length}`);
   
   if (response.status === 401) {
-    throw new Error('TCS API authorization failed');
+    console.log(`[TCS] Auth failed response: ${responseText.substring(0, 200)}`);
+    throw new Error('TCS API authorization failed - token may be expired');
   }
   
   if (responseText.trim() === '' || response.status === 404) {
@@ -458,7 +437,7 @@ Deno.serve(async (req) => {
             trackingData = await fetchLeopardTracking(order.tracking_id, apiSettings);
             actualDate = extractDeliveryDateLeopard(trackingData);
           } else if (courierCode === 'tcs') {
-            trackingData = await fetchTCSTracking(order.tracking_id, apiSettings);
+            trackingData = await fetchTCSTracking(order.tracking_id, apiSettings, supabaseAdmin);
             actualDate = extractDeliveryDateTCS(trackingData);
           } else {
             console.log(`⚠️ Order ${order.order_number}: Unsupported courier ${courierCode}`);
