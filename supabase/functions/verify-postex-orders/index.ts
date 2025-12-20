@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // courier-tracking returns { success: true, tracking: { status: '...', ... } }
+        // courier-tracking returns { success: true, tracking: { status: '...', statusHistory: [...], ... } }
         const tracking = trackingData.tracking || {};
         const courierStatus = (tracking.status || '').toLowerCase();
         console.log(`${order.order_number}: PostEx status = "${courierStatus}"`);
@@ -126,8 +126,31 @@ Deno.serve(async (req) => {
           courierStatus.includes('received');
 
         if (isActuallyDelivered) {
+          // Extract actual delivery timestamp from PostEx tracking history
+          const statusHistory = tracking.statusHistory || [];
+          const deliveredEvent = statusHistory.find((event: any) => 
+            event.status === 'delivered' || 
+            (event.message || '').toLowerCase().includes('delivered')
+          );
+          
+          // Use PostEx's updatedAt timestamp as the actual delivery date
+          let actualDeliveryDate = deliveredEvent?.timestamp || deliveredEvent?.raw?.updatedAt;
+          
+          if (actualDeliveryDate && actualDeliveryDate !== order.delivered_at) {
+            console.log(`Updating ${order.order_number} delivered_at from ${order.delivered_at} to ${actualDeliveryDate}`);
+            
+            const { error: updateError } = await supabaseAdmin
+              .from('orders')
+              .update({ delivered_at: actualDeliveryDate })
+              .eq('id', order.id);
+            
+            if (updateError) {
+              console.error(`Failed to update delivered_at for ${order.order_number}:`, updateError);
+            }
+          }
+          
           verifiedCount++;
-          console.log(`✓ ${order.order_number} confirmed delivered`);
+          console.log(`✓ ${order.order_number} confirmed delivered (actual date: ${actualDeliveryDate || order.delivered_at})`);
         } else {
           // NOT delivered according to PostEx - downgrade
           let newStatus = 'dispatched';
