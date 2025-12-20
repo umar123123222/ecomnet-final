@@ -238,6 +238,7 @@ const FixDeliveryDatesFromAPISection = () => {
             <SelectContent>
               <SelectItem value="postex">PostEx</SelectItem>
               <SelectItem value="leopard">Leopard</SelectItem>
+              <SelectItem value="tcs">TCS</SelectItem>
             </SelectContent>
           </Select>
         </div>

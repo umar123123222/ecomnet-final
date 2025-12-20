@@ -88,6 +88,50 @@ async function fetchLeopardTracking(trackingId: string, apiSettings: any): Promi
   return response.json();
 }
 
+async function fetchTCSTracking(trackingId: string, apiSettings: any): Promise<any> {
+  const apiKey = apiSettings.TCS_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error('TCS API key not configured (TCS_API_KEY)');
+  }
+
+  // TCS tracking endpoint - use the ecom/api/shipmentTracking endpoint with consignee query param
+  // This is what the courier-tracking function uses for TCS
+  const url = `https://devconnect.tcscourier.com/ecom/api/shipmentTracking/track?consignee=${trackingId}`;
+  
+  console.log(`[TCS] Fetching tracking for ${trackingId}`);
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const responseText = await response.text();
+  
+  // Log response status for debugging
+  console.log(`[TCS] Response status: ${response.status}`);
+  
+  if (responseText.trim() === '' || response.status === 404) {
+    // TCS API may return 404 for old orders or orders not in their system
+    console.log(`[TCS] Empty response or 404 for ${trackingId}`);
+    return null;
+  }
+  
+  // Try to parse as JSON
+  try {
+    const data = JSON.parse(responseText);
+    console.log(`[TCS] Response for ${trackingId}:`, JSON.stringify(data, null, 2).substring(0, 500));
+    return data;
+  } catch {
+    // If response is not JSON, return null
+    console.log(`[TCS] Invalid JSON response for ${trackingId}: ${responseText.substring(0, 100)}`);
+    return null;
+  }
+}
+
 // PostEx response has the data in data.dist.transactionStatusHistory format
 // IMPORTANT: Returns the FIRST (earliest) delivered date
 function extractDeliveryDatePostEx(trackingData: any): string | null {
@@ -180,6 +224,74 @@ function extractDeliveryDateLeopard(trackingData: any): string | null {
   }
 
   return null;
+}
+
+// TCS response parser - returns the FIRST (earliest) delivered date
+// TCS format: "Friday Dec 5, 2025 21:05"
+function parseTCSDateTime(datetime: string): Date | null {
+  if (!datetime) return null;
+  try {
+    // TCS format: "Friday Dec 5, 2025 21:05"
+    // Remove day name first
+    const withoutDay = datetime.replace(/^[A-Za-z]+ /, '');
+    
+    // Parse the components manually
+    // Format: "Dec 5, 2025 21:05"
+    const match = withoutDay.match(/([A-Za-z]+)\s+(\d+),\s+(\d{4})\s+(\d{1,2}):(\d{2})/);
+    if (!match) return new Date(datetime);
+    
+    const [, monthStr, day, year, hours, minutes] = match;
+    const months: Record<string, number> = {
+      'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+      'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+    };
+    const month = months[monthStr] ?? 0;
+    
+    // Create date in PKT (UTC+5), subtract 5 hours to get correct UTC time
+    const pktOffsetHours = 5;
+    const date = new Date(Date.UTC(
+      parseInt(year),
+      month,
+      parseInt(day),
+      parseInt(hours) - pktOffsetHours,
+      parseInt(minutes),
+      0
+    ));
+    
+    return date;
+  } catch {
+    return null;
+  }
+}
+
+function extractDeliveryDateTCS(trackingData: any): string | null {
+  // TCS returns checkpoints at root level
+  const checkpoints = trackingData?.checkpoints || [];
+  
+  if (checkpoints.length === 0) return null;
+
+  // Find ALL "Delivered" events (status contains "DELIVERED")
+  const deliveredEvents = checkpoints.filter((event: any) => {
+    const status = (event.status || '').toUpperCase();
+    return status.includes('DELIVERED');
+  });
+
+  if (deliveredEvents.length === 0) return null;
+
+  // Parse dates and sort by timestamp ascending to get the FIRST (earliest) delivered event
+  const eventsWithDates = deliveredEvents
+    .map((event: any) => ({
+      event,
+      date: parseTCSDateTime(event.datetime)
+    }))
+    .filter((e: any) => e.date !== null);
+
+  if (eventsWithDates.length === 0) return null;
+
+  eventsWithDates.sort((a: any, b: any) => a.date!.getTime() - b.date!.getTime());
+
+  const firstDelivered = eventsWithDates[0];
+  return firstDelivered.date!.toISOString();
 }
 
 function extractReturnDate(trackingData: PostExTrackingResponse): string | null {
@@ -298,6 +410,9 @@ Deno.serve(async (req) => {
           } else if (courierCode === 'leopard') {
             trackingData = await fetchLeopardTracking(order.tracking_id, apiSettings);
             actualDate = extractDeliveryDateLeopard(trackingData);
+          } else if (courierCode === 'tcs') {
+            trackingData = await fetchTCSTracking(order.tracking_id, apiSettings);
+            actualDate = extractDeliveryDateTCS(trackingData);
           } else {
             console.log(`⚠️ Order ${order.order_number}: Unsupported courier ${courierCode}`);
             results.skipped++;
