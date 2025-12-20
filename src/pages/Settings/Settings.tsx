@@ -153,6 +153,188 @@ const PostExBackfillSection = () => {
   );
 };
 
+// Fix Delivery Dates from PostEx API - calls PostEx API directly for each order
+const FixDeliveryDatesFromAPISection = () => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isRunning, setIsRunning] = useState(false);
+  const [dryRun, setDryRun] = useState(true);
+  const [result, setResult] = useState<any>(null);
+  const [batchSize, setBatchSize] = useState(50);
+  const [maxBatches, setMaxBatches] = useState(10);
+
+  const runFix = async () => {
+    if (!dryRun) {
+      const ok = confirm(
+        'This will UPDATE delivered_at for PostEx orders by calling the PostEx API directly to get actual delivery dates. Continue?'
+      );
+      if (!ok) return;
+    }
+
+    setIsRunning(true);
+    setResult(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('fix-delivery-dates-from-api', {
+        body: {
+          dryRun,
+          batchSize,
+          maxBatches,
+        },
+      });
+
+      if (error) throw error;
+
+      setResult(data);
+
+      if (!dryRun && data?.updated > 0) {
+        await queryClient.invalidateQueries({
+          predicate: (q) => {
+            const key0 = Array.isArray(q.queryKey) ? q.queryKey[0] : undefined;
+            return (
+              typeof key0 === 'string' &&
+              (key0.startsWith('finance-') || key0 === 'courier-performance' || key0 === 'orders')
+            );
+          },
+        });
+      }
+
+      toast({
+        title: dryRun ? 'Dry Run Complete' : 'Fix Complete',
+        description: `${dryRun ? 'Would update' : 'Updated'} ${data?.updated || 0} orders. Processed ${data?.processed || 0} orders.`,
+      });
+    } catch (error: any) {
+      console.error('Fix error:', error);
+      toast({
+        title: 'Fix Failed',
+        description: error.message || 'Failed to fix delivery dates',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  return (
+    <div>
+      <Label className="text-sm font-medium mb-2 block">Fix Delivery Dates from PostEx API</Label>
+      <p className="text-sm text-muted-foreground mb-3">
+        Calls the PostEx API directly for each delivered order to get the actual delivery timestamp,
+        then updates delivered_at accordingly. This is more accurate than the tracking history backfill.
+      </p>
+      
+      <div className="flex flex-wrap items-center gap-4 mb-4">
+        <div className="flex items-center gap-2">
+          <Switch
+            id="api-dry-run"
+            checked={dryRun}
+            onCheckedChange={setDryRun}
+          />
+          <Label htmlFor="api-dry-run" className="text-sm cursor-pointer">
+            Dry Run (preview only)
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="api-batch-size" className="text-sm">
+            Batch Size:
+          </Label>
+          <Input
+            id="api-batch-size"
+            type="number"
+            value={batchSize}
+            onChange={(e) => setBatchSize(Math.min(100, Math.max(1, parseInt(e.target.value) || 50)))}
+            className="w-20 h-8"
+            min={1}
+            max={100}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="api-max-batches" className="text-sm">
+            Max Batches:
+          </Label>
+          <Input
+            id="api-max-batches"
+            type="number"
+            value={maxBatches}
+            onChange={(e) => setMaxBatches(Math.min(50, Math.max(1, parseInt(e.target.value) || 10)))}
+            className="w-20 h-8"
+            min={1}
+            max={50}
+          />
+        </div>
+      </div>
+
+      <ModernButton 
+        variant={dryRun ? "outline" : "default"}
+        onClick={runFix}
+        disabled={isRunning}
+        className="gap-2"
+      >
+        {isRunning ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Running...
+          </>
+        ) : (
+          <>
+            <Calendar className="h-4 w-4" />
+            {dryRun ? "Preview Changes" : "Fix Delivery Dates"}
+          </>
+        )}
+      </ModernButton>
+
+      {result && (
+        <div className="mt-4 p-4 bg-muted rounded-lg text-sm">
+          <div className="grid grid-cols-2 gap-2">
+            <div>Processed:</div>
+            <div className="font-medium">{result.processed?.toLocaleString()}</div>
+            <div>{dryRun ? 'Would Update:' : 'Updated:'}</div>
+            <div className="font-medium text-green-600">{result.updated?.toLocaleString()}</div>
+            <div>Skipped (same date):</div>
+            <div className="font-medium">{result.skipped?.toLocaleString()}</div>
+            {result.errors > 0 && (
+              <>
+                <div>Errors:</div>
+                <div className="font-medium text-destructive">{result.errors}</div>
+              </>
+            )}
+          </div>
+          
+          {result.updates && result.updates.length > 0 && (
+            <div className="mt-4">
+              <div className="font-medium mb-2">Sample Updates:</div>
+              <div className="max-h-40 overflow-auto space-y-1 text-xs">
+                {result.updates.slice(0, 15).map((u: any, i: number) => (
+                  <div key={i} className="flex gap-2">
+                    <span className="font-mono">{u.order_number}</span>
+                    <span className="text-muted-foreground">
+                      {u.old_value?.split('T')[0] || 'null'} → {u.new_value?.split('T')[0]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {result.errorDetails && result.errorDetails.length > 0 && (
+            <div className="mt-4">
+              <div className="font-medium mb-2 text-destructive">Errors:</div>
+              <div className="max-h-40 overflow-auto space-y-1 text-xs">
+                {result.errorDetails.slice(0, 10).map((e: any, i: number) => (
+                  <div key={i} className="flex gap-2">
+                    <span className="font-mono">{e.order_number}</span>
+                    <span className="text-destructive">{e.error}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Verify Untracked PostEx Orders Component
 const VerifyUntrackedPostExSection = () => {
   const { toast } = useToast();
@@ -534,8 +716,13 @@ const Settings = () => {
             </CardHeader>
             <CardContent className="card-content">
               <div className="space-y-6">
-                {/* PostEx Delivery Date Backfill */}
+                {/* PostEx Delivery Date Backfill (from tracking history) */}
                 <PostExBackfillSection />
+
+                <div className="border-t border-border pt-4">
+                  {/* Fix Delivery Dates from PostEx API (direct API calls) */}
+                  <FixDeliveryDatesFromAPISection />
+                </div>
 
                 <div className="border-t border-border pt-4">
                   {/* Verify Untracked PostEx Orders */}
