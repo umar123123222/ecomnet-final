@@ -5,11 +5,130 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Camera, Save, Eye, EyeOff, Settings as SettingsIcon } from "lucide-react";
+import { Camera, Save, Eye, EyeOff, Settings as SettingsIcon, Calendar, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { PageContainer, PageHeader } from "@/components/layout";
+import { Switch } from "@/components/ui/switch";
+
+// PostEx Delivery Date Backfill Component
+const PostExBackfillSection = () => {
+  const { toast } = useToast();
+  const [isRunning, setIsRunning] = useState(false);
+  const [dryRun, setDryRun] = useState(true);
+  const [result, setResult] = useState<any>(null);
+
+  const runBackfill = async () => {
+    setIsRunning(true);
+    setResult(null);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('backfill-postex-delivery-dates', {
+        body: { 
+          dryRun,
+          batchSize: 500,
+          maxBatches: 50
+        }
+      });
+
+      if (error) throw error;
+
+      setResult(data);
+      toast({
+        title: dryRun ? "Dry Run Complete" : "Backfill Complete",
+        description: `${dryRun ? 'Would update' : 'Updated'} ${data?.updated || 0} orders. Scanned ${data?.scannedRecords || 0} tracking records.`,
+      });
+    } catch (error: any) {
+      console.error('Backfill error:', error);
+      toast({
+        title: "Backfill Failed",
+        description: error.message || "Failed to run backfill",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  return (
+    <div>
+      <Label className="text-sm font-medium mb-2 block">Backfill PostEx Delivery Dates</Label>
+      <p className="text-sm text-muted-foreground mb-3">
+        Updates delivered_at for PostEx orders using actual courier delivery timestamps from tracking history.
+        This fixes date range filtering issues where orders show up on incorrect dates.
+      </p>
+      
+      <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center gap-2">
+          <Switch
+            id="dry-run"
+            checked={dryRun}
+            onCheckedChange={setDryRun}
+          />
+          <Label htmlFor="dry-run" className="text-sm cursor-pointer">
+            Dry Run (preview only)
+          </Label>
+        </div>
+      </div>
+
+      <ModernButton 
+        variant={dryRun ? "outline" : "default"}
+        onClick={runBackfill}
+        disabled={isRunning}
+        className="gap-2"
+      >
+        {isRunning ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Running...
+          </>
+        ) : (
+          <>
+            <Calendar className="h-4 w-4" />
+            {dryRun ? "Preview Changes" : "Run Backfill"}
+          </>
+        )}
+      </ModernButton>
+
+      {result && (
+        <div className="mt-4 p-4 bg-muted rounded-lg text-sm">
+          <div className="grid grid-cols-2 gap-2">
+            <div>Scanned Records:</div>
+            <div className="font-medium">{result.scannedRecords?.toLocaleString()}</div>
+            <div>Unique Orders:</div>
+            <div className="font-medium">{result.uniqueOrders?.toLocaleString()}</div>
+            <div>{dryRun ? 'Would Update:' : 'Updated:'}</div>
+            <div className="font-medium text-green-600">{result.updated?.toLocaleString()}</div>
+            <div>Skipped (same date):</div>
+            <div className="font-medium">{result.skipped?.toLocaleString()}</div>
+            {result.errors > 0 && (
+              <>
+                <div>Errors:</div>
+                <div className="font-medium text-destructive">{result.errors}</div>
+              </>
+            )}
+          </div>
+          
+          {result.updates && result.updates.length > 0 && (
+            <div className="mt-4">
+              <div className="font-medium mb-2">Sample Updates:</div>
+              <div className="max-h-40 overflow-auto space-y-1 text-xs">
+                {result.updates.slice(0, 10).map((u: any, i: number) => (
+                  <div key={i} className="flex gap-2">
+                    <span className="font-mono">{u.order_number}</span>
+                    <span className="text-muted-foreground">{u.old_delivered_at?.split('T')[0]} → {u.new_delivered_at?.split('T')[0]}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Settings = () => {
   const navigate = useNavigate();
   const {
@@ -237,8 +356,11 @@ const Settings = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="card-content">
-              <div className="space-y-4">
-                <div>
+              <div className="space-y-6">
+                {/* PostEx Delivery Date Backfill */}
+                <PostExBackfillSection />
+
+                <div className="border-t border-border pt-4">
                   <Label className="text-sm font-medium mb-2 block">Reset All Orders Status</Label>
                   <p className="text-sm text-muted-foreground mb-3">
                     This will update all orders in the system to "pending" status. This action cannot be undone.
