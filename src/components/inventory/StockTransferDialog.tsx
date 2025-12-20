@@ -144,19 +144,19 @@ export function StockTransferDialog({
     },
   });
 
-  // Set from_outlet_id when mainWarehouse is loaded
+  // Set outlet IDs when dialog opens and data is available
   useEffect(() => {
-    if (mainWarehouse?.id) {
-      setValue("from_outlet_id", mainWarehouse.id);
+    if (open) {
+      // Set source outlet
+      if (mainWarehouse?.id) {
+        setValue("from_outlet_id", mainWarehouse.id);
+      }
+      // Set destination outlet for store managers
+      if (isStoreManager && userOutlet?.id) {
+        setValue("to_outlet_id", userOutlet.id);
+      }
     }
-  }, [mainWarehouse?.id, setValue]);
-
-  // Auto-set destination outlet for store managers
-  useEffect(() => {
-    if (isStoreManager && userOutlet?.id) {
-      setValue("to_outlet_id", userOutlet.id);
-    }
-  }, [isStoreManager, userOutlet?.id, setValue]);
+  }, [open, mainWarehouse?.id, isStoreManager, userOutlet?.id, setValue]);
 
   // Filter products by search
   const filteredProducts = useMemo(() => {
