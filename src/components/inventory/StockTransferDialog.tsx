@@ -144,6 +144,13 @@ export function StockTransferDialog({
     },
   });
 
+  // Set from_outlet_id when mainWarehouse is loaded
+  useEffect(() => {
+    if (mainWarehouse?.id) {
+      setValue("from_outlet_id", mainWarehouse.id);
+    }
+  }, [mainWarehouse?.id, setValue]);
+
   // Auto-set destination outlet for store managers
   useEffect(() => {
     if (isStoreManager && userOutlet?.id) {
