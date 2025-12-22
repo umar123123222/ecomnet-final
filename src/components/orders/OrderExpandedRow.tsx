@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -11,6 +11,22 @@ import type { FormattedOrder } from '@/hooks/useOrdersData';
 
 interface OrderExpandedRowProps {
   order: FormattedOrder;
+}
+
+interface OrderItem {
+  item_name: string;
+  quantity: number;
+  price: number;
+  bundle_product_id?: string;
+  is_bundle_component?: boolean;
+  bundle_name?: string;
+}
+
+interface GroupedBundle {
+  bundleName: string;
+  bundleProductId: string;
+  components: OrderItem[];
+  totalPrice: number;
 }
 
 export const OrderExpandedRow = memo(({ order }: OrderExpandedRowProps) => {
@@ -48,6 +64,39 @@ export const OrderExpandedRow = memo(({ order }: OrderExpandedRowProps) => {
       toast({ description: "Failed to download label", variant: "destructive" });
     }
   };
+
+  // Group items by bundle
+  const { bundles, standaloneItems } = useMemo(() => {
+    const items = (order.items || []) as OrderItem[];
+    const bundleMap = new Map<string, GroupedBundle>();
+    const standalone: OrderItem[] = [];
+
+    for (const item of items) {
+      if (item.is_bundle_component && item.bundle_product_id) {
+        const existing = bundleMap.get(item.bundle_product_id);
+        if (existing) {
+          existing.components.push(item);
+        } else {
+          bundleMap.set(item.bundle_product_id, {
+            bundleName: item.bundle_name || 'Bundle',
+            bundleProductId: item.bundle_product_id,
+            components: [item],
+            totalPrice: 0, // Bundle price is on the parent, components have 0 price
+          });
+        }
+      } else {
+        standalone.push(item);
+      }
+    }
+
+    // Calculate bundle total price from original order items if available
+    // For now, bundles show component list without price breakdown
+
+    return {
+      bundles: Array.from(bundleMap.values()),
+      standaloneItems: standalone,
+    };
+  }, [order.items]);
 
   return (
     <TableRow>
@@ -187,15 +236,38 @@ export const OrderExpandedRow = memo(({ order }: OrderExpandedRowProps) => {
                 </CardContent>
               </Card>
 
-              {order.items && order.items.length > 0 && (
+              {(bundles.length > 0 || standaloneItems.length > 0) && (
                 <Card className="border-border/50">
                   <CardContent className="p-5">
                     <div className="flex items-center gap-2 mb-4">
                       <ShoppingBag className="h-5 w-5 text-primary" />
                       <h4 className="text-lg font-semibold">Order Items</h4>
                     </div>
-                    <div className="space-y-2">
-                      {order.items.map((item: any, idx: number) => (
+                    <div className="space-y-3">
+                      {/* Render bundles with their components */}
+                      {bundles.map((bundle, bundleIdx) => (
+                        <div key={bundle.bundleProductId || bundleIdx} className="border border-primary/20 rounded-lg p-3 bg-primary/5">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Package className="h-4 w-4 text-primary" />
+                            <span className="font-medium text-primary">{bundle.bundleName}</span>
+                            <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">Bundle</span>
+                          </div>
+                          <div className="ml-6 space-y-1">
+                            {bundle.components.map((item, idx) => (
+                              <div key={idx} className="flex justify-between items-center py-1 text-sm text-muted-foreground">
+                                <span className="flex items-center gap-2">
+                                  <span className="text-muted-foreground/50">└</span>
+                                  {item.item_name}
+                                </span>
+                                <span>x{item.quantity}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {/* Render standalone items */}
+                      {standaloneItems.map((item, idx) => (
                         <div key={idx} className="flex justify-between items-center py-2 border-b border-border/50 last:border-0">
                           <span className="text-sm">{item.item_name}</span>
                           <span className="text-sm text-muted-foreground">x{item.quantity} @ PKR {item.price}</span>
