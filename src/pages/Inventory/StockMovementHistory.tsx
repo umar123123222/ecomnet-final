@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,12 +50,18 @@ interface UnifiedMovement {
   to_outlet?: string;
 }
 
+interface OrderBreakdown {
+  order_id: string;
+  order_number: string;
+  qty: number;
+}
+
 interface DispatchSummary {
   id: string;
   type: 'summary';
   date: string;
-  productItems: Record<string, { name: string; sku: string; total_qty: number }>;
-  packagingItems: Record<string, { name: string; sku: string; total_qty: number }>;
+  productItems: Record<string, { name: string; sku: string; total_qty: number; orders?: OrderBreakdown[] }>;
+  packagingItems: Record<string, { name: string; sku: string; total_qty: number; orders?: OrderBreakdown[] }>;
   totalProductUnits: number;
   totalPackagingUnits: number;
   uniqueProducts: number;
@@ -74,6 +80,7 @@ export default function StockMovementHistory() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
+  const [expandedItemOrders, setExpandedItemOrders] = useState<Set<string>>(new Set());
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Fetch outlets for filter
@@ -388,8 +395,8 @@ export default function StockMovementHistory() {
         id: `summary-${s.id}`,
         type: 'summary' as const,
         date: s.summary_date,
-        productItems: (s.product_items as Record<string, { name: string; sku: string; total_qty: number }>) || {},
-        packagingItems: (s.packaging_items as Record<string, { name: string; sku: string; total_qty: number }>) || {},
+        productItems: (s.product_items as unknown as Record<string, { name: string; sku: string; total_qty: number; orders?: OrderBreakdown[] }>) || {},
+        packagingItems: (s.packaging_items as unknown as Record<string, { name: string; sku: string; total_qty: number; orders?: OrderBreakdown[] }>) || {},
         totalProductUnits: s.total_product_units || 0,
         totalPackagingUnits: s.total_packaging_units || 0,
         uniqueProducts: s.unique_products || 0,
@@ -592,6 +599,17 @@ export default function StockMovementHistory() {
     setExpandedSummaries(newExpanded);
   };
 
+  const toggleItemOrders = (itemKey: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newExpanded = new Set(expandedItemOrders);
+    if (newExpanded.has(itemKey)) {
+      newExpanded.delete(itemKey);
+    } else {
+      newExpanded.add(itemKey);
+    }
+    setExpandedItemOrders(newExpanded);
+  };
+
   const isSummary = (item: DisplayItem): item is DispatchSummary => {
     return 'type' in item && item.type === 'summary';
   };
@@ -792,77 +810,181 @@ export default function StockMovementHistory() {
         {isExpanded && (
           <>
             {/* Product items */}
-            {productEntries.map(([productId, product]) => (
-              <TableRow key={`${summary.id}-product-${productId}`} className="bg-muted/20">
-                <TableCell className="pl-8"></TableCell>
-                <TableCell className="whitespace-nowrap">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Calendar className="h-3 w-3" />
-                    {format(new Date(summary.date), "MMM dd, yyyy")}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div>
-                    <p className="font-medium">{product.name}</p>
-                    <p className="text-xs text-muted-foreground">{product.sku}</p>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="default" className="gap-1">
-                    <Package className="h-3 w-3" />
-                    Product
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">dispatch</Badge>
-                </TableCell>
-                <TableCell className="text-muted-foreground">-</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1">
-                    <TrendingDown className="h-4 w-4 text-destructive" />
-                    <span className="text-destructive font-medium">-{product.total_qty}</span>
-                  </div>
-                </TableCell>
-                <TableCell>Dispatch</TableCell>
-                <TableCell className="text-muted-foreground">Aggregated</TableCell>
-              </TableRow>
-            ))}
+            {productEntries.map(([productId, product]) => {
+              const itemKey = `${summary.id}-product-${productId}`;
+              const isOrdersExpanded = expandedItemOrders.has(itemKey);
+              const orders = product.orders || [];
+              
+              return (
+                <React.Fragment key={itemKey}>
+                  <TableRow className="bg-muted/20">
+                    <TableCell className="pl-8">
+                      {orders.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => toggleItemOrders(itemKey, e)}
+                        >
+                          {isOrdersExpanded ? 
+                            <ChevronDown className="h-3 w-3" /> : 
+                            <ChevronRight className="h-3 w-3" />
+                          }
+                        </Button>
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        {format(new Date(summary.date), "MMM dd, yyyy")}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{product.name}</p>
+                        <p className="text-xs text-muted-foreground">{product.sku}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="default" className="gap-1">
+                        <Package className="h-3 w-3" />
+                        Product
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">dispatch</Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">-</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <TrendingDown className="h-4 w-4 text-destructive" />
+                        <span className="text-destructive font-medium">-{product.total_qty}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {orders.length > 0 ? (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 text-xs"
+                          onClick={(e) => toggleItemOrders(itemKey, e)}
+                        >
+                          {orders.length} orders
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground">Dispatch</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">Aggregated</TableCell>
+                  </TableRow>
+                  {/* Order breakdown rows */}
+                  {isOrdersExpanded && orders.map((order, idx) => (
+                    <TableRow key={`${itemKey}-order-${idx}`} className="bg-muted/40">
+                      <TableCell className="pl-12"></TableCell>
+                      <TableCell colSpan={2}>
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-muted-foreground">Order:</span>
+                          <span className="font-medium">{order.order_number}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell colSpan={3}></TableCell>
+                      <TableCell>
+                        <span className="text-destructive text-sm">-{order.qty}</span>
+                      </TableCell>
+                      <TableCell colSpan={2}></TableCell>
+                    </TableRow>
+                  ))}
+                </React.Fragment>
+              );
+            })}
             {/* Packaging items */}
-            {packagingEntries.map(([packagingId, packaging]) => (
-              <TableRow key={`${summary.id}-packaging-${packagingId}`} className="bg-muted/20">
-                <TableCell className="pl-8"></TableCell>
-                <TableCell className="whitespace-nowrap">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Calendar className="h-3 w-3" />
-                    {format(new Date(summary.date), "MMM dd, yyyy")}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div>
-                    <p className="font-medium">{packaging.name}</p>
-                    <p className="text-xs text-muted-foreground">{packaging.sku}</p>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="secondary" className="gap-1">
-                    <Box className="h-3 w-3" />
-                    Packaging
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">dispatch</Badge>
-                </TableCell>
-                <TableCell className="text-muted-foreground">-</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1">
-                    <TrendingDown className="h-4 w-4 text-destructive" />
-                    <span className="text-destructive font-medium">-{packaging.total_qty}</span>
-                  </div>
-                </TableCell>
-                <TableCell>Dispatch</TableCell>
-                <TableCell className="text-muted-foreground">Aggregated</TableCell>
-              </TableRow>
-            ))}
+            {packagingEntries.map(([packagingId, packaging]) => {
+              const itemKey = `${summary.id}-packaging-${packagingId}`;
+              const isOrdersExpanded = expandedItemOrders.has(itemKey);
+              const orders = packaging.orders || [];
+              
+              return (
+                <React.Fragment key={itemKey}>
+                  <TableRow className="bg-muted/20">
+                    <TableCell className="pl-8">
+                      {orders.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => toggleItemOrders(itemKey, e)}
+                        >
+                          {isOrdersExpanded ? 
+                            <ChevronDown className="h-3 w-3" /> : 
+                            <ChevronRight className="h-3 w-3" />
+                          }
+                        </Button>
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        {format(new Date(summary.date), "MMM dd, yyyy")}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{packaging.name}</p>
+                        <p className="text-xs text-muted-foreground">{packaging.sku}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="gap-1">
+                        <Box className="h-3 w-3" />
+                        Packaging
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">dispatch</Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">-</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <TrendingDown className="h-4 w-4 text-destructive" />
+                        <span className="text-destructive font-medium">-{packaging.total_qty}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {orders.length > 0 ? (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 text-xs"
+                          onClick={(e) => toggleItemOrders(itemKey, e)}
+                        >
+                          {orders.length} orders
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground">Dispatch</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">Aggregated</TableCell>
+                  </TableRow>
+                  {/* Order breakdown rows */}
+                  {isOrdersExpanded && orders.map((order, idx) => (
+                    <TableRow key={`${itemKey}-order-${idx}`} className="bg-muted/40">
+                      <TableCell className="pl-12"></TableCell>
+                      <TableCell colSpan={2}>
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-muted-foreground">Order:</span>
+                          <span className="font-medium">{order.order_number}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell colSpan={3}></TableCell>
+                      <TableCell>
+                        <span className="text-destructive text-sm">-{order.qty}</span>
+                      </TableCell>
+                      <TableCell colSpan={2}></TableCell>
+                    </TableRow>
+                  ))}
+                </React.Fragment>
+              );
+            })}
           </>
         )}
       </>
