@@ -2061,8 +2061,11 @@ export type Database = {
       }
       order_items: {
         Row: {
+          bundle_name: string | null
+          bundle_product_id: string | null
           created_at: string
           id: string
+          is_bundle_component: boolean | null
           item_name: string
           order_id: string
           price: number
@@ -2073,8 +2076,11 @@ export type Database = {
           variant_id: string | null
         }
         Insert: {
+          bundle_name?: string | null
+          bundle_product_id?: string | null
           created_at?: string
           id?: string
+          is_bundle_component?: boolean | null
           item_name: string
           order_id: string
           price: number
@@ -2085,8 +2091,11 @@ export type Database = {
           variant_id?: string | null
         }
         Update: {
+          bundle_name?: string | null
+          bundle_product_id?: string | null
           created_at?: string
           id?: string
+          is_bundle_component?: boolean | null
           item_name?: string
           order_id?: string
           price?: number
@@ -2097,6 +2106,20 @@ export type Database = {
           variant_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "order_items_bundle_product_id_fkey"
+            columns: ["bundle_product_id"]
+            isOneToOne: false
+            referencedRelation: "product_stock_summary"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "order_items_bundle_product_id_fkey"
+            columns: ["bundle_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "order_items_order_id_fkey"
             columns: ["order_id"]

@@ -489,14 +489,21 @@ Deno.serve(async (req) => {
         throw orderError;
       }
 
-      // Create order items with product_id lookup
+      // Create order items with product_id lookup and bundle detection
       if (newOrder && order.line_items.length > 0) {
-        // Fetch all products for matching
+        // Fetch all products for matching (include is_bundle flag)
         const { data: products } = await supabase
           .from('products')
-          .select('id, name, shopify_product_id');
+          .select('id, name, shopify_product_id, is_bundle');
         
-        const orderItems = order.line_items.map(item => {
+        // Fetch bundle components for all bundles
+        const { data: bundleComponents } = await supabase
+          .from('product_bundle_items')
+          .select('bundle_product_id, component_product_id, quantity');
+        
+        const orderItems: any[] = [];
+        
+        for (const item of order.line_items) {
           // Match by Shopify product ID first (most reliable)
           let matchedProduct = products?.find(p => 
             p.shopify_product_id && p.shopify_product_id === item.product_id
@@ -516,21 +523,66 @@ Deno.serve(async (req) => {
             );
           }
           
-          return {
-            order_id: newOrder.id,
-            item_name: item.name,
-            quantity: item.quantity,
-            price: parseFloat(item.price),
-            product_id: matchedProduct?.id || null,
-            shopify_product_id: item.product_id || null,
-            shopify_variant_id: item.variant_id || null,
-          };
-        });
+          // Check if matched product is a bundle with components
+          if (matchedProduct?.is_bundle) {
+            const components = bundleComponents?.filter(bc => bc.bundle_product_id === matchedProduct.id) || [];
+            
+            if (components.length > 0) {
+              // Create order items for each component with bundle reference
+              for (const component of components) {
+                const componentProduct = products?.find(p => p.id === component.component_product_id);
+                orderItems.push({
+                  order_id: newOrder.id,
+                  item_name: componentProduct?.name || 'Unknown Component',
+                  quantity: item.quantity * component.quantity,
+                  price: 0, // Component price is included in bundle
+                  product_id: component.component_product_id,
+                  shopify_product_id: componentProduct?.shopify_product_id || null,
+                  shopify_variant_id: null,
+                  bundle_product_id: matchedProduct.id,
+                  is_bundle_component: true,
+                  bundle_name: matchedProduct.name,
+                });
+              }
+              console.log(`Bundle "${matchedProduct.name}" expanded to ${components.length} components`);
+            } else {
+              // Bundle without components - treat as regular product but mark as bundle
+              orderItems.push({
+                order_id: newOrder.id,
+                item_name: item.name,
+                quantity: item.quantity,
+                price: parseFloat(item.price),
+                product_id: matchedProduct?.id || null,
+                shopify_product_id: item.product_id || null,
+                shopify_variant_id: item.variant_id || null,
+                bundle_product_id: null,
+                is_bundle_component: false,
+                bundle_name: null,
+              });
+              console.log(`Bundle "${matchedProduct.name}" has no components defined, treating as regular product`);
+            }
+          } else {
+            // Regular product (not a bundle)
+            orderItems.push({
+              order_id: newOrder.id,
+              item_name: item.name,
+              quantity: item.quantity,
+              price: parseFloat(item.price),
+              product_id: matchedProduct?.id || null,
+              shopify_product_id: item.product_id || null,
+              shopify_variant_id: item.variant_id || null,
+              bundle_product_id: null,
+              is_bundle_component: false,
+              bundle_name: null,
+            });
+          }
+        }
 
         await supabase.from('order_items').insert(orderItems);
         
         const matchedCount = orderItems.filter(i => i.product_id).length;
-        console.log(`Created ${orderItems.length} order items, ${matchedCount} matched to products`);
+        const bundleCount = orderItems.filter(i => i.is_bundle_component).length;
+        console.log(`Created ${orderItems.length} order items, ${matchedCount} matched to products, ${bundleCount} bundle components`);
       }
 
       console.log('Created new order:', newOrder?.id);
