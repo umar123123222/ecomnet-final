@@ -144,6 +144,98 @@ export async function updateOrderStatus(params: StatusUpdateParams) {
 }
 
 /**
+ * Update tracking ID for an order (independent of status change)
+ * Syncs to Shopify via database trigger
+ */
+export async function updateOrderTracking(params: {
+  orderId: string;
+  trackingId: string;
+  courier?: string;
+  userId?: string;
+}) {
+  const { orderId, trackingId, courier, userId } = params;
+
+  try {
+    // Fetch current order data
+    const { data: currentOrder, error: fetchError } = await supabase
+      .from('orders')
+      .select('order_number, tracking_id, courier, status')
+      .eq('id', orderId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    const oldTrackingId = currentOrder?.tracking_id;
+
+    // Update order with new tracking
+    const updateData: any = {
+      tracking_id: trackingId,
+      updated_at: new Date().toISOString()
+    };
+
+    // Also update courier if provided
+    if (courier) {
+      updateData.courier = courier;
+    }
+
+    // If order is pending, also update to booked
+    if (currentOrder?.status === 'pending') {
+      updateData.status = 'booked';
+      updateData.booked_at = new Date().toISOString();
+      if (userId) updateData.booked_by = userId;
+    }
+
+    const { data: order, error: updateError } = await supabase
+      .from('orders')
+      .update(updateData)
+      .eq('id', orderId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    // Also update dispatch record if exists
+    const { data: dispatch } = await supabase
+      .from('dispatches')
+      .select('id')
+      .eq('order_id', orderId)
+      .maybeSingle();
+
+    if (dispatch) {
+      await supabase
+        .from('dispatches')
+        .update({
+          tracking_id: trackingId,
+          courier: courier || currentOrder?.courier,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', dispatch.id);
+    }
+
+    // Log the tracking update
+    await supabase.from('activity_logs').insert({
+      user_id: userId || '00000000-0000-0000-0000-000000000000',
+      entity_type: 'order',
+      entity_id: orderId,
+      action: 'tracking_updated',
+      details: {
+        old_tracking_id: oldTrackingId,
+        new_tracking_id: trackingId,
+        order_number: currentOrder?.order_number,
+        courier: courier || currentOrder?.courier,
+        timestamp: new Date().toISOString()
+      }
+    });
+
+    return { success: true, data: order };
+
+  } catch (error: any) {
+    console.error('Error updating tracking:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Bulk status update for multiple orders
  */
 export async function bulkUpdateStatus(
