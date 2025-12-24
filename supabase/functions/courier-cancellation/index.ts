@@ -30,7 +30,7 @@ serve(async (req) => {
     // Get order details
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('courier')
+      .select('courier, shopify_order_id, status, tags')
       .eq('id', orderId)
       .single();
 
@@ -86,6 +86,33 @@ serve(async (req) => {
 
     if (orderUpdateError) {
       throw orderUpdateError;
+    }
+
+    // Queue Shopify sync to update tags (mark as cancelled/pending in Shopify)
+    if (order.shopify_order_id) {
+      console.log('[CANCEL] Queueing Shopify tag sync for cancelled booking');
+      
+      // Update tags - remove booked/dispatched tags, add cancellation indicator
+      const currentTags: string[] = order.tags || [];
+      const filteredTags = currentTags.filter((tag: string) => 
+        !tag.startsWith('Ecomnet - ')
+      );
+      const updatedTags = [...filteredTags, 'Ecomnet - Pending', 'Booking Cancelled'];
+      
+      // Queue sync to update Shopify tags
+      await supabase.from('sync_queue').insert({
+        entity_type: 'order',
+        entity_id: orderId,
+        action: 'update',
+        direction: 'to_shopify',
+        payload: {
+          action: 'update_tags',
+          order_id: orderId,
+          tags: updatedTags,
+        },
+      });
+      
+      console.log('[CANCEL] Shopify sync queued with updated tags:', updatedTags);
     }
 
     console.log('Order cancellation completed successfully');
