@@ -7,10 +7,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { Package, Truck, MapPin, Clock, CheckCircle, XCircle, AlertCircle, History, FileText, RefreshCw, RotateCcw, Box, ChevronRight, ChevronDown } from "lucide-react";
+import { Package, Truck, MapPin, Clock, CheckCircle, XCircle, AlertCircle, History, FileText, RefreshCw, RotateCcw, Box, ChevronRight, ChevronDown, Edit } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ConfirmOrderDialog } from "./ConfirmOrderDialog";
 import { BookCourierDialog } from "./BookCourierDialog";
+import { EditTrackingDialog } from "./EditTrackingDialog";
 import { OrderActivityLog } from "./OrderActivityLog";
 import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
@@ -167,6 +168,7 @@ export const OrderDetailsModal = ({
   const [loading, setLoading] = useState(true);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showBookDialog, setShowBookDialog] = useState(false);
+  const [showEditTrackingDialog, setShowEditTrackingDialog] = useState(false);
   const [activeTab, setActiveTab] = useState("tracking");
   const [autoFetchAttempted, setAutoFetchAttempted] = useState(false);
 
@@ -514,6 +516,10 @@ export const OrderDetailsModal = ({
                     </div>}
                 </div>
                 <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setShowEditTrackingDialog(true)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
                   <Button size="sm" variant="outline" onClick={handleFetchTracking} disabled={!dispatchInfo.tracking_id}>
                     <Package className="h-4 w-4 mr-2" />
                     Fetch Tracking
@@ -615,8 +621,18 @@ export const OrderDetailsModal = ({
     </Dialog>
 
     {/* Confirmation Dialogs */}
-    <ConfirmOrderDialog orderId={order.id} orderNumber={order.order_number} open={showConfirmDialog} onOpenChange={setShowConfirmDialog} onSuccess={handleRefresh} />
+    <ConfirmOrderDialog orderId={order.id} orderNumber={order.order_number || order.orderNumber || ''} open={showConfirmDialog} onOpenChange={setShowConfirmDialog} onSuccess={handleRefresh} />
 
-    <BookCourierDialog orderId={order.id} orderNumber={order.order_number} open={showBookDialog} onOpenChange={setShowBookDialog} onSuccess={handleRefresh} />
+    <BookCourierDialog orderId={order.id} orderNumber={order.order_number || order.orderNumber || ''} open={showBookDialog} onOpenChange={setShowBookDialog} onSuccess={handleRefresh} />
+
+    <EditTrackingDialog 
+      orderId={order.id} 
+      orderNumber={order.order_number || order.orderNumber || ''} 
+      currentTrackingId={dispatchInfo?.tracking_id || order.tracking_id}
+      currentCourier={order.courier}
+      open={showEditTrackingDialog} 
+      onOpenChange={setShowEditTrackingDialog} 
+      onSuccess={handleRefresh} 
+    />
     </>;
 };
