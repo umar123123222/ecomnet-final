@@ -130,30 +130,53 @@ Deno.serve(async (req) => {
       console.log(`✓ Preserving ERP status: ${currentOrderState.status} (not affected by Shopify updates)`);
     }
 
-    // Extract fulfillment data if available and ERP doesn't have it
+    // Extract fulfillment data - use the LATEST active (non-cancelled) fulfillment
     let extractedTracking = currentOrderState.tracking_id;
     let extractedCourier = currentOrderState.courier;
+    let trackingUpdated = false;
 
-    // If Shopify has fulfillment data and ERP doesn't have tracking, extract it
     if (order.fulfillments && order.fulfillments.length > 0) {
-      const fulfillment = order.fulfillments[0];
+      // Filter to get only active (non-cancelled) fulfillments
+      const activeFulfillments = order.fulfillments.filter((f: any) => 
+        f.status !== 'cancelled' && f.status !== 'failure'
+      );
       
-      // Only fill in if ERP doesn't already have this data
-      if (!currentOrderState.tracking_id && fulfillment.tracking_number) {
-        extractedTracking = fulfillment.tracking_number;
-        console.log(`✓ Extracted tracking from Shopify fulfillment: ${extractedTracking}`);
-      }
+      // Get the LATEST active fulfillment (last in array = most recent)
+      const latestFulfillment = activeFulfillments.length > 0 
+        ? activeFulfillments[activeFulfillments.length - 1] 
+        : null;
+
+      console.log(`Fulfillment analysis: total=${order.fulfillments.length}, active=${activeFulfillments.length}, using=${latestFulfillment?.id || 'none'}`);
       
-      if (!currentOrderState.courier && fulfillment.tracking_company) {
-        // Map Shopify tracking company to ERP courier code
-        extractedCourier = mapShopifyTrackingCompanyToCourier(fulfillment.tracking_company);
-        console.log(`✓ Extracted courier from Shopify fulfillment: ${fulfillment.tracking_company} -> ${extractedCourier}`);
-      }
-      
-      // If we extracted tracking and status is still pending, update to booked
-      if (extractedTracking && !currentOrderState.tracking_id && preservedStatus === 'pending') {
-        preservedStatus = 'booked';
-        console.log(`✓ Auto-updating status to booked (tracking extracted from Shopify)`);
+      if (latestFulfillment) {
+        // CRITICAL FIX: Update tracking if Shopify has a DIFFERENT tracking number
+        // This handles re-booking scenarios where a new fulfillment was created
+        if (latestFulfillment.tracking_number) {
+          if (currentOrderState.tracking_id !== latestFulfillment.tracking_number) {
+            extractedTracking = latestFulfillment.tracking_number;
+            trackingUpdated = true;
+            console.log(`✓ Tracking updated from Shopify: ${currentOrderState.tracking_id || 'none'} -> ${extractedTracking} (fulfillment ${latestFulfillment.id})`);
+          } else {
+            console.log(`✓ Tracking unchanged: ${extractedTracking}`);
+          }
+        }
+        
+        // Update courier if Shopify has it and it's different or ERP doesn't have it
+        if (latestFulfillment.tracking_company) {
+          const mappedCourier = mapShopifyTrackingCompanyToCourier(latestFulfillment.tracking_company);
+          if (!currentOrderState.courier || (trackingUpdated && currentOrderState.courier !== mappedCourier)) {
+            extractedCourier = mappedCourier;
+            console.log(`✓ Courier extracted/updated: ${latestFulfillment.tracking_company} -> ${extractedCourier}`);
+          }
+        }
+        
+        // If we have new tracking and status is pending, update to booked
+        if (trackingUpdated && preservedStatus === 'pending') {
+          preservedStatus = 'booked';
+          console.log(`✓ Auto-updating status to booked (new tracking from Shopify fulfillment)`);
+        }
+      } else {
+        console.log(`No active fulfillments found (all ${order.fulfillments.length} are cancelled/failed)`);
       }
     }
 
@@ -188,11 +211,11 @@ Deno.serve(async (req) => {
       tags: allTags,
       last_shopify_sync: new Date().toISOString(),
       
-      // PRESERVE local courier/tracking data (or use extracted data if ERP didn't have it)
+      // Sync courier/tracking data (update if Shopify has newer data from rebooking)
       status: preservedStatus,
       courier: extractedCourier,
       tracking_id: extractedTracking,
-      booked_at: extractedTracking && !currentOrderState.tracking_id ? new Date().toISOString() : currentOrderState.booked_at,
+      booked_at: trackingUpdated ? new Date().toISOString() : currentOrderState.booked_at,
       dispatched_at: currentOrderState.dispatched_at,
       delivered_at: currentOrderState.delivered_at,
     };

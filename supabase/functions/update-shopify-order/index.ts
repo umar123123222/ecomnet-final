@@ -68,17 +68,35 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
       }
       const orderData = JSON.parse(orderText);
       
-      // Check if fulfillment exists
-      if (!orderData.order.fulfillments || orderData.order.fulfillments.length === 0) {
-      console.log('Creating fulfillment with tracking:', {
+      // Get all fulfillments and find the latest active one
+      const fulfillments = orderData.order.fulfillments || [];
+      const activeFulfillments = fulfillments.filter((f: any) => 
+        f.status !== 'cancelled' && f.status !== 'failure'
+      );
+      const latestActiveFulfillment = activeFulfillments.length > 0 
+        ? activeFulfillments[activeFulfillments.length - 1] 
+        : null;
+
+      console.log('Fulfillment analysis for update_tracking:', {
         orderId: shopifyOrderId,
-        trackingNumber: data.tracking_number,
-        trackingCompany: data.tracking_company,
-        endpoint: `${baseUrl}/orders/${shopifyOrderId}/fulfillments.json`,
+        totalFulfillments: fulfillments.length,
+        activeFulfillments: activeFulfillments.length,
+        latestActiveFulfillmentId: latestActiveFulfillment?.id,
+        latestActiveFulfillmentStatus: latestActiveFulfillment?.status,
+        newTrackingNumber: data.tracking_number,
       });
 
-      // Create new fulfillment with tracking
-      const createResponse = await fetch(`${baseUrl}/orders/${shopifyOrderId}/fulfillments.json`, {
+      // Check if we need to create a new fulfillment or update existing
+      if (!latestActiveFulfillment) {
+        // No active fulfillment exists - create new one
+        console.log('Creating new fulfillment (no active fulfillment exists):', {
+          orderId: shopifyOrderId,
+          trackingNumber: data.tracking_number,
+          trackingCompany: data.tracking_company,
+          endpoint: `${baseUrl}/orders/${shopifyOrderId}/fulfillments.json`,
+        });
+
+        const createResponse = await fetch(`${baseUrl}/orders/${shopifyOrderId}/fulfillments.json`, {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -98,27 +116,26 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
           console.error('Failed to create fulfillment:', {
             status: createResponse.status,
             statusText: createResponse.statusText,
-            headers: Object.fromEntries(createResponse.headers.entries()),
             error,
             orderId: shopifyOrderId,
           });
           throw new Error(`Failed to create fulfillment (${createResponse.status}): ${JSON.stringify(error)}`);
         }
 
-        console.log('Successfully created fulfillment with tracking');
-        
-        // Check if response has content before parsing
+        console.log('Successfully created new fulfillment with tracking');
         const text = await createResponse.text();
         return text ? JSON.parse(text) : { success: true };
       }
 
-      // Fulfillment exists, update it
-      const fulfillmentId = orderData.order.fulfillments[0].id;
+      // Active fulfillment exists - try to update it
+      const fulfillmentId = latestActiveFulfillment.id;
       
       console.log('Updating existing fulfillment:', {
         fulfillmentId,
         orderId: shopifyOrderId,
-        trackingNumber: data.tracking_number,
+        currentTracking: latestActiveFulfillment.tracking_number,
+        newTracking: data.tracking_number,
+        fulfillmentStatus: latestActiveFulfillment.status,
         endpoint: `${baseUrl}/fulfillments/${fulfillmentId}.json`,
       });
 
@@ -137,23 +154,49 @@ async function updateShopifyOrder(shopifyOrderId: number, action: string, data: 
         }),
       });
 
+      // If update fails (e.g., fulfillment is closed/immutable), try creating a new one
       if (!updateResponse.ok) {
         const errorText = await updateResponse.text();
         const error = errorText ? JSON.parse(errorText) : { message: 'Unknown error' };
-        console.error('Failed to update fulfillment tracking:', {
+        
+        console.warn('Failed to update fulfillment, attempting to create new one:', {
           status: updateResponse.status,
-          statusText: updateResponse.statusText,
-          headers: Object.fromEntries(updateResponse.headers.entries()),
           error,
-          orderId: shopifyOrderId,
           fulfillmentId,
+          orderId: shopifyOrderId,
         });
-        throw new Error(`Failed to update tracking (${updateResponse.status}): ${JSON.stringify(error)}`);
+
+        // Try creating a new fulfillment instead
+        const retryCreateResponse = await fetch(`${baseUrl}/orders/${shopifyOrderId}/fulfillments.json`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            fulfillment: {
+              location_id: null,
+              tracking_number: data.tracking_number,
+              tracking_company: data.tracking_company || 'Custom',
+              tracking_url: data.tracking_url,
+              notify_customer: data.notify_customer || false,
+            },
+          }),
+        });
+
+        if (!retryCreateResponse.ok) {
+          const retryErrorText = await retryCreateResponse.text();
+          const retryError = retryErrorText ? JSON.parse(retryErrorText) : { message: 'Unknown error' };
+          console.error('Failed to create new fulfillment after update failure:', {
+            status: retryCreateResponse.status,
+            error: retryError,
+          });
+          throw new Error(`Failed to update/create fulfillment (${updateResponse.status}/${retryCreateResponse.status}): ${JSON.stringify(error)}`);
+        }
+
+        console.log('Successfully created new fulfillment after update failure');
+        const text = await retryCreateResponse.text();
+        return text ? JSON.parse(text) : { success: true };
       }
 
       console.log('Successfully updated fulfillment tracking');
-      
-      // Check if response has content before parsing
       const text = await updateResponse.text();
       return text ? JSON.parse(text) : { success: true };
     }
