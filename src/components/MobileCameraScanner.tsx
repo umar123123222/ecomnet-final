@@ -42,6 +42,13 @@ const MobileCameraScanner: React.FC<MobileCameraScannerProps> = ({
 
   // Scan statistics
   const [scanResults, setScanResults] = useState<ScanResult[]>([]);
+  const scanResultsRef = useRef<ScanResult[]>([]);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    scanResultsRef.current = scanResults;
+  }, [scanResults]);
+  
   const successCount = scanResults.filter(r => r.success).length;
   const failedCount = scanResults.filter(r => !r.success).length;
   const avgProcessingTime = scanResults.length > 0 
@@ -194,76 +201,99 @@ const MobileCameraScanner: React.FC<MobileCameraScannerProps> = ({
     setFacingMode(prev => prev === 'environment' ? 'user' : 'environment');
   }, [stopCamera]);
 
-  // Generate and download failed scans PDF
+  // Generate and download failed scans PDF - uses ref for latest data
   const downloadFailedScansPDF = useCallback(() => {
-    const failedScans = scanResults.filter(r => !r.success);
-    if (failedScans.length === 0) return;
-
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
+    const currentResults = scanResultsRef.current;
+    const failedScans = currentResults.filter(r => !r.success);
     
-    // Title
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Failed Scans Report', pageWidth / 2, 20, { align: 'center' });
-    
-    // Summary
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 35);
-    doc.text(`Total Scans: ${scanResults.length}`, 14, 42);
-    doc.text(`Successful: ${successCount}`, 14, 49);
-    doc.text(`Failed: ${failedCount}`, 14, 56);
-    doc.text(`Avg Processing Time: ${avgProcessingTime}ms`, 14, 63);
-    
-    // Divider
-    doc.setDrawColor(200, 200, 200);
-    doc.line(14, 70, pageWidth - 14, 70);
-    
-    // Failed scans details
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Failed Scan Details', 14, 80);
-    
-    let yPos = 90;
-    const lineHeight = 7;
-    
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    
-    failedScans.forEach((scan, index) => {
-      // Check if we need a new page
-      if (yPos > 270) {
-        doc.addPage();
-        yPos = 20;
-      }
-      
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${index + 1}. ${scan.entry}`, 14, yPos);
-      yPos += lineHeight;
-      
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(150, 50, 50);
-      doc.text(`   Error: ${scan.error || 'Unknown error'}`, 14, yPos);
-      doc.setTextColor(0, 0, 0);
-      yPos += lineHeight;
-      
-      doc.setTextColor(100, 100, 100);
-      doc.text(`   Time: ${scan.timestamp.toLocaleTimeString()} | Processing: ${scan.processingTime}ms`, 14, yPos);
-      doc.setTextColor(0, 0, 0);
-      yPos += lineHeight + 3;
+    console.log('Attempting PDF download:', { 
+      totalScans: currentResults.length, 
+      failedCount: failedScans.length 
     });
     
-    // Save PDF
-    const fileName = `failed-scans-${new Date().toISOString().split('T')[0]}-${Date.now()}.pdf`;
-    doc.save(fileName);
-  }, [scanResults, successCount, failedCount, avgProcessingTime]);
+    if (failedScans.length === 0) {
+      console.log('No failed scans to download');
+      return;
+    }
+
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      
+      const totalScans = currentResults.length;
+      const successfulScans = currentResults.filter(r => r.success).length;
+      const failedScansCount = failedScans.length;
+      const avgTime = totalScans > 0 
+        ? Math.round(currentResults.reduce((sum, r) => sum + r.processingTime, 0) / totalScans)
+        : 0;
+      
+      // Title
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Failed Scans Report', pageWidth / 2, 20, { align: 'center' });
+      
+      // Summary
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 35);
+      doc.text(`Total Scans: ${totalScans}`, 14, 42);
+      doc.text(`Successful: ${successfulScans}`, 14, 49);
+      doc.text(`Failed: ${failedScansCount}`, 14, 56);
+      doc.text(`Avg Processing Time: ${avgTime}ms`, 14, 63);
+      
+      // Divider
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, 70, pageWidth - 14, 70);
+      
+      // Failed scans details
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Failed Scan Details', 14, 80);
+      
+      let yPos = 90;
+      const lineHeight = 7;
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      
+      failedScans.forEach((scan, index) => {
+        // Check if we need a new page
+        if (yPos > 270) {
+          doc.addPage();
+          yPos = 20;
+        }
+        
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${index + 1}. ${scan.entry}`, 14, yPos);
+        yPos += lineHeight;
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(150, 50, 50);
+        doc.text(`   Error: ${scan.error || 'Unknown error'}`, 14, yPos);
+        doc.setTextColor(0, 0, 0);
+        yPos += lineHeight;
+        
+        doc.setTextColor(100, 100, 100);
+        doc.text(`   Time: ${scan.timestamp.toLocaleTimeString()} | Processing: ${scan.processingTime}ms`, 14, yPos);
+        doc.setTextColor(0, 0, 0);
+        yPos += lineHeight + 3;
+      });
+      
+      // Save PDF
+      const fileName = `failed-scans-${new Date().toISOString().split('T')[0]}-${Date.now()}.pdf`;
+      doc.save(fileName);
+      console.log('PDF downloaded:', fileName);
+    } catch (error) {
+      console.error('Failed to generate PDF:', error);
+    }
+  }, []);
 
   // Start camera when dialog opens
   useEffect(() => {
     if (isOpen) {
       startCamera();
       setScanResults([]); // Reset stats when opening
+      scanResultsRef.current = []; // Reset ref too
     } else {
       stopCamera();
       setLastScannedCode(null);
@@ -275,16 +305,15 @@ const MobileCameraScanner: React.FC<MobileCameraScannerProps> = ({
   }, [isOpen, facingMode]);
 
   const handleClose = useCallback(() => {
-    stopCamera();
-    
-    // Auto-download failed scans PDF if there are any
-    const failedScans = scanResults.filter(r => !r.success);
+    // Download PDF first, before stopping camera or closing
+    const failedScans = scanResultsRef.current.filter(r => !r.success);
     if (failedScans.length > 0) {
       downloadFailedScansPDF();
     }
     
+    stopCamera();
     onClose();
-  }, [stopCamera, onClose, scanResults, downloadFailedScansPDF]);
+  }, [stopCamera, onClose, downloadFailedScansPDF]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
