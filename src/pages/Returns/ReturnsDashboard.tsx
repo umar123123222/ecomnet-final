@@ -1018,6 +1018,8 @@ const ReturnsDashboard = () => {
           returns={filteredReturns}
           loading={loading}
           canUseReturnActions={canUseReturnActions}
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
         />
         <MobileCameraScanner
           isOpen={isCameraScannerOpen}
