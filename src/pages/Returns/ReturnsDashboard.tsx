@@ -8,7 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Download, ChevronDown, ChevronUp, Edit, Lock, ScanBarcode, RotateCcw, DollarSign, ArrowUp, AlertTriangle } from 'lucide-react';
+import { Search, Download, ChevronDown, ChevronUp, Edit, Lock, ScanBarcode, RotateCcw, DollarSign, ArrowUp, AlertTriangle, Camera } from 'lucide-react';
+import MobileCameraScanner from '@/components/MobileCameraScanner';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from '@/components/layout';
 import { Switch } from '@/components/ui/switch';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
@@ -41,6 +43,9 @@ const ReturnsDashboard = () => {
   const [bulkErrors, setBulkErrors] = useState<Array<{ entry: string; error: string; errorCode?: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [visibleCount, setVisibleCount] = useState(100);
+  const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
+  
+  const isMobile = useIsMobile();
   
   // Use shared scanner mode hook
   const scannerMode = useScannerMode({ storageKey: 'returns_entry_type' });
@@ -351,6 +356,93 @@ const ReturnsDashboard = () => {
     }
     
     return { valid: true };
+  };
+
+  // Camera Scan: Process scanned input from mobile camera
+  const handleCameraScan = async (scannedValue: string) => {
+    if (!user?.id) return;
+
+    const entry = scannedValue.trim();
+
+    if (!entry) {
+      errorSound.volume = 0.5;
+      errorSound.currentTime = 0;
+      errorSound.play().catch(e => console.log('Audio play failed:', e));
+      
+      toast({
+        title: "⚠️ Empty Scan",
+        description: "Scanned value is empty",
+        variant: "destructive",
+        duration: 2000,
+      });
+      return;
+    }
+
+    // Frontend validation
+    const validation = validateTrackingEntry(entry);
+    if (!validation.valid) {
+      errorSound.volume = 0.5;
+      errorSound.currentTime = 0;
+      errorSound.play().catch(e => console.log('Audio play failed:', e));
+      
+      toast({
+        title: "❌ Invalid Entry",
+        description: validation.error,
+        variant: "destructive",
+        duration: 3000,
+      });
+      return;
+    }
+
+    try {
+      // Call edge function
+      const { data, error } = await supabase.functions.invoke('rapid-return', {
+        body: {
+          entry,
+          userId: user.id
+        }
+      });
+
+      if (error || !data?.success) {
+        errorSound.volume = 0.5;
+        errorSound.currentTime = 0;
+        errorSound.play().catch(e => console.log('Audio play failed:', e));
+
+        const errorMsg = data?.error || error?.message || 'Return failed';
+        toast({
+          title: "❌ " + errorMsg,
+          description: data?.order?.order_number ? `Order: ${data.order.order_number}` : entry,
+          variant: "destructive",
+          duration: 3000,
+        });
+        return;
+      }
+
+      // Success
+      successSound.volume = 0.5;
+      successSound.currentTime = 0;
+      successSound.play().catch(e => console.log('Audio play failed:', e));
+
+      toast({
+        title: "✓ Return Marked",
+        description: `${data.order?.order_number || entry} marked as returned`,
+        duration: 2000,
+      });
+
+      // Refresh returns list
+      queryClient.invalidateQueries({ queryKey: ['mismatched-returns'] });
+    } catch (err: any) {
+      errorSound.volume = 0.5;
+      errorSound.currentTime = 0;
+      errorSound.play().catch(e => console.log('Audio play failed:', e));
+
+      toast({
+        title: "❌ Error",
+        description: err.message || 'Failed to mark return',
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
   };
 
   const processScannerInput = async (entry: string) => {
@@ -970,11 +1062,21 @@ const ReturnsDashboard = () => {
             <>
               <Button 
                 onClick={activateScannerMode}
-                disabled={scannerModeActive}
+                disabled={scannerModeActive || isCameraScannerOpen}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <ScanBarcode className="h-4 w-4 mr-2" />
                 Scan to Return
+              </Button>
+
+              <Button
+                onClick={() => setIsCameraScannerOpen(true)}
+                disabled={scannerModeActive || isCameraScannerOpen}
+                variant="outline"
+                className="gap-2"
+              >
+                <Camera className="h-4 w-4" />
+                {isMobile ? 'Camera' : 'Camera Scan'}
               </Button>
               <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
                 <DialogTrigger asChild>
@@ -1479,6 +1581,14 @@ const ReturnsDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Mobile Camera Scanner */}
+      <MobileCameraScanner
+        isOpen={isCameraScannerOpen}
+        onClose={() => setIsCameraScannerOpen(false)}
+        onScan={handleCameraScan}
+        title="Scan to Return"
+      />
     </PageContainer>
   );
 };

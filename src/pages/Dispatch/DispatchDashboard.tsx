@@ -12,7 +12,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, Lock, ScanBarcode, Package, RefreshCw, DollarSign, ArrowUp } from 'lucide-react';
+import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, Lock, ScanBarcode, Package, RefreshCw, DollarSign, ArrowUp, Camera } from 'lucide-react';
+import MobileCameraScanner from '@/components/MobileCameraScanner';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from '@/components/layout';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
@@ -48,9 +50,12 @@ const DispatchDashboard = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [bulkErrors, setBulkErrors] = useState<Array<{ entry: string; error: string; errorCode?: string }>>([]);
   const [visibleCount, setVisibleCount] = useState(100);
+  const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
   
   // Scanner Mode Action (dispatch-specific)
   const [scannerModeAction, setScannerModeAction] = useState<'dispatch' | null>(null);
+  
+  const isMobile = useIsMobile();
   
   // Use shared scanner mode hook
   const scannerMode = useScannerMode({ storageKey: 'dispatch_entry_type', maxConcurrent: 5 });
@@ -779,6 +784,106 @@ const metrics = useMemo(() => {
     return { valid: true };
   };
 
+  // Camera Scan: Process scanned input from mobile camera
+  const handleCameraScan = async (scannedValue: string) => {
+    if (!user?.id) return;
+
+    const trimmedValue = scannedValue.trim();
+
+    if (!trimmedValue) {
+      errorSound.volume = 0.5;
+      errorSound.currentTime = 0;
+      errorSound.play().catch(e => console.log('Audio play failed:', e));
+      
+      toast({
+        title: "⚠️ Empty Scan",
+        description: "Scanned value is empty",
+        variant: "destructive",
+        duration: 2000,
+      });
+      return;
+    }
+
+    // Frontend validation before calling edge function
+    const validation = validateTrackingEntry(trimmedValue);
+    if (!validation.valid) {
+      errorSound.volume = 0.5;
+      errorSound.currentTime = 0;
+      errorSound.play().catch(e => console.log('Audio play failed:', e));
+      
+      toast({
+        title: "❌ Invalid Entry",
+        description: validation.error,
+        variant: "destructive",
+        duration: 3000,
+      });
+      return;
+    }
+
+    // Get courier info for edge function
+    let courierIdForCall = selectedCourier;
+    let courierNameForCall = '';
+    let courierCodeForCall = '';
+
+    if (selectedCourier) {
+      const selectedCourierObj = courierMap.get(selectedCourier);
+      if (selectedCourierObj) {
+        courierNameForCall = selectedCourierObj.name;
+        courierCodeForCall = selectedCourierObj.code;
+      }
+    }
+
+    try {
+      // Call optimized edge function
+      const { data, error } = await supabase.functions.invoke('rapid-dispatch', {
+        body: {
+          entry: trimmedValue,
+          courierId: courierIdForCall,
+          courierName: courierNameForCall,
+          courierCode: courierCodeForCall,
+          userId: user.id
+        }
+      });
+
+      if (error || !data?.success) {
+        errorSound.volume = 0.5;
+        errorSound.currentTime = 0;
+        errorSound.play().catch(e => console.log('Audio play failed:', e));
+
+        const errorMsg = data?.error || error?.message || 'Dispatch failed';
+        toast({
+          title: "❌ " + errorMsg,
+          description: data?.order_number ? `Order: ${data.order_number}` : trimmedValue,
+          variant: "destructive",
+          duration: 3000,
+        });
+        return;
+      }
+
+      // Success
+      successSound.volume = 0.5;
+      successSound.currentTime = 0;
+      successSound.play().catch(e => console.log('Audio play failed:', e));
+
+      toast({
+        title: "✓ Dispatched",
+        description: `${data.order_number || trimmedValue} - ${data.customer_name || ''}`,
+        duration: 2000,
+      });
+    } catch (err: any) {
+      errorSound.volume = 0.5;
+      errorSound.currentTime = 0;
+      errorSound.play().catch(e => console.log('Audio play failed:', e));
+
+      toast({
+        title: "❌ Error",
+        description: err.message || 'Failed to dispatch',
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
+  };
+
   // Scanner Mode: Process scanned input with OPTIMISTIC UPDATE AND PARALLEL PROCESSING
   const processScannerInput = async (scannedValue: string) => {
     if (!scannerModeActive || !scannerModeAction || !user?.id) return;
@@ -1329,11 +1434,21 @@ const metrics = useMemo(() => {
             <>
               <Button
                 onClick={activateScannerMode}
-                disabled={scannerModeActive}
+                disabled={scannerModeActive || isCameraScannerOpen}
                 className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
               >
                 <ScanBarcode className="mr-2 h-4 w-4" />
                 {scannerModeActive ? 'Scanner Active...' : 'Scan to Dispatch'}
+              </Button>
+
+              <Button
+                onClick={() => setIsCameraScannerOpen(true)}
+                disabled={scannerModeActive || isCameraScannerOpen}
+                variant="outline"
+                className="gap-2"
+              >
+                <Camera className="h-4 w-4" />
+                {isMobile ? 'Camera' : 'Camera Scan'}
               </Button>
 
               <Dialog open={isManualEntryOpen} onOpenChange={(open) => {
@@ -1907,6 +2022,14 @@ const metrics = useMemo(() => {
           </div>
         </div>
       )}
+
+      {/* Mobile Camera Scanner */}
+      <MobileCameraScanner
+        isOpen={isCameraScannerOpen}
+        onClose={() => setIsCameraScannerOpen(false)}
+        onScan={handleCameraScan}
+        title="Scan to Dispatch"
+      />
     </PageContainer>;
 };
 export default DispatchDashboard;
