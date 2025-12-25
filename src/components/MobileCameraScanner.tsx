@@ -356,17 +356,17 @@ const MobileCameraScanner: React.FC<MobileCameraScannerProps> = ({
               </div>
 
               {/* Stats Overlay - Top Corners */}
-              <div className="absolute top-16 left-3 right-3 flex justify-between pointer-events-none">
+              <div className="absolute top-20 left-4 right-4 flex justify-between pointer-events-none z-20">
                 {/* Success Count - Top Left */}
-                <div className="flex items-center gap-1.5 bg-green-600/90 backdrop-blur-sm px-3 py-1.5 rounded-full">
-                  <CheckCircle className="h-4 w-4 text-white" />
-                  <span className="text-white font-bold text-sm">{successCount}</span>
+                <div className="flex items-center gap-2 bg-green-600 shadow-lg px-4 py-2 rounded-full">
+                  <CheckCircle className="h-5 w-5 text-white" />
+                  <span className="text-white font-bold text-base">{successCount}</span>
                 </div>
                 
                 {/* Failed Count - Top Right */}
-                <div className="flex items-center gap-1.5 bg-red-600/90 backdrop-blur-sm px-3 py-1.5 rounded-full">
-                  <XCircle className="h-4 w-4 text-white" />
-                  <span className="text-white font-bold text-sm">{failedCount}</span>
+                <div className="flex items-center gap-2 bg-red-600 shadow-lg px-4 py-2 rounded-full">
+                  <XCircle className="h-5 w-5 text-white" />
+                  <span className="text-white font-bold text-base">{failedCount}</span>
                 </div>
               </div>
 
