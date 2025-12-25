@@ -430,7 +430,7 @@ export const useOrdersData = () => {
     (async () => {
       const { data, error } = await supabase
         .from('order_items')
-        .select('item_name, quantity, price, order_id')
+        .select('item_name, quantity, price, order_id, bundle_name, bundle_product_id, is_bundle_component')
         .in('order_id', toFetch);
 
       if (error) {
