@@ -31,6 +31,8 @@ import { OrderDetailsModal } from '@/components/orders/OrderDetailsModal';
 import { CancelOrderDialog } from '@/components/orders/CancelOrderDialog';
 import { FixShopifyFulfilledOrders } from '@/components/orders/FixShopifyFulfilledOrders';
 import { VerifyDeliveredOrders } from '@/components/orders/VerifyDeliveredOrders';
+import OrdersMobileView from '@/components/orders/OrdersMobileView';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // New refactored components
 import { useOrdersData, FormattedOrder } from '@/hooks/useOrdersData';
@@ -38,6 +40,7 @@ import { OrderSummaryCards } from '@/components/orders/OrderSummaryCards';
 import { OrderTableBody } from '@/components/orders/OrderTableBody';
 
 const OrderDashboard = () => {
+  const isMobile = useIsMobile();
   const { isManager, isSeniorStaff, primaryRole, hasAnyRole, permissions } = useUserRoles();
   const { data: couriers = [] } = useCouriers();
   const { toast } = useToast();
@@ -609,6 +612,56 @@ const OrderDashboard = () => {
   // Permission flags
   const canUpdateStatus = isManager() || isSeniorStaff() || primaryRole === 'staff';
   const canOverrideDispatchLock = hasAnyRole(['super_admin', 'super_manager', 'warehouse_manager']);
+
+  // State for mobile new order dialog
+  const [showNewOrderDialog, setShowNewOrderDialog] = useState(false);
+
+  // Handle view details on mobile
+  const handleMobileViewDetails = (order: FormattedOrder) => {
+    setSelectedOrder(order);
+    setDetailsModalOpen(true);
+  };
+
+  // Handle load more for mobile
+  const handleLoadMore = () => {
+    setPage(prev => prev + 1);
+  };
+
+  // Mobile View
+  if (isMobile) {
+    return (
+      <>
+        <OrdersMobileView
+          orders={orders}
+          totalCount={totalCount}
+          summaryData={summaryData}
+          loading={loading}
+          searchInput={searchInput}
+          onSearchChange={setSearchInput}
+          filters={filters}
+          updateFilter={updateFilter}
+          resetFilters={resetFilters}
+          couriers={couriers}
+          onViewDetails={handleMobileViewDetails}
+          onNewOrder={() => setShowNewOrderDialog(true)}
+          onRefresh={fetchOrders}
+          hasMore={(page + 1) * pageSize < totalCount}
+          onLoadMore={handleLoadMore}
+          activeFiltersCount={activeFiltersCount}
+        />
+        <NewOrderDialog 
+          open={showNewOrderDialog} 
+          onOpenChange={setShowNewOrderDialog}
+          onOrderCreated={handleNewOrderCreated} 
+        />
+        <OrderDetailsModal 
+          open={detailsModalOpen} 
+          onOpenChange={setDetailsModalOpen} 
+          order={selectedOrder as any} 
+        />
+      </>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">

@@ -30,10 +30,15 @@ interface Product {
 
 interface NewOrderDialogProps {
   onOrderCreated: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
-  const [open, setOpen] = useState(false);
+const NewOrderDialog = ({ onOrderCreated, open: controlledOpen, onOpenChange }: NewOrderDialogProps) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = isControlled ? (onOpenChange || (() => {})) : setInternalOpen;
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [availableProducts, setAvailableProducts] = useState<any[]>([]);
@@ -325,12 +330,14 @@ const NewOrderDialog = ({ onOrderCreated }: NewOrderDialogProps) => {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          New Order
-        </Button>
-      </DialogTrigger>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            New Order
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Order</DialogTitle>
