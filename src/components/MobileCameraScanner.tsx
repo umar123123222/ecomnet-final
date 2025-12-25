@@ -1,13 +1,23 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { X, Camera, Flashlight, FlashlightOff, SwitchCamera, Volume2 } from 'lucide-react';
+import { X, Camera, Flashlight, FlashlightOff, SwitchCamera, Volume2, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { BrowserMultiFormatReader } from '@zxing/library';
+import { jsPDF } from 'jspdf';
+
+export interface ScanResult {
+  success: boolean;
+  entry: string;
+  orderNumber?: string;
+  error?: string;
+  processingTime: number;
+  timestamp: Date;
+}
 
 interface MobileCameraScannerProps {
   isOpen: boolean;
   onClose: () => void;
-  onScan: (data: string) => void;
+  onScan: (data: string) => Promise<ScanResult>;
   title?: string;
 }
 
@@ -28,19 +38,38 @@ const MobileCameraScanner: React.FC<MobileCameraScannerProps> = ({
   const [torchSupported, setTorchSupported] = useState(false);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Scan statistics
+  const [scanResults, setScanResults] = useState<ScanResult[]>([]);
+  const successCount = scanResults.filter(r => r.success).length;
+  const failedCount = scanResults.filter(r => !r.success).length;
+  const avgProcessingTime = scanResults.length > 0 
+    ? Math.round(scanResults.reduce((sum, r) => sum + r.processingTime, 0) / scanResults.length)
+    : 0;
 
   // Audio feedback
   const successSound = useRef<HTMLAudioElement | null>(null);
+  const errorSound = useRef<HTMLAudioElement | null>(null);
   
   useEffect(() => {
     successSound.current = new Audio('/sounds/success.mp3');
     successSound.current.volume = 0.5;
+    errorSound.current = new Audio('/sounds/error.mp3');
+    errorSound.current.volume = 0.5;
   }, []);
 
   const playSuccessSound = useCallback(() => {
     if (successSound.current) {
       successSound.current.currentTime = 0;
       successSound.current.play().catch(e => console.log('Audio play failed:', e));
+    }
+  }, []);
+
+  const playErrorSound = useCallback(() => {
+    if (errorSound.current) {
+      errorSound.current.currentTime = 0;
+      errorSound.current.play().catch(e => console.log('Audio play failed:', e));
     }
   }, []);
 
@@ -91,15 +120,39 @@ const MobileCameraScanner: React.FC<MobileCameraScannerProps> = ({
       reader.decodeFromVideoDevice(
         undefined,
         videoRef.current!,
-        (result, error) => {
-          if (result) {
+        async (result, error) => {
+          if (result && !isProcessing) {
             const scannedText = result.getText();
             
             // Prevent duplicate scans within 2 seconds
             if (scannedText !== lastScannedCode) {
               setLastScannedCode(scannedText);
-              playSuccessSound();
-              onScan(scannedText);
+              setIsProcessing(true);
+              
+              const startTime = Date.now();
+              
+              try {
+                const scanResult = await onScan(scannedText);
+                
+                setScanResults(prev => [...prev, scanResult]);
+                
+                if (scanResult.success) {
+                  playSuccessSound();
+                } else {
+                  playErrorSound();
+                }
+              } catch (err: any) {
+                playErrorSound();
+                setScanResults(prev => [...prev, {
+                  success: false,
+                  entry: scannedText,
+                  error: err.message || 'Unknown error',
+                  processingTime: Date.now() - startTime,
+                  timestamp: new Date()
+                }]);
+              }
+              
+              setIsProcessing(false);
               
               // Reset last scanned code after 2 seconds
               setTimeout(() => setLastScannedCode(null), 2000);
@@ -120,7 +173,7 @@ const MobileCameraScanner: React.FC<MobileCameraScannerProps> = ({
         setError(`Camera error: ${err.message}`);
       }
     }
-  }, [facingMode, lastScannedCode, onScan, playSuccessSound]);
+  }, [facingMode, lastScannedCode, onScan, playSuccessSound, playErrorSound, isProcessing]);
 
   const toggleTorch = useCallback(async () => {
     if (!streamRef.current || !torchSupported) return;
@@ -141,10 +194,76 @@ const MobileCameraScanner: React.FC<MobileCameraScannerProps> = ({
     setFacingMode(prev => prev === 'environment' ? 'user' : 'environment');
   }, [stopCamera]);
 
+  // Generate and download failed scans PDF
+  const downloadFailedScansPDF = useCallback(() => {
+    const failedScans = scanResults.filter(r => !r.success);
+    if (failedScans.length === 0) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Title
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Failed Scans Report', pageWidth / 2, 20, { align: 'center' });
+    
+    // Summary
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 35);
+    doc.text(`Total Scans: ${scanResults.length}`, 14, 42);
+    doc.text(`Successful: ${successCount}`, 14, 49);
+    doc.text(`Failed: ${failedCount}`, 14, 56);
+    doc.text(`Avg Processing Time: ${avgProcessingTime}ms`, 14, 63);
+    
+    // Divider
+    doc.setDrawColor(200, 200, 200);
+    doc.line(14, 70, pageWidth - 14, 70);
+    
+    // Failed scans details
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Failed Scan Details', 14, 80);
+    
+    let yPos = 90;
+    const lineHeight = 7;
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    
+    failedScans.forEach((scan, index) => {
+      // Check if we need a new page
+      if (yPos > 270) {
+        doc.addPage();
+        yPos = 20;
+      }
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${index + 1}. ${scan.entry}`, 14, yPos);
+      yPos += lineHeight;
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(150, 50, 50);
+      doc.text(`   Error: ${scan.error || 'Unknown error'}`, 14, yPos);
+      doc.setTextColor(0, 0, 0);
+      yPos += lineHeight;
+      
+      doc.setTextColor(100, 100, 100);
+      doc.text(`   Time: ${scan.timestamp.toLocaleTimeString()} | Processing: ${scan.processingTime}ms`, 14, yPos);
+      doc.setTextColor(0, 0, 0);
+      yPos += lineHeight + 3;
+    });
+    
+    // Save PDF
+    const fileName = `failed-scans-${new Date().toISOString().split('T')[0]}-${Date.now()}.pdf`;
+    doc.save(fileName);
+  }, [scanResults, successCount, failedCount, avgProcessingTime]);
+
   // Start camera when dialog opens
   useEffect(() => {
     if (isOpen) {
       startCamera();
+      setScanResults([]); // Reset stats when opening
     } else {
       stopCamera();
       setLastScannedCode(null);
@@ -157,8 +276,15 @@ const MobileCameraScanner: React.FC<MobileCameraScannerProps> = ({
 
   const handleClose = useCallback(() => {
     stopCamera();
+    
+    // Auto-download failed scans PDF if there are any
+    const failedScans = scanResults.filter(r => !r.success);
+    if (failedScans.length > 0) {
+      downloadFailedScansPDF();
+    }
+    
     onClose();
-  }, [stopCamera, onClose]);
+  }, [stopCamera, onClose, scanResults, downloadFailedScansPDF]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
@@ -217,7 +343,7 @@ const MobileCameraScanner: React.FC<MobileCameraScannerProps> = ({
                   <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-lg" />
                   
                   {/* Scanning line animation */}
-                  {isScanning && (
+                  {isScanning && !isProcessing && (
                     <div 
                       className="absolute left-2 right-2 h-0.5 bg-primary"
                       style={{
@@ -229,10 +355,39 @@ const MobileCameraScanner: React.FC<MobileCameraScannerProps> = ({
                 </div>
               </div>
 
-              {/* Instructions */}
+              {/* Stats Overlay - Top Corners */}
+              <div className="absolute top-16 left-3 right-3 flex justify-between pointer-events-none">
+                {/* Success Count - Top Left */}
+                <div className="flex items-center gap-1.5 bg-green-600/90 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                  <CheckCircle className="h-4 w-4 text-white" />
+                  <span className="text-white font-bold text-sm">{successCount}</span>
+                </div>
+                
+                {/* Failed Count - Top Right */}
+                <div className="flex items-center gap-1.5 bg-red-600/90 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                  <XCircle className="h-4 w-4 text-white" />
+                  <span className="text-white font-bold text-sm">{failedCount}</span>
+                </div>
+              </div>
+
+              {/* Avg Processing Time - Below scanning frame */}
+              {scanResults.length > 0 && (
+                <div className="absolute top-[calc(50%+80px)] left-1/2 -translate-x-1/2 pointer-events-none">
+                  <div className="flex items-center gap-1.5 bg-black/70 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                    <Clock className="h-3.5 w-3.5 text-blue-400" />
+                    <span className="text-white text-xs">Avg: {avgProcessingTime}ms</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Instructions / Status */}
               <div className="absolute bottom-24 left-0 right-0 text-center">
                 <p className="text-white text-sm bg-black/50 inline-block px-4 py-2 rounded-full">
-                  {lastScannedCode ? '✓ Scanned! Ready for next...' : 'Point camera at barcode'}
+                  {isProcessing 
+                    ? '⏳ Processing...' 
+                    : lastScannedCode 
+                      ? '✓ Scanned! Ready for next...' 
+                      : 'Point camera at barcode'}
                 </p>
               </div>
             </>
