@@ -367,58 +367,55 @@ export const OrderDetailsModal = ({
   };
   return <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <div className="flex items-center justify-between">
-              <DialogTitle className="flex items-center gap-3">
-                <span>Order #{order?.order_number || order?.orderNumber || order?.shopify_order_number || order?.shopifyOrderNumber || order?.id?.slice(0, 8) || 'N/A'}</span>
+              <DialogTitle className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <span className="text-base sm:text-lg">Order #{order?.order_number || order?.orderNumber || order?.shopify_order_number || order?.shopifyOrderNumber || order?.id?.slice(0, 8) || 'N/A'}</span>
                 <Badge variant={order.status === 'delivered' ? 'success' : order.status === 'confirmed' ? 'default' : order.status === 'booked' ? 'secondary' : order.status === 'pending' ? 'warning' : order.status === 'dispatched' ? 'secondary' : order.status === 'returned' ? 'destructive' : 'outline'}>
                   {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Unknown'}
                 </Badge>
               </DialogTitle>
-              
-              {/* Quick Actions */}
-              
             </div>
           </DialogHeader>
 
           {/* Order Summary Card */}
-          <div className="border rounded-lg p-4 bg-card space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="border rounded-lg p-3 sm:p-4 bg-card space-y-3 sm:space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {/* Customer Info */}
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">Customer</div>
-                <div className="font-medium">{order.customer_name || order.customer || 'N/A'}</div>
+              <div className="space-y-1.5 sm:space-y-2">
+                <div className="text-xs sm:text-sm text-muted-foreground font-medium">Customer</div>
+                <div className="font-medium text-sm sm:text-base">{order.customer_name || order.customer || 'N/A'}</div>
                 {(order.customer_phone || order.phone) && (
-                  <div className="text-sm text-muted-foreground">{order.customer_phone || order.phone}</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">{order.customer_phone || order.phone}</div>
                 )}
                 {(order.customer_email || order.email) && (order.customer_email || order.email) !== 'N/A' && (
-                  <div className="text-sm text-muted-foreground">{order.customer_email || order.email}</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground truncate">{order.customer_email || order.email}</div>
                 )}
               </div>
 
               {/* Order Total Breakdown */}
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">Order Total</div>
+              <div className="space-y-1.5 sm:space-y-2">
+                <div className="text-xs sm:text-sm text-muted-foreground font-medium">Order Total</div>
                 {(() => {
                   const totalAmount = order.total_amount ?? order.totalPrice ?? 0;
                   const shippingCharges = order.shipping_charges ?? 0;
                   return shippingCharges > 0 ? (
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-sm">
+                    <div className="space-y-0.5 sm:space-y-1">
+                      <div className="flex justify-between text-xs sm:text-sm">
                         <span className="text-muted-foreground">Subtotal:</span>
                         <span className="font-mono">
                           PKR {(totalAmount - shippingCharges).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-xs sm:text-sm">
                         <span className="text-muted-foreground">Shipping:</span>
                         <span className="font-mono">
                           PKR {shippingCharges.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </div>
                       <div className="border-t pt-1 mt-1"></div>
-                      <div className="flex justify-between font-semibold">
+                      <div className="flex justify-between font-semibold text-sm sm:text-base">
                         <span>Total:</span>
                         <span className="font-mono">
                           PKR {totalAmount.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -426,7 +423,7 @@ export const OrderDetailsModal = ({
                       </div>
                     </div>
                   ) : (
-                    <div className="font-semibold font-mono">
+                    <div className="font-semibold font-mono text-sm sm:text-base">
                       PKR {totalAmount.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                   );
@@ -435,26 +432,61 @@ export const OrderDetailsModal = ({
             </div>
 
             {/* Address */}
-            <div className="pt-2 border-t">
-              <div className="text-sm text-muted-foreground mb-1">Delivery Address</div>
-              <div className="text-sm">{order.customer_address || order.address || ''}, {order.city}</div>
+            <div className="pt-2 sm:pt-3 border-t">
+              <div className="text-xs sm:text-sm text-muted-foreground mb-1 font-medium flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5" />
+                Delivery Address
+              </div>
+              <div className="text-xs sm:text-sm">{order.customer_address || order.address || ''}{order.city ? `, ${order.city}` : ''}</div>
             </div>
+
+            {/* Order Items Section */}
+            {order.items && (Array.isArray(order.items) ? order.items.length > 0 : Object.keys(order.items).length > 0) && (
+              <div className="pt-2 sm:pt-3 border-t">
+                <div className="text-xs sm:text-sm text-muted-foreground mb-2 font-medium flex items-center gap-1.5">
+                  <Package className="h-3.5 w-3.5" />
+                  Order Items
+                </div>
+                <div className="space-y-2">
+                  {(Array.isArray(order.items) ? order.items : []).map((item: any, index: number) => (
+                    <div key={index} className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-xs sm:text-sm truncate">
+                          {item.name || item.item_name || item.product_name || 'Unknown Item'}
+                        </div>
+                        {item.variant_title && (
+                          <div className="text-xs text-muted-foreground">{item.variant_title}</div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs sm:text-sm shrink-0 ml-2">
+                        <span className="text-muted-foreground">×{item.quantity || 1}</span>
+                        <span className="font-mono font-medium">
+                          PKR {((item.price || 0) * (item.quantity || 1)).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Packaging Recommendation */}
             {packagingRecommendation && (
-              <div className="pt-2 border-t">
-                <div className="text-sm text-muted-foreground mb-2">📦 Packaging</div>
-                <Alert className={packagingRecommendation.is_available ? 'border-green-500/50 bg-green-500/5' : 'border-orange-500/50 bg-orange-500/5'}>
-                  <Box className="h-4 w-4" />
+              <div className="pt-2 sm:pt-3 border-t">
+                <div className="text-xs sm:text-sm text-muted-foreground mb-2 font-medium flex items-center gap-1.5">
+                  <Box className="h-3.5 w-3.5" />
+                  Packaging
+                </div>
+                <Alert className={`py-2 ${packagingRecommendation.is_available ? 'border-green-500/50 bg-green-500/5' : 'border-orange-500/50 bg-orange-500/5'}`}>
                   <AlertDescription>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="font-medium">{packagingRecommendation.packaging_name}</span>
-                        <span className="text-xs text-muted-foreground ml-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="font-medium text-xs sm:text-sm">{packagingRecommendation.packaging_name}</span>
+                        <span className="text-[10px] sm:text-xs text-muted-foreground ml-1.5">
                           ({packagingRecommendation.packaging_sku})
                         </span>
                       </div>
-                      <div className="text-sm">
+                      <div className="text-xs sm:text-sm shrink-0">
                         {packagingRecommendation.is_available ? (
                           <span className="text-green-600 dark:text-green-400">
                             ✓ {packagingRecommendation.current_stock} in stock
@@ -473,145 +505,166 @@ export const OrderDetailsModal = ({
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="tracking">
-                <Package className="mr-2 h-4 w-4" />
+            <TabsList className="grid w-full grid-cols-2 h-9 sm:h-10">
+              <TabsTrigger value="tracking" className="text-xs sm:text-sm">
+                <Truck className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 Tracking
               </TabsTrigger>
-              <TabsTrigger value="activity">
-                <History className="mr-2 h-4 w-4" />
+              <TabsTrigger value="activity" className="text-xs sm:text-sm">
+                <History className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 Activity Log
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="tracking" className="mt-4">
-
-        {loading ? <div className="flex items-center justify-center py-12">
-            <div className="text-muted-foreground">Loading tracking details...</div>
-          </div> : !dispatchInfo ? <div className="flex flex-col items-center justify-center py-12 space-y-4">
-            <Package className="h-16 w-16 text-muted-foreground/30" />
-            <div className="text-center space-y-2">
-              <h3 className="font-semibold text-lg">Not Booked Yet</h3>
-              <p className="text-sm text-muted-foreground max-w-md">
-                This order hasn't been booked with a courier yet. Book a courier to start tracking.
-              </p>
-            </div>
-            {order.status === 'confirmed' && <Button onClick={() => setShowBookDialog(true)} className="mt-4">
-                <Truck className="mr-2 h-4 w-4" />
-                Book Courier Now
-              </Button>}
-          </div> : <div className="space-y-6 mt-4">
-            {/* Dispatch Information */}
-            <div className="border rounded-lg p-4 bg-card space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1 flex-1">
-                  <div className="flex items-center gap-2">
-                    <Truck className="h-5 w-5 text-primary" />
-                    <span className="font-semibold text-lg">
-                      {dispatchInfo.couriers?.name || dispatchInfo.courier?.toUpperCase() || 'Unknown'}
-                    </span>
+            <TabsContent value="tracking" className="mt-3 sm:mt-4">
+              {loading ? (
+                <div className="flex items-center justify-center py-8 sm:py-12">
+                  <div className="text-sm text-muted-foreground">Loading tracking details...</div>
+                </div>
+              ) : !dispatchInfo ? (
+                <div className="flex flex-col items-center justify-center py-8 sm:py-12 space-y-3 sm:space-y-4">
+                  <Package className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground/30" />
+                  <div className="text-center space-y-1.5 sm:space-y-2 px-4">
+                    <h3 className="font-semibold text-base sm:text-lg">Not Booked Yet</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground max-w-md">
+                      This order hasn't been booked with a courier yet. Book a courier to start tracking.
+                    </p>
                   </div>
-                  {dispatchInfo.tracking_id && <div className="text-sm text-muted-foreground">
-                      Tracking ID: <span className="font-mono font-medium text-foreground">{dispatchInfo.tracking_id}</span>
-                    </div>}
+                  {order.status === 'confirmed' && (
+                    <Button onClick={() => setShowBookDialog(true)} className="mt-2 sm:mt-4" size="sm">
+                      <Truck className="mr-2 h-4 w-4" />
+                      Book Courier Now
+                    </Button>
+                  )}
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setShowEditTrackingDialog(true)}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={handleFetchTracking} disabled={!dispatchInfo.tracking_id}>
-                    <Package className="h-4 w-4 mr-2" />
-                    Fetch Tracking
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={handleRefresh}>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Refresh
-                  </Button>
-                </div>
-              </div>
+              ) : (
+                <div className="space-y-4 sm:space-y-6">
+                  {/* Dispatch Information */}
+                  <div className="border rounded-lg p-3 sm:p-4 bg-card space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0">
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Truck className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                          <span className="font-semibold text-base sm:text-lg">
+                            {dispatchInfo.couriers?.name || dispatchInfo.courier?.toUpperCase() || 'Unknown'}
+                          </span>
+                        </div>
+                        {dispatchInfo.tracking_id && (
+                          <div className="text-xs sm:text-sm text-muted-foreground">
+                            Tracking ID: <span className="font-mono font-medium text-foreground break-all">{dispatchInfo.tracking_id}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                        <Button size="sm" variant="outline" onClick={() => setShowEditTrackingDialog(true)} className="h-8 text-xs sm:text-sm px-2 sm:px-3">
+                          <Edit className="h-3.5 w-3.5 sm:mr-1.5" />
+                          <span className="hidden sm:inline">Edit</span>
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={handleFetchTracking} disabled={!dispatchInfo.tracking_id} className="h-8 text-xs sm:text-sm px-2 sm:px-3">
+                          <Package className="h-3.5 w-3.5 sm:mr-1.5" />
+                          <span className="hidden sm:inline">Fetch</span>
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={handleRefresh} className="h-8 text-xs sm:text-sm px-2 sm:px-3">
+                          <RefreshCw className="h-3.5 w-3.5 sm:mr-1.5" />
+                          <span className="hidden sm:inline">Refresh</span>
+                        </Button>
+                      </div>
+                    </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                {/* Show Dispatched date if available, otherwise show Booked date */}
-                {dispatchInfo.dispatch_date ? (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <div className="text-xs text-muted-foreground">Dispatched</div>
-                      <div className="font-medium">{format(new Date(dispatchInfo.dispatch_date), 'MMM d, yyyy hh:mm a')}</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-2">
+                      {/* Show Dispatched date if available, otherwise show Booked date */}
+                      {dispatchInfo.dispatch_date ? (
+                        <div className="flex items-center gap-2 text-xs sm:text-sm">
+                          <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+                          <div>
+                            <div className="text-[10px] sm:text-xs text-muted-foreground">Dispatched</div>
+                            <div className="font-medium">{format(new Date(dispatchInfo.dispatch_date), 'MMM d, yyyy hh:mm a')}</div>
+                          </div>
+                        </div>
+                      ) : dispatchInfo.booked_at ? (
+                        <div className="flex items-center gap-2 text-xs sm:text-sm">
+                          <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+                          <div>
+                            <div className="text-[10px] sm:text-xs text-muted-foreground">Booked</div>
+                            <div className="font-medium">{format(new Date(dispatchInfo.booked_at), 'MMM d, yyyy hh:mm a')}</div>
+                          </div>
+                        </div>
+                      ) : null}
+                      {dispatchInfo.estimated_delivery && (
+                        <div className="flex items-center gap-2 text-xs sm:text-sm">
+                          <Package className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+                          <div>
+                            <div className="text-[10px] sm:text-xs text-muted-foreground">Est. Delivery</div>
+                            <div className="font-medium">{format(new Date(dispatchInfo.estimated_delivery), 'MMM d, yyyy')}</div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                ) : dispatchInfo.booked_at ? (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <div className="text-xs text-muted-foreground">Booked</div>
-                      <div className="font-medium">{format(new Date(dispatchInfo.booked_at), 'MMM d, yyyy hh:mm a')}</div>
-                    </div>
-                  </div>
-                ) : null}
-                {dispatchInfo.estimated_delivery && <div className="flex items-center gap-2 text-sm">
-                    <Package className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <div className="text-xs text-muted-foreground">Est. Delivery</div>
-                      <div className="font-medium">{format(new Date(dispatchInfo.estimated_delivery), 'MMM d, yyyy')}</div>
-                    </div>
-                  </div>}
-              </div>
-            </div>
 
-            {/* Action Buttons based on latest tracking status */}
-            {trackingHistory.length > 0 && <div className="flex flex-wrap gap-2">
-                {trackingHistory[0].status === 'delivered' && order.status !== 'delivered' && <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700">
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    Confirm Delivery
-                  </Button>}
-                
-                {trackingHistory[0].status === 'returned' && order.status !== 'returned' && <Button variant="destructive" size="sm">
-                    <Package className="mr-2 h-4 w-4" />
-                    Process Return
-                  </Button>}
-                
-                {trackingHistory[0].status === 'failed_delivery' && <Button variant="outline" size="sm">
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                    Reattempt Delivery
-                  </Button>}
-                
-                {dispatchInfo?.tracking_id && <Button variant="outline" size="sm">
-                    <FileText className="mr-2 h-4 w-4" />
-                    Shipper Advice
-                  </Button>}
-              </div>}
+                  {/* Action Buttons based on latest tracking status */}
+                  {trackingHistory.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {trackingHistory[0].status === 'delivered' && order.status !== 'delivered' && (
+                        <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700 h-8 text-xs sm:text-sm">
+                          <CheckCircle className="mr-1.5 h-3.5 w-3.5" />
+                          Confirm Delivery
+                        </Button>
+                      )}
+                      
+                      {trackingHistory[0].status === 'returned' && order.status !== 'returned' && (
+                        <Button variant="destructive" size="sm" className="h-8 text-xs sm:text-sm">
+                          <Package className="mr-1.5 h-3.5 w-3.5" />
+                          Process Return
+                        </Button>
+                      )}
+                      
+                      {trackingHistory[0].status === 'failed_delivery' && (
+                        <Button variant="outline" size="sm" className="h-8 text-xs sm:text-sm">
+                          <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                          Reattempt Delivery
+                        </Button>
+                      )}
+                      
+                      {dispatchInfo?.tracking_id && (
+                        <Button variant="outline" size="sm" className="h-8 text-xs sm:text-sm">
+                          <FileText className="mr-1.5 h-3.5 w-3.5" />
+                          Shipper Advice
+                        </Button>
+                      )}
+                    </div>
+                  )}
 
-            {/* Tracking History - Compact Vertical Timeline */}
-            {trackingHistory.length > 0 ? (
-              <TrackingTimeline 
-                trackingHistory={trackingHistory}
-                formatTrackingStatus={formatTrackingStatus}
-                getStatusIcon={getStatusIcon}
-                getStatusColor={getStatusColor}
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center py-8 space-y-3 border rounded-lg bg-muted/20">
-                <div className="p-3 rounded-full bg-muted">
-                  <Package className="h-8 w-8 text-muted-foreground" />
+                  {/* Tracking History - Compact Vertical Timeline */}
+                  {trackingHistory.length > 0 ? (
+                    <TrackingTimeline 
+                      trackingHistory={trackingHistory}
+                      formatTrackingStatus={formatTrackingStatus}
+                      getStatusIcon={getStatusIcon}
+                      getStatusColor={getStatusColor}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-6 sm:py-8 space-y-3 border rounded-lg bg-muted/20">
+                      <div className="p-2.5 sm:p-3 rounded-full bg-muted">
+                        <Package className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
+                      </div>
+                      <div className="space-y-1 text-center px-4">
+                        <div className="text-xs sm:text-sm font-semibold">No Tracking Data</div>
+                        <div className="text-[10px] sm:text-xs text-muted-foreground max-w-xs">
+                          Click "Fetch Tracking" to get updates from the courier.
+                        </div>
+                      </div>
+                      {dispatchInfo?.tracking_id && (
+                        <Button variant="outline" size="sm" onClick={handleFetchTracking} className="h-8 text-xs sm:text-sm">
+                          <Package className="h-3.5 w-3.5 mr-1.5" />
+                          Fetch Tracking
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-1 text-center">
-                  <div className="text-sm font-semibold">No Tracking Data</div>
-                  <div className="text-xs text-muted-foreground max-w-xs">
-                    Click "Fetch Tracking" to get updates from the courier.
-                  </div>
-                </div>
-                {dispatchInfo?.tracking_id && (
-                  <Button variant="outline" size="sm" onClick={handleFetchTracking}>
-                    <Package className="h-4 w-4 mr-2" />
-                    Fetch Tracking
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>}
-          </TabsContent>
+              )}
+            </TabsContent>
 
           <TabsContent value="activity" className="mt-4">
             <OrderActivityLog orderId={order.id} open={activeTab === 'activity'} onOpenChange={() => {}} embedded={true} />
