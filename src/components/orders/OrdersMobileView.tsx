@@ -335,6 +335,21 @@ const OrdersMobileView: React.FC<OrdersMobileViewProps> = ({
                     {order.customer || 'Unknown Customer'}
                   </div>
 
+                  {/* Bundle Names if present */}
+                  {(() => {
+                    const items = (order.items || []) as Array<{ bundle_name?: string; is_bundle_component?: boolean; item_name?: string }>;
+                    const bundleNames = [...new Set(items.filter(i => i.bundle_name || i.is_bundle_component).map(i => i.bundle_name || 'Bundle'))];
+                    if (bundleNames.length > 0) {
+                      return (
+                        <div className="flex items-center gap-1 text-xs text-primary/80 mb-1">
+                          <Package className="h-3 w-3" />
+                          <span className="truncate">{bundleNames.join(', ')}</span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
                   {/* Bottom Row: City, Amount, Date */}
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span className="truncate max-w-[120px]">{order.city || 'N/A'}</span>
