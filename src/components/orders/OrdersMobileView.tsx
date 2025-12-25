@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import { 
   Search, 
   Filter, 
@@ -13,10 +14,11 @@ import {
   CheckCircle,
   Truck,
   X,
-  RefreshCw
+  RefreshCw,
+  DollarSign
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { FormattedOrder, SummaryData, OrderFilters } from '@/hooks/useOrdersData';
 import { cn } from '@/lib/utils';
@@ -76,8 +78,6 @@ const OrdersMobileView: React.FC<OrdersMobileViewProps> = ({
   onLoadMore,
   activeFiltersCount,
 }) => {
-  const [showFilters, setShowFilters] = useState(false);
-
   const formatCurrency = (amount: number) => {
     return `₨${amount?.toLocaleString() || 0}`;
   };
@@ -149,7 +149,7 @@ const OrdersMobileView: React.FC<OrdersMobileViewProps> = ({
         ))}
       </div>
 
-      {/* Search + Filter Toggle */}
+      {/* Search + Filter Sheet */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -160,66 +160,129 @@ const OrdersMobileView: React.FC<OrdersMobileViewProps> = ({
             className="pl-9 h-10"
           />
         </div>
-        <Button
-          variant={showFilters || activeFiltersCount > 0 ? 'default' : 'outline'}
-          size="icon"
-          className="h-10 w-10 shrink-0 relative"
-          onClick={() => setShowFilters(!showFilters)}
-        >
-          <Filter className="h-4 w-4" />
-          {activeFiltersCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] text-destructive-foreground flex items-center justify-center">
-              {activeFiltersCount}
-            </span>
-          )}
-        </Button>
-      </div>
-
-      {/* Collapsible Filters */}
-      <Collapsible open={showFilters} onOpenChange={setShowFilters}>
-        <CollapsibleContent className="space-y-2">
-          <DatePickerWithRange 
-            date={filters.statusDateRange} 
-            setDate={(range) => updateFilter('statusDateRange', range)} 
-            className="w-full"
-          />
-          <Select value={filters.courier} onValueChange={(val) => updateFilter('courier', val)}>
-            <SelectTrigger className="h-10">
-              <SelectValue placeholder="All Couriers" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Couriers</SelectItem>
-              <SelectItem value="none">No Courier</SelectItem>
-              {couriers.map((courier) => (
-                <SelectItem key={courier.id} value={courier.code || courier.name}>
-                  {courier.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex gap-2">
-            <Input
-              type="number"
-              placeholder="Min Amount"
-              value={filters.amountMin || ''}
-              onChange={(e) => updateFilter('amountMin', e.target.value ? Number(e.target.value) : undefined)}
-              className="h-10"
-            />
-            <Input
-              type="number"
-              placeholder="Max Amount"
-              value={filters.amountMax || ''}
-              onChange={(e) => updateFilter('amountMax', e.target.value ? Number(e.target.value) : undefined)}
-              className="h-10"
-            />
-          </div>
-          {activeFiltersCount > 0 && (
-            <Button variant="ghost" size="sm" onClick={resetFilters} className="w-full">
-              Clear All Filters
+        
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button
+              variant={activeFiltersCount > 0 ? 'default' : 'outline'}
+              size="icon"
+              className="h-10 w-10 shrink-0 relative"
+            >
+              <Filter className="h-4 w-4" />
+              {activeFiltersCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] text-destructive-foreground flex items-center justify-center">
+                  {activeFiltersCount}
+                </span>
+              )}
             </Button>
-          )}
-        </CollapsibleContent>
-      </Collapsible>
+          </SheetTrigger>
+          <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Filter Orders</SheetTitle>
+              <SheetDescription>Apply filters to refine your order view</SheetDescription>
+            </SheetHeader>
+
+            <div className="space-y-6 py-6">
+              <div className="space-y-3">
+                <Label className="text-base font-semibold">Order Status</Label>
+                <Select value={filters.status} onValueChange={value => updateFilter('status', value)}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="booked">Booked</SelectItem>
+                    <SelectItem value="dispatched">Dispatched</SelectItem>
+                    <SelectItem value="delivered">Delivered</SelectItem>
+                    <SelectItem value="returned">Returned</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-base font-semibold">Courier</Label>
+                <Select value={filters.courier} onValueChange={value => updateFilter('courier', value)}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select courier" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    <SelectItem value="all">All Couriers</SelectItem>
+                    <SelectItem value="none">No Courier</SelectItem>
+                    {couriers.map(c => (
+                      <SelectItem key={c.id} value={c.code}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-base font-semibold">Date Range</Label>
+                <DatePickerWithRange
+                  date={filters.statusDateRange}
+                  setDate={(range) => updateFilter('statusDateRange', range)}
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-base font-semibold flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Amount Range
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Min"
+                    value={filters.amountMin ?? ''}
+                    onChange={e => updateFilter('amountMin', e.target.value ? Number(e.target.value) : undefined)}
+                    className="bg-background"
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Max"
+                    value={filters.amountMax ?? ''}
+                    onChange={e => updateFilter('amountMax', e.target.value ? Number(e.target.value) : undefined)}
+                    className="bg-background"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-base font-semibold">City</Label>
+                <Input
+                  placeholder="Filter by city..."
+                  value={filters.city === 'all' ? '' : filters.city}
+                  onChange={e => updateFilter('city', e.target.value || 'all')}
+                  className="bg-background"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-base font-semibold">Has Tracking ID</Label>
+                <Select value={filters.hasTrackingId} onValueChange={value => updateFilter('hasTrackingId', value)}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    <SelectItem value="all">All Orders</SelectItem>
+                    <SelectItem value="yes">With Tracking ID</SelectItem>
+                    <SelectItem value="no">Without Tracking ID</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {activeFiltersCount > 0 && (
+                <Button variant="outline" onClick={resetFilters} className="w-full">
+                  <X className="h-4 w-4 mr-2" />
+                  Clear All Filters
+                </Button>
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
 
       {/* Order List - Card Based */}
       <div className="space-y-2">
