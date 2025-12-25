@@ -440,35 +440,59 @@ export const OrderDetailsModal = ({
               <div className="text-xs sm:text-sm">{order.customer_address || order.address || ''}{order.city ? `, ${order.city}` : ''}</div>
             </div>
 
-            {/* Order Items Section */}
-            {order.items && (Array.isArray(order.items) ? order.items.length > 0 : Object.keys(order.items).length > 0) && (
+            {/* Tracking ID Section */}
+            {(order.tracking_id || order.trackingId) && (
               <div className="pt-2 sm:pt-3 border-t">
-                <div className="text-xs sm:text-sm text-muted-foreground mb-2 font-medium flex items-center gap-1.5">
-                  <Package className="h-3.5 w-3.5" />
-                  Order Items
+                <div className="text-xs sm:text-sm text-muted-foreground mb-1 font-medium flex items-center gap-1.5">
+                  <Truck className="h-3.5 w-3.5" />
+                  Tracking Information
                 </div>
-                <div className="space-y-2">
-                  {(Array.isArray(order.items) ? order.items : []).map((item: any, index: number) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-xs sm:text-sm truncate">
-                          {item.name || item.item_name || item.product_name || 'Unknown Item'}
-                        </div>
-                        {item.variant_title && (
-                          <div className="text-xs text-muted-foreground">{item.variant_title}</div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 text-xs sm:text-sm shrink-0 ml-2">
-                        <span className="text-muted-foreground">×{item.quantity || 1}</span>
-                        <span className="font-mono font-medium">
-                          PKR {((item.price || 0) * (item.quantity || 1)).toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
+                  <div>
+                    <div className="text-xs text-muted-foreground">Courier</div>
+                    <div className="font-medium text-sm">{order.courier?.toUpperCase() || 'N/A'}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-muted-foreground">Tracking ID</div>
+                    <div className="font-mono font-medium text-sm">{order.tracking_id || order.trackingId}</div>
+                  </div>
                 </div>
               </div>
             )}
+
+            {/* Order Items Section */}
+            {(() => {
+              const items = order.items;
+              const itemsArray = Array.isArray(items) ? items : (items && typeof items === 'object' ? Object.values(items) : []);
+              return itemsArray.length > 0 ? (
+                <div className="pt-2 sm:pt-3 border-t">
+                  <div className="text-xs sm:text-sm text-muted-foreground mb-2 font-medium flex items-center gap-1.5">
+                    <Package className="h-3.5 w-3.5" />
+                    Order Items ({itemsArray.length})
+                  </div>
+                  <div className="space-y-2">
+                    {itemsArray.map((item: any, index: number) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-xs sm:text-sm truncate">
+                            {item.name || item.item_name || item.product_name || item.title || 'Unknown Item'}
+                          </div>
+                          {(item.variant_title || item.variant) && (
+                            <div className="text-xs text-muted-foreground">{item.variant_title || item.variant}</div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs sm:text-sm shrink-0 ml-2">
+                          <span className="text-muted-foreground">×{item.quantity || 1}</span>
+                          <span className="font-mono font-medium">
+                            PKR {((item.price || 0) * (item.quantity || 1)).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null;
+            })()}
 
             {/* Packaging Recommendation */}
             {packagingRecommendation && (
