@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, Lock, ScanBarcode, Package, RefreshCw, DollarSign, ArrowUp, Camera } from 'lucide-react';
 import MobileCameraScanner from '@/components/MobileCameraScanner';
+import DispatchMobileView from '@/components/dispatch/DispatchMobileView';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from '@/components/layout';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
@@ -1351,6 +1352,31 @@ const metrics = useMemo(() => {
       }
     };
   }, []);
+
+  // Mobile View
+  if (isMobile) {
+    return (
+      <>
+        <DispatchMobileView
+          onOpenScanner={() => setIsCameraScannerOpen(true)}
+          metrics={metrics}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          courierFilter={courierFilter}
+          onCourierFilterChange={setCourierFilter}
+          couriers={couriers}
+          dispatches={filteredDispatches}
+          loading={loading}
+          canUseDispatchActions={canUseDispatchActions}
+        />
+        <MobileCameraScanner
+          isOpen={isCameraScannerOpen}
+          onClose={() => setIsCameraScannerOpen(false)}
+          onScan={handleCameraScan}
+        />
+      </>
+    );
+  }
 
   return <PageContainer className="relative">
       {/* Hidden Focus Trap Input for Scanner */}

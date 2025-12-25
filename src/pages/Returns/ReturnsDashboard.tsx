@@ -10,6 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Textarea } from '@/components/ui/textarea';
 import { Search, Download, ChevronDown, ChevronUp, Edit, Lock, ScanBarcode, RotateCcw, DollarSign, ArrowUp, AlertTriangle, Camera } from 'lucide-react';
 import MobileCameraScanner from '@/components/MobileCameraScanner';
+import ReturnsMobileView from '@/components/returns/ReturnsMobileView';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from '@/components/layout';
 import { Switch } from '@/components/ui/switch';
@@ -1004,6 +1005,28 @@ const ReturnsDashboard = () => {
       }
     };
   }, []);
+
+  // Mobile View
+  if (isMobile) {
+    return (
+      <>
+        <ReturnsMobileView
+          onOpenScanner={() => setIsCameraScannerOpen(true)}
+          metrics={metrics}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          returns={filteredReturns}
+          loading={loading}
+          canUseReturnActions={canUseReturnActions}
+        />
+        <MobileCameraScanner
+          isOpen={isCameraScannerOpen}
+          onClose={() => setIsCameraScannerOpen(false)}
+          onScan={handleCameraScan}
+        />
+      </>
+    );
+  }
 
   return (
     <PageContainer className="relative">
