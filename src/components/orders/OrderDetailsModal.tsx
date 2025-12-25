@@ -480,6 +480,12 @@ export const OrderDetailsModal = ({
                           {(item.variant_title || item.variant) && (
                             <div className="text-xs text-muted-foreground">{item.variant_title || item.variant}</div>
                           )}
+                          {(item.bundle_name || item.is_bundle_component) && (
+                            <div className="text-xs text-primary/80 flex items-center gap-1 mt-0.5">
+                              <Package className="h-3 w-3" />
+                              Part of: {item.bundle_name || 'Bundle'}
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-3 text-xs sm:text-sm shrink-0 ml-2">
                           <span className="text-muted-foreground">×{item.quantity || 1}</span>
