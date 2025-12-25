@@ -359,40 +359,54 @@ const ReturnsDashboard = () => {
     return { valid: true };
   };
 
-  // Camera Scan: Process scanned input from mobile camera
-  const handleCameraScan = async (scannedValue: string) => {
-    if (!user?.id) return;
+  // Camera Scan: Process scanned input from mobile camera - returns ScanResult for stats tracking
+  const handleCameraScan = async (scannedValue: string): Promise<import('@/components/MobileCameraScanner').ScanResult> => {
+    const startTime = Date.now();
+    
+    if (!user?.id) {
+      return {
+        success: false,
+        entry: scannedValue,
+        error: 'User not authenticated',
+        processingTime: Date.now() - startTime,
+        timestamp: new Date()
+      };
+    }
 
     const entry = scannedValue.trim();
 
     if (!entry) {
-      errorSound.volume = 0.5;
-      errorSound.currentTime = 0;
-      errorSound.play().catch(e => console.log('Audio play failed:', e));
-      
       toast({
         title: "⚠️ Empty Scan",
         description: "Scanned value is empty",
         variant: "destructive",
         duration: 2000,
       });
-      return;
+      return {
+        success: false,
+        entry: scannedValue,
+        error: 'Empty scan value',
+        processingTime: Date.now() - startTime,
+        timestamp: new Date()
+      };
     }
 
     // Frontend validation
     const validation = validateTrackingEntry(entry);
     if (!validation.valid) {
-      errorSound.volume = 0.5;
-      errorSound.currentTime = 0;
-      errorSound.play().catch(e => console.log('Audio play failed:', e));
-      
       toast({
         title: "❌ Invalid Entry",
         description: validation.error,
         variant: "destructive",
         duration: 3000,
       });
-      return;
+      return {
+        success: false,
+        entry,
+        error: validation.error || 'Invalid format',
+        processingTime: Date.now() - startTime,
+        timestamp: new Date()
+      };
     }
 
     try {
@@ -404,11 +418,9 @@ const ReturnsDashboard = () => {
         }
       });
 
-      if (error || !data?.success) {
-        errorSound.volume = 0.5;
-        errorSound.currentTime = 0;
-        errorSound.play().catch(e => console.log('Audio play failed:', e));
+      const processingTime = Date.now() - startTime;
 
+      if (error || !data?.success) {
         const errorMsg = data?.error || error?.message || 'Return failed';
         toast({
           title: "❌ " + errorMsg,
@@ -416,14 +428,17 @@ const ReturnsDashboard = () => {
           variant: "destructive",
           duration: 3000,
         });
-        return;
+        return {
+          success: false,
+          entry,
+          orderNumber: data?.order?.order_number,
+          error: errorMsg,
+          processingTime,
+          timestamp: new Date()
+        };
       }
 
       // Success
-      successSound.volume = 0.5;
-      successSound.currentTime = 0;
-      successSound.play().catch(e => console.log('Audio play failed:', e));
-
       toast({
         title: "✓ Return Marked",
         description: `${data.order?.order_number || entry} marked as returned`,
@@ -432,17 +447,29 @@ const ReturnsDashboard = () => {
 
       // Refresh returns list
       queryClient.invalidateQueries({ queryKey: ['mismatched-returns'] });
+      
+      return {
+        success: true,
+        entry,
+        orderNumber: data.order?.order_number,
+        processingTime,
+        timestamp: new Date()
+      };
     } catch (err: any) {
-      errorSound.volume = 0.5;
-      errorSound.currentTime = 0;
-      errorSound.play().catch(e => console.log('Audio play failed:', e));
-
+      const processingTime = Date.now() - startTime;
       toast({
         title: "❌ Error",
         description: err.message || 'Failed to mark return',
         variant: "destructive",
         duration: 3000,
       });
+      return {
+        success: false,
+        entry,
+        error: err.message || 'Failed to mark return',
+        processingTime,
+        timestamp: new Date()
+      };
     }
   };
 
