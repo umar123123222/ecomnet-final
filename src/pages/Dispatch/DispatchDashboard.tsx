@@ -1368,6 +1368,8 @@ const metrics = useMemo(() => {
           dispatches={filteredDispatches}
           loading={loading}
           canUseDispatchActions={canUseDispatchActions}
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
         />
         <MobileCameraScanner
           isOpen={isCameraScannerOpen}

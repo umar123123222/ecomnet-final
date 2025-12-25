@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Camera, Search, Filter, RotateCcw, Package } from 'lucide-react';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
+import { DatePickerWithRange } from '@/components/DatePickerWithRange';
+import { DateRange } from 'react-day-picker';
 
 interface ReturnsMobileViewProps {
   onOpenScanner: () => void;
@@ -27,6 +29,8 @@ interface ReturnsMobileViewProps {
   }>;
   loading: boolean;
   canUseReturnActions: boolean;
+  dateRange?: DateRange;
+  onDateRangeChange: (range: DateRange | undefined) => void;
 }
 
 const ReturnsMobileView: React.FC<ReturnsMobileViewProps> = ({
@@ -37,6 +41,8 @@ const ReturnsMobileView: React.FC<ReturnsMobileViewProps> = ({
   returns,
   loading,
   canUseReturnActions,
+  dateRange,
+  onDateRangeChange,
 }) => {
   const [showFilters, setShowFilters] = React.useState(false);
 
@@ -102,12 +108,14 @@ const ReturnsMobileView: React.FC<ReturnsMobileViewProps> = ({
         </Button>
       </div>
 
-      {/* Collapsible Filters (placeholder for future filters) */}
+      {/* Collapsible Filters */}
       <Collapsible open={showFilters} onOpenChange={setShowFilters}>
         <CollapsibleContent className="space-y-2">
-          <p className="text-xs text-muted-foreground text-center py-2">
-            Additional filters available on desktop
-          </p>
+          <DatePickerWithRange 
+            date={dateRange} 
+            setDate={onDateRangeChange} 
+            className="w-full"
+          />
         </CollapsibleContent>
       </Collapsible>
 

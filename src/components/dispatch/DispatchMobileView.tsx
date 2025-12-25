@@ -5,7 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Camera, Search, Filter, Truck, Package } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
+import { DatePickerWithRange } from '@/components/DatePickerWithRange';
+import { DateRange } from 'react-day-picker';
 
 interface DispatchMobileViewProps {
   onOpenScanner: () => void;
@@ -33,6 +35,8 @@ interface DispatchMobileViewProps {
   }>;
   loading: boolean;
   canUseDispatchActions: boolean;
+  dateRange?: DateRange;
+  onDateRangeChange: (range: DateRange | undefined) => void;
 }
 
 const DispatchMobileView: React.FC<DispatchMobileViewProps> = ({
@@ -46,6 +50,8 @@ const DispatchMobileView: React.FC<DispatchMobileViewProps> = ({
   dispatches,
   loading,
   canUseDispatchActions,
+  dateRange,
+  onDateRangeChange,
 }) => {
   const [showFilters, setShowFilters] = React.useState(false);
 
@@ -109,6 +115,11 @@ const DispatchMobileView: React.FC<DispatchMobileViewProps> = ({
       {/* Collapsible Filters */}
       <Collapsible open={showFilters} onOpenChange={setShowFilters}>
         <CollapsibleContent className="space-y-2">
+          <DatePickerWithRange 
+            date={dateRange} 
+            setDate={onDateRangeChange} 
+            className="w-full"
+          />
           <Select value={courierFilter} onValueChange={onCourierFilterChange}>
             <SelectTrigger className="h-10">
               <SelectValue placeholder="All Couriers" />
