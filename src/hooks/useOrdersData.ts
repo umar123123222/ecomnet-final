@@ -39,6 +39,7 @@ export interface FormattedOrder {
   orderType: string;
   city: string;
   items: any[];
+  bundleNames: string[];
   assignedTo: string | null;
   assignedToProfile: any;
   dispatchedAt: string;
@@ -243,6 +244,32 @@ export const useOrdersData = () => {
         }
       }
 
+      // Fetch bundle names for all visible orders
+      const allOrderIds = baseOrders.map(o => o.id);
+      const bundleNamesMap = new Map<string, string[]>();
+      if (allOrderIds.length > 0) {
+        const { data: bundleItems } = await supabase
+          .from('order_items')
+          .select('order_id, bundle_name, is_bundle_component')
+          .in('order_id', allOrderIds)
+          .or('bundle_name.neq.,is_bundle_component.eq.true');
+        
+        if (currentAbortController.signal.aborted) return;
+        
+        if (bundleItems) {
+          bundleItems.forEach(item => {
+            if (item.bundle_name || item.is_bundle_component) {
+              const existing = bundleNamesMap.get(item.order_id) || [];
+              const name = item.bundle_name || 'Bundle';
+              if (!existing.includes(name)) {
+                existing.push(name);
+                bundleNamesMap.set(item.order_id, existing);
+              }
+            }
+          });
+        }
+      }
+
       const assignedIds = baseOrders.map(o => o.assigned_to).filter((id): id is string => id != null);
       const commentEmails = new Set<string>();
       baseOrders.forEach(order => {
@@ -314,6 +341,7 @@ export const useOrdersData = () => {
           orderType: order.order_type || 'COD',
           city: order.city,
           items: [],
+          bundleNames: bundleNamesMap.get(order.id) || [],
           assignedTo: order.assigned_to,
           assignedToProfile: order.assigned_to ? profilesById.get(order.assigned_to) : null,
           dispatchedAt: order.dispatched_at ? new Date(order.dispatched_at).toLocaleString() : 'N/A',
