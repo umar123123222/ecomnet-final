@@ -918,6 +918,21 @@ const OrderDashboard = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold flex items-center gap-2">
+                      Sort Order
+                    </Label>
+                    <Select value={sortOrder} onValueChange={(value: 'latest' | 'oldest') => setSortOrder(value)}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Select order" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-50">
+                        <SelectItem value="latest">Newest First</SelectItem>
+                        <SelectItem value="oldest">Oldest First</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </SheetContent>
             </Sheet>

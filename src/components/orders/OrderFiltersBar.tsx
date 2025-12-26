@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Filter, RefreshCw, X } from 'lucide-react';
+import { Search, Filter, RefreshCw, X, ArrowUpDown } from 'lucide-react';
 
 interface OrderFiltersProps {
   searchValue: string;
@@ -12,6 +12,8 @@ interface OrderFiltersProps {
   courierFilter: string;
   onCourierChange: (value: string) => void;
   couriers: Array<{ code: string; name: string }>;
+  sortOrder: 'latest' | 'oldest';
+  onSortOrderChange: (value: 'latest' | 'oldest') => void;
   onRefresh: () => void;
   onClearFilters: () => void;
   isLoading?: boolean;
@@ -25,11 +27,13 @@ export const OrderFiltersBar = memo(({
   courierFilter,
   onCourierChange,
   couriers,
+  sortOrder,
+  onSortOrderChange,
   onRefresh,
   onClearFilters,
   isLoading,
 }: OrderFiltersProps) => {
-  const hasActiveFilters = statusFilter !== 'all' || courierFilter !== 'all' || searchValue;
+  const hasActiveFilters = statusFilter !== 'all' || courierFilter !== 'all' || searchValue || sortOrder !== 'latest';
 
   return (
     <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
@@ -74,6 +78,18 @@ export const OrderFiltersBar = memo(({
               {courier.name}
             </SelectItem>
           ))}
+        </SelectContent>
+      </Select>
+
+      {/* Sort Order Filter */}
+      <Select value={sortOrder} onValueChange={(v) => onSortOrderChange(v as 'latest' | 'oldest')}>
+        <SelectTrigger className="w-[120px] h-9">
+          <ArrowUpDown className="h-3.5 w-3.5 mr-1.5" />
+          <SelectValue placeholder="Sort" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="latest">Newest</SelectItem>
+          <SelectItem value="oldest">Oldest</SelectItem>
         </SelectContent>
       </Select>
 
