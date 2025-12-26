@@ -8,6 +8,21 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-shopify-hmac-sha256, x-shopify-shop-domain, x-shopify-topic',
 };
 
+interface ShopifyLineItemProperty {
+  name: string;
+  value: string;
+}
+
+interface ShopifyLineItem {
+  id: number;
+  name: string;
+  quantity: number;
+  price: string;
+  product_id: number;
+  variant_id: number;
+  properties?: ShopifyLineItemProperty[];
+}
+
 interface ShopifyOrder {
   id: number;
   order_number: number;
@@ -28,14 +43,7 @@ interface ShopifyOrder {
     country: string;
     zip?: string;
   };
-  line_items: Array<{
-    id: number;
-    name: string;
-    quantity: number;
-    price: string;
-    product_id: number;
-    variant_id: number;
-  }>;
+  line_items: ShopifyLineItem[];
   total_price: string;
   total_shipping_price_set?: {
     shop_money: { amount: string; currency_code: string; };
@@ -44,6 +52,21 @@ interface ShopifyOrder {
   tags: string;
   note?: string;
   fulfillment_status?: string;
+}
+
+// Helper to extract Simple Bundles properties from line item
+function getSimpleBundleInfo(item: ShopifyLineItem): { bundleTitle: string | null; bundleGroup: string | null } {
+  if (!item.properties || item.properties.length === 0) {
+    return { bundleTitle: null, bundleGroup: null };
+  }
+  
+  const bundleTitleProp = item.properties.find(p => p.name === '_sb_bundle_title');
+  const bundleGroupProp = item.properties.find(p => p.name === '_sb_bundle_group');
+  
+  return {
+    bundleTitle: bundleTitleProp?.value || null,
+    bundleGroup: bundleGroupProp?.value || null,
+  };
 }
 
 async function verifyShopifyWebhook(body: string, hmacHeader: string, supabase: any): Promise<boolean> {
@@ -496,14 +519,98 @@ Deno.serve(async (req) => {
           .from('products')
           .select('id, name, shopify_product_id, is_bundle');
         
-        // Fetch bundle components for all bundles
+        // Fetch bundle components for all bundles (fixed bundles like "Top 3 Best Seller")
         const { data: bundleComponents } = await supabase
           .from('product_bundle_items')
           .select('bundle_product_id, component_product_id, quantity');
         
         const orderItems: any[] = [];
         
+        // First, identify items that are part of Simple Bundles (customer choice bundles)
+        // Group items by their _sb_bundle_group to link them together
+        const simpleBundleGroups: Map<string, { bundleTitle: string; items: typeof order.line_items }> = new Map();
+        const regularItems: typeof order.line_items = [];
+        
         for (const item of order.line_items) {
+          const { bundleTitle, bundleGroup } = getSimpleBundleInfo(item);
+          
+          if (bundleTitle && bundleGroup) {
+            // This item is part of a Simple Bundle (customer choice)
+            if (!simpleBundleGroups.has(bundleGroup)) {
+              simpleBundleGroups.set(bundleGroup, { bundleTitle, items: [] });
+            }
+            simpleBundleGroups.get(bundleGroup)!.items.push(item);
+          } else {
+            // Regular item (not part of Simple Bundle)
+            regularItems.push(item);
+          }
+        }
+        
+        // Log Simple Bundles detection
+        if (simpleBundleGroups.size > 0) {
+          console.log(`✓ Detected ${simpleBundleGroups.size} Simple Bundle(s) in order:`, 
+            Array.from(simpleBundleGroups.entries()).map(([group, data]) => ({
+              group,
+              bundleTitle: data.bundleTitle,
+              componentCount: data.items.length,
+              components: data.items.map(i => i.name)
+            }))
+          );
+        }
+        
+        // Process Simple Bundle items (customer choice bundles)
+        for (const [bundleGroup, { bundleTitle, items }] of simpleBundleGroups) {
+          // Find the bundle product in our system
+          const bundleProduct = products?.find(p => 
+            p.name.toLowerCase().trim() === bundleTitle.toLowerCase().trim() ||
+            p.name.toLowerCase().includes(bundleTitle.toLowerCase()) ||
+            bundleTitle.toLowerCase().includes(p.name.toLowerCase())
+          );
+          
+          const bundleProductId = bundleProduct?.id || null;
+          
+          if (bundleProduct) {
+            console.log(`✓ Matched Simple Bundle "${bundleTitle}" to product: ${bundleProduct.name} (${bundleProduct.id})`);
+          } else {
+            console.warn(`⚠ Could not match Simple Bundle "${bundleTitle}" to any product in system`);
+          }
+          
+          // Create order items for each component in the bundle
+          for (const item of items) {
+            // Match component product
+            let matchedProduct = products?.find(p => 
+              p.shopify_product_id && p.shopify_product_id === item.product_id
+            );
+            
+            if (!matchedProduct) {
+              matchedProduct = products?.find(p => 
+                p.name.toLowerCase().trim() === item.name.toLowerCase().trim()
+              );
+            }
+            
+            if (!matchedProduct) {
+              matchedProduct = products?.find(p => 
+                item.name.toLowerCase().includes(p.name.toLowerCase())
+              );
+            }
+            
+            orderItems.push({
+              order_id: newOrder.id,
+              item_name: item.name,
+              quantity: item.quantity,
+              price: parseFloat(item.price),
+              product_id: matchedProduct?.id || null,
+              shopify_product_id: item.product_id || null,
+              shopify_variant_id: item.variant_id || null,
+              bundle_product_id: bundleProductId,
+              is_bundle_component: true,
+              bundle_name: bundleTitle,
+            });
+          }
+        }
+        
+        // Process regular items (including fixed bundles)
+        for (const item of regularItems) {
           // Match by Shopify product ID first (most reliable)
           let matchedProduct = products?.find(p => 
             p.shopify_product_id && p.shopify_product_id === item.product_id
@@ -523,7 +630,7 @@ Deno.serve(async (req) => {
             );
           }
           
-          // Check if matched product is a bundle with components
+          // Check if matched product is a FIXED bundle with components
           if (matchedProduct?.is_bundle) {
             const components = bundleComponents?.filter(bc => bc.bundle_product_id === matchedProduct.id) || [];
             
@@ -544,7 +651,7 @@ Deno.serve(async (req) => {
                   bundle_name: matchedProduct.name,
                 });
               }
-              console.log(`Bundle "${matchedProduct.name}" expanded to ${components.length} components`);
+              console.log(`✓ Fixed Bundle "${matchedProduct.name}" expanded to ${components.length} components`);
             } else {
               // Bundle without components - treat as regular product but mark as bundle
               orderItems.push({
@@ -559,7 +666,7 @@ Deno.serve(async (req) => {
                 is_bundle_component: false,
                 bundle_name: null,
               });
-              console.log(`Bundle "${matchedProduct.name}" has no components defined, treating as regular product`);
+              console.log(`⚠ Bundle "${matchedProduct.name}" has no components defined, treating as regular product`);
             }
           } else {
             // Regular product (not a bundle)
@@ -581,8 +688,9 @@ Deno.serve(async (req) => {
         await supabase.from('order_items').insert(orderItems);
         
         const matchedCount = orderItems.filter(i => i.product_id).length;
-        const bundleCount = orderItems.filter(i => i.is_bundle_component).length;
-        console.log(`Created ${orderItems.length} order items, ${matchedCount} matched to products, ${bundleCount} bundle components`);
+        const bundleComponentCount = orderItems.filter(i => i.is_bundle_component).length;
+        const simpleBundleComponentCount = Array.from(simpleBundleGroups.values()).reduce((sum, g) => sum + g.items.length, 0);
+        console.log(`✓ Created ${orderItems.length} order items: ${matchedCount} matched to products, ${bundleComponentCount} bundle components (${simpleBundleComponentCount} from Simple Bundles)`);
       }
 
       console.log('Created new order:', newOrder?.id);
