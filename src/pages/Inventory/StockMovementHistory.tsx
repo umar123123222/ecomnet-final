@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,12 +26,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Search, Download, TrendingUp, TrendingDown, ArrowLeftRight, Package, Calendar, ChevronDown, ChevronRight, Image as ImageIcon, Box, Truck, Building2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Search, Download, TrendingUp, TrendingDown, ArrowLeftRight, Package, Calendar, ChevronDown, ChevronRight, Image as ImageIcon, Box, Truck, Building2, Trash2, Mail, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 import { useUserRoles } from "@/hooks/useUserRoles";
+
 
 interface UnifiedMovement {
   id: string;
@@ -72,7 +84,8 @@ interface DispatchSummary {
 type DisplayItem = UnifiedMovement | DispatchSummary;
 
 export default function StockMovementHistory() {
-  const { permissions } = useUserRoles();
+  const { permissions, hasRole } = useUserRoles();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [movementTypeFilter, setMovementTypeFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -82,6 +95,10 @@ export default function StockMovementHistory() {
   const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
   const [expandedItemOrders, setExpandedItemOrders] = useState<Set<string>>(new Set());
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [emailingId, setEmailingId] = useState<string | null>(null);
+
+  const isSuperAdmin = hasRole('super_admin');
 
   // Fetch outlets for filter
   const { data: outlets } = useQuery({
@@ -614,6 +631,67 @@ export default function StockMovementHistory() {
     return 'type' in item && item.type === 'summary';
   };
 
+  // Delete dispatch summary (super admin only)
+  const handleDeleteSummary = async (summaryId: string, summaryDate: string) => {
+    if (!isSuperAdmin) {
+      toast.error("Only super admins can delete dispatch summaries");
+      return;
+    }
+
+    // Extract the actual UUID from the summary id (format: "summary-{uuid}")
+    const actualId = summaryId.replace('summary-', '');
+    
+    setDeletingId(summaryId);
+    try {
+      const { error } = await supabase
+        .from('daily_dispatch_summaries')
+        .delete()
+        .eq('id', actualId);
+
+      if (error) throw error;
+
+      toast.success(`Dispatch summary for ${format(new Date(summaryDate), "MMM dd, yyyy")} deleted`);
+      queryClient.invalidateQueries({ queryKey: ['dispatch-summaries'] });
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      toast.error(`Failed to delete: ${error.message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Email dispatch summary to managers
+  const handleEmailSummary = async (summary: DispatchSummary) => {
+    setEmailingId(summary.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-dispatch-summary-email', {
+        body: {
+          summary_date: summary.date,
+          product_items: summary.productItems,
+          packaging_items: summary.packagingItems,
+          total_product_units: summary.totalProductUnits,
+          total_packaging_units: summary.totalPackagingUnits,
+          unique_products: summary.uniqueProducts,
+          unique_packaging: summary.uniquePackaging,
+          order_count: summary.orderCount,
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success(`Dispatch summary emailed to ${data.emails_sent} managers`);
+      } else {
+        toast.error(data?.message || 'Failed to send email');
+      }
+    } catch (error: any) {
+      console.error('Email error:', error);
+      toast.error(`Failed to email: ${error.message}`);
+    } finally {
+      setEmailingId(null);
+    }
+  };
+
   const isLoading = loadingProducts || loadingPackaging || loadingSummaries;
 
   if (!permissions.canViewStockMovements) {
@@ -802,9 +880,68 @@ export default function StockMovementHistory() {
             </Badge>
           </TableCell>
           <TableCell colSpan={2}>
-            <span className="text-sm text-muted-foreground">
-              Click to {isExpanded ? 'collapse' : 'expand'} details
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                Click to {isExpanded ? 'collapse' : 'expand'}
+              </span>
+              {/* Email button - visible to all authorized users */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEmailSummary(summary);
+                }}
+                disabled={emailingId === summary.id}
+                title="Email summary to managers"
+              >
+                {emailingId === summary.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Mail className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                )}
+              </Button>
+              {/* Delete button - super admin only */}
+              {isSuperAdmin && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={(e) => e.stopPropagation()}
+                      disabled={deletingId === summary.id}
+                      title="Delete dispatch summary"
+                    >
+                      {deletingId === summary.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Dispatch Summary?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete the dispatch summary for {format(new Date(summary.date), "MMMM dd, yyyy")}. 
+                        This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() => handleDeleteSummary(summary.id, summary.date)}
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
           </TableCell>
         </TableRow>
         {isExpanded && (
