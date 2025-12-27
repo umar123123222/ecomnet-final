@@ -169,7 +169,27 @@ const ReturnsDashboard = () => {
                 order_number,
                 customer_name,
                 customer_phone,
-                customer_email
+                customer_email,
+                customer_address,
+                city,
+                total_amount,
+                created_at,
+                booked_at,
+                confirmed_at,
+                dispatched_at,
+                delivered_at,
+                tags,
+                notes,
+                payment_method,
+                shipping_charges,
+                discount,
+                source,
+                order_items (
+                  id,
+                  product_name,
+                  quantity,
+                  price
+                )
               ),
               received_by_profile:profiles!returns_received_by_fkey(
                 full_name,
