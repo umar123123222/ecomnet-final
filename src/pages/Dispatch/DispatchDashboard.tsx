@@ -210,14 +210,33 @@ useEffect(() => {
           .from('dispatches')
           .select(`
             *,
+            dispatched_by_user:profiles!dispatches_dispatched_by_fkey(full_name, email),
             orders:orders!dispatches_order_id_fkey (
               order_number,
               customer_name,
               customer_phone,
+              customer_email,
               customer_address,
               city,
               total_amount,
               status,
+              created_at,
+              booked_at,
+              confirmed_at,
+              dispatched_at,
+              delivered_at,
+              tags,
+              notes,
+              payment_method,
+              shipping_charges,
+              discount,
+              source,
+              order_items (
+                id,
+                product_name,
+                quantity,
+                price
+              ),
               order_packaging (
                 id,
                 packaging_items (name, sku)
