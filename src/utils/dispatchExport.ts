@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 
 interface OrderItem {
-  product_name: string;
+  item_name: string;
   quantity: number;
   price: number;
 }
@@ -43,7 +43,7 @@ interface DispatchExportData {
 
 function formatOrderItems(items?: OrderItem[]): string {
   if (!items || items.length === 0) return '';
-  return items.map(item => `${item.product_name} x${item.quantity} @${item.price}`).join(' | ');
+  return items.map(item => `${item.item_name} x${item.quantity} @${item.price}`).join(' | ');
 }
 
 function formatTags(tags: string[] | null): string {
