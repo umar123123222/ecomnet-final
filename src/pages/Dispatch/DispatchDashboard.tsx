@@ -233,7 +233,7 @@ useEffect(() => {
               source,
               order_items (
                 id,
-                product_name,
+                item_name,
                 quantity,
                 price
               ),
