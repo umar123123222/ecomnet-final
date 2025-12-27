@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, Lock, ScanBarcode, Package, RefreshCw, DollarSign, ArrowUp, Camera } from 'lucide-react';
+import { Search, Download, Edit, Truck, ChevronDown, ChevronUp, Plus, Filter, Lock, ScanBarcode, Package, RefreshCw, DollarSign, ArrowUp, Camera, FileSpreadsheet } from 'lucide-react';
+import { exportDispatchesToExcel } from '@/utils/dispatchExport';
 import MobileCameraScanner from '@/components/MobileCameraScanner';
 import DispatchMobileView from '@/components/dispatch/DispatchMobileView';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -1483,6 +1484,22 @@ const metrics = useMemo(() => {
           <Button variant="outline" onClick={() => window.location.reload()} className="gap-2">
             <RefreshCw className="h-4 w-4" />
             Refresh
+          </Button>
+
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              const count = exportDispatchesToExcel(filteredDispatches);
+              toast({
+                title: "Export Complete",
+                description: `Exported ${count} dispatch records to Excel`,
+              });
+            }}
+            disabled={filteredDispatches.length === 0}
+            className="gap-2"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Export
           </Button>
 
           {canUseDispatchActions && (

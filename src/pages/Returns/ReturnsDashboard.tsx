@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Download, ChevronDown, ChevronUp, Edit, Lock, ScanBarcode, RotateCcw, DollarSign, ArrowUp, AlertTriangle, Camera } from 'lucide-react';
+import { Search, Download, ChevronDown, ChevronUp, Edit, Lock, ScanBarcode, RotateCcw, DollarSign, ArrowUp, AlertTriangle, Camera, FileSpreadsheet } from 'lucide-react';
+import { exportReturnsToExcel } from '@/utils/returnsExport';
 import MobileCameraScanner from '@/components/MobileCameraScanner';
 import ReturnsMobileView from '@/components/returns/ReturnsMobileView';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -1110,6 +1111,21 @@ const ReturnsDashboard = () => {
           <p className="text-gray-600 mt-1">Track and manage returned orders</p>
         </div>
         <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              const count = exportReturnsToExcel(filteredReturns);
+              toast({
+                title: "Export Complete",
+                description: `Exported ${count} return records to Excel`,
+              });
+            }}
+            disabled={filteredReturns.length === 0}
+            className="gap-2"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Export
+          </Button>
           {canUseReturnActions && (
             <>
               <Button 
