@@ -28,15 +28,11 @@ interface ReturnExportData {
     total_amount: number | null;
     created_at: string | null;
     booked_at: string | null;
-    confirmed_at: string | null;
     dispatched_at: string | null;
     delivered_at: string | null;
     tags: string[] | null;
     notes: string | null;
-    payment_method: string | null;
     shipping_charges: number | null;
-    discount: number | null;
-    source: string | null;
     order_items?: OrderItem[];
   } | null;
   received_by_profile?: {
@@ -79,16 +75,12 @@ export function exportReturnsToExcel(returns: ReturnExportData[], filename?: str
     'Order Total': returnItem.orders?.total_amount || 0,
     'Return Worth': returnItem.worth || 0,
     'Shipping Charges': returnItem.orders?.shipping_charges || 0,
-    'Discount': returnItem.orders?.discount || 0,
-    'Payment Method': returnItem.orders?.payment_method || '',
-    'Source': returnItem.orders?.source || '',
     'Order Items': formatOrderItems(returnItem.orders?.order_items),
     'Tags': formatTags(returnItem.orders?.tags),
     'Return Reason': returnItem.reason || '',
     'Condition': returnItem.condition || '',
     'Order Created': formatDateSafe(returnItem.orders?.created_at),
     'Booked At': formatDateSafe(returnItem.orders?.booked_at),
-    'Confirmed At': formatDateSafe(returnItem.orders?.confirmed_at),
     'Dispatched At': formatDateSafe(returnItem.orders?.dispatched_at),
     'Delivered At': formatDateSafe(returnItem.orders?.delivered_at),
     'Return Created': formatDateSafe(returnItem.created_at),
@@ -115,16 +107,12 @@ export function exportReturnsToExcel(returns: ReturnExportData[], filename?: str
     { wch: 12 },  // Order Total
     { wch: 12 },  // Return Worth
     { wch: 12 },  // Shipping Charges
-    { wch: 10 },  // Discount
-    { wch: 15 },  // Payment Method
-    { wch: 12 },  // Source
     { wch: 50 },  // Order Items
     { wch: 25 },  // Tags
     { wch: 20 },  // Return Reason
     { wch: 15 },  // Condition
     { wch: 18 },  // Order Created
     { wch: 18 },  // Booked At
-    { wch: 18 },  // Confirmed At
     { wch: 18 },  // Dispatched At
     { wch: 18 },  // Delivered At
     { wch: 18 },  // Return Created

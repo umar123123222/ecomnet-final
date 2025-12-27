@@ -23,16 +23,12 @@ interface DispatchExportData {
     status: string;
     created_at: string | null;
     booked_at: string | null;
-    confirmed_at: string | null;
     dispatched_at: string | null;
     delivered_at: string | null;
     tags: string[] | null;
     notes: string | null;
     customer_email: string | null;
-    payment_method: string | null;
     shipping_charges: number | null;
-    discount: number | null;
-    source: string | null;
     order_items?: OrderItem[];
   } | null;
   dispatched_by_user?: {
@@ -74,14 +70,10 @@ export function exportDispatchesToExcel(dispatches: DispatchExportData[], filena
     'City': dispatch.orders?.city || '',
     'Order Total': dispatch.orders?.total_amount || 0,
     'Shipping Charges': dispatch.orders?.shipping_charges || 0,
-    'Discount': dispatch.orders?.discount || 0,
-    'Payment Method': dispatch.orders?.payment_method || '',
-    'Source': dispatch.orders?.source || '',
     'Order Items': formatOrderItems(dispatch.orders?.order_items),
     'Tags': formatTags(dispatch.orders?.tags),
     'Order Created': formatDateSafe(dispatch.orders?.created_at),
     'Booked At': formatDateSafe(dispatch.orders?.booked_at),
-    'Confirmed At': formatDateSafe(dispatch.orders?.confirmed_at),
     'Dispatched At': formatDateSafe(dispatch.orders?.dispatched_at),
     'Delivered At': formatDateSafe(dispatch.orders?.delivered_at),
     'Dispatch Date': formatDateSafe(dispatch.dispatch_date),
@@ -106,14 +98,10 @@ export function exportDispatchesToExcel(dispatches: DispatchExportData[], filena
     { wch: 15 },  // City
     { wch: 12 },  // Order Total
     { wch: 12 },  // Shipping Charges
-    { wch: 10 },  // Discount
-    { wch: 15 },  // Payment Method
-    { wch: 12 },  // Source
     { wch: 50 },  // Order Items
     { wch: 25 },  // Tags
     { wch: 18 },  // Order Created
     { wch: 18 },  // Booked At
-    { wch: 18 },  // Confirmed At
     { wch: 18 },  // Dispatched At
     { wch: 18 },  // Delivered At
     { wch: 18 },  // Dispatch Date
