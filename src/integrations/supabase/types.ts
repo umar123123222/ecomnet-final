@@ -6348,14 +6348,14 @@ export type Database = {
         }
         Returns: {
           city: string
-          courier: string
+          courier: Database["public"]["Enums"]["courier_type"]
           created_at: string
           customer_name: string
           customer_phone: string
           id: string
           last_tracking_check: string
           order_number: string
-          status: string
+          status: Database["public"]["Enums"]["order_status"]
           total_amount: number
           tracking_id: string
           updated_at: string
@@ -6369,13 +6369,13 @@ export type Database = {
         }
         Returns: {
           city: string
-          courier: string
+          courier: Database["public"]["Enums"]["courier_type"]
           created_at: string
           customer_name: string
           customer_phone: string
           id: string
           order_number: string
-          status: string
+          status: Database["public"]["Enums"]["order_status"]
           total_amount: number
           tracking_id: string
           updated_at: string
