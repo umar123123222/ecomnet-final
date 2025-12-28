@@ -16,6 +16,7 @@ interface DispatchSummaryEmailRequest {
   unique_products: number;
   unique_packaging: number;
   order_count: number;
+  total_cogs?: number;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -70,6 +71,26 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Helper function to format numbers with commas
     const formatNumber = (num: number) => Math.abs(num).toLocaleString('en-US');
+    
+    // Helper function to format currency
+    const formatCurrency = (num: number) => `Rs. ${Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    
+    // Calculate COGS if not provided - fetch product costs from database
+    let totalCogs = summaryData.total_cogs || 0;
+    if (!summaryData.total_cogs && Object.keys(summaryData.product_items || {}).length > 0) {
+      const productIds = Object.keys(summaryData.product_items);
+      const { data: productsWithCost } = await supabase
+        .from('products')
+        .select('id, cost')
+        .in('id', productIds);
+      
+      if (productsWithCost) {
+        const costMap = new Map(productsWithCost.map(p => [p.id, p.cost || 0]));
+        totalCogs = Object.entries(summaryData.product_items).reduce((sum, [id, item]) => {
+          return sum + (Math.abs(item.total_qty) * (costMap.get(id) || 0));
+        }, 0);
+      }
+    }
 
     // Generate product items table with alternating rows
     const productEntries = Object.entries(summaryData.product_items || {})
@@ -275,6 +296,29 @@ const handler = async (req: Request): Promise<Response> => {
                                   <td style="padding: 14px 16px; text-align: right; font-size: 16px; font-weight: 800; color: #6d28d9;">${formatNumber(summaryData.total_packaging_units)}</td>
                                 </tr>
                               </tfoot>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  ` : ''}
+
+                  <!-- COGS Section -->
+                  ${totalCogs > 0 ? `
+                  <tr>
+                    <td style="padding: 0 24px 24px 24px;">
+                      <table width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border-radius: 12px; border: 1px solid #fecaca; overflow: hidden;">
+                        <tr>
+                          <td style="padding: 24px;">
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                              <tr>
+                                <td style="text-align: center;">
+                                  <p style="margin: 0 0 8px 0; font-size: 13px; color: #dc2626; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">💰 Cost of Goods Sold</p>
+                                  <p style="margin: 0; font-size: 36px; font-weight: 800; color: #b91c1c; letter-spacing: -1px;">${formatCurrency(totalCogs)}</p>
+                                  <p style="margin: 12px 0 0 0; font-size: 12px; color: #ef4444;">Based on product cost prices × quantities dispatched</p>
+                                </td>
+                              </tr>
                             </table>
                           </td>
                         </tr>
