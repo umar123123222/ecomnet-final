@@ -61,9 +61,6 @@ const StuckOrdersDashboard = () => {
   const { primaryRole } = useUserRoles();
   const queryClient = useQueryClient();
   const canPerformActions = primaryRole !== 'finance';
-  const twoDaysAgo = new Date();
-  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-  const twoDaysAgoISO = twoDaysAgo.toISOString();
 
   // Fetch active tracking job on mount
   useEffect(() => {
@@ -125,32 +122,31 @@ const StuckOrdersDashboard = () => {
     };
   }, [toast, queryClient]);
 
-  // Separate count queries for accurate stats
+  // Separate count queries for accurate stats using database functions
   const {
     data: stats,
     refetch: refetchStats
   } = useQuery({
     queryKey: ['stuck-orders-stats'],
     queryFn: async () => {
-      const [totalResult, atOurEndResult, atCourierEndResult] = await Promise.all([supabase.from('orders').select('*', {
-        count: 'exact',
-        head: true
-      }).not('status', 'in', '(cancelled,returned,delivered)').lt('updated_at', twoDaysAgoISO), supabase.from('orders').select('*', {
-        count: 'exact',
-        head: true
-      }).in('status', ['pending', 'booked']).lt('updated_at', twoDaysAgoISO), supabase.from('orders').select('*', {
-        count: 'exact',
-        head: true
-      }).eq('status', 'dispatched').lt('updated_at', twoDaysAgoISO)]);
+      // Use database functions for accurate counting
+      const [atOurEndResult, atCourierEndResult] = await Promise.all([
+        supabase.rpc('get_stuck_at_our_end_count'),
+        supabase.rpc('get_stuck_at_courier_count')
+      ]);
+      
+      const atOurEnd = atOurEndResult.data || 0;
+      const atCourierEnd = atCourierEndResult.data || 0;
+      
       return {
-        total: totalResult.count || 0,
-        atOurEnd: atOurEndResult.count || 0,
-        atCourierEnd: atCourierEndResult.count || 0
+        total: atOurEnd + atCourierEnd,
+        atOurEnd,
+        atCourierEnd
       };
     }
   });
 
-  // Paginated orders query
+  // Paginated orders query using database functions
   const {
     data: ordersData,
     isLoading,
@@ -158,33 +154,81 @@ const StuckOrdersDashboard = () => {
   } = useQuery({
     queryKey: ['stuck-orders', stuckType, page, searchQuery],
     queryFn: async () => {
-      let query = supabase.from('orders').select('id, order_number, customer_name, customer_phone, city, status, courier, tracking_id, updated_at, created_at, total_amount').not('status', 'in', '(cancelled,returned,delivered)').lt('updated_at', twoDaysAgoISO);
+      const offset = page * ITEMS_PER_PAGE;
+      
       if (stuckType === 'our_end') {
-        query = query.in('status', ['pending', 'booked']);
-      } else if (stuckType === 'courier_end') {
-        query = query.eq('status', 'dispatched');
-      }
-      if (searchQuery.trim()) {
-        query = query.or(`order_number.ilike.%${searchQuery}%,customer_name.ilike.%${searchQuery}%,customer_phone.ilike.%${searchQuery}%,city.ilike.%${searchQuery}%`);
-      }
-      const {
-        data: orders,
-        error
-      } = await query.order('updated_at', {
-        ascending: true
-      }).range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1);
-      if (error) throw error;
-      const enrichedOrders: StuckOrder[] = orders?.map(order => {
-        const daysStuck = differenceInDays(new Date(), new Date(order.updated_at));
-        return {
+        // Use database function for "At Our End" orders
+        const { data, error } = await supabase.rpc('get_stuck_orders_at_our_end', {
+          search_query: searchQuery.trim(),
+          page_offset: offset,
+          page_limit: ITEMS_PER_PAGE
+        });
+        if (error) throw error;
+        
+        const enrichedOrders: StuckOrder[] = (data || []).map((order: any) => ({
           ...order,
-          days_stuck: daysStuck
+          days_stuck: differenceInDays(new Date(), new Date(order.created_at))
+        }));
+        
+        return {
+          orders: enrichedOrders,
+          totalCount: stats?.atOurEnd || 0
         };
-      }) || [];
-      return {
-        orders: enrichedOrders,
-        totalCount: stuckType === 'all' ? stats?.total || 0 : stuckType === 'our_end' ? stats?.atOurEnd || 0 : stats?.atCourierEnd || 0
-      };
+      } else if (stuckType === 'courier_end') {
+        // Use database function for "At Courier End" orders
+        const { data, error } = await supabase.rpc('get_stuck_orders_at_courier_end', {
+          search_query: searchQuery.trim(),
+          page_offset: offset,
+          page_limit: ITEMS_PER_PAGE
+        });
+        if (error) throw error;
+        
+        const enrichedOrders: StuckOrder[] = (data || []).map((order: any) => ({
+          ...order,
+          days_stuck: differenceInDays(new Date(), new Date(order.created_at)),
+          last_tracking_update: order.last_tracking_check
+        }));
+        
+        return {
+          orders: enrichedOrders,
+          totalCount: stats?.atCourierEnd || 0
+        };
+      } else {
+        // "All" tab - fetch both using functions
+        const [ourEndResult, courierEndResult] = await Promise.all([
+          supabase.rpc('get_stuck_orders_at_our_end', {
+            search_query: searchQuery.trim(),
+            page_offset: offset,
+            page_limit: ITEMS_PER_PAGE
+          }),
+          supabase.rpc('get_stuck_orders_at_courier_end', {
+            search_query: searchQuery.trim(),
+            page_offset: offset,
+            page_limit: ITEMS_PER_PAGE
+          })
+        ]);
+        
+        const ourEndOrders = (ourEndResult.data || []).map((order: any) => ({
+          ...order,
+          days_stuck: differenceInDays(new Date(), new Date(order.created_at))
+        }));
+        
+        const courierEndOrders = (courierEndResult.data || []).map((order: any) => ({
+          ...order,
+          days_stuck: differenceInDays(new Date(), new Date(order.created_at)),
+          last_tracking_update: order.last_tracking_check
+        }));
+        
+        // Combine and sort by created_at
+        const allOrders = [...ourEndOrders, ...courierEndOrders]
+          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+          .slice(0, ITEMS_PER_PAGE);
+        
+        return {
+          orders: allOrders as StuckOrder[],
+          totalCount: stats?.total || 0
+        };
+      }
     },
     enabled: !!stats
   });
