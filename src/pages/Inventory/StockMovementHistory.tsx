@@ -1246,14 +1246,14 @@ export default function StockMovementHistory() {
         />
         <StatsCard
           title="Products Dispatched"
-          value={`-${stats.totalProductsDispatched}`}
+          value={stats.totalProductsDispatched.toLocaleString()}
           icon={Package}
           variant="danger"
           description="Units shipped"
         />
         <StatsCard
           title="Packaging Used"
-          value={`-${stats.totalPackagingUsed}`}
+          value={stats.totalPackagingUsed.toLocaleString()}
           icon={Box}
           variant="warning"
           description="Units consumed"
