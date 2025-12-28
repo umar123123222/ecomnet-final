@@ -353,11 +353,11 @@ const handler = async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    // Get super admin, super manager, and warehouse manager emails
+    // Get super admin, super manager, warehouse manager, and finance emails
     const { data: managers } = await supabase
       .from('profiles')
       .select('id, email, full_name')
-      .in('role', ['super_admin', 'super_manager', 'warehouse_manager'])
+      .in('role', ['super_admin', 'super_manager', 'warehouse_manager', 'finance'])
       .not('email', 'is', null);
 
     const recipientEmails = managers?.map(m => m.email).filter(Boolean) || [];
