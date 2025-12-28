@@ -68,35 +68,49 @@ const handler = async (req: Request): Promise<Response> => {
       }
     });
 
-    // Generate product items table
-    const productEntries = Object.entries(summaryData.product_items || {});
-    const productItemsHTML = productEntries.length > 0 
-      ? productEntries.map(([_, product]) => `
-        <tr>
-          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${product.name}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${product.sku || '-'}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold; color: #dc2626;">-${product.total_qty}</td>
-        </tr>
-      `).join('')
-      : '<tr><td colspan="3" style="padding: 12px; text-align: center; color: #6b7280;">No product dispatches</td></tr>';
+    // Helper function to format numbers with commas
+    const formatNumber = (num: number) => Math.abs(num).toLocaleString('en-US');
 
-    // Generate packaging items table
-    const packagingEntries = Object.entries(summaryData.packaging_items || {});
-    const packagingItemsHTML = packagingEntries.length > 0
-      ? packagingEntries.map(([_, packaging]) => `
-        <tr>
-          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${packaging.name}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${packaging.sku || '-'}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold; color: #dc2626;">-${packaging.total_qty}</td>
+    // Generate product items table with alternating rows
+    const productEntries = Object.entries(summaryData.product_items || {})
+      .sort((a, b) => Math.abs(b[1].total_qty) - Math.abs(a[1].total_qty)); // Sort by qty desc
+    
+    const productItemsHTML = productEntries.length > 0 
+      ? productEntries.map(([_, product], index) => `
+        <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+          <td style="padding: 14px 16px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #1e293b;">${product.name}</td>
+          <td style="padding: 14px 16px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #64748b; font-family: monospace;">${product.sku || '—'}</td>
+          <td style="padding: 14px 16px; border-bottom: 1px solid #e2e8f0; text-align: right; font-size: 14px; font-weight: 600; color: #0f172a;">${formatNumber(product.total_qty)}</td>
         </tr>
       `).join('')
-      : '<tr><td colspan="3" style="padding: 12px; text-align: center; color: #6b7280;">No packaging dispatches</td></tr>';
+      : '<tr><td colspan="3" style="padding: 24px; text-align: center; color: #94a3b8; font-style: italic;">No products dispatched</td></tr>';
+
+    // Generate packaging items table with alternating rows
+    const packagingEntries = Object.entries(summaryData.packaging_items || {})
+      .sort((a, b) => Math.abs(b[1].total_qty) - Math.abs(a[1].total_qty));
+    
+    const packagingItemsHTML = packagingEntries.length > 0
+      ? packagingEntries.map(([_, packaging], index) => `
+        <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+          <td style="padding: 14px 16px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #1e293b;">${packaging.name}</td>
+          <td style="padding: 14px 16px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #64748b; font-family: monospace;">${packaging.sku || '—'}</td>
+          <td style="padding: 14px 16px; border-bottom: 1px solid #e2e8f0; text-align: right; font-size: 14px; font-weight: 600; color: #0f172a;">${formatNumber(packaging.total_qty)}</td>
+        </tr>
+      `).join('')
+      : '<tr><td colspan="3" style="padding: 24px; text-align: center; color: #94a3b8; font-style: italic;">No packaging used</td></tr>';
 
     const formattedDate = new Date(summaryData.summary_date).toLocaleDateString('en-US', { 
       year: 'numeric', 
       month: 'long', 
       day: 'numeric',
       weekday: 'long'
+    });
+
+    const generatedAt = new Date().toLocaleString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Karachi'
     });
 
     const emailHTML = `
@@ -107,72 +121,190 @@ const handler = async (req: Request): Promise<Response> => {
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>Daily Dispatch Summary - ${formattedDate}</title>
         </head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-            <h1 style="margin: 0;">📦 Daily Dispatch Summary</h1>
-            <p style="margin: 10px 0 0 0; font-size: 18px; opacity: 0.9;">${formattedDate}</p>
-          </div>
-          
-          <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px;">
-            <!-- Summary Stats -->
-            <div style="display: flex; gap: 15px; margin-bottom: 25px;">
-              <div style="flex: 1; background: white; padding: 20px; border-radius: 8px; text-align: center; border-left: 4px solid #3b82f6;">
-                <p style="margin: 0; font-size: 28px; font-weight: bold; color: #1d4ed8;">${summaryData.order_count}</p>
-                <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">Orders Dispatched</p>
-              </div>
-              <div style="flex: 1; background: white; padding: 20px; border-radius: 8px; text-align: center; border-left: 4px solid #10b981;">
-                <p style="margin: 0; font-size: 28px; font-weight: bold; color: #059669;">${summaryData.unique_products}</p>
-                <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">Unique Products</p>
-              </div>
-              <div style="flex: 1; background: white; padding: 20px; border-radius: 8px; text-align: center; border-left: 4px solid #f59e0b;">
-                <p style="margin: 0; font-size: 28px; font-weight: bold; color: #d97706;">${summaryData.total_product_units}</p>
-                <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">Total Units</p>
-              </div>
-            </div>
-
-            <!-- Products Table -->
-            <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="margin-top: 0; color: #1d4ed8; display: flex; align-items: center; gap: 8px;">
-                📦 Products Dispatched (${summaryData.unique_products} items, ${summaryData.total_product_units} units)
-              </h3>
-              <table style="width: 100%; border-collapse: collapse;">
-                <thead>
-                  <tr style="background: #f3f4f6;">
-                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #3b82f6;">Product</th>
-                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #3b82f6;">SKU</th>
-                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #3b82f6;">Qty</th>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1e293b; margin: 0; padding: 0; background-color: #f1f5f9;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f1f5f9; padding: 32px 16px;">
+            <tr>
+              <td align="center">
+                <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 680px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);">
+                  
+                  <!-- Header -->
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 40px 32px; text-align: center;">
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="text-align: center;">
+                            <p style="margin: 0 0 12px 0; font-size: 48px;">📦</p>
+                            <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px;">Daily Dispatch Summary</h1>
+                            <p style="margin: 12px 0 0 0; font-size: 16px; color: rgba(255,255,255,0.9); font-weight: 500;">${formattedDate}</p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  ${productItemsHTML}
-                </tbody>
-              </table>
-            </div>
 
-            <!-- Packaging Table -->
-            <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="margin-top: 0; color: #7c3aed; display: flex; align-items: center; gap: 8px;">
-                📋 Packaging Used (${summaryData.unique_packaging} items, ${summaryData.total_packaging_units} units)
-              </h3>
-              <table style="width: 100%; border-collapse: collapse;">
-                <thead>
-                  <tr style="background: #f3f4f6;">
-                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #7c3aed;">Packaging</th>
-                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #7c3aed;">SKU</th>
-                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #7c3aed;">Qty</th>
+                  <!-- Stats Cards using Table -->
+                  <tr>
+                    <td style="padding: 32px 24px 24px 24px;">
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <!-- Orders Card -->
+                          <td width="33%" style="padding: 0 8px 0 0;">
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-radius: 12px; border: 1px solid #bfdbfe;">
+                              <tr>
+                                <td style="padding: 20px; text-align: center;">
+                                  <p style="margin: 0; font-size: 32px; font-weight: 800; color: #1d4ed8; letter-spacing: -1px;">${formatNumber(summaryData.order_count)}</p>
+                                  <p style="margin: 8px 0 0 0; font-size: 12px; color: #3b82f6; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Orders</p>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                          
+                          <!-- Products Card -->
+                          <td width="33%" style="padding: 0 4px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border-radius: 12px; border: 1px solid #a7f3d0;">
+                              <tr>
+                                <td style="padding: 20px; text-align: center;">
+                                  <p style="margin: 0; font-size: 32px; font-weight: 800; color: #059669; letter-spacing: -1px;">${formatNumber(summaryData.unique_products)}</p>
+                                  <p style="margin: 8px 0 0 0; font-size: 12px; color: #10b981; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Products</p>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                          
+                          <!-- Units Card -->
+                          <td width="33%" style="padding: 0 0 0 8px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #fefce8 0%, #fef3c7 100%); border-radius: 12px; border: 1px solid #fde68a;">
+                              <tr>
+                                <td style="padding: 20px; text-align: center;">
+                                  <p style="margin: 0; font-size: 32px; font-weight: 800; color: #d97706; letter-spacing: -1px;">${formatNumber(summaryData.total_product_units)}</p>
+                                  <p style="margin: 8px 0 0 0; font-size: 12px; color: #f59e0b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Total Units</p>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  ${packagingItemsHTML}
-                </tbody>
-              </table>
-            </div>
 
-            <div style="text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-              <p>This is an automated dispatch summary report from the Inventory Management System.</p>
-              <p>&copy; ${new Date().getFullYear()} ${fromName}. All rights reserved.</p>
-            </div>
-          </div>
+                  <!-- Products Table Section -->
+                  <tr>
+                    <td style="padding: 0 24px 24px 24px;">
+                      <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+                        <!-- Table Header Title -->
+                        <tr>
+                          <td style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 16px 20px;">
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                              <tr>
+                                <td style="color: #ffffff; font-size: 16px; font-weight: 600;">
+                                  📦 Products Dispatched
+                                </td>
+                                <td style="color: rgba(255,255,255,0.9); font-size: 13px; text-align: right;">
+                                  ${formatNumber(summaryData.unique_products)} items • ${formatNumber(summaryData.total_product_units)} units
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        
+                        <!-- Table Content -->
+                        <tr>
+                          <td>
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                              <thead>
+                                <tr style="background-color: #f8fafc;">
+                                  <th style="padding: 14px 16px; text-align: left; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0;">Product Name</th>
+                                  <th style="padding: 14px 16px; text-align: left; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0;">SKU</th>
+                                  <th style="padding: 14px 16px; text-align: right; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0;">Quantity</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                ${productItemsHTML}
+                              </tbody>
+                              <tfoot>
+                                <tr style="background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);">
+                                  <td colspan="2" style="padding: 14px 16px; font-size: 14px; font-weight: 700; color: #1e293b;">Total</td>
+                                  <td style="padding: 14px 16px; text-align: right; font-size: 16px; font-weight: 800; color: #1d4ed8;">${formatNumber(summaryData.total_product_units)}</td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+
+                  ${packagingEntries.length > 0 ? `
+                  <!-- Packaging Table Section -->
+                  <tr>
+                    <td style="padding: 0 24px 24px 24px;">
+                      <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+                        <!-- Table Header Title -->
+                        <tr>
+                          <td style="background: linear-gradient(135deg, #6d28d9 0%, #8b5cf6 100%); padding: 16px 20px;">
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                              <tr>
+                                <td style="color: #ffffff; font-size: 16px; font-weight: 600;">
+                                  📋 Packaging Used
+                                </td>
+                                <td style="color: rgba(255,255,255,0.9); font-size: 13px; text-align: right;">
+                                  ${formatNumber(summaryData.unique_packaging)} items • ${formatNumber(summaryData.total_packaging_units)} units
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        
+                        <!-- Table Content -->
+                        <tr>
+                          <td>
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                              <thead>
+                                <tr style="background-color: #f8fafc;">
+                                  <th style="padding: 14px 16px; text-align: left; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0;">Packaging Item</th>
+                                  <th style="padding: 14px 16px; text-align: left; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0;">SKU</th>
+                                  <th style="padding: 14px 16px; text-align: right; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0;">Quantity</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                ${packagingItemsHTML}
+                              </tbody>
+                              <tfoot>
+                                <tr style="background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);">
+                                  <td colspan="2" style="padding: 14px 16px; font-size: 14px; font-weight: 700; color: #1e293b;">Total</td>
+                                  <td style="padding: 14px 16px; text-align: right; font-size: 16px; font-weight: 800; color: #6d28d9;">${formatNumber(summaryData.total_packaging_units)}</td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  ` : ''}
+
+                  <!-- Footer -->
+                  <tr>
+                    <td style="padding: 24px 24px 32px 24px; border-top: 1px solid #e2e8f0;">
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="text-align: center;">
+                            <p style="margin: 0 0 8px 0; font-size: 13px; color: #64748b;">
+                              📊 Automated report generated at ${generatedAt} PKT
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #94a3b8;">
+                              © ${new Date().getFullYear()} ${fromName} • Inventory Management System
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+
+                </table>
+              </td>
+            </tr>
+          </table>
         </body>
       </html>
     `;
