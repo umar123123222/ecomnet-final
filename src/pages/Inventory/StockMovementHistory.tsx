@@ -644,58 +644,109 @@ export default function StockMovementHistory() {
         dateEnd.setHours(23, 59, 59, 999);
         
         if (category === 'product') {
-          const { data, error } = await supabase
+          // First get movements
+          const { data: movements, error: movError } = await supabase
             .from('stock_movements')
-            .select(`
-              id,
-              quantity,
-              reference_id,
-              order:orders!reference_id(id, order_number)
-            `)
+            .select('id, quantity, reference_id')
             .eq('product_id', itemId)
             .eq('movement_type', 'sale')
             .gte('created_at', dateStart.toISOString())
             .lte('created_at', dateEnd.toISOString())
             .order('created_at', { ascending: false });
           
-          if (error) throw error;
+          if (movError) throw movError;
           
-          const orders: OrderBreakdown[] = (data || [])
-            .filter((m: any) => m.order?.order_number)
-            .map((m: any) => ({
-              order_id: m.reference_id,
-              order_number: m.order?.order_number || 'Unknown',
-              qty: Math.abs(m.quantity),
+          // Get unique order IDs and fetch order details
+          const orderIds = [...new Set((movements || []).map(m => m.reference_id).filter(Boolean))];
+          
+          if (orderIds.length > 0) {
+            const { data: ordersData, error: ordError } = await supabase
+              .from('orders')
+              .select('id, order_number')
+              .in('id', orderIds);
+            
+            if (ordError) throw ordError;
+            
+            const orderMap = new Map((ordersData || []).map(o => [o.id, o.order_number]));
+            
+            // Aggregate quantities by order
+            const orderQtyMap = new Map<string, { order_number: string; qty: number }>();
+            (movements || []).forEach((m: any) => {
+              if (m.reference_id && orderMap.has(m.reference_id)) {
+                const existing = orderQtyMap.get(m.reference_id);
+                if (existing) {
+                  existing.qty += Math.abs(m.quantity);
+                } else {
+                  orderQtyMap.set(m.reference_id, {
+                    order_number: orderMap.get(m.reference_id) || 'Unknown',
+                    qty: Math.abs(m.quantity),
+                  });
+                }
+              }
+            });
+            
+            const orders: OrderBreakdown[] = Array.from(orderQtyMap.entries()).map(([id, data]) => ({
+              order_id: id,
+              order_number: data.order_number,
+              qty: data.qty,
             }));
-          
-          setOrderBreakdownCache(prev => ({ ...prev, [itemKey]: orders }));
+            
+            setOrderBreakdownCache(prev => ({ ...prev, [itemKey]: orders }));
+          } else {
+            setOrderBreakdownCache(prev => ({ ...prev, [itemKey]: [] }));
+          }
         } else {
           // For packaging, query packaging_movements
-          const { data, error } = await supabase
+          const { data: movements, error: movError } = await supabase
             .from('packaging_movements')
-            .select(`
-              id,
-              quantity,
-              reference_id,
-              order:orders!reference_id(id, order_number)
-            `)
+            .select('id, quantity, reference_id')
             .eq('packaging_item_id', itemId)
             .eq('movement_type', 'sale')
             .gte('created_at', dateStart.toISOString())
             .lte('created_at', dateEnd.toISOString())
             .order('created_at', { ascending: false });
           
-          if (error) throw error;
+          if (movError) throw movError;
           
-          const orders: OrderBreakdown[] = (data || [])
-            .filter((m: any) => m.order?.order_number)
-            .map((m: any) => ({
-              order_id: m.reference_id,
-              order_number: m.order?.order_number || 'Unknown',
-              qty: Math.abs(m.quantity),
+          // Get unique order IDs and fetch order details
+          const orderIds = [...new Set((movements || []).map(m => m.reference_id).filter(Boolean))];
+          
+          if (orderIds.length > 0) {
+            const { data: ordersData, error: ordError } = await supabase
+              .from('orders')
+              .select('id, order_number')
+              .in('id', orderIds);
+            
+            if (ordError) throw ordError;
+            
+            const orderMap = new Map((ordersData || []).map(o => [o.id, o.order_number]));
+            
+            // Aggregate quantities by order
+            const orderQtyMap = new Map<string, { order_number: string; qty: number }>();
+            (movements || []).forEach((m: any) => {
+              if (m.reference_id && orderMap.has(m.reference_id)) {
+                const existing = orderQtyMap.get(m.reference_id);
+                if (existing) {
+                  existing.qty += Math.abs(m.quantity);
+                } else {
+                  orderQtyMap.set(m.reference_id, {
+                    order_number: orderMap.get(m.reference_id) || 'Unknown',
+                    qty: Math.abs(m.quantity),
+                  });
+                }
+              }
+            });
+            
+            const orders: OrderBreakdown[] = Array.from(orderQtyMap.entries()).map(([id, data]) => ({
+              order_id: id,
+              order_number: data.order_number,
+              qty: data.qty,
             }));
-          
-          setOrderBreakdownCache(prev => ({ ...prev, [itemKey]: orders }));
+            
+            setOrderBreakdownCache(prev => ({ ...prev, [itemKey]: orders }));
+          } else {
+            setOrderBreakdownCache(prev => ({ ...prev, [itemKey]: [] }));
+          }
         }
       } catch (error) {
         console.error('Error fetching order breakdown:', error);
