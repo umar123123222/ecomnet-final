@@ -204,11 +204,8 @@ const UserManagement = () => {
       form.reset();
     },
     onError: (error: any) => {
-      // Map friendly error messages
-      let errorMessage = error.message || 'Failed to create user';
-      if (error.message?.includes('already exists')) {
-        errorMessage = 'A user with this email already exists';
-      }
+      // Use the actual error message from the API (which now includes role info)
+      const errorMessage = error.message || 'Failed to create user';
       
       toast({
         title: 'Error',
