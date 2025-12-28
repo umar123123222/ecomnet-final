@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,12 +37,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Search, Download, TrendingUp, TrendingDown, ArrowLeftRight, Package, Calendar, ChevronDown, ChevronRight, Image as ImageIcon, Box, Truck, Building2, Trash2, Mail, Loader2 } from "lucide-react";
+import { Search, Download, TrendingUp, TrendingDown, ArrowLeftRight, Package, Calendar, ChevronDown, ChevronRight, Image as ImageIcon, Box, Truck, Building2, Trash2, Mail, Loader2, RefreshCw, X, Activity, BarChart3 } from "lucide-react";
 import { format } from "date-fns";
 import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { StatsCard } from "@/components/layout/StatsCard";
+import { StatsGrid } from "@/components/layout/StatsGrid";
+import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
+import { StockMovementMobileView } from "@/components/inventory/StockMovementMobileView";
 
 
 interface UnifiedMovement {
@@ -86,6 +91,7 @@ type DisplayItem = UnifiedMovement | DispatchSummary;
 export default function StockMovementHistory() {
   const { permissions, hasRole } = useUserRoles();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const [searchTerm, setSearchTerm] = useState("");
   const [movementTypeFilter, setMovementTypeFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -97,7 +103,6 @@ export default function StockMovementHistory() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [emailingId, setEmailingId] = useState<string | null>(null);
-
   const isSuperAdmin = hasRole('super_admin');
 
   // Fetch outlets for filter
@@ -1128,8 +1133,91 @@ export default function StockMovementHistory() {
     );
   };
 
+  // Calculate stats
+  const stats = useMemo(() => {
+    let totalMovements = displayItems.length;
+    let totalProductsDispatched = 0;
+    let totalPackagingUsed = 0;
+    let netChange = 0;
+
+    displayItems.forEach((item) => {
+      if (isSummary(item)) {
+        totalProductsDispatched += item.totalProductUnits;
+        totalPackagingUsed += item.totalPackagingUnits;
+        netChange -= item.totalProductUnits + item.totalPackagingUnits;
+      } else {
+        netChange += item.quantity;
+      }
+    });
+
+    return { totalMovements, totalProductsDispatched, totalPackagingUsed, netChange };
+  }, [displayItems]);
+
+  const handleRefresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['dispatch-summaries'] });
+    queryClient.invalidateQueries({ queryKey: ['product-movements-nondispatch'] });
+    queryClient.invalidateQueries({ queryKey: ['packaging-movements-nondispatch'] });
+    toast.success("Refreshing data...");
+  }, [queryClient]);
+
+  const hasActiveFilters = categoryFilter !== "all" || outletFilter !== "all" || dateRange?.from || movementTypeFilter !== "all" || searchTerm;
+
+  const clearAllFilters = () => {
+    setSearchTerm("");
+    setCategoryFilter("all");
+    setMovementTypeFilter("all");
+    setOutletFilter("all");
+    setDateRange(undefined);
+  };
+
+  // Mobile view
+  if (isMobile) {
+    return (
+      <>
+        <StockMovementMobileView
+          displayItems={displayItems}
+          loading={isLoading}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          categoryFilter={categoryFilter}
+          onCategoryChange={setCategoryFilter}
+          movementTypeFilter={movementTypeFilter}
+          onMovementTypeChange={setMovementTypeFilter}
+          outletFilter={outletFilter}
+          onOutletChange={setOutletFilter}
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          outlets={outlets || []}
+          onExport={handleExportToCSV}
+          onRefresh={handleRefresh}
+          expandedSummaries={expandedSummaries}
+          onToggleSummary={toggleSummary}
+          onImageClick={setSelectedImage}
+          stats={stats}
+        />
+        {/* Image Preview Dialog */}
+        <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Proof Image</DialogTitle>
+            </DialogHeader>
+            {selectedImage && (
+              <img 
+                src={selectedImage} 
+                alt="Proof" 
+                className="w-full h-auto rounded-md"
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
+  // Desktop view
   return (
     <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Stock Movements</h1>
@@ -1137,129 +1225,172 @@ export default function StockMovementHistory() {
             Complete audit trail of all product and packaging stock changes
           </p>
         </div>
-        <Button onClick={handleExportToCSV} variant="outline" className="gap-2">
-          <Download className="h-4 w-4" />
-          Export to CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={handleRefresh}>
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          <Button onClick={handleExportToCSV} variant="outline" className="gap-2">
+            <Download className="h-4 w-4" />
+            Export to CSV
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-5">
-            <div className="flex items-center gap-2">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, SKU, or notes..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
+      {/* Stats Cards */}
+      <StatsGrid columns={4}>
+        <StatsCard
+          title="Total Movements"
+          value={stats.totalMovements}
+          icon={Activity}
+          variant="info"
+        />
+        <StatsCard
+          title="Products Dispatched"
+          value={`-${stats.totalProductsDispatched}`}
+          icon={Package}
+          variant="danger"
+          description="Units shipped"
+        />
+        <StatsCard
+          title="Packaging Used"
+          value={`-${stats.totalPackagingUsed}`}
+          icon={Box}
+          variant="warning"
+          description="Units consumed"
+        />
+        <StatsCard
+          title="Net Stock Change"
+          value={stats.netChange > 0 ? `+${stats.netChange}` : stats.netChange.toString()}
+          icon={BarChart3}
+          variant={stats.netChange >= 0 ? "success" : "danger"}
+        />
+      </StatsGrid>
 
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="product">Products Only</SelectItem>
-                <SelectItem value="packaging">Packaging Only</SelectItem>
-              </SelectContent>
-            </Select>
+      {/* Filters - Compact Inline Design */}
+      <div className="flex flex-wrap items-center gap-3 bg-muted/30 rounded-lg p-4">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, SKU, or notes..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 bg-background"
+          />
+        </div>
 
-            <Select value={movementTypeFilter} onValueChange={setMovementTypeFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Movement Types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="adjustment">Adjustments</SelectItem>
-                <SelectItem value="sale">Sales/Dispatch</SelectItem>
-                <SelectItem value="transfer_in">Transfer In</SelectItem>
-                <SelectItem value="transfer_out">Transfer Out</SelectItem>
-                <SelectItem value="return">Returns</SelectItem>
-                <SelectItem value="purchase">Purchases</SelectItem>
-              </SelectContent>
-            </Select>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-[140px] bg-background">
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Categories</SelectItem>
+            <SelectItem value="product">Products</SelectItem>
+            <SelectItem value="packaging">Packaging</SelectItem>
+          </SelectContent>
+        </Select>
 
-            <Select value={outletFilter} onValueChange={setOutletFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Outlets" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Outlets</SelectItem>
-                {outlets?.map((outlet) => (
-                  <SelectItem key={outlet.id} value={outlet.id}>
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-3 w-3" />
-                      {outlet.name}
-                      <span className="text-xs text-muted-foreground capitalize">({outlet.outlet_type})</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <Select value={movementTypeFilter} onValueChange={setMovementTypeFilter}>
+          <SelectTrigger className="w-[150px] bg-background">
+            <SelectValue placeholder="Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="adjustment">Adjustments</SelectItem>
+            <SelectItem value="sale">Sales/Dispatch</SelectItem>
+            <SelectItem value="transfer_in">Transfer In</SelectItem>
+            <SelectItem value="transfer_out">Transfer Out</SelectItem>
+            <SelectItem value="return">Returns</SelectItem>
+            <SelectItem value="purchase">Purchases</SelectItem>
+          </SelectContent>
+        </Select>
 
-            <DatePickerWithRange
-              date={dateRange}
-              setDate={setDateRange}
-            />
-          </div>
-        </CardContent>
-      </Card>
+        <Select value={outletFilter} onValueChange={setOutletFilter}>
+          <SelectTrigger className="w-[160px] bg-background">
+            <SelectValue placeholder="Outlet" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Outlets</SelectItem>
+            {outlets?.map((outlet) => (
+              <SelectItem key={outlet.id} value={outlet.id}>
+                {outlet.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
+        <DatePickerWithRange
+          date={dateRange}
+          setDate={setDateRange}
+        />
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearAllFilters} className="gap-1.5">
+            <X className="h-3.5 w-3.5" />
+            Clear
+          </Button>
+        )}
+      </div>
+
+      {/* Results Count */}
+      <div className="text-sm text-muted-foreground">
+        Showing <span className="font-medium text-foreground">{displayItems.length}</span> movements
+        {hasActiveFilters && " (filtered)"}
+      </div>
+
+      {/* Table */}
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-8"></TableHead>
-                <TableHead>Date & Time</TableHead>
-                <TableHead>Stock Name</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Outlet</TableHead>
-                <TableHead>Change</TableHead>
-                <TableHead>Reason</TableHead>
-                <TableHead>Performed By</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8">
-                    Loading movements...
-                  </TableCell>
+          {isLoading ? (
+            <DataTableSkeleton columns={9} rows={8} />
+          ) : (
+            <Table>
+              <TableHeader className="sticky top-0 bg-background z-10">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-10"></TableHead>
+                  <TableHead className="min-w-[140px]">Date & Time</TableHead>
+                  <TableHead className="min-w-[180px]">Stock Name</TableHead>
+                  <TableHead className="w-[100px]">Category</TableHead>
+                  <TableHead className="w-[100px]">Type</TableHead>
+                  <TableHead className="min-w-[120px]">Outlet</TableHead>
+                  <TableHead className="w-[90px]">Change</TableHead>
+                  <TableHead className="min-w-[140px]">Reason</TableHead>
+                  <TableHead className="min-w-[120px]">Performed By</TableHead>
                 </TableRow>
-              ) : displayItems.length > 0 ? (
-                displayItems.map((item) => {
-                  if (isSummary(item)) {
-                    return renderSummaryRow(item);
-                  } else {
-                    return renderMovementRow(item);
-                  }
-                })
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={9} className="py-12">
-                    <div className="flex flex-col items-center justify-center text-center">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
-                        <Package className="h-8 w-8 text-muted-foreground" />
+              </TableHeader>
+              <TableBody>
+                {displayItems.length > 0 ? (
+                  displayItems.map((item) => {
+                    if (isSummary(item)) {
+                      return renderSummaryRow(item);
+                    } else {
+                      return renderMovementRow(item);
+                    }
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={9} className="py-12">
+                      <div className="flex flex-col items-center justify-center text-center">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+                          <Package className="h-8 w-8 text-muted-foreground" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-foreground mb-1">No stock movements found</h3>
+                        <p className="text-sm text-muted-foreground max-w-sm">
+                          {hasActiveFilters
+                            ? 'Try adjusting your filters to see more results.'
+                            : 'Stock movements will appear here when inventory changes occur.'}
+                        </p>
+                        {hasActiveFilters && (
+                          <Button variant="outline" size="sm" onClick={clearAllFilters} className="mt-4">
+                            Clear Filters
+                          </Button>
+                        )}
                       </div>
-                      <h3 className="text-lg font-semibold text-foreground mb-1">No stock movements found</h3>
-                      <p className="text-sm text-muted-foreground max-w-sm">
-                        {searchTerm || categoryFilter !== 'all' || movementTypeFilter !== 'all' || dateRange?.from || outletFilter !== 'all'
-                          ? 'Try adjusting your filters to see more results.'
-                          : 'Stock movements will appear here when inventory changes occur.'}
-                      </p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
