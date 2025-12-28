@@ -208,6 +208,16 @@ const StuckOrdersDashboard = () => {
           })
         ]);
         
+        // Check for errors
+        if (ourEndResult.error) {
+          console.error('Error fetching our end orders:', ourEndResult.error);
+          throw ourEndResult.error;
+        }
+        if (courierEndResult.error) {
+          console.error('Error fetching courier end orders:', courierEndResult.error);
+          throw courierEndResult.error;
+        }
+        
         const ourEndOrders = (ourEndResult.data || []).map((order: any) => ({
           ...order,
           days_stuck: differenceInDays(new Date(), new Date(order.created_at))
@@ -230,6 +240,7 @@ const StuckOrdersDashboard = () => {
         };
       }
     },
+    staleTime: 30000, // Cache for 30 seconds
     enabled: !!stats
   });
 
@@ -505,11 +516,16 @@ const StuckOrdersDashboard = () => {
         </TabsList>
 
         <TabsContent value={stuckType} className="space-y-4">
-          {isLoading ? <div className="text-center py-8">Loading stuck orders...</div> : ordersData?.orders?.length === 0 ? <Card className="p-8 text-center">
+          {isLoading || !ordersData ? (
+            <div className="text-center py-8">Loading stuck orders...</div>
+          ) : ordersData.orders.length === 0 ? (
+            <Card className="p-8 text-center">
               <AlertTriangle className="h-12 w-12 mx-auto text-green-500 mb-4" />
               <p className="text-lg font-medium">No stuck orders found!</p>
               <p className="text-muted-foreground">All orders are progressing normally.</p>
-            </Card> : <>
+            </Card>
+          ) : (
+            <>
               <div className="space-y-3">
                 {ordersData?.orders?.map(order => <Card key={order.id} className="p-4 hover:bg-muted/50 transition-colors">
                     <div className="flex items-center justify-between">
@@ -575,7 +591,8 @@ const StuckOrdersDashboard = () => {
                     </Button>
                   </div>
                 </div>}
-            </>}
+            </>
+          )}
         </TabsContent>
       </Tabs>
 
