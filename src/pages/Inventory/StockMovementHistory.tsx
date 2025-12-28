@@ -103,6 +103,8 @@ export default function StockMovementHistory() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [emailingId, setEmailingId] = useState<string | null>(null);
+  const [loadingOrdersFor, setLoadingOrdersFor] = useState<string | null>(null);
+  const [orderBreakdownCache, setOrderBreakdownCache] = useState<Record<string, OrderBreakdown[]>>({});
   const isSuperAdmin = hasRole('super_admin');
 
   // Fetch outlets for filter
@@ -621,14 +623,89 @@ export default function StockMovementHistory() {
     setExpandedSummaries(newExpanded);
   };
 
-  const toggleItemOrders = (itemKey: string, e: React.MouseEvent) => {
+  const toggleItemOrders = async (itemKey: string, summaryDate: string, itemId: string, category: 'product' | 'packaging', e: React.MouseEvent) => {
     e.stopPropagation();
     const newExpanded = new Set(expandedItemOrders);
+    
     if (newExpanded.has(itemKey)) {
       newExpanded.delete(itemKey);
-    } else {
-      newExpanded.add(itemKey);
+      setExpandedItemOrders(newExpanded);
+      return;
     }
+    
+    // If we haven't fetched orders for this item yet, fetch them
+    if (!orderBreakdownCache[itemKey]) {
+      setLoadingOrdersFor(itemKey);
+      try {
+        // Calculate date range for the summary date
+        const dateStart = new Date(summaryDate);
+        dateStart.setHours(0, 0, 0, 0);
+        const dateEnd = new Date(summaryDate);
+        dateEnd.setHours(23, 59, 59, 999);
+        
+        if (category === 'product') {
+          const { data, error } = await supabase
+            .from('stock_movements')
+            .select(`
+              id,
+              quantity,
+              reference_id,
+              order:orders!reference_id(id, order_number)
+            `)
+            .eq('product_id', itemId)
+            .eq('movement_type', 'sale')
+            .gte('created_at', dateStart.toISOString())
+            .lte('created_at', dateEnd.toISOString())
+            .order('created_at', { ascending: false });
+          
+          if (error) throw error;
+          
+          const orders: OrderBreakdown[] = (data || [])
+            .filter((m: any) => m.order?.order_number)
+            .map((m: any) => ({
+              order_id: m.reference_id,
+              order_number: m.order?.order_number || 'Unknown',
+              qty: Math.abs(m.quantity),
+            }));
+          
+          setOrderBreakdownCache(prev => ({ ...prev, [itemKey]: orders }));
+        } else {
+          // For packaging, query packaging_movements
+          const { data, error } = await supabase
+            .from('packaging_movements')
+            .select(`
+              id,
+              quantity,
+              reference_id,
+              order:orders!reference_id(id, order_number)
+            `)
+            .eq('packaging_item_id', itemId)
+            .eq('movement_type', 'sale')
+            .gte('created_at', dateStart.toISOString())
+            .lte('created_at', dateEnd.toISOString())
+            .order('created_at', { ascending: false });
+          
+          if (error) throw error;
+          
+          const orders: OrderBreakdown[] = (data || [])
+            .filter((m: any) => m.order?.order_number)
+            .map((m: any) => ({
+              order_id: m.reference_id,
+              order_number: m.order?.order_number || 'Unknown',
+              qty: Math.abs(m.quantity),
+            }));
+          
+          setOrderBreakdownCache(prev => ({ ...prev, [itemKey]: orders }));
+        }
+      } catch (error) {
+        console.error('Error fetching order breakdown:', error);
+        setOrderBreakdownCache(prev => ({ ...prev, [itemKey]: [] }));
+      } finally {
+        setLoadingOrdersFor(null);
+      }
+    }
+    
+    newExpanded.add(itemKey);
     setExpandedItemOrders(newExpanded);
   };
 
@@ -955,25 +1032,28 @@ export default function StockMovementHistory() {
             {productEntries.map(([productId, product]) => {
               const itemKey = `${summary.id}-product-${productId}`;
               const isOrdersExpanded = expandedItemOrders.has(itemKey);
-              const orders = product.orders || [];
+              const orders = orderBreakdownCache[itemKey] || [];
+              const isLoadingOrders = loadingOrdersFor === itemKey;
               
               return (
                 <React.Fragment key={itemKey}>
-                  <TableRow className="bg-muted/20">
+                  <TableRow className="bg-muted/20 hover:bg-muted/30">
                     <TableCell className="pl-8">
-                      {orders.length > 0 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          onClick={(e) => toggleItemOrders(itemKey, e)}
-                        >
-                          {isOrdersExpanded ? 
-                            <ChevronDown className="h-3 w-3" /> : 
-                            <ChevronRight className="h-3 w-3" />
-                          }
-                        </Button>
-                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={(e) => toggleItemOrders(itemKey, summary.date, productId, 'product', e)}
+                        disabled={isLoadingOrders}
+                      >
+                        {isLoadingOrders ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : isOrdersExpanded ? (
+                          <ChevronDown className="h-3 w-3" />
+                        ) : (
+                          <ChevronRight className="h-3 w-3" />
+                        )}
+                      </Button>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -1004,23 +1084,29 @@ export default function StockMovementHistory() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {orders.length > 0 ? (
-                        <Button
-                          variant="link"
-                          size="sm"
-                          className="h-auto p-0 text-xs"
-                          onClick={(e) => toggleItemOrders(itemKey, e)}
-                        >
-                          {orders.length} orders
-                        </Button>
-                      ) : (
-                        <span className="text-muted-foreground">Dispatch</span>
-                      )}
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-xs"
+                        onClick={(e) => toggleItemOrders(itemKey, summary.date, productId, 'product', e)}
+                        disabled={isLoadingOrders}
+                      >
+                        {isLoadingOrders ? (
+                          <span className="flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Loading...
+                          </span>
+                        ) : isOrdersExpanded ? (
+                          `${orders.length} orders`
+                        ) : (
+                          "View orders"
+                        )}
+                      </Button>
                     </TableCell>
                     <TableCell className="text-muted-foreground">Aggregated</TableCell>
                   </TableRow>
                   {/* Order breakdown rows */}
-                  {isOrdersExpanded && orders.map((order, idx) => (
+                  {isOrdersExpanded && orders.length > 0 && orders.map((order, idx) => (
                     <TableRow key={`${itemKey}-order-${idx}`} className="bg-muted/40">
                       <TableCell className="pl-12"></TableCell>
                       <TableCell colSpan={2}>
@@ -1036,6 +1122,14 @@ export default function StockMovementHistory() {
                       <TableCell colSpan={2}></TableCell>
                     </TableRow>
                   ))}
+                  {isOrdersExpanded && orders.length === 0 && !isLoadingOrders && (
+                    <TableRow className="bg-muted/40">
+                      <TableCell className="pl-12"></TableCell>
+                      <TableCell colSpan={8}>
+                        <span className="text-sm text-muted-foreground">No order details available</span>
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </React.Fragment>
               );
             })}
@@ -1043,25 +1137,28 @@ export default function StockMovementHistory() {
             {packagingEntries.map(([packagingId, packaging]) => {
               const itemKey = `${summary.id}-packaging-${packagingId}`;
               const isOrdersExpanded = expandedItemOrders.has(itemKey);
-              const orders = packaging.orders || [];
+              const orders = orderBreakdownCache[itemKey] || [];
+              const isLoadingOrders = loadingOrdersFor === itemKey;
               
               return (
                 <React.Fragment key={itemKey}>
-                  <TableRow className="bg-muted/20">
+                  <TableRow className="bg-muted/20 hover:bg-muted/30">
                     <TableCell className="pl-8">
-                      {orders.length > 0 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          onClick={(e) => toggleItemOrders(itemKey, e)}
-                        >
-                          {isOrdersExpanded ? 
-                            <ChevronDown className="h-3 w-3" /> : 
-                            <ChevronRight className="h-3 w-3" />
-                          }
-                        </Button>
-                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={(e) => toggleItemOrders(itemKey, summary.date, packagingId, 'packaging', e)}
+                        disabled={isLoadingOrders}
+                      >
+                        {isLoadingOrders ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : isOrdersExpanded ? (
+                          <ChevronDown className="h-3 w-3" />
+                        ) : (
+                          <ChevronRight className="h-3 w-3" />
+                        )}
+                      </Button>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -1092,23 +1189,29 @@ export default function StockMovementHistory() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {orders.length > 0 ? (
-                        <Button
-                          variant="link"
-                          size="sm"
-                          className="h-auto p-0 text-xs"
-                          onClick={(e) => toggleItemOrders(itemKey, e)}
-                        >
-                          {orders.length} orders
-                        </Button>
-                      ) : (
-                        <span className="text-muted-foreground">Dispatch</span>
-                      )}
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-xs"
+                        onClick={(e) => toggleItemOrders(itemKey, summary.date, packagingId, 'packaging', e)}
+                        disabled={isLoadingOrders}
+                      >
+                        {isLoadingOrders ? (
+                          <span className="flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Loading...
+                          </span>
+                        ) : isOrdersExpanded ? (
+                          `${orders.length} orders`
+                        ) : (
+                          "View orders"
+                        )}
+                      </Button>
                     </TableCell>
                     <TableCell className="text-muted-foreground">Aggregated</TableCell>
                   </TableRow>
                   {/* Order breakdown rows */}
-                  {isOrdersExpanded && orders.map((order, idx) => (
+                  {isOrdersExpanded && orders.length > 0 && orders.map((order, idx) => (
                     <TableRow key={`${itemKey}-order-${idx}`} className="bg-muted/40">
                       <TableCell className="pl-12"></TableCell>
                       <TableCell colSpan={2}>
@@ -1124,6 +1227,14 @@ export default function StockMovementHistory() {
                       <TableCell colSpan={2}></TableCell>
                     </TableRow>
                   ))}
+                  {isOrdersExpanded && orders.length === 0 && !isLoadingOrders && (
+                    <TableRow className="bg-muted/40">
+                      <TableCell className="pl-12"></TableCell>
+                      <TableCell colSpan={8}>
+                        <span className="text-sm text-muted-foreground">No order details available</span>
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </React.Fragment>
               );
             })}
@@ -1194,6 +1305,12 @@ export default function StockMovementHistory() {
           onToggleSummary={toggleSummary}
           onImageClick={setSelectedImage}
           stats={stats}
+          expandedItemOrders={expandedItemOrders}
+          onToggleItemOrders={(itemKey, summaryDate, itemId, category) => {
+            toggleItemOrders(itemKey, summaryDate, itemId, category, { stopPropagation: () => {} } as React.MouseEvent);
+          }}
+          orderBreakdownCache={orderBreakdownCache}
+          loadingOrdersFor={loadingOrdersFor}
         />
         {/* Image Preview Dialog */}
         <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
