@@ -184,14 +184,38 @@ serve(async (req) => {
         // Check if user already exists in profiles first (fastest check)
         const { data: existingProfile } = await supabaseAdmin
           .from('profiles')
-          .select('id')
+          .select('id, email, full_name, role')
           .eq('email', email)
           .maybeSingle()
         
         if (existingProfile) {
-          console.error('User with this email already exists in profiles');
+          // Fetch the user's role from user_roles table for more accurate info
+          const { data: existingRoles } = await supabaseAdmin
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', existingProfile.id)
+            .eq('is_active', true);
+          
+          const rolesList = existingRoles?.map(r => r.role) || [existingProfile.role];
+          const rolesDisplay = rolesList.length > 0 ? rolesList.join(', ') : 'unknown';
+          
+          console.error('User with this email already exists in profiles:', {
+            email,
+            existingUserId: existingProfile.id,
+            existingName: existingProfile.full_name,
+            existingRoles: rolesList
+          });
+          
           return new Response(
-            JSON.stringify({ error: 'A user with this email already exists' }),
+            JSON.stringify({ 
+              error: `User "${existingProfile.full_name || email}" already exists with role: ${rolesDisplay}`,
+              existingUser: {
+                id: existingProfile.id,
+                email: existingProfile.email,
+                full_name: existingProfile.full_name,
+                roles: rolesList
+              }
+            }),
             { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
