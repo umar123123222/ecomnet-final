@@ -6,7 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Search, Clock, Truck, Package, ExternalLink, ChevronLeft, ChevronRight, RefreshCw, Loader2 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { AlertTriangle, Search, Clock, Truck, Package, ExternalLink, ChevronLeft, ChevronRight, RefreshCw, Loader2, CheckCircle } from 'lucide-react';
 import { formatDistanceToNow, differenceInDays } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { PageContainer, PageHeader, StatsGrid, StatsCard } from '@/components/layout';
@@ -34,6 +35,14 @@ const StuckOrdersDashboard = () => {
   const [stuckType, setStuckType] = useState<string>('all');
   const [page, setPage] = useState(0);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
+  const [trackingProgress, setTrackingProgress] = useState<{
+    totalOrders: number;
+    processed: number;
+    delivered: number;
+    returned: number;
+    noChange: number;
+    isComplete: boolean;
+  } | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     operation: string;
@@ -221,24 +230,19 @@ const StuckOrdersDashboard = () => {
   // Update all tracking using the orchestrator (loops until complete)
   const runTrackingUpdate = async () => {
     setIsProcessing('tracking');
-    const aggregatedResults = {
-      totalProcessed: 0,
+    setTrackingProgress({
+      totalOrders: stats?.atCourierEnd || 0,
+      processed: 0,
       delivered: 0,
       returned: 0,
-      failed: 0,
       noChange: 0,
-      batchesProcessed: 0
-    };
+      isComplete: false
+    });
+    
     let hasMore = true;
-    let invocations = 0;
     
     try {
-      toast({
-        description: "Starting tracking update for dispatched orders..."
-      });
-      
       while (hasMore) {
-        invocations++;
         const { data, error } = await supabase.functions.invoke('nightly-tracking-orchestrator', {
           body: { trigger: 'manual' }
         });
@@ -247,18 +251,17 @@ const StuckOrdersDashboard = () => {
         
         if (data?.success && data?.results) {
           const results = data.results;
-          aggregatedResults.totalProcessed = results.totalProcessed || 0;
-          aggregatedResults.delivered = results.delivered || 0;
-          aggregatedResults.returned = results.returned || 0;
-          aggregatedResults.failed = results.failed || 0;
-          aggregatedResults.noChange = results.noChange || 0;
-          aggregatedResults.batchesProcessed = results.batchesProcessed || 0;
+          
+          setTrackingProgress({
+            totalOrders: data.totalOrders || stats?.atCourierEnd || 0,
+            processed: results.totalProcessed || 0,
+            delivered: results.delivered || 0,
+            returned: results.returned || 0,
+            noChange: results.noChange || 0,
+            isComplete: !data.hasMore
+          });
           
           hasMore = data.hasMore === true;
-          
-          toast({
-            description: `Processed ${aggregatedResults.totalProcessed} of ${data.totalOrders || 0} orders (invocation ${invocations})...`
-          });
         } else {
           hasMore = false;
         }
@@ -266,7 +269,7 @@ const StuckOrdersDashboard = () => {
       
       toast({
         title: "Tracking Update Complete",
-        description: `Processed ${aggregatedResults.totalProcessed} orders: ${aggregatedResults.delivered} delivered, ${aggregatedResults.returned} returned`
+        description: `Processed ${trackingProgress?.processed || 0} orders`
       });
       
       refreshAll();
@@ -277,6 +280,7 @@ const StuckOrdersDashboard = () => {
         description: error.message || 'An error occurred',
         variant: 'destructive'
       });
+      setTrackingProgress(null);
     } finally {
       setIsProcessing(null);
       setConfirmDialog(null);
@@ -316,7 +320,7 @@ const StuckOrdersDashboard = () => {
 
       {/* Cleanup Actions - Hidden for finance users */}
       {canPerformActions && (
-        <Card className="p-4">
+        <Card className="p-4 space-y-4">
           <div className="flex flex-wrap gap-3">
             <Button
               variant="outline"
@@ -332,6 +336,59 @@ const StuckOrdersDashboard = () => {
               Update All Tracking ({stats?.atCourierEnd?.toLocaleString() || 0})
             </Button>
           </div>
+          
+          {/* Progress Bar for Tracking Update */}
+          {trackingProgress && (
+            <div className="space-y-3 pt-2 border-t">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium flex items-center gap-2">
+                  {trackingProgress.isComplete ? (
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  )}
+                  {trackingProgress.isComplete ? 'Tracking Update Complete' : 'Updating Tracking...'}
+                </span>
+                <span className="text-muted-foreground">
+                  {trackingProgress.processed.toLocaleString()} / {trackingProgress.totalOrders.toLocaleString()} orders
+                </span>
+              </div>
+              
+              <Progress 
+                value={trackingProgress.totalOrders > 0 
+                  ? (trackingProgress.processed / trackingProgress.totalOrders) * 100 
+                  : 0
+                } 
+                className="h-2"
+              />
+              
+              <div className="flex gap-4 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  Delivered: {trackingProgress.delivered.toLocaleString()}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                  Returned: {trackingProgress.returned.toLocaleString()}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                  No Change: {trackingProgress.noChange.toLocaleString()}
+                </span>
+              </div>
+              
+              {trackingProgress.isComplete && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setTrackingProgress(null)}
+                  className="text-xs"
+                >
+                  Dismiss
+                </Button>
+              )}
+            </div>
+          )}
         </Card>
       )}
 
