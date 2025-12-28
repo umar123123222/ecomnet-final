@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
@@ -14,6 +14,19 @@ import { PageContainer, PageHeader, StatsGrid, StatsCard } from '@/components/la
 import { useToast } from '@/hooks/use-toast';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+
+interface TrackingJob {
+  id: string;
+  status: string;
+  total_orders: number;
+  last_processed_offset: number;
+  delivered_count: number;
+  returned_count: number;
+  failed_count: number;
+  no_change_count: number;
+  started_at: string;
+  completed_at: string | null;
+}
 interface StuckOrder {
   id: string;
   order_number: string;
@@ -30,19 +43,13 @@ interface StuckOrder {
   last_tracking_update?: string;
 }
 const ITEMS_PER_PAGE = 50;
+
 const StuckOrdersDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [stuckType, setStuckType] = useState<string>('all');
   const [page, setPage] = useState(0);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
-  const [trackingProgress, setTrackingProgress] = useState<{
-    totalOrders: number;
-    processed: number;
-    delivered: number;
-    returned: number;
-    noChange: number;
-    isComplete: boolean;
-  } | null>(null);
+  const [activeJob, setActiveJob] = useState<TrackingJob | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     operation: string;
@@ -50,15 +57,73 @@ const StuckOrdersDashboard = () => {
     description: string;
     count: number;
   } | null>(null);
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
   const { primaryRole } = useUserRoles();
   const queryClient = useQueryClient();
   const canPerformActions = primaryRole !== 'finance';
   const twoDaysAgo = new Date();
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
   const twoDaysAgoISO = twoDaysAgo.toISOString();
+
+  // Fetch active tracking job on mount
+  useEffect(() => {
+    const fetchActiveJob = async () => {
+      const { data } = await supabase
+        .from('tracking_update_jobs')
+        .select('*')
+        .eq('status', 'running')
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (data) {
+        setActiveJob(data as TrackingJob);
+      }
+    };
+    
+    fetchActiveJob();
+  }, []);
+
+  // Real-time subscription to tracking jobs
+  useEffect(() => {
+    const channel = supabase
+      .channel('tracking-jobs-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tracking_update_jobs'
+        },
+        (payload) => {
+          console.log('Tracking job update:', payload);
+          const newJob = payload.new as TrackingJob;
+          
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            if (newJob.status === 'running') {
+              setActiveJob(newJob);
+            } else if (newJob.status === 'completed' || newJob.status === 'failed') {
+              // Keep showing for a moment then clear
+              setActiveJob(newJob);
+              if (newJob.status === 'completed') {
+                toast({
+                  title: "Tracking Update Complete",
+                  description: `Processed ${newJob.last_processed_offset} orders: ${newJob.delivered_count} delivered, ${newJob.returned_count} returned`
+                });
+                // Refresh stats
+                queryClient.invalidateQueries({ queryKey: ['stuck-orders-stats'] });
+                queryClient.invalidateQueries({ queryKey: ['stuck-orders'] });
+              }
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [toast, queryClient]);
 
   // Separate count queries for accurate stats
   const {
@@ -227,52 +292,23 @@ const StuckOrdersDashboard = () => {
     }
   };
 
-  // Update all tracking using the orchestrator (loops until complete)
+  // Update all tracking - just triggers the orchestrator, progress comes via realtime
   const runTrackingUpdate = async () => {
     setIsProcessing('tracking');
-    setTrackingProgress({
-      totalOrders: stats?.atCourierEnd || 0,
-      processed: 0,
-      delivered: 0,
-      returned: 0,
-      noChange: 0,
-      isComplete: false
-    });
-    
-    let hasMore = true;
     
     try {
-      while (hasMore) {
-        const { data, error } = await supabase.functions.invoke('nightly-tracking-orchestrator', {
-          body: { trigger: 'manual' }
-        });
-        
-        if (error) throw error;
-        
-        if (data?.success && data?.results) {
-          const results = data.results;
-          
-          setTrackingProgress({
-            totalOrders: data.totalOrders || stats?.atCourierEnd || 0,
-            processed: results.totalProcessed || 0,
-            delivered: results.delivered || 0,
-            returned: results.returned || 0,
-            noChange: results.noChange || 0,
-            isComplete: !data.hasMore
-          });
-          
-          hasMore = data.hasMore === true;
-        } else {
-          hasMore = false;
-        }
-      }
-      
-      toast({
-        title: "Tracking Update Complete",
-        description: `Processed ${trackingProgress?.processed || 0} orders`
+      // Just trigger the first call - the orchestrator self-continues
+      const { data, error } = await supabase.functions.invoke('nightly-tracking-orchestrator', {
+        body: { trigger: 'manual' }
       });
       
-      refreshAll();
+      if (error) throw error;
+      
+      // The real-time subscription will handle progress updates
+      toast({
+        description: "Tracking update started. Progress will update in real-time."
+      });
+      
     } catch (error: any) {
       console.error('Tracking update error:', error);
       toast({
@@ -280,7 +316,6 @@ const StuckOrdersDashboard = () => {
         description: error.message || 'An error occurred',
         variant: 'destructive'
       });
-      setTrackingProgress(null);
     } finally {
       setIsProcessing(null);
       setConfirmDialog(null);
@@ -337,26 +372,32 @@ const StuckOrdersDashboard = () => {
             </Button>
           </div>
           
-          {/* Progress Bar for Tracking Update */}
-          {trackingProgress && (
+          {/* Progress Bar for Tracking Update - Shows for all users */}
+          {activeJob && (
             <div className="space-y-3 pt-2 border-t">
               <div className="flex items-center justify-between text-sm">
                 <span className="font-medium flex items-center gap-2">
-                  {trackingProgress.isComplete ? (
+                  {activeJob.status === 'completed' ? (
                     <CheckCircle className="h-4 w-4 text-green-500" />
+                  ) : activeJob.status === 'failed' ? (
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
                   ) : (
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
                   )}
-                  {trackingProgress.isComplete ? 'Tracking Update Complete' : 'Updating Tracking...'}
+                  {activeJob.status === 'completed' 
+                    ? 'Tracking Update Complete' 
+                    : activeJob.status === 'failed'
+                    ? 'Tracking Update Failed'
+                    : 'Updating Tracking...'}
                 </span>
                 <span className="text-muted-foreground">
-                  {trackingProgress.processed.toLocaleString()} / {trackingProgress.totalOrders.toLocaleString()} orders
+                  {(activeJob.last_processed_offset || 0).toLocaleString()} / {(activeJob.total_orders || 0).toLocaleString()} orders
                 </span>
               </div>
               
               <Progress 
-                value={trackingProgress.totalOrders > 0 
-                  ? (trackingProgress.processed / trackingProgress.totalOrders) * 100 
+                value={activeJob.total_orders > 0 
+                  ? ((activeJob.last_processed_offset || 0) / activeJob.total_orders) * 100 
                   : 0
                 } 
                 className="h-2"
@@ -365,23 +406,23 @@ const StuckOrdersDashboard = () => {
               <div className="flex gap-4 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                  Delivered: {trackingProgress.delivered.toLocaleString()}
+                  Delivered: {(activeJob.delivered_count || 0).toLocaleString()}
                 </span>
                 <span className="flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-                  Returned: {trackingProgress.returned.toLocaleString()}
+                  Returned: {(activeJob.returned_count || 0).toLocaleString()}
                 </span>
                 <span className="flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                  No Change: {trackingProgress.noChange.toLocaleString()}
+                  No Change: {(activeJob.no_change_count || 0).toLocaleString()}
                 </span>
               </div>
               
-              {trackingProgress.isComplete && (
+              {(activeJob.status === 'completed' || activeJob.status === 'failed') && (
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={() => setTrackingProgress(null)}
+                  onClick={() => setActiveJob(null)}
                   className="text-xs"
                 >
                   Dismiss
