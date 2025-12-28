@@ -304,8 +304,8 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
       { label: 'Shipper Advice', href: '/shipper-advice', icon: '' }
     ];
     
-    // Add Stuck Orders for managers
-    if (['super_admin', 'super_manager', 'warehouse_manager', 'finance'].includes(role)) {
+    // Add Stuck Orders for managers and staff
+    if (['super_admin', 'super_manager', 'warehouse_manager', 'finance', 'staff'].includes(role)) {
       orderSubItems.splice(1, 0, { label: 'Stuck Orders', href: '/stuck-orders', icon: '' });
     }
     
