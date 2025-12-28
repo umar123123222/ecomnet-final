@@ -36,6 +36,7 @@ import {
   X,
   RefreshCw,
   Image as ImageIcon,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -52,6 +53,12 @@ interface UnifiedMovement {
   created_at: string;
   performed_by: string;
   outlet_name: string;
+}
+
+interface OrderBreakdown {
+  order_id: string;
+  order_number: string;
+  qty: number;
 }
 
 interface DispatchSummary {
@@ -94,6 +101,10 @@ interface StockMovementMobileViewProps {
     totalPackagingUsed: number;
     netChange: number;
   };
+  expandedItemOrders: Set<string>;
+  onToggleItemOrders: (itemKey: string, summaryDate: string, itemId: string, category: 'product' | 'packaging') => void;
+  orderBreakdownCache: Record<string, OrderBreakdown[]>;
+  loadingOrdersFor: string | null;
 }
 
 const QUICK_FILTERS = [
@@ -124,6 +135,10 @@ export function StockMovementMobileView({
   onToggleSummary,
   onImageClick,
   stats,
+  expandedItemOrders,
+  onToggleItemOrders,
+  orderBreakdownCache,
+  loadingOrdersFor,
 }: StockMovementMobileViewProps) {
   const [filterOpen, setFilterOpen] = React.useState(false);
 
@@ -200,35 +215,97 @@ export function StockMovementMobileView({
           </div>
 
           {isExpanded && (
-            <div className="mt-4 space-y-2 border-t pt-3">
-              {productEntries.map(([id, product]) => (
-                <div
-                  key={id}
-                  className="flex items-center justify-between py-1.5 text-sm"
-                >
-                  <div className="flex items-center gap-2">
-                    <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="font-medium">{product.name}</span>
+            <div className="mt-4 space-y-1 border-t pt-3">
+              {productEntries.map(([id, product]) => {
+                const itemKey = `${summary.id}-product-${id}`;
+                const isOrdersExpanded = expandedItemOrders.has(itemKey);
+                const orders = orderBreakdownCache[itemKey] || [];
+                const isLoadingOrders = loadingOrdersFor === itemKey;
+
+                return (
+                  <div key={id} className="space-y-1">
+                    <div
+                      className="flex items-center justify-between py-2 text-sm cursor-pointer hover:bg-muted/50 rounded-md px-2 -mx-2"
+                      onClick={() => onToggleItemOrders(itemKey, summary.date, id, 'product')}
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {isLoadingOrders ? (
+                          <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin shrink-0" />
+                        ) : isOrdersExpanded ? (
+                          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        )}
+                        <Package className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="font-medium truncate">{product.name}</span>
+                      </div>
+                      <span className="text-destructive font-medium shrink-0 ml-2">
+                        -{product.total_qty}
+                      </span>
+                    </div>
+                    {isOrdersExpanded && orders.length > 0 && (
+                      <div className="ml-8 pl-2 border-l-2 border-muted space-y-1">
+                        {orders.map((order, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-xs py-1">
+                            <span className="text-muted-foreground">Order: <span className="text-foreground font-medium">{order.order_number}</span></span>
+                            <span className="text-destructive">-{order.qty}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {isOrdersExpanded && orders.length === 0 && !isLoadingOrders && (
+                      <div className="ml-8 pl-2 border-l-2 border-muted">
+                        <span className="text-xs text-muted-foreground">No order details available</span>
+                      </div>
+                    )}
                   </div>
-                  <span className="text-destructive font-medium">
-                    -{product.total_qty}
-                  </span>
-                </div>
-              ))}
-              {packagingEntries.map(([id, packaging]) => (
-                <div
-                  key={id}
-                  className="flex items-center justify-between py-1.5 text-sm"
-                >
-                  <div className="flex items-center gap-2">
-                    <Box className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="font-medium">{packaging.name}</span>
+                );
+              })}
+              {packagingEntries.map(([id, packaging]) => {
+                const itemKey = `${summary.id}-packaging-${id}`;
+                const isOrdersExpanded = expandedItemOrders.has(itemKey);
+                const orders = orderBreakdownCache[itemKey] || [];
+                const isLoadingOrders = loadingOrdersFor === itemKey;
+
+                return (
+                  <div key={id} className="space-y-1">
+                    <div
+                      className="flex items-center justify-between py-2 text-sm cursor-pointer hover:bg-muted/50 rounded-md px-2 -mx-2"
+                      onClick={() => onToggleItemOrders(itemKey, summary.date, id, 'packaging')}
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {isLoadingOrders ? (
+                          <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin shrink-0" />
+                        ) : isOrdersExpanded ? (
+                          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        )}
+                        <Box className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="font-medium truncate">{packaging.name}</span>
+                      </div>
+                      <span className="text-destructive font-medium shrink-0 ml-2">
+                        -{packaging.total_qty}
+                      </span>
+                    </div>
+                    {isOrdersExpanded && orders.length > 0 && (
+                      <div className="ml-8 pl-2 border-l-2 border-muted space-y-1">
+                        {orders.map((order, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-xs py-1">
+                            <span className="text-muted-foreground">Order: <span className="text-foreground font-medium">{order.order_number}</span></span>
+                            <span className="text-destructive">-{order.qty}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {isOrdersExpanded && orders.length === 0 && !isLoadingOrders && (
+                      <div className="ml-8 pl-2 border-l-2 border-muted">
+                        <span className="text-xs text-muted-foreground">No order details available</span>
+                      </div>
+                    )}
                   </div>
-                  <span className="text-destructive font-medium">
-                    -{packaging.total_qty}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
