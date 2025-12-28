@@ -6338,6 +6338,49 @@ export type Database = {
           status: string
         }[]
       }
+      get_stuck_at_courier_count: { Args: never; Returns: number }
+      get_stuck_at_our_end_count: { Args: never; Returns: number }
+      get_stuck_orders_at_courier_end: {
+        Args: {
+          page_limit?: number
+          page_offset?: number
+          search_query?: string
+        }
+        Returns: {
+          city: string
+          courier: string
+          created_at: string
+          customer_name: string
+          customer_phone: string
+          id: string
+          last_tracking_check: string
+          order_number: string
+          status: string
+          total_amount: number
+          tracking_id: string
+          updated_at: string
+        }[]
+      }
+      get_stuck_orders_at_our_end: {
+        Args: {
+          page_limit?: number
+          page_offset?: number
+          search_query?: string
+        }
+        Returns: {
+          city: string
+          courier: string
+          created_at: string
+          customer_name: string
+          customer_phone: string
+          id: string
+          order_number: string
+          status: string
+          total_amount: number
+          tracking_id: string
+          updated_at: string
+        }[]
+      }
       get_user_roles: {
         Args: { user_id: string }
         Returns: Database["public"]["Enums"]["user_role"][]
