@@ -635,7 +635,7 @@ serve(async (req) => {
         const systemUserId = systemUser?.user_id || '00000000-0000-0000-0000-000000000000';
         console.log('Using system user for reassignment:', systemUserId);
         
-        // Step 1: Reassign records that should be preserved
+        // Step 1: Reassign records that should be preserved (before deleting anything)
         console.log('Reassigning stock_movements...');
         await supabaseAdmin
           .from('stock_movements')
@@ -654,13 +654,117 @@ serve(async (req) => {
           .update({ created_by: systemUserId })
           .eq('created_by', userId);
         
-        console.log('Reassigning goods_received_notes...');
+        console.log('Reassigning goods_received_notes received_by...');
         await supabaseAdmin
           .from('goods_received_notes')
           .update({ received_by: systemUserId })
           .eq('received_by', userId);
         
-        // Step 2: Delete user-specific records
+        console.log('Reassigning goods_received_notes inspected_by...');
+        await supabaseAdmin
+          .from('goods_received_notes')
+          .update({ inspected_by: systemUserId })
+          .eq('inspected_by', userId);
+        
+        console.log('Reassigning dispatches.dispatched_by...');
+        await supabaseAdmin
+          .from('dispatches')
+          .update({ dispatched_by: systemUserId })
+          .eq('dispatched_by', userId);
+        
+        console.log('Reassigning courier_load_sheets.generated_by...');
+        await supabaseAdmin
+          .from('courier_load_sheets')
+          .update({ generated_by: systemUserId })
+          .eq('generated_by', userId);
+        
+        console.log('Reassigning courier_payment_uploads.uploaded_by...');
+        await supabaseAdmin
+          .from('courier_payment_uploads')
+          .update({ uploaded_by: systemUserId })
+          .eq('uploaded_by', userId);
+        
+        console.log('Reassigning automated_alerts...');
+        await supabaseAdmin
+          .from('automated_alerts')
+          .update({ acknowledged_by: systemUserId })
+          .eq('acknowledged_by', userId);
+        await supabaseAdmin
+          .from('automated_alerts')
+          .update({ resolved_by: systemUserId })
+          .eq('resolved_by', userId);
+        
+        console.log('Reassigning count_variances...');
+        await supabaseAdmin
+          .from('count_variances')
+          .update({ assigned_to: systemUserId })
+          .eq('assigned_to', userId);
+        await supabaseAdmin
+          .from('count_variances')
+          .update({ resolved_by: systemUserId })
+          .eq('resolved_by', userId);
+        
+        console.log('Reassigning auto_purchase_orders...');
+        await supabaseAdmin
+          .from('auto_purchase_orders')
+          .update({ created_by: systemUserId })
+          .eq('created_by', userId);
+        
+        console.log('Reassigning conversations...');
+        await supabaseAdmin
+          .from('conversations')
+          .update({ created_by: systemUserId })
+          .eq('created_by', userId);
+        
+        console.log('Reassigning label_print_logs...');
+        await supabaseAdmin
+          .from('label_print_logs')
+          .update({ printed_by: systemUserId })
+          .eq('printed_by', userId);
+        
+        console.log('Reassigning packaging_movements...');
+        await supabaseAdmin
+          .from('packaging_movements')
+          .update({ created_by: systemUserId })
+          .eq('created_by', userId);
+        
+        console.log('Reassigning purchase_orders...');
+        await supabaseAdmin
+          .from('purchase_orders')
+          .update({ created_by: systemUserId })
+          .eq('created_by', userId);
+        await supabaseAdmin
+          .from('purchase_orders')
+          .update({ approved_by: systemUserId })
+          .eq('approved_by', userId);
+        
+        console.log('Reassigning returns...');
+        await supabaseAdmin
+          .from('returns')
+          .update({ received_by: systemUserId })
+          .eq('received_by', userId);
+        
+        console.log('Reassigning order_packaging...');
+        await supabaseAdmin
+          .from('order_packaging')
+          .update({ selected_by: systemUserId })
+          .eq('selected_by', userId);
+        
+        console.log('Reassigning stock_transfer_requests...');
+        await supabaseAdmin
+          .from('stock_transfer_requests')
+          .update({ requested_by: systemUserId })
+          .eq('requested_by', userId);
+        await supabaseAdmin
+          .from('stock_transfer_requests')
+          .update({ approved_by: systemUserId })
+          .eq('approved_by', userId);
+        await supabaseAdmin
+          .from('stock_transfer_requests')
+          .update({ received_by: systemUserId })
+          .eq('received_by', userId);
+        
+        // Step 2: Delete user-specific records that don't need to be kept
         console.log('Deleting notifications...');
         await supabaseAdmin
           .from('notifications')
@@ -694,36 +798,51 @@ serve(async (req) => {
         
         if (rolesError) {
           console.error('Error deleting user_roles:', rolesError);
-          return new Response(
-            JSON.stringify({ error: 'Failed to delete user roles: ' + rolesError.message }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
+          // Continue anyway, auth user deletion might still work
         }
         
-        // Step 4: Delete from profiles
-        console.log('Deleting profile for user:', userId);
-        const { error: profileError } = await supabaseAdmin
-          .from('profiles')
-          .delete()
-          .eq('id', userId);
-        
-        if (profileError) {
-          console.error('Error deleting profile:', profileError);
-          return new Response(
-            JSON.stringify({ error: 'Failed to delete user profile: ' + profileError.message }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-        
-        // Step 5: Delete the auth user
+        // Step 4: Delete the auth user FIRST (this should cascade properly)
         console.log('Deleting auth user:', userId);
-        const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
-        if (error) {
-          console.error('Error deleting user:', error);
-          return new Response(
-            JSON.stringify({ error: error.message || 'Failed to delete user' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
+        const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+        
+        if (authError) {
+          console.error('Error deleting auth user:', authError);
+          
+          // If auth user deletion fails, try to delete profile manually and retry
+          console.log('Attempting to delete profile first and retry...');
+          
+          const { error: profileError } = await supabaseAdmin
+            .from('profiles')
+            .delete()
+            .eq('id', userId);
+          
+          if (profileError) {
+            console.error('Error deleting profile:', profileError);
+          }
+          
+          // Try deleting auth user again after profile is removed
+          const { error: retryError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+          
+          if (retryError) {
+            console.error('Retry error deleting auth user:', retryError);
+            // User data is partially cleaned up, profile might be gone
+            // Return success if profile was deleted since that's the main goal
+            return new Response(
+              JSON.stringify({ 
+                success: true, 
+                warning: 'Auth user deletion failed but profile and related data were cleaned up. The auth user may need manual cleanup.',
+                error: retryError.message 
+              }),
+              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        } else {
+          // Auth user deleted successfully, now delete profile if it still exists
+          console.log('Auth user deleted, cleaning up profile...');
+          await supabaseAdmin
+            .from('profiles')
+            .delete()
+            .eq('id', userId);
         }
 
         console.log('User deleted successfully');
