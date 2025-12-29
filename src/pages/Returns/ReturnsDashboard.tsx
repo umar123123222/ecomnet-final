@@ -76,7 +76,8 @@ const ReturnsDashboard = () => {
   const { primaryRole } = useUserRoles();
   
   // Only returns_manager, warehouse_manager, super_manager, super_admin can use scan/mark returns
-  const canUseReturnActions = ['returns_manager', 'warehouse_manager', 'super_manager', 'super_admin'].includes(primaryRole);
+  // senior_staff can view but not make entries
+  const canUseReturnActions = ['returns_manager', 'warehouse_manager', 'super_manager', 'super_admin'].includes(primaryRole || '');
   
   // Query to find returns where order status doesn't match 'returned'
   const { data: mismatchedReturns } = useQuery({
