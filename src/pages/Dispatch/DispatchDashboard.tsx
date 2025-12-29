@@ -206,6 +206,15 @@ useEffect(() => {
       const chunks = Math.ceil(totalCount / CHUNK_SIZE);
       let allData: any[] = [];
 
+      // If no data, set empty and finish loading
+      if (chunks === 0) {
+        if (isMountedRef.current) {
+          setDispatches([]);
+          setLoading(false);
+        }
+        return;
+      }
+
       for (let i = 0; i < chunks; i++) {
         if (!isMountedRef.current) return;
         
