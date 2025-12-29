@@ -88,7 +88,8 @@ const DispatchDashboard = () => {
   const { primaryRole } = useUserRoles();
   
   // Only dispatch_manager, warehouse_manager, super_manager, super_admin can use scan/bulk entry
-  const canUseDispatchActions = ['dispatch_manager', 'warehouse_manager', 'super_manager', 'super_admin'].includes(primaryRole);
+  // senior_staff can view but not make entries
+  const canUseDispatchActions = ['dispatch_manager', 'warehouse_manager', 'super_manager', 'super_admin'].includes(primaryRole || '');
   
   const handleShowMore = () => {
     setVisibleCount(prev => prev + 500);

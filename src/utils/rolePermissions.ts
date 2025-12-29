@@ -242,10 +242,13 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessDashboard: true,
         canAccessOrders: true,
         canAccessCustomers: true,
+        canAccessDispatch: true, // View-only access to dispatch
+        canAccessReturns: true, // View-only access to returns
         canAccessAddressVerification: true,
         canAccessSettings: true,
-        // Senior staff has same access as staff, but can set delivered status with date picker
+        // Senior staff has same access as staff, but can set delivered/dispatched status with date picker
         // This is handled in the UI component (OrderStatusBadge)
+        // Note: senior_staff cannot make entries in Dispatch/Returns - view and filter only
       };
     
     case 'finance':
