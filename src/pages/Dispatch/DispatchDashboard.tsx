@@ -137,15 +137,17 @@ const DispatchDashboard = () => {
   });
 // Abort controller ref to cancel stale fetches
 const abortControllerRef = useRef<AbortController | null>(null);
+const isMountedRef = useRef(true);
 
 useEffect(() => {
+  isMountedRef.current = true;
+  
   const fetchDispatches = async () => {
     // Cancel any ongoing fetch to prevent race conditions
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     abortControllerRef.current = new AbortController();
-    const currentAbortController = abortControllerRef.current;
     
     // Reset state immediately when dateRange changes to prevent stale data
     setDispatches([]);
@@ -156,7 +158,9 @@ useEffect(() => {
       // REQUIRE valid date range - don't fetch all data if missing
       if (!dateRange?.from || !dateRange?.to) {
         console.warn('Date range required for dispatch fetch');
-        setLoading(false);
+        if (isMountedRef.current) {
+          setLoading(false);
+        }
         return;
       }
       
@@ -188,8 +192,7 @@ useEffect(() => {
 
       const { count, error: countError } = await countQuery;
       
-      // Check if this fetch was aborted
-      if (currentAbortController.signal.aborted) return;
+      if (!isMountedRef.current) return;
 
       if (countError) {
         console.error('Error fetching dispatch count:', countError);
@@ -204,8 +207,7 @@ useEffect(() => {
       let allData: any[] = [];
 
       for (let i = 0; i < chunks; i++) {
-        // Check if aborted before each chunk
-        if (currentAbortController.signal.aborted) return;
+        if (!isMountedRef.current) return;
         
         let dataQuery = supabase
           .from('dispatches')
@@ -261,12 +263,13 @@ useEffect(() => {
 
         if (error) {
           console.error('Error fetching dispatches chunk:', error);
-          if (!currentAbortController.signal.aborted) {
+          if (isMountedRef.current) {
             toast({
               title: "Error",
               description: "Failed to fetch dispatches",
               variant: "destructive"
             });
+            setLoading(false);
           }
           return;
         }
@@ -276,8 +279,7 @@ useEffect(() => {
         }
       }
       
-      // Check if aborted before updating state
-      if (currentAbortController.signal.aborted) return;
+      if (!isMountedRef.current) return;
 
       // Fetch profiles separately for dispatched_by users
       const userIds = [...new Set(allData?.filter(d => d.dispatched_by).map(d => d.dispatched_by) || [])];
@@ -289,8 +291,7 @@ useEffect(() => {
           .select('id, full_name, email')
           .in('id', userIds);
         
-        // Check if aborted after profiles fetch
-        if (currentAbortController.signal.aborted) return;
+        if (!isMountedRef.current) return;
 
         if (profiles) {
           profilesById = profiles.reduce((acc, profile) => {
@@ -305,16 +306,13 @@ useEffect(() => {
         dispatched_by_user: dispatch.dispatched_by ? profilesById[dispatch.dispatched_by] : null,
       })) || [];
 
-      // Final check before updating state
-      if (currentAbortController.signal.aborted) return;
-      
-      setDispatches(enrichedDispatches);
-    } catch (error) {
-      if (!currentAbortController.signal.aborted) {
-        console.error('Error:', error);
+      if (isMountedRef.current) {
+        setDispatches(enrichedDispatches);
+        setLoading(false);
       }
-    } finally {
-      if (!currentAbortController.signal.aborted) {
+    } catch (error) {
+      console.error('Error:', error);
+      if (isMountedRef.current) {
         setLoading(false);
       }
     }
@@ -335,12 +333,15 @@ useEffect(() => {
       clearTimeout(refreshTimeout);
       refreshTimeout = setTimeout(() => {
         console.log('Dispatch change detected, refreshing data...');
-        fetchDispatches();
+        if (isMountedRef.current) {
+          fetchDispatches();
+        }
       }, 500);
     })
     .subscribe();
 
   return () => {
+    isMountedRef.current = false;
     clearTimeout(refreshTimeout);
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
