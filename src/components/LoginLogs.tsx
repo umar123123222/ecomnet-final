@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -10,30 +9,60 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { LoginLog } from '@/types/auth';
-import { Clock, User } from 'lucide-react';
+import { Clock, User, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+
+interface LoginLogEntry {
+  id: string;
+  user_id: string;
+  created_at: string;
+  details: {
+    email?: string;
+    timestamp?: string;
+  };
+  profile?: {
+    full_name: string;
+    email: string;
+  };
+}
 
 const LoginLogs = () => {
-  const [logs, setLogs] = useState<LoginLog[]>([]);
+  const { data: logs = [], isLoading } = useQuery({
+    queryKey: ['login-logs'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('activity_logs')
+        .select(`
+          id,
+          user_id,
+          created_at,
+          details
+        `)
+        .eq('action', 'user_login')
+        .order('created_at', { ascending: false })
+        .limit(50);
 
-  useEffect(() => {
-    const savedLogs = JSON.parse(localStorage.getItem('loginLogs') || '[]');
-    setLogs(savedLogs.reverse()); // Show most recent first
-  }, []);
+      if (error) {
+        console.error('Error fetching login logs:', error);
+        throw error;
+      }
 
-  const formatDuration = (milliseconds: number) => {
-    const seconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes % 60}m`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${seconds % 60}s`;
-    } else {
-      return `${seconds}s`;
+      // Fetch user profiles for these logs
+      const userIds = [...new Set(data?.map(log => log.user_id) || [])];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', userIds);
+
+      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+
+      return (data || []).map(log => ({
+        ...log,
+        profile: profileMap.get(log.user_id)
+      })) as LoginLogEntry[];
     }
-  };
+  });
 
   const formatDateTime = (dateString: string) => {
     return new Date(dateString).toLocaleString('en-US', {
@@ -46,6 +75,20 @@ const LoginLogs = () => {
     });
   };
 
+  const getTimeSinceLogin = (dateString: string) => {
+    const now = new Date();
+    const loginTime = new Date(dateString);
+    const diffMs = now.getTime() - loginTime.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffDays > 0) return `${diffDays}d ago`;
+    if (diffHours > 0) return `${diffHours}h ago`;
+    if (diffMins > 0) return `${diffMins}m ago`;
+    return 'Just now';
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -55,48 +98,56 @@ const LoginLogs = () => {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>User</TableHead>
-              <TableHead>Login Time</TableHead>
-              <TableHead>Logout Time</TableHead>
-              <TableHead>Session Duration</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {logs.map((log) => (
-              <TableRow key={log.id}>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    <span className="font-medium">Muhammad Umar</span>
-                  </div>
-                </TableCell>
-                <TableCell>{formatDateTime(log.loginTime)}</TableCell>
-                <TableCell>
-                  {log.logoutTime ? formatDateTime(log.logoutTime) : '-'}
-                </TableCell>
-                <TableCell>
-                  {log.sessionDuration ? formatDuration(log.sessionDuration) : '-'}
-                </TableCell>
-                <TableCell>
-                  <Badge className={log.logoutTime ? 'bg-gray-100 text-gray-800' : 'bg-green-100 text-green-800'}>
-                    {log.logoutTime ? 'Ended' : 'Active'}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            ))}
-            {logs.length === 0 && (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-gray-500">
-                  No login activity found
-                </TableCell>
+                <TableHead>User</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Login Time</TableHead>
+                <TableHead>Time Ago</TableHead>
+                <TableHead>Status</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {logs.map((log) => (
+                <TableRow key={log.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span className="font-medium">
+                        {log.profile?.full_name || 'Unknown User'}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {log.profile?.email || (log.details as any)?.email || '-'}
+                  </TableCell>
+                  <TableCell>{formatDateTime(log.created_at)}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {getTimeSinceLogin(log.created_at)}
+                  </TableCell>
+                  <TableCell>
+                    <Badge className="bg-green-100 text-green-800">
+                      Success
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {logs.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    No login activity found
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
       </CardContent>
     </Card>
   );
