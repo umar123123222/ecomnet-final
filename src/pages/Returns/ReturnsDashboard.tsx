@@ -141,93 +141,82 @@ const ReturnsDashboard = () => {
       abortControllerRef.current = new AbortController();
 
       setLoading(true);
+      setReturns([]);
       
       try {
-        // First get the count
-        const { count, error: countError } = await supabase
-          .from('returns')
-          .select('*', { count: 'exact', head: true });
-
-        if (!isMountedRef.current) return;
-
-        if (countError) {
-          console.error('Error fetching returns count:', countError);
-        }
-
-        const totalCount = count || 0;
-        const CHUNK_SIZE = 1000;
-        const chunks = Math.ceil(totalCount / CHUNK_SIZE);
-        let allData: any[] = [];
-
-        // If no data, set empty and finish loading
-        if (chunks === 0) {
+        // REQUIRE valid date range - don't fetch all data if missing
+        if (!dateRange?.from) {
+          console.warn('Date range required for returns fetch');
           if (isMountedRef.current) {
-            setReturns([]);
             setLoading(false);
           }
           return;
         }
 
-        // Fetch in chunks to bypass 1000 row limit
-        for (let i = 0; i < chunks; i++) {
-          if (!isMountedRef.current) return;
+        // Build date filter conditions
+        const fromDate = new Date(dateRange.from);
+        fromDate.setHours(0, 0, 0, 0);
+        const dateFromISO = fromDate.toISOString();
 
-          const { data, error } = await supabase
-            .from('returns')
-            .select(`
-              *,
-              orders!returns_order_id_fkey (
-                order_number,
-                customer_name,
-                customer_phone,
-                customer_email,
-                customer_address,
-                city,
-                total_amount,
-                created_at,
-                booked_at,
-                dispatched_at,
-                delivered_at,
-                tags,
-                notes,
-                shipping_charges,
-                order_items (
-                  id,
-                  item_name,
-                  quantity,
-                  price
-                )
-              ),
-              received_by_profile:profiles!returns_received_by_fkey(
-                full_name,
-                email
+        const toDate = dateRange.to ? new Date(dateRange.to) : new Date(dateRange.from);
+        toDate.setHours(23, 59, 59, 999);
+        const dateToISO = toDate.toISOString();
+
+        // Single optimized query with server-side date filter and limit
+        // Use received_at for filtering, fallback to created_at
+        const { data, error } = await supabase
+          .from('returns')
+          .select(`
+            *,
+            orders!returns_order_id_fkey (
+              order_number,
+              customer_name,
+              customer_phone,
+              customer_email,
+              customer_address,
+              city,
+              total_amount,
+              created_at,
+              booked_at,
+              dispatched_at,
+              delivered_at,
+              tags,
+              notes,
+              shipping_charges,
+              order_items (
+                id,
+                item_name,
+                quantity,
+                price
               )
-            `)
-            .order('created_at', { ascending: false })
-            .range(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE - 1);
+            ),
+            received_by_profile:profiles!returns_received_by_fkey(
+              full_name,
+              email
+            )
+          `)
+          .or(`received_at.gte.${dateFromISO},and(received_at.is.null,created_at.gte.${dateFromISO})`)
+          .or(`received_at.lte.${dateToISO},and(received_at.is.null,created_at.lte.${dateToISO})`)
+          .order('created_at', { ascending: false })
+          .limit(500);
 
-          if (!isMountedRef.current) return;
+        if (!isMountedRef.current) return;
 
-          if (error) {
-            console.error('Error fetching returns chunk:', error);
-            if (isMountedRef.current) {
-              toast({
-                title: "Error",
-                description: "Failed to fetch returns",
-                variant: "destructive"
-              });
-              setLoading(false);
-            }
-            return;
+        if (error) {
+          console.error('Error fetching returns:', error);
+          if (isMountedRef.current) {
+            toast({
+              title: "Error",
+              description: "Failed to fetch returns",
+              variant: "destructive"
+            });
+            setLoading(false);
           }
-
-          if (data) {
-            allData = [...allData, ...data];
-          }
+          return;
         }
 
         if (isMountedRef.current) {
-          setReturns(allData);
+          setReturns(data || []);
           setLoading(false);
         }
       } catch (error) {
@@ -245,27 +234,11 @@ const ReturnsDashboard = () => {
         abortControllerRef.current.abort();
       }
     };
-  }, [toast]);
+  }, [toast, dateRange]);
+  // Date filtering now happens server-side
   const filteredByDate = useMemo(() => {
-    if (!dateRange?.from) return returns;
-    return returns.filter(returnItem => {
-      // Use received_at or created_at for date filtering
-      const dateStr = returnItem.received_at || returnItem.created_at;
-      if (!dateStr) return false;
-      const returnDate = parseISO(dateStr);
-      
-      // Set start of day for from date and end of day for to date
-      const startOfFrom = new Date(dateRange.from);
-      startOfFrom.setHours(0, 0, 0, 0);
-      
-      if (dateRange.to) {
-        const endOfTo = new Date(dateRange.to);
-        endOfTo.setHours(23, 59, 59, 999);
-        return returnDate >= startOfFrom && returnDate <= endOfTo;
-      }
-      return returnDate >= startOfFrom;
-    });
-  }, [returns, dateRange]);
+    return returns;
+  }, [returns]);
   const filteredReturns = useMemo(() => {
     return filteredByDate.filter(returnItem => 
       (returnItem.tracking_id || '').toLowerCase().includes(searchTerm.toLowerCase()) || 

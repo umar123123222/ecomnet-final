@@ -200,93 +200,76 @@ useEffect(() => {
         setTotalDispatchCount(count);
       }
 
-      // Fetch data in chunks of 1000 to bypass Supabase row limit
-      const CHUNK_SIZE = 1000;
-      const totalCount = count || 0;
-      const chunks = Math.ceil(totalCount / CHUNK_SIZE);
-      let allData: any[] = [];
+      // Optimized: Fetch first 500 records only instead of all chunks
+      // This dramatically speeds up initial load
+      let dataQuery = supabase
+        .from('dispatches')
+        .select(`
+          *,
+          dispatched_by_user:profiles!dispatches_dispatched_by_fkey(full_name, email),
+          orders:orders!dispatches_order_id_fkey (
+            order_number,
+            customer_name,
+            customer_phone,
+            customer_email,
+            customer_address,
+            city,
+            total_amount,
+            status,
+            created_at,
+            booked_at,
+            dispatched_at,
+            delivered_at,
+            tags,
+            notes,
+            shipping_charges,
+            order_items (
+              id,
+              item_name,
+              quantity,
+              price
+            ),
+            order_packaging (
+              id,
+              packaging_items (name, sku)
+            )
+          )
+        `)
+        .gte('dispatch_date', dateFromISO)
+        .lte('dispatch_date', dateToISO);
+      
+      // Apply courier filter server-side
+      if (courierFilter && courierFilter !== "all") {
+        dataQuery = dataQuery.ilike('courier', courierFilter);
+      }
+      
+      // Apply user filter server-side
+      if (userFilter && userFilter !== "all") {
+        dataQuery = dataQuery.eq('dispatched_by', userFilter);
+      }
+      
+      dataQuery = dataQuery
+        .order('dispatch_date', { ascending: false })
+        .limit(500);
 
-      // If no data, set empty and finish loading
-      if (chunks === 0) {
+      const { data, error } = await dataQuery;
+
+      if (!isMountedRef.current) return;
+
+      if (error) {
+        console.error('Error fetching dispatches:', error);
         if (isMountedRef.current) {
-          setDispatches([]);
+          toast({
+            title: "Error",
+            description: "Failed to fetch dispatches",
+            variant: "destructive"
+          });
           setLoading(false);
         }
         return;
       }
 
-      for (let i = 0; i < chunks; i++) {
-        if (!isMountedRef.current) return;
-        
-        let dataQuery = supabase
-          .from('dispatches')
-          .select(`
-            *,
-            dispatched_by_user:profiles!dispatches_dispatched_by_fkey(full_name, email),
-            orders:orders!dispatches_order_id_fkey (
-              order_number,
-              customer_name,
-              customer_phone,
-              customer_email,
-              customer_address,
-              city,
-              total_amount,
-              status,
-              created_at,
-              booked_at,
-              dispatched_at,
-              delivered_at,
-              tags,
-              notes,
-              shipping_charges,
-              order_items (
-                id,
-                item_name,
-                quantity,
-                price
-              ),
-              order_packaging (
-                id,
-                packaging_items (name, sku)
-              )
-            )
-          `)
-          .gte('dispatch_date', dateFromISO)
-          .lte('dispatch_date', dateToISO);
-        
-        // Apply courier filter server-side
-        if (courierFilter && courierFilter !== "all") {
-          dataQuery = dataQuery.ilike('courier', courierFilter);
-        }
-        
-        // Apply user filter server-side
-        if (userFilter && userFilter !== "all") {
-          dataQuery = dataQuery.eq('dispatched_by', userFilter);
-        }
-        
-        dataQuery = dataQuery
-          .order('dispatch_date', { ascending: false })
-          .range(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE - 1);
-
-        const { data, error } = await dataQuery;
-
-        if (error) {
-          console.error('Error fetching dispatches chunk:', error);
-          if (isMountedRef.current) {
-            toast({
-              title: "Error",
-              description: "Failed to fetch dispatches",
-              variant: "destructive"
-            });
-            setLoading(false);
-          }
-          return;
-        }
-
-        if (data) {
-          allData = [...allData, ...data];
-        }
-      }
+      const allData = data || [];
       
       if (!isMountedRef.current) return;
 
