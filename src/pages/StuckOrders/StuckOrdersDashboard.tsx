@@ -1,19 +1,25 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { AlertTriangle, Search, Clock, Truck, Package, ExternalLink, ChevronLeft, ChevronRight, RefreshCw, Loader2, CheckCircle } from 'lucide-react';
-import { formatDistanceToNow, differenceInDays } from 'date-fns';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { 
+  AlertTriangle, Search, Clock, Truck, Package, ExternalLink, 
+  ChevronLeft, ChevronRight, RefreshCw, Loader2, CheckCircle,
+  Phone, MapPin, ArrowUpDown, Filter
+} from 'lucide-react';
+import { formatDistanceToNow, differenceInDays, format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { PageContainer, PageHeader, StatsGrid, StatsCard } from '@/components/layout';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface TrackingJob {
   id: string;
@@ -27,6 +33,7 @@ interface TrackingJob {
   started_at: string;
   completed_at: string | null;
 }
+
 interface StuckOrder {
   id: string;
   order_number: string;
@@ -42,7 +49,10 @@ interface StuckOrder {
   days_stuck: number;
   last_tracking_update?: string;
 }
+
 const ITEMS_PER_PAGE = 50;
+
+type SortOption = 'oldest' | 'newest' | 'days_stuck' | 'amount';
 
 const StuckOrdersDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,6 +60,7 @@ const StuckOrdersDashboard = () => {
   const [page, setPage] = useState(0);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
   const [activeJob, setActiveJob] = useState<TrackingJob | null>(null);
+  const [sortBy, setSortBy] = useState<SortOption>('oldest');
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     operation: string;
@@ -100,14 +111,12 @@ const StuckOrdersDashboard = () => {
             if (newJob.status === 'running') {
               setActiveJob(newJob);
             } else if (newJob.status === 'completed' || newJob.status === 'failed') {
-              // Keep showing for a moment then clear
               setActiveJob(newJob);
               if (newJob.status === 'completed') {
                 toast({
                   title: "Tracking Update Complete",
                   description: `Processed ${newJob.last_processed_offset} orders: ${newJob.delivered_count} delivered, ${newJob.returned_count} returned`
                 });
-                // Refresh stats
                 queryClient.invalidateQueries({ queryKey: ['stuck-orders-stats'] });
                 queryClient.invalidateQueries({ queryKey: ['stuck-orders'] });
               }
@@ -122,14 +131,14 @@ const StuckOrdersDashboard = () => {
     };
   }, [toast, queryClient]);
 
-  // Separate count queries for accurate stats using database functions
+  // Separate count queries for accurate stats
   const {
     data: stats,
-    refetch: refetchStats
+    refetch: refetchStats,
+    isLoading: statsLoading
   } = useQuery({
     queryKey: ['stuck-orders-stats'],
     queryFn: async () => {
-      // Use database functions for accurate counting
       const [atOurEndResult, atCourierEndResult] = await Promise.all([
         supabase.rpc('get_stuck_at_our_end_count'),
         supabase.rpc('get_stuck_at_courier_count')
@@ -146,18 +155,31 @@ const StuckOrdersDashboard = () => {
     }
   });
 
-  // Paginated orders query using database functions
+  // Paginated orders query
   const {
     data: ordersData,
     isLoading,
     refetch: refetchOrders
   } = useQuery({
-    queryKey: ['stuck-orders', stuckType, page, searchQuery],
+    queryKey: ['stuck-orders', stuckType, page, searchQuery, sortBy],
     queryFn: async () => {
       const offset = page * ITEMS_PER_PAGE;
       
+      const sortOrders = (orders: StuckOrder[]) => {
+        switch (sortBy) {
+          case 'newest':
+            return orders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          case 'days_stuck':
+            return orders.sort((a, b) => b.days_stuck - a.days_stuck);
+          case 'amount':
+            return orders.sort((a, b) => (b.total_amount || 0) - (a.total_amount || 0));
+          case 'oldest':
+          default:
+            return orders.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        }
+      };
+      
       if (stuckType === 'our_end') {
-        // Use database function for "At Our End" orders
         const { data, error } = await supabase.rpc('get_stuck_orders_at_our_end', {
           search_query: searchQuery.trim(),
           page_offset: offset,
@@ -171,11 +193,10 @@ const StuckOrdersDashboard = () => {
         }));
         
         return {
-          orders: enrichedOrders,
+          orders: sortOrders(enrichedOrders),
           totalCount: stats?.atOurEnd || 0
         };
       } else if (stuckType === 'courier_end') {
-        // Use database function for "At Courier End" orders
         const { data, error } = await supabase.rpc('get_stuck_orders_at_courier_end', {
           search_query: searchQuery.trim(),
           page_offset: offset,
@@ -190,11 +211,10 @@ const StuckOrdersDashboard = () => {
         }));
         
         return {
-          orders: enrichedOrders,
+          orders: sortOrders(enrichedOrders),
           totalCount: stats?.atCourierEnd || 0
         };
       } else {
-        // "All" tab - fetch both using functions
         const [ourEndResult, courierEndResult] = await Promise.all([
           supabase.rpc('get_stuck_orders_at_our_end', {
             search_query: searchQuery.trim(),
@@ -208,15 +228,8 @@ const StuckOrdersDashboard = () => {
           })
         ]);
         
-        // Check for errors
-        if (ourEndResult.error) {
-          console.error('Error fetching our end orders:', ourEndResult.error);
-          throw ourEndResult.error;
-        }
-        if (courierEndResult.error) {
-          console.error('Error fetching courier end orders:', courierEndResult.error);
-          throw courierEndResult.error;
-        }
+        if (ourEndResult.error) throw ourEndResult.error;
+        if (courierEndResult.error) throw courierEndResult.error;
         
         const ourEndOrders = (ourEndResult.data || []).map((order: any) => ({
           ...order,
@@ -229,88 +242,80 @@ const StuckOrdersDashboard = () => {
           last_tracking_update: order.last_tracking_check
         }));
         
-        // Combine and sort by created_at
-        const allOrders = [...ourEndOrders, ...courierEndOrders]
-          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+        const allOrders = sortOrders([...ourEndOrders, ...courierEndOrders] as StuckOrder[])
           .slice(0, ITEMS_PER_PAGE);
         
         return {
-          orders: allOrders as StuckOrder[],
+          orders: allOrders,
           totalCount: stats?.total || 0
         };
       }
     },
-    staleTime: 30000, // Cache for 30 seconds
+    staleTime: 30000,
     enabled: !!stats
   });
 
   // Critical count
-  const {
-    data: criticalCount
-  } = useQuery({
+  const { data: criticalCount } = useQuery({
     queryKey: ['stuck-orders-critical'],
     queryFn: async () => {
       const fiveDaysAgo = new Date();
       fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
-      const {
-        count
-      } = await supabase.from('orders').select('*', {
-        count: 'exact',
-        head: true
-      }).not('status', 'in', '(cancelled,returned,delivered)').lt('updated_at', fiveDaysAgo.toISOString());
+      const { count } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .not('status', 'in', '(cancelled,returned,delivered)')
+        .lt('updated_at', fiveDaysAgo.toISOString());
       return count || 0;
     }
   });
 
   const totalPages = Math.ceil((ordersData?.totalCount || 0) / ITEMS_PER_PAGE);
-  const getStuckBadgeVariant = (days: number) => {
-    if (days >= 5) return 'destructive';
-    if (days >= 3) return 'secondary';
-    return 'outline';
+
+  const getStuckSeverity = (days: number) => {
+    if (days >= 7) return { color: 'bg-red-500', text: 'text-white', label: 'Critical' };
+    if (days >= 5) return { color: 'bg-orange-500', text: 'text-white', label: 'Urgent' };
+    if (days >= 3) return { color: 'bg-yellow-500', text: 'text-black', label: 'Warning' };
+    return { color: 'bg-blue-500', text: 'text-white', label: 'Monitor' };
   };
-  const getStuckLabel = (order: StuckOrder) => {
-    if (['pending', 'booked'].includes(order.status)) {
-      return 'Our End';
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'booked': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'dispatched': return 'bg-purple-100 text-purple-800 border-purple-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
+  };
+
+  const getStuckLabel = (order: StuckOrder) => {
+    if (['pending', 'booked'].includes(order.status)) return 'Our End';
     return 'At Courier';
   };
+
   const handleTabChange = (value: string) => {
     setStuckType(value);
     setPage(0);
   };
+
   const refreshAll = () => {
     refetchStats();
     refetchOrders();
   };
 
-  // Bulk cleanup operations
+  // Bulk operations
   const runBulkOperation = async (operation: string, ageThresholdDays: number = 2) => {
     setIsProcessing(operation);
-    const aggregatedResults = {
-      processed: 0,
-      success: 0,
-      failed: 0,
-      skipped: 0,
-      batchesProcessed: 0
-    };
+    const aggregatedResults = { processed: 0, success: 0, failed: 0, skipped: 0, batchesProcessed: 0 };
     let offset = 0;
     const limit = 50;
     let hasMore = true;
+    
     try {
-      toast({
-        description: `Starting ${operation.replace('_', ' ')}...`
-      });
+      toast({ description: `Starting ${operation.replace('_', ' ')}...` });
       while (hasMore) {
-        const {
-          data,
-          error
-        } = await supabase.functions.invoke('bulk-cleanup-stuck-orders', {
-          body: {
-            operation,
-            ageThresholdDays,
-            limit,
-            offset
-          }
+        const { data, error } = await supabase.functions.invoke('bulk-cleanup-stuck-orders', {
+          body: { operation, ageThresholdDays, limit, offset }
         });
         if (error) throw error;
         if (data?.success) {
@@ -321,9 +326,7 @@ const StuckOrdersDashboard = () => {
           aggregatedResults.batchesProcessed++;
           hasMore = data.hasMore;
           offset += limit;
-          toast({
-            description: `Processed ${aggregatedResults.processed} orders (batch ${aggregatedResults.batchesProcessed})...`
-          });
+          toast({ description: `Processed ${aggregatedResults.processed} orders (batch ${aggregatedResults.batchesProcessed})...` });
         } else {
           hasMore = false;
           if (data?.error) throw new Error(data.error);
@@ -336,41 +339,24 @@ const StuckOrdersDashboard = () => {
       refreshAll();
     } catch (error: any) {
       console.error('Bulk operation error:', error);
-      toast({
-        title: "Operation Failed",
-        description: error.message || 'An error occurred',
-        variant: 'destructive'
-      });
+      toast({ title: "Operation Failed", description: error.message || 'An error occurred', variant: 'destructive' });
     } finally {
       setIsProcessing(null);
       setConfirmDialog(null);
     }
   };
 
-  // Update all tracking - just triggers the orchestrator, progress comes via realtime
   const runTrackingUpdate = async () => {
     setIsProcessing('tracking');
-    
     try {
-      // Just trigger the first call - the orchestrator self-continues
       const { data, error } = await supabase.functions.invoke('nightly-tracking-orchestrator', {
         body: { trigger: 'manual' }
       });
-      
       if (error) throw error;
-      
-      // The real-time subscription will handle progress updates
-      toast({
-        description: "Tracking update started. Progress will update in real-time."
-      });
-      
+      toast({ description: "Tracking update started. Progress will update in real-time." });
     } catch (error: any) {
       console.error('Tracking update error:', error);
-      toast({
-        title: "Tracking Update Failed",
-        description: error.message || 'An error occurred',
-        variant: 'destructive'
-      });
+      toast({ title: "Tracking Update Failed", description: error.message || 'An error occurred', variant: 'destructive' });
     } finally {
       setIsProcessing(null);
       setConfirmDialog(null);
@@ -388,13 +374,7 @@ const StuckOrdersDashboard = () => {
         count = stats?.atCourierEnd || 0;
         break;
     }
-    setConfirmDialog({
-      open: true,
-      operation,
-      title,
-      description,
-      count
-    });
+    setConfirmDialog({ open: true, operation, title, description, count });
   };
 
   const handleConfirm = () => {
@@ -405,192 +385,350 @@ const StuckOrdersDashboard = () => {
         break;
     }
   };
-  return <PageContainer>
-      <PageHeader title="Stuck Orders" description="Orders with no status or tracking updates for 2+ days" />
 
-      {/* Cleanup Actions - Hidden for finance users */}
-      {canPerformActions && (
-        <Card className="p-4 space-y-4">
-          <div className="flex flex-wrap gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => openConfirmDialog('tracking')}
-              disabled={isProcessing !== null}
-            >
-              {isProcessing === 'tracking' ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-2" />
-              )}
-              Update All Tracking ({stats?.atCourierEnd?.toLocaleString() || 0})
-            </Button>
+  const OrderCardSkeleton = () => (
+    <Card className="overflow-hidden">
+      <CardContent className="p-0">
+        <div className="flex flex-col md:flex-row">
+          <div className="w-full md:w-2 bg-muted shrink-0" />
+          <div className="flex-1 p-4 space-y-3">
+            <div className="flex items-start justify-between gap-4">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-6 w-20" />
+            </div>
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-4 w-36" />
           </div>
-          
-          {/* Progress Bar for Tracking Update - Shows for all users */}
-          {activeJob && (
-            <div className="space-y-3 pt-2 border-t">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium flex items-center gap-2">
-                  {activeJob.status === 'completed' ? (
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                  ) : activeJob.status === 'failed' ? (
-                    <AlertTriangle className="h-4 w-4 text-destructive" />
-                  ) : (
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  )}
-                  {activeJob.status === 'completed' 
-                    ? 'Tracking Update Complete' 
-                    : activeJob.status === 'failed'
-                    ? 'Tracking Update Failed'
-                    : 'Updating Tracking...'}
-                </span>
-                <span className="text-muted-foreground">
-                  {(activeJob.last_processed_offset || 0).toLocaleString()} / {(activeJob.total_orders || 0).toLocaleString()} orders
-                </span>
-              </div>
-              
-              <Progress 
-                value={activeJob.total_orders > 0 
-                  ? ((activeJob.last_processed_offset || 0) / activeJob.total_orders) * 100 
-                  : 0
-                } 
-                className="h-2"
-              />
-              
-              <div className="flex gap-4 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                  Delivered: {(activeJob.delivered_count || 0).toLocaleString()}
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-                  Returned: {(activeJob.returned_count || 0).toLocaleString()}
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                  No Change: {(activeJob.no_change_count || 0).toLocaleString()}
-                </span>
-              </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <PageContainer>
+      <PageHeader 
+        title="Stuck Orders" 
+        description="Orders with no status or tracking updates for 2+ days"
+      />
+
+      {/* Progress Card for Active Job */}
+      {activeJob && (
+        <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-medium flex items-center gap-2">
+                {activeJob.status === 'completed' ? (
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                ) : activeJob.status === 'failed' ? (
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                ) : (
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                )}
+                {activeJob.status === 'completed' 
+                  ? 'Tracking Update Complete' 
+                  : activeJob.status === 'failed'
+                  ? 'Tracking Update Failed'
+                  : 'Updating Tracking...'}
+              </span>
+              <span className="text-sm text-muted-foreground font-mono">
+                {(activeJob.last_processed_offset || 0).toLocaleString()} / {(activeJob.total_orders || 0).toLocaleString()}
+              </span>
+            </div>
+            
+            <Progress 
+              value={activeJob.total_orders > 0 
+                ? ((activeJob.last_processed_offset || 0) / activeJob.total_orders) * 100 
+                : 0
+              } 
+              className="h-2"
+            />
+            
+            <div className="flex flex-wrap gap-4 text-sm">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                Delivered: {(activeJob.delivered_count || 0).toLocaleString()}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+                Returned: {(activeJob.returned_count || 0).toLocaleString()}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-gray-400" />
+                No Change: {(activeJob.no_change_count || 0).toLocaleString()}
+              </span>
               
               {(activeJob.status === 'completed' || activeJob.status === 'failed') && (
                 <Button 
                   variant="ghost" 
                   size="sm" 
                   onClick={() => setActiveJob(null)}
-                  className="text-xs"
+                  className="ml-auto h-7 text-xs"
                 >
                   Dismiss
                 </Button>
               )}
             </div>
-          )}
+          </CardContent>
         </Card>
       )}
 
       {/* Stats Cards */}
-      <StatsGrid columns={4}>
-        <StatsCard title="Total Stuck" value={stats?.total?.toLocaleString() || '0'} icon={AlertTriangle} description="Orders needing attention" variant="warning" />
-        <StatsCard title="At Our End" value={stats?.atOurEnd?.toLocaleString() || '0'} icon={Package} description="Pending/Booked orders" variant="info" />
-        <StatsCard title="At Courier End" value={stats?.atCourierEnd?.toLocaleString() || '0'} icon={Truck} description="Dispatched but no movement" variant="default" />
-        <StatsCard title="Critical (5+ days)" value={criticalCount?.toLocaleString() || '0'} icon={Clock} description="Urgent attention needed" variant="danger" />
-      </StatsGrid>
+      {statsLoading ? (
+        <StatsGrid columns={4}>
+          {[...Array(4)].map((_, i) => (
+            <Card key={i} className="p-4">
+              <Skeleton className="h-4 w-20 mb-2" />
+              <Skeleton className="h-8 w-16" />
+            </Card>
+          ))}
+        </StatsGrid>
+      ) : (
+        <StatsGrid columns={4}>
+          <StatsCard 
+            title="Total Stuck" 
+            value={stats?.total?.toLocaleString() || '0'} 
+            icon={AlertTriangle} 
+            description="Orders needing attention" 
+            variant="warning" 
+          />
+          <StatsCard 
+            title="At Our End" 
+            value={stats?.atOurEnd?.toLocaleString() || '0'} 
+            icon={Package} 
+            description="Pending/Booked orders" 
+            variant="info" 
+          />
+          <StatsCard 
+            title="At Courier End" 
+            value={stats?.atCourierEnd?.toLocaleString() || '0'} 
+            icon={Truck} 
+            description="Dispatched but no movement" 
+            variant="default" 
+          />
+          <StatsCard 
+            title="Critical (5+ days)" 
+            value={criticalCount?.toLocaleString() || '0'} 
+            icon={Clock} 
+            description="Urgent attention needed" 
+            variant="danger" 
+          />
+        </StatsGrid>
+      )}
 
-      {/* Search */}
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-          <Input placeholder="Search by order number, customer, phone, city..." value={searchQuery} onChange={e => {
-          setSearchQuery(e.target.value);
-          setPage(0);
-        }} className="pl-10" />
+      {/* Search and Filters */}
+      <Card className="p-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+            <Input 
+              placeholder="Search by order number, customer, phone, city..." 
+              value={searchQuery} 
+              onChange={e => {
+                setSearchQuery(e.target.value);
+                setPage(0);
+              }} 
+              className="pl-10" 
+            />
+          </div>
+          
+          <div className="flex gap-2">
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+              <SelectTrigger className="w-[160px]">
+                <ArrowUpDown className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="oldest">Oldest First</SelectItem>
+                <SelectItem value="newest">Newest First</SelectItem>
+                <SelectItem value="days_stuck">Most Days Stuck</SelectItem>
+                <SelectItem value="amount">Highest Amount</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            {canPerformActions && (
+              <Button
+                variant="default"
+                onClick={() => openConfirmDialog('tracking')}
+                disabled={isProcessing !== null}
+                className="whitespace-nowrap"
+              >
+                {isProcessing === 'tracking' ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Update Tracking
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+      </Card>
 
       {/* Tabs */}
-      <Tabs value={stuckType} onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="all">All Stuck ({stats?.total?.toLocaleString() || 0})</TabsTrigger>
-          <TabsTrigger value="our_end">At Our End ({stats?.atOurEnd?.toLocaleString() || 0})</TabsTrigger>
-          <TabsTrigger value="courier_end">At Courier End ({stats?.atCourierEnd?.toLocaleString() || 0})</TabsTrigger>
+      <Tabs value={stuckType} onValueChange={handleTabChange} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
+          <TabsTrigger value="all" className="gap-2">
+            <span className="hidden sm:inline">All Stuck</span>
+            <span className="sm:hidden">All</span>
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+              {stats?.total?.toLocaleString() || 0}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="our_end" className="gap-2">
+            <span className="hidden sm:inline">At Our End</span>
+            <span className="sm:hidden">Our End</span>
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+              {stats?.atOurEnd?.toLocaleString() || 0}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="courier_end" className="gap-2">
+            <span className="hidden sm:inline">At Courier</span>
+            <span className="sm:hidden">Courier</span>
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+              {stats?.atCourierEnd?.toLocaleString() || 0}
+            </Badge>
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value={stuckType} className="space-y-4">
+        <TabsContent value={stuckType} className="space-y-3 mt-4">
           {isLoading || !ordersData ? (
-            <div className="text-center py-8">Loading stuck orders...</div>
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => <OrderCardSkeleton key={i} />)}
+            </div>
           ) : ordersData.orders.length === 0 ? (
-            <Card className="p-8 text-center">
-              <AlertTriangle className="h-12 w-12 mx-auto text-green-500 mb-4" />
-              <p className="text-lg font-medium">No stuck orders found!</p>
+            <Card className="p-12 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
+                <CheckCircle className="h-8 w-8 text-green-600" />
+              </div>
+              <h3 className="text-lg font-semibold mb-1">No Stuck Orders!</h3>
               <p className="text-muted-foreground">All orders are progressing normally.</p>
             </Card>
           ) : (
             <>
-              <div className="space-y-3">
-                {ordersData?.orders?.map(order => <Card key={order.id} className="p-4 hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4 flex-1">
-                        <div className={`p-2 rounded-full ${order.days_stuck >= 5 ? 'bg-destructive/10' : 'bg-warning/10'}`}>
-                          <AlertTriangle className={`h-5 w-5 ${order.days_stuck >= 5 ? 'text-destructive' : 'text-warning'}`} />
-                        </div>
-                        
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Link to={`/orders?order=${order.id}`} className="font-medium hover:underline flex items-center gap-1">
-                              {order.order_number}
-                              <ExternalLink className="h-3 w-3" />
-                            </Link>
-                            <Badge variant={getStuckBadgeVariant(order.days_stuck)}>
-                              {order.days_stuck} days stuck
-                            </Badge>
-                            <Badge variant="outline" className="capitalize">
-                              {order.status}
-                            </Badge>
-                            <Badge variant="secondary">
-                              {getStuckLabel(order)}
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-muted-foreground mt-1">
-                            {order.customer_name} • {order.customer_phone} • {order.city}
-                          </div>
-                          {order.courier && <div className="text-sm text-muted-foreground">
-                              Courier: <span className="font-medium">{order.courier}</span>
-                              {order.tracking_id && <> • Tracking: <span className="font-mono">{order.tracking_id}</span></>}
-                            </div>}
-                        </div>
+              <div className="space-y-2">
+                {ordersData.orders.map(order => {
+                  const severity = getStuckSeverity(order.days_stuck);
+                  
+                  return (
+                    <Card key={order.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                      <CardContent className="p-0">
+                        <div className="flex flex-col md:flex-row">
+                          {/* Severity Indicator */}
+                          <div className={`w-full h-1.5 md:w-1.5 md:h-auto ${severity.color} shrink-0`} />
+                          
+                          {/* Main Content */}
+                          <div className="flex-1 p-4">
+                            <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                              {/* Order Info */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2 mb-2">
+                                  <Link 
+                                    to={`/orders?order=${order.id}`} 
+                                    className="font-semibold text-primary hover:underline flex items-center gap-1"
+                                  >
+                                    {order.order_number}
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </Link>
+                                  
+                                  <Badge className={`${severity.color} ${severity.text} border-0 font-medium`}>
+                                    {order.days_stuck}d stuck
+                                  </Badge>
+                                  
+                                  <Badge variant="outline" className={getStatusColor(order.status)}>
+                                    {order.status}
+                                  </Badge>
+                                  
+                                  <Badge variant="secondary" className="font-normal">
+                                    {getStuckLabel(order)}
+                                  </Badge>
+                                </div>
+                                
+                                {/* Customer Details */}
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                                  <span className="font-medium text-foreground">{order.customer_name}</span>
+                                  <span className="flex items-center gap-1">
+                                    <Phone className="h-3.5 w-3.5" />
+                                    {order.customer_phone}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <MapPin className="h-3.5 w-3.5" />
+                                    {order.city}
+                                  </span>
+                                </div>
+                                
+                                {/* Courier Info */}
+                                {order.courier && (
+                                  <div className="mt-2 text-sm text-muted-foreground">
+                                    <span className="font-medium capitalize">{order.courier}</span>
+                                    {order.tracking_id && (
+                                      <span className="ml-2 font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                                        {order.tracking_id}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
 
-                        <div className="text-right text-sm">
-                          <div className="text-muted-foreground">Last Update</div>
-                          <div>{formatDistanceToNow(new Date(order.updated_at))} ago</div>
-                          <div className="text-muted-foreground text-xs mt-1">
-                            Rs. {order.total_amount?.toLocaleString()}
+                              {/* Right Side Info */}
+                              <div className="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end gap-2 lg:gap-1 text-sm shrink-0">
+                                <div className="text-right">
+                                  <div className="text-muted-foreground text-xs">Last Update</div>
+                                  <div className="font-medium">{formatDistanceToNow(new Date(order.updated_at))} ago</div>
+                                </div>
+                                <div className="font-semibold text-base lg:text-right">
+                                  Rs. {order.total_amount?.toLocaleString() || 0}
+                                </div>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-8 mt-1"
+                                  onClick={() => window.open(`/orders?search=${encodeURIComponent(order.order_number)}`, '_blank')}
+                                >
+                                  View Order
+                                </Button>
+                              </div>
+                            </div>
                           </div>
                         </div>
-
-                        <Button variant="outline" size="sm" onClick={() => window.open(`/orders?search=${encodeURIComponent(order.order_number)}`, '_blank')}>
-                          View Order
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>)}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
 
               {/* Pagination */}
-              {totalPages > 1 && <div className="flex items-center justify-between pt-4">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {page * ITEMS_PER_PAGE + 1} - {Math.min((page + 1) * ITEMS_PER_PAGE, ordersData?.totalCount || 0)} of {ordersData?.totalCount?.toLocaleString()} orders
+              {totalPages > 1 && (
+                <Card className="p-4">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="text-sm text-muted-foreground">
+                      Showing <span className="font-medium">{page * ITEMS_PER_PAGE + 1}</span> - <span className="font-medium">{Math.min((page + 1) * ITEMS_PER_PAGE, ordersData?.totalCount || 0)}</span> of <span className="font-medium">{ordersData?.totalCount?.toLocaleString()}</span> orders
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setPage(p => Math.max(0, p - 1))} 
+                        disabled={page === 0}
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        Previous
+                      </Button>
+                      <div className="flex items-center px-3 text-sm text-muted-foreground">
+                        Page {page + 1} of {totalPages}
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} 
+                        disabled={page >= totalPages - 1}
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}>
-                      <ChevronLeft className="h-4 w-4 mr-1" />
-                      Previous
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}>
-                      Next
-                      <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  </div>
-                </div>}
+                </Card>
+              )}
             </>
           )}
         </TabsContent>
@@ -608,14 +746,18 @@ const StuckOrdersDashboard = () => {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isProcessing !== null}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirm} disabled={isProcessing !== null || confirmDialog?.count === 0}>
-              {isProcessing ? <>
+              {isProcessing ? (
+                <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Processing...
-                </> : 'Confirm'}
+                </>
+              ) : 'Confirm'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </PageContainer>;
+    </PageContainer>
+  );
 };
+
 export default StuckOrdersDashboard;
