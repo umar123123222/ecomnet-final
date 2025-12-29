@@ -233,6 +233,19 @@ export const getRolePermissions = (role: UserRole) => {
         canAccessAddressVerification: true,
         canAccessSettings: true,
         // No dispatch, returns, admin panel, or user management access
+        // Staff cannot set delivered status
+      };
+    
+    case 'senior_staff':
+      return {
+        ...permissions,
+        canAccessDashboard: true,
+        canAccessOrders: true,
+        canAccessCustomers: true,
+        canAccessAddressVerification: true,
+        canAccessSettings: true,
+        // Senior staff has same access as staff, but can set delivered status with date picker
+        // This is handled in the UI component (OrderStatusBadge)
       };
     
     case 'finance':
@@ -305,7 +318,7 @@ export const getNavigationItems = (role: UserRole): NavigationItem[] => {
     ];
     
     // Add Stuck Orders for managers and staff
-    if (['super_admin', 'super_manager', 'warehouse_manager', 'finance', 'staff'].includes(role)) {
+    if (['super_admin', 'super_manager', 'warehouse_manager', 'finance', 'staff', 'senior_staff'].includes(role)) {
       orderSubItems.splice(1, 0, { label: 'Stuck Orders', href: '/stuck-orders', icon: '' });
     }
     

@@ -50,10 +50,18 @@ export const useUserRoles = () => {
   };
 
   /**
-   * Check if user is senior staff (warehouse_manager or above)
+   * Check if user is senior staff (warehouse_manager or above, or senior_staff)
    */
   const isSeniorStaff = (): boolean => {
-    return hasAnyRole(['super_admin', 'super_manager', 'store_manager', 'warehouse_manager']);
+    return hasAnyRole(['super_admin', 'super_manager', 'store_manager', 'warehouse_manager', 'senior_staff']);
+  };
+  
+  /**
+   * Check if user can set delivered status with date picker
+   * Only super_admin, super_manager, and senior_staff can do this
+   */
+  const canSetDeliveredStatus = (): boolean => {
+    return hasAnyRole(['super_admin', 'super_manager', 'senior_staff']);
   };
 
   return {
@@ -66,5 +74,6 @@ export const useUserRoles = () => {
     isAdmin,
     isManager,
     isSeniorStaff,
+    canSetDeliveredStatus,
   };
 };

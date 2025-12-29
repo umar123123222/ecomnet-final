@@ -6460,6 +6460,7 @@ export type Database = {
         | "dispatch_manager"
         | "returns_manager"
         | "staff"
+        | "senior_staff"
         | "supplier"
         | "finance"
       verification_status: "pending" | "approved" | "disapproved"
@@ -6615,6 +6616,7 @@ export const Constants = {
         "dispatch_manager",
         "returns_manager",
         "staff",
+        "senior_staff",
         "supplier",
         "finance",
       ],
