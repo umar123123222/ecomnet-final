@@ -24,9 +24,10 @@ interface OrderTableBodyProps {
   canUpdateStatus: boolean;
   canOverrideDispatchLock: boolean;
   canAssignCouriers: boolean;
+  canSetDeliveredWithDate: boolean;
   onSelectOrder: (orderId: string) => void;
   onToggleExpand: (orderId: string) => void;
-  onStatusChange: (orderId: string, newStatus: string) => void;
+  onStatusChange: (orderId: string, newStatus: string, additionalData?: Record<string, any>) => void;
   onMarkDispatched: (orderId: string) => void;
   onGenerateLabel: (orderId: string) => void;
   onViewActivity: (orderId: string) => void;
@@ -43,6 +44,7 @@ export const OrderTableBody = memo(({
   canUpdateStatus,
   canOverrideDispatchLock,
   canAssignCouriers,
+  canSetDeliveredWithDate,
   onSelectOrder,
   onToggleExpand,
   onStatusChange,
@@ -127,9 +129,11 @@ export const OrderTableBody = memo(({
                 <OrderStatusBadge
                   status={order.status}
                   orderId={order.id}
+                  orderNumber={order.orderNumber}
                   primaryRole={primaryRole}
                   canUpdateStatus={canUpdateStatus}
                   canOverrideDispatchLock={canOverrideDispatchLock}
+                  canSetDeliveredWithDate={canSetDeliveredWithDate}
                   onStatusChange={onStatusChange}
                 />
                 {order.status === 'dispatched' && order.courier && order.courier !== 'N/A' && (

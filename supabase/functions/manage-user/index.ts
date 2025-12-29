@@ -15,6 +15,7 @@ const ALLOWED_ROLES = [
   'dispatch_manager',
   'returns_manager',
   'staff',
+  'senior_staff',
   'supplier',
   'finance'
 ] as const

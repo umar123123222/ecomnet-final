@@ -7,6 +7,7 @@ export type UserRole =
   | 'dispatch_manager'
   | 'returns_manager'
   | 'staff'
+  | 'senior_staff'
   | 'supplier'
   | 'finance';
 

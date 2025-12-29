@@ -41,7 +41,7 @@ import { OrderTableBody } from '@/components/orders/OrderTableBody';
 
 const OrderDashboard = () => {
   const isMobile = useIsMobile();
-  const { isManager, isSeniorStaff, primaryRole, hasAnyRole, permissions } = useUserRoles();
+  const { isManager, isSeniorStaff, primaryRole, hasAnyRole, permissions, canSetDeliveredStatus } = useUserRoles();
   const { data: couriers = [] } = useCouriers();
   const { toast } = useToast();
   const { progress, executeBulkOperation } = useBulkOperations();
@@ -349,8 +349,15 @@ const OrderDashboard = () => {
         return;
       }
 
+      // Staff cannot set delivered status - only senior_staff and above can
       if (primaryRole === 'staff' && !['pending', 'confirmed', 'cancelled'].includes(newStatus)) {
         toast({ title: "Permission Denied", description: "Staff can only set: pending, confirmed, cancelled", variant: "destructive" });
+        return;
+      }
+      
+      // Senior staff can only set additional status: delivered (with date - handled in component)
+      if (primaryRole === 'senior_staff' && !['pending', 'confirmed', 'cancelled', 'delivered'].includes(newStatus)) {
+        toast({ title: "Permission Denied", description: "Senior staff can only set: pending, confirmed, cancelled, delivered", variant: "destructive" });
         return;
       }
 
@@ -984,6 +991,7 @@ const OrderDashboard = () => {
                 canUpdateStatus={canUpdateStatus}
                 canOverrideDispatchLock={canOverrideDispatchLock}
                 canAssignCouriers={permissions.canAssignCouriers}
+                canSetDeliveredWithDate={hasAnyRole(['super_admin', 'super_manager', 'senior_staff'])}
                 onSelectOrder={handleSelectOrder}
                 onToggleExpand={toggleExpanded}
                 onStatusChange={handleUpdateOrderStatus}
