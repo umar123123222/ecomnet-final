@@ -355,9 +355,9 @@ const OrderDashboard = () => {
         return;
       }
       
-      // Senior staff can only set additional status: delivered (with date - handled in component)
-      if (primaryRole === 'senior_staff' && !['pending', 'confirmed', 'cancelled', 'delivered'].includes(newStatus)) {
-        toast({ title: "Permission Denied", description: "Senior staff can only set: pending, confirmed, cancelled, delivered", variant: "destructive" });
+      // Senior staff can set: pending, confirmed, cancelled, dispatched (with date), delivered (with date)
+      if (primaryRole === 'senior_staff' && !['pending', 'confirmed', 'cancelled', 'dispatched', 'delivered'].includes(newStatus)) {
+        toast({ title: "Permission Denied", description: "Senior staff can only set: pending, confirmed, cancelled, dispatched, delivered", variant: "destructive" });
         return;
       }
 

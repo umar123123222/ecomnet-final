@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Clock, CheckCircle, Package, Truck, X, Lock } from 'lucide-react';
 import { DeliveredDateDialog } from './DeliveredDateDialog';
+import { DispatchDateDialog } from './DispatchDateDialog';
 
 interface OrderStatusBadgeProps {
   status: string;
@@ -47,18 +48,19 @@ export const OrderStatusBadge = memo(({
   onStatusChange
 }: OrderStatusBadgeProps) => {
   const [showDeliveredDialog, setShowDeliveredDialog] = useState(false);
+  const [showDispatchDialog, setShowDispatchDialog] = useState(false);
   const statusInfo = statusMap[status] || statusMap.pending;
   const StatusIcon = statusInfo.icon;
 
   // Determine allowed statuses based on role
   const getAllowedStatuses = () => {
     if (primaryRole === 'staff') {
-      // Staff can only set: pending, confirmed, cancelled (NOT delivered)
+      // Staff can only set: pending, confirmed, cancelled (NOT delivered or dispatched)
       return allStatuses.filter(s => ['pending', 'confirmed', 'cancelled'].includes(s.value));
     }
     if (primaryRole === 'senior_staff') {
-      // Senior staff can set: pending, confirmed, cancelled, delivered (with date picker)
-      return allStatuses.filter(s => ['pending', 'confirmed', 'cancelled', 'delivered'].includes(s.value));
+      // Senior staff can set: pending, confirmed, cancelled, dispatched (with date), delivered (with date)
+      return allStatuses.filter(s => ['pending', 'confirmed', 'cancelled', 'dispatched', 'delivered'].includes(s.value));
     }
     // All other roles with update permission get all statuses
     return allStatuses;
@@ -66,7 +68,15 @@ export const OrderStatusBadge = memo(({
 
   const allowedStatuses = getAllowedStatuses();
 
+  // Check if senior_staff needs date picker for dispatched
+  const needsDispatchDatePicker = primaryRole === 'senior_staff';
+
   const handleStatusClick = (newStatus: string) => {
+    // If selecting 'dispatched' and user is senior_staff (needs date picker)
+    if (newStatus === 'dispatched' && needsDispatchDatePicker) {
+      setShowDispatchDialog(true);
+      return;
+    }
     // If selecting 'delivered' and user has permission to set with date
     if (newStatus === 'delivered' && canSetDeliveredWithDate) {
       setShowDeliveredDialog(true);
@@ -77,6 +87,10 @@ export const OrderStatusBadge = memo(({
 
   const handleDeliveredConfirm = (deliveredAt: Date) => {
     onStatusChange(orderId, 'delivered', { delivered_at: deliveredAt.toISOString() });
+  };
+
+  const handleDispatchConfirm = (dispatchedAt: Date) => {
+    onStatusChange(orderId, 'dispatched', { dispatched_at: dispatchedAt.toISOString() });
   };
 
   // If order is dispatched, show locked badge for users without override permission
@@ -119,6 +133,9 @@ export const OrderStatusBadge = memo(({
               className={status === statusOption.value ? 'bg-muted' : ''}
             >
               {statusOption.label}
+              {statusOption.value === 'dispatched' && needsDispatchDatePicker && (
+                <span className="ml-2 text-xs text-muted-foreground">(select date)</span>
+              )}
               {statusOption.value === 'delivered' && canSetDeliveredWithDate && (
                 <span className="ml-2 text-xs text-muted-foreground">(select date)</span>
               )}
@@ -132,6 +149,13 @@ export const OrderStatusBadge = memo(({
         onOpenChange={setShowDeliveredDialog}
         orderNumber={orderNumber}
         onConfirm={handleDeliveredConfirm}
+      />
+
+      <DispatchDateDialog
+        open={showDispatchDialog}
+        onOpenChange={setShowDispatchDialog}
+        orderNumber={orderNumber}
+        onConfirm={handleDispatchConfirm}
       />
     </>
   );
