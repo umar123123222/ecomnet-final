@@ -516,10 +516,10 @@ const StuckOrdersDashboard = () => {
       )}
 
       {/* Search and Filters */}
-      <Card className="p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+      <Card className="p-3 sm:p-4">
+        <div className="flex flex-col gap-3">
+          <div className="relative w-full">
+            <Search className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <Input 
               placeholder="Search by order number, customer, phone, city..." 
               value={searchQuery} 
@@ -527,21 +527,21 @@ const StuckOrdersDashboard = () => {
                 setSearchQuery(e.target.value);
                 setPage(0);
               }} 
-              className="pl-10" 
+              className="pl-8 sm:pl-10 text-xs sm:text-sm h-9 sm:h-10" 
             />
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-              <SelectTrigger className="w-[160px]">
-                <ArrowUpDown className="h-4 w-4 mr-2" />
+              <SelectTrigger className="w-full xs:w-[120px] sm:w-[140px] md:w-[160px] h-9 sm:h-10 text-xs sm:text-sm">
+                <ArrowUpDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2 shrink-0" />
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="oldest">Oldest First</SelectItem>
-                <SelectItem value="newest">Newest First</SelectItem>
-                <SelectItem value="days_stuck">Most Days Stuck</SelectItem>
-                <SelectItem value="amount">Highest Amount</SelectItem>
+              <SelectContent className="bg-background border shadow-lg z-50">
+                <SelectItem value="oldest" className="text-xs sm:text-sm">Oldest First</SelectItem>
+                <SelectItem value="newest" className="text-xs sm:text-sm">Newest First</SelectItem>
+                <SelectItem value="days_stuck" className="text-xs sm:text-sm">Most Days Stuck</SelectItem>
+                <SelectItem value="amount" className="text-xs sm:text-sm">Highest Amount</SelectItem>
               </SelectContent>
             </Select>
             
@@ -550,14 +550,15 @@ const StuckOrdersDashboard = () => {
                 variant="default"
                 onClick={() => openConfirmDialog('tracking')}
                 disabled={isProcessing !== null}
-                className="whitespace-nowrap"
+                className="flex-1 xs:flex-none h-9 sm:h-10 text-xs sm:text-sm px-3 sm:px-4"
               >
                 {isProcessing === 'tracking' ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2 animate-spin" />
                 ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
+                  <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
                 )}
-                Update Tracking
+                <span className="hidden xs:inline">Update Tracking</span>
+                <span className="xs:hidden">Update</span>
               </Button>
             )}
           </div>
@@ -565,26 +566,26 @@ const StuckOrdersDashboard = () => {
       </Card>
 
       {/* Tabs */}
-      <Tabs value={stuckType} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
-          <TabsTrigger value="all" className="gap-2">
+      <Tabs value={stuckType} onValueChange={handleTabChange} className="space-y-3 sm:space-y-4">
+        <TabsList className="grid w-full grid-cols-3 h-auto p-1 gap-1">
+          <TabsTrigger value="all" className="gap-1 sm:gap-2 py-2 sm:py-2.5 text-xs sm:text-sm flex-col xs:flex-row">
             <span className="hidden sm:inline">All Stuck</span>
             <span className="sm:hidden">All</span>
-            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+            <Badge variant="secondary" className="h-4 sm:h-5 px-1 sm:px-1.5 text-[10px] sm:text-xs font-medium">
               {stats?.total?.toLocaleString() || 0}
             </Badge>
           </TabsTrigger>
-          <TabsTrigger value="our_end" className="gap-2">
+          <TabsTrigger value="our_end" className="gap-1 sm:gap-2 py-2 sm:py-2.5 text-xs sm:text-sm flex-col xs:flex-row">
             <span className="hidden sm:inline">At Our End</span>
             <span className="sm:hidden">Our End</span>
-            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+            <Badge variant="secondary" className="h-4 sm:h-5 px-1 sm:px-1.5 text-[10px] sm:text-xs font-medium">
               {stats?.atOurEnd?.toLocaleString() || 0}
             </Badge>
           </TabsTrigger>
-          <TabsTrigger value="courier_end" className="gap-2">
+          <TabsTrigger value="courier_end" className="gap-1 sm:gap-2 py-2 sm:py-2.5 text-xs sm:text-sm flex-col xs:flex-row">
             <span className="hidden sm:inline">At Courier</span>
             <span className="sm:hidden">Courier</span>
-            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+            <Badge variant="secondary" className="h-4 sm:h-5 px-1 sm:px-1.5 text-[10px] sm:text-xs font-medium">
               {stats?.atCourierEnd?.toLocaleString() || 0}
             </Badge>
           </TabsTrigger>
@@ -614,54 +615,54 @@ const StuckOrdersDashboard = () => {
                       <CardContent className="p-0">
                         <div className="flex flex-col md:flex-row">
                           {/* Severity Indicator */}
-                          <div className={`w-full h-1.5 md:w-1.5 md:h-auto ${severity.color} shrink-0`} />
+                          <div className={`w-full h-1 sm:h-1.5 md:w-1 md:h-auto lg:w-1.5 ${severity.color} shrink-0`} />
                           
                           {/* Main Content */}
-                          <div className="flex-1 p-4">
-                            <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                          <div className="flex-1 p-3 sm:p-4">
+                            <div className="flex flex-col lg:flex-row lg:items-center gap-2 sm:gap-3">
                               {/* Order Info */}
                               <div className="flex-1 min-w-0">
-                                <div className="flex flex-wrap items-center gap-2 mb-2">
+                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
                                   <Link 
                                     to={`/orders?order=${order.id}`} 
-                                    className="font-semibold text-primary hover:underline flex items-center gap-1"
+                                    className="font-semibold text-primary hover:underline flex items-center gap-1 text-sm sm:text-base"
                                   >
                                     {order.order_number}
-                                    <ExternalLink className="h-3.5 w-3.5" />
+                                    <ExternalLink className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                                   </Link>
                                   
-                                  <Badge className={`${severity.color} ${severity.text} border-0 font-medium`}>
+                                  <Badge className={`${severity.color} ${severity.text} border-0 font-medium text-[10px] sm:text-xs px-1.5 sm:px-2 py-0 sm:py-0.5`}>
                                     {order.days_stuck}d stuck
                                   </Badge>
                                   
-                                  <Badge variant="outline" className={getStatusColor(order.status)}>
+                                  <Badge variant="outline" className={`${getStatusColor(order.status)} text-[10px] sm:text-xs px-1.5 sm:px-2 py-0 sm:py-0.5`}>
                                     {order.status}
                                   </Badge>
                                   
-                                  <Badge variant="secondary" className="font-normal">
+                                  <Badge variant="secondary" className="font-normal text-[10px] sm:text-xs px-1.5 sm:px-2 py-0 sm:py-0.5">
                                     {getStuckLabel(order)}
                                   </Badge>
                                 </div>
                                 
                                 {/* Customer Details */}
-                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                                  <span className="font-medium text-foreground">{order.customer_name}</span>
-                                  <span className="flex items-center gap-1">
-                                    <Phone className="h-3.5 w-3.5" />
-                                    {order.customer_phone}
+                                <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-4 gap-y-0.5 sm:gap-y-1 text-xs sm:text-sm text-muted-foreground">
+                                  <span className="font-medium text-foreground truncate max-w-[150px] sm:max-w-none">{order.customer_name}</span>
+                                  <span className="flex items-center gap-0.5 sm:gap-1">
+                                    <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                                    <span className="truncate">{order.customer_phone}</span>
                                   </span>
-                                  <span className="flex items-center gap-1">
-                                    <MapPin className="h-3.5 w-3.5" />
-                                    {order.city}
+                                  <span className="flex items-center gap-0.5 sm:gap-1">
+                                    <MapPin className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                                    <span className="truncate">{order.city}</span>
                                   </span>
                                 </div>
                                 
                                 {/* Courier Info */}
                                 {order.courier && (
-                                  <div className="mt-2 text-sm text-muted-foreground">
+                                  <div className="mt-1.5 sm:mt-2 text-xs sm:text-sm text-muted-foreground">
                                     <span className="font-medium capitalize">{order.courier}</span>
                                     {order.tracking_id && (
-                                      <span className="ml-2 font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                                      <span className="ml-1.5 sm:ml-2 font-mono text-[10px] sm:text-xs bg-muted px-1 sm:px-1.5 py-0.5 rounded truncate inline-block max-w-[120px] sm:max-w-none align-middle">
                                         {order.tracking_id}
                                       </span>
                                     )}
@@ -670,18 +671,18 @@ const StuckOrdersDashboard = () => {
                               </div>
 
                               {/* Right Side Info */}
-                              <div className="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end gap-2 lg:gap-1 text-sm shrink-0">
-                                <div className="text-right">
-                                  <div className="text-muted-foreground text-xs">Last Update</div>
-                                  <div className="font-medium">{formatDistanceToNow(new Date(order.updated_at))} ago</div>
+                              <div className="flex flex-row sm:flex-row lg:flex-col items-center sm:items-center lg:items-end justify-between sm:justify-start gap-2 lg:gap-1 text-xs sm:text-sm shrink-0 mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/50">
+                                <div className="text-left sm:text-right">
+                                  <div className="text-muted-foreground text-[10px] sm:text-xs">Last Update</div>
+                                  <div className="font-medium text-xs sm:text-sm">{formatDistanceToNow(new Date(order.updated_at))} ago</div>
                                 </div>
-                                <div className="font-semibold text-base lg:text-right">
+                                <div className="font-semibold text-sm sm:text-base lg:text-right">
                                   Rs. {order.total_amount?.toLocaleString() || 0}
                                 </div>
                                 <Button 
                                   variant="outline" 
                                   size="sm" 
-                                  className="h-8 mt-1"
+                                  className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
                                   onClick={() => window.open(`/orders?search=${encodeURIComponent(order.order_number)}`, '_blank')}
                                 >
                                   View Order
@@ -698,32 +699,34 @@ const StuckOrdersDashboard = () => {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <Card className="p-4">
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div className="text-sm text-muted-foreground">
-                      Showing <span className="font-medium">{page * ITEMS_PER_PAGE + 1}</span> - <span className="font-medium">{Math.min((page + 1) * ITEMS_PER_PAGE, ordersData?.totalCount || 0)}</span> of <span className="font-medium">{ordersData?.totalCount?.toLocaleString()}</span> orders
+                <Card className="p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-3">
+                    <div className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
+                      Showing <span className="font-medium">{page * ITEMS_PER_PAGE + 1}</span> - <span className="font-medium">{Math.min((page + 1) * ITEMS_PER_PAGE, ordersData?.totalCount || 0)}</span> of <span className="font-medium">{ordersData?.totalCount?.toLocaleString()}</span>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
                       <Button 
                         variant="outline" 
                         size="sm" 
                         onClick={() => setPage(p => Math.max(0, p - 1))} 
                         disabled={page === 0}
+                        className="h-7 sm:h-8 px-2 sm:px-3 text-xs sm:text-sm"
                       >
-                        <ChevronLeft className="h-4 w-4 mr-1" />
-                        Previous
+                        <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                        <span className="hidden xs:inline ml-1">Prev</span>
                       </Button>
-                      <div className="flex items-center px-3 text-sm text-muted-foreground">
-                        Page {page + 1} of {totalPages}
+                      <div className="flex items-center px-2 sm:px-3 text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
+                        {page + 1}/{totalPages}
                       </div>
                       <Button 
                         variant="outline" 
                         size="sm" 
                         onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} 
                         disabled={page >= totalPages - 1}
+                        className="h-7 sm:h-8 px-2 sm:px-3 text-xs sm:text-sm"
                       >
-                        Next
-                        <ChevronRight className="h-4 w-4 ml-1" />
+                        <span className="hidden xs:inline mr-1">Next</span>
+                        <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       </Button>
                     </div>
                   </div>
