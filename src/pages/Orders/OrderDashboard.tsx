@@ -674,20 +674,21 @@ const OrderDashboard = () => {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-semibold text-foreground">Order Management</h1>
-            <p className="text-muted-foreground mt-1">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div className="shrink-0">
+            <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Order Management</h1>
+            <p className="text-sm text-muted-foreground mt-1">
               {totalCount > 0 ? `Showing ${pagination.start}–${pagination.end} of ${totalCount.toLocaleString()} orders` : 'Manage and track all your orders'}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {(isManager || primaryRole === 'super_admin') && (
               <Dialog>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2">
                     <AlertTriangle className="h-4 w-4" />
-                    Fix Orders
+                    <span className="hidden sm:inline">Fix Orders</span>
+                    <span className="sm:hidden">Fix</span>
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl">
@@ -700,20 +701,21 @@ const OrderDashboard = () => {
             )}
             <Button variant="outline" size="sm" onClick={() => setShowKPIPanel(!showKPIPanel)} className="gap-2">
               {showKPIPanel ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              {showKPIPanel ? 'Hide' : 'Show'} KPIs
+              <span className="hidden sm:inline">{showKPIPanel ? 'Hide' : 'Show'} KPIs</span>
+              <span className="sm:hidden">KPIs</span>
             </Button>
             <Button variant="outline" onClick={fetchOrders} size="sm">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
+              <RefreshCw className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
             <NewOrderDialog onOrderCreated={handleNewOrderCreated} />
-            <Button variant="outline" onClick={() => setShowBulkUpload(true)}>
-              <Upload className="h-4 w-4 mr-2" />
-              Bulk Upload
+            <Button variant="outline" size="sm" onClick={() => setShowBulkUpload(true)}>
+              <Upload className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Bulk Upload</span>
             </Button>
-            <Button variant="outline" onClick={handleExportToExcel} disabled={exporting}>
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
-              {exporting ? 'Exporting...' : 'Export Excel'}
+            <Button variant="outline" size="sm" onClick={handleExportToExcel} disabled={exporting}>
+              <FileSpreadsheet className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">{exporting ? 'Exporting...' : 'Export Excel'}</span>
             </Button>
             <BulkUploadDialog open={showBulkUpload} onOpenChange={setShowBulkUpload} onSuccess={handleNewOrderCreated} />
           </div>
