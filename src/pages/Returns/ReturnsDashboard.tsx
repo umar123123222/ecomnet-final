@@ -128,18 +128,19 @@ const ReturnsDashboard = () => {
 
   // Abort controller ref to cancel stale fetches
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
+    
     const fetchReturns = async () => {
       // Cancel any ongoing fetch to prevent race conditions
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
       abortControllerRef.current = new AbortController();
-      const currentAbortController = abortControllerRef.current;
 
       setLoading(true);
-      setReturns([]); // Reset state immediately
       
       try {
         // First get the count
@@ -147,7 +148,7 @@ const ReturnsDashboard = () => {
           .from('returns')
           .select('*', { count: 'exact', head: true });
 
-        if (currentAbortController.signal.aborted) return;
+        if (!isMountedRef.current) return;
 
         if (countError) {
           console.error('Error fetching returns count:', countError);
@@ -160,7 +161,7 @@ const ReturnsDashboard = () => {
 
         // Fetch in chunks to bypass 1000 row limit
         for (let i = 0; i < chunks; i++) {
-          if (currentAbortController.signal.aborted) return;
+          if (!isMountedRef.current) return;
 
           const { data, error } = await supabase
             .from('returns')
@@ -196,16 +197,17 @@ const ReturnsDashboard = () => {
             .order('created_at', { ascending: false })
             .range(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE - 1);
 
-          if (currentAbortController.signal.aborted) return;
+          if (!isMountedRef.current) return;
 
           if (error) {
             console.error('Error fetching returns chunk:', error);
-            if (!currentAbortController.signal.aborted) {
+            if (isMountedRef.current) {
               toast({
                 title: "Error",
                 description: "Failed to fetch returns",
                 variant: "destructive"
               });
+              setLoading(false);
             }
             return;
           }
@@ -215,14 +217,13 @@ const ReturnsDashboard = () => {
           }
         }
 
-        if (currentAbortController.signal.aborted) return;
-        setReturns(allData);
-      } catch (error) {
-        if (!currentAbortController.signal.aborted) {
-          console.error('Error:', error);
+        if (isMountedRef.current) {
+          setReturns(allData);
+          setLoading(false);
         }
-      } finally {
-        if (!currentAbortController.signal.aborted) {
+      } catch (error) {
+        console.error('Error:', error);
+        if (isMountedRef.current) {
           setLoading(false);
         }
       }
@@ -230,6 +231,7 @@ const ReturnsDashboard = () => {
     fetchReturns();
 
     return () => {
+      isMountedRef.current = false;
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
