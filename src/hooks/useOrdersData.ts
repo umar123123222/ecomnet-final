@@ -15,6 +15,7 @@ export interface OrderFilters {
   amountMax: number | undefined;
   city: string;
   hasTrackingId: string;
+  hasBundle: string;
 }
 
 export interface FormattedOrder {
@@ -113,7 +114,8 @@ export const useOrdersData = () => {
     amountMin: undefined,
     amountMax: undefined,
     city: 'all',
-    hasTrackingId: 'all'
+    hasTrackingId: 'all',
+    hasBundle: 'all'
   });
 
   const [newOrdersCount, setNewOrdersCount] = useState(0);
@@ -196,6 +198,35 @@ export const useOrdersData = () => {
         query = query.not('tracking_id', 'is', null);
       } else if (filters.hasTrackingId === 'no') {
         query = query.is('tracking_id', null);
+      }
+
+      // Handle bundle filter - need to get order IDs with bundles first
+      let bundleOrderIds: string[] | null = null;
+      if (filters.hasBundle !== 'all') {
+        const { data: bundleOrders } = await supabase
+          .from('order_items')
+          .select('order_id')
+          .or('bundle_name.neq.,is_bundle_component.eq.true');
+        
+        if (currentAbortController.signal.aborted) return;
+        
+        bundleOrderIds = [...new Set(bundleOrders?.map(item => item.order_id) || [])];
+        
+        if (filters.hasBundle === 'yes') {
+          if (bundleOrderIds.length > 0) {
+            query = query.in('id', bundleOrderIds);
+          } else {
+            // No orders with bundles, return empty
+            setOrders([]);
+            setTotalCount(0);
+            return;
+          }
+        } else if (filters.hasBundle === 'no') {
+          if (bundleOrderIds.length > 0) {
+            query = query.not('id', 'in', `(${bundleOrderIds.join(',')})`);
+          }
+          // If no bundle orders, all orders qualify, no filter needed
+        }
       }
 
       query = query.order('created_at', { ascending: sortOrder === 'oldest' });
@@ -579,7 +610,8 @@ export const useOrdersData = () => {
       amountMin: undefined,
       amountMax: undefined,
       city: 'all',
-      hasTrackingId: 'all'
+      hasTrackingId: 'all',
+      hasBundle: 'all'
     });
     setPage(0);
   }, []);
