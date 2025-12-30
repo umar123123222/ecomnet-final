@@ -659,6 +659,7 @@ export const useOrdersData = () => {
     if (filters.amountMin !== undefined || filters.amountMax !== undefined) count++;
     if (filters.city !== 'all') count++;
     if (filters.hasTrackingId !== 'all') count++;
+    if (filters.hasBundle !== 'all') count++;
     return count;
   }, [filters]);
 
