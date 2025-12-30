@@ -15,7 +15,8 @@ import {
   Truck,
   X,
   RefreshCw,
-  DollarSign
+  DollarSign,
+  Boxes
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
@@ -287,6 +288,23 @@ const OrdersMobileView: React.FC<OrdersMobileViewProps> = ({
                     <SelectItem value="all">All Orders</SelectItem>
                     <SelectItem value="yes">With Tracking ID</SelectItem>
                     <SelectItem value="no">Without Tracking ID</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-base font-semibold flex items-center gap-2">
+                  <Boxes className="h-4 w-4" />
+                  Has Bundles
+                </Label>
+                <Select value={filters.hasBundle} onValueChange={value => updateFilter('hasBundle', value)}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    <SelectItem value="all">All Orders</SelectItem>
+                    <SelectItem value="yes">With Bundles</SelectItem>
+                    <SelectItem value="no">Without Bundles</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Label } from '@/components/ui/label';
-import { Search, Upload, Filter, X, RefreshCw, AlertTriangle, AlertCircle, MapPin, Eye, EyeOff, Package, DollarSign, Smartphone, FileSpreadsheet } from 'lucide-react';
+import { Search, Upload, Filter, X, RefreshCw, AlertTriangle, AlertCircle, MapPin, Eye, EyeOff, Package, DollarSign, Smartphone, FileSpreadsheet, Boxes } from 'lucide-react';
 import NewOrderDialog from '@/components/NewOrderDialog';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { useUserRoles } from '@/hooks/useUserRoles';
@@ -958,6 +958,23 @@ const OrderDashboard = () => {
                         <SelectItem value="all">All Orders</SelectItem>
                         <SelectItem value="yes">With Tracking ID</SelectItem>
                         <SelectItem value="no">Without Tracking ID</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold flex items-center gap-2">
+                      <Boxes className="h-4 w-4" />
+                      Has Bundles
+                    </Label>
+                    <Select value={filters.hasBundle} onValueChange={value => updateFilter('hasBundle', value)}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-50">
+                        <SelectItem value="all">All Orders</SelectItem>
+                        <SelectItem value="yes">With Bundles</SelectItem>
+                        <SelectItem value="no">Without Bundles</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
