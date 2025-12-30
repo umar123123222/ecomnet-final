@@ -61,18 +61,14 @@ export const FilterPresets = ({ activePreset, onPresetSelect }: FilterPresetsPro
   ];
 
   return (
-    <div className="flex items-center gap-1 p-1 bg-muted/30 rounded-lg border border-border/50">
+    <div className="flex items-center gap-1">
       {presets.map((preset) => (
         <Button
           key={preset.id}
           variant={activePreset === preset.id ? "secondary" : "ghost"}
           size="sm"
           onClick={() => onPresetSelect(activePreset === preset.id ? null : preset)}
-          className={`h-8 px-3 gap-1.5 text-xs font-medium transition-all ${
-            activePreset === preset.id 
-              ? 'bg-background shadow-sm border border-border/50' 
-              : 'hover:bg-background/60'
-          }`}
+          className="h-7 px-2 gap-1 text-xs"
         >
           {preset.icon}
           {preset.name}
