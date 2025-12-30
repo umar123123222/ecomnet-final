@@ -10,6 +10,7 @@ export interface OrderFilters {
   orderType: string;
   verificationStatus: string;
   statusDateRange: { from: Date; to?: Date } | null;
+  dateFilterMode: 'created' | 'status';
   amountMin: number | undefined;
   amountMax: number | undefined;
   city: string;
@@ -108,6 +109,7 @@ export const useOrdersData = () => {
     orderType: 'all',
     verificationStatus: 'all',
     statusDateRange: null,
+    dateFilterMode: 'status',
     amountMin: undefined,
     amountMax: undefined,
     city: 'all',
@@ -165,14 +167,17 @@ export const useOrdersData = () => {
       }
 
       if (filters.statusDateRange?.from) {
-        const statusDateField = getStatusDateField(filters.status);
+        // Use created_at if dateFilterMode is 'created', otherwise use status-based field
+        const dateField = filters.dateFilterMode === 'created' 
+          ? 'created_at' 
+          : getStatusDateField(filters.status);
         const startOfDay = new Date(filters.statusDateRange.from);
         startOfDay.setHours(0, 0, 0, 0);
-        query = query.gte(statusDateField, startOfDay.toISOString());
+        query = query.gte(dateField, startOfDay.toISOString());
         if (filters.statusDateRange.to) {
           const endOfDay = new Date(filters.statusDateRange.to);
           endOfDay.setHours(23, 59, 59, 999);
-          query = query.lte(statusDateField, endOfDay.toISOString());
+          query = query.lte(dateField, endOfDay.toISOString());
         }
       }
 
@@ -570,6 +575,7 @@ export const useOrdersData = () => {
       orderType: 'all',
       verificationStatus: 'all',
       statusDateRange: null,
+      dateFilterMode: 'status',
       amountMin: undefined,
       amountMax: undefined,
       city: 'all',
