@@ -57,17 +57,17 @@ export const OrderSummaryCards = memo(({ totalCount, summaryData, onStatusFilter
   ], [totalCount, summaryData]);
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1.5 p-1 bg-muted/30 rounded-lg border border-border/50">
       {summaryCards.map((card) => {
         const Icon = card.icon;
         return (
           <button
             key={card.status}
             onClick={() => onStatusFilter?.(card.status)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-background hover:bg-muted/50 transition-colors text-sm"
+            className="flex items-center gap-2 px-3 py-2 rounded-md bg-background hover:bg-muted/80 transition-all text-sm shadow-sm border border-border/30 hover:border-border"
           >
-            <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-muted-foreground">{card.title}</span>
+            <Icon className="h-4 w-4 text-muted-foreground" />
+            <span className="text-muted-foreground font-medium">{card.title}</span>
             <span className="font-semibold text-foreground">
               {card.value.toLocaleString()}
             </span>
