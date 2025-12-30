@@ -3,8 +3,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 
+export type SearchType = 'all' | 'order_number' | 'tracking_id' | 'tags' | 'order_id';
+
 export interface OrderFilters {
   search: string;
+  searchType: SearchType;
   status: string;
   courier: string;
   orderType: string;
@@ -105,6 +108,7 @@ export const useOrdersData = () => {
   
   const [filters, setFilters] = useState<OrderFilters>({
     search: '',
+    searchType: 'all',
     status: 'all',
     courier: 'all',
     orderType: 'all',
@@ -147,7 +151,23 @@ export const useOrdersData = () => {
       `, { count: 'exact' });
 
       if (filters.search) {
-        query = query.or(`order_number.ilike.%${filters.search}%,shopify_order_number.ilike.%${filters.search}%,customer_name.ilike.%${filters.search}%,customer_phone.ilike.%${filters.search}%,customer_email.ilike.%${filters.search}%,tracking_id.ilike.%${filters.search}%,city.ilike.%${filters.search}%`);
+        const searchTerm = filters.search.trim();
+        switch (filters.searchType) {
+          case 'order_number':
+            query = query.or(`order_number.ilike.%${searchTerm}%,shopify_order_number.ilike.%${searchTerm}%`);
+            break;
+          case 'tracking_id':
+            query = query.ilike('tracking_id', `%${searchTerm}%`);
+            break;
+          case 'tags':
+            query = query.contains('tags', [searchTerm]);
+            break;
+          case 'order_id':
+            query = query.ilike('id', `%${searchTerm}%`);
+            break;
+          default:
+            query = query.or(`order_number.ilike.%${searchTerm}%,shopify_order_number.ilike.%${searchTerm}%,customer_name.ilike.%${searchTerm}%,customer_phone.ilike.%${searchTerm}%,customer_email.ilike.%${searchTerm}%,tracking_id.ilike.%${searchTerm}%,city.ilike.%${searchTerm}%`);
+        }
       }
 
       if (filters.status !== 'all') {
@@ -627,6 +647,7 @@ export const useOrdersData = () => {
   const resetFilters = useCallback(() => {
     setFilters({
       search: '',
+      searchType: 'all',
       status: 'all',
       courier: 'all',
       orderType: 'all',

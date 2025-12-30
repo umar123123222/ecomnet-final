@@ -4,9 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Filter, RefreshCw, X, ArrowUpDown } from 'lucide-react';
 
+export type SearchType = 'all' | 'order_number' | 'tracking_id' | 'tags' | 'order_id';
+
 interface OrderFiltersProps {
   searchValue: string;
   onSearchChange: (value: string) => void;
+  searchType: SearchType;
+  onSearchTypeChange: (value: SearchType) => void;
   statusFilter: string;
   onStatusChange: (value: string) => void;
   courierFilter: string;
@@ -19,9 +23,19 @@ interface OrderFiltersProps {
   isLoading?: boolean;
 }
 
+const searchTypePlaceholders: Record<SearchType, string> = {
+  all: 'Search orders, customers, tracking...',
+  order_number: 'Search by order number...',
+  tracking_id: 'Search by tracking ID...',
+  tags: 'Search by tags...',
+  order_id: 'Search by order ID...',
+};
+
 export const OrderFiltersBar = memo(({
   searchValue,
   onSearchChange,
+  searchType,
+  onSearchTypeChange,
   statusFilter,
   onStatusChange,
   courierFilter,
@@ -33,19 +47,36 @@ export const OrderFiltersBar = memo(({
   onClearFilters,
   isLoading,
 }: OrderFiltersProps) => {
-  const hasActiveFilters = statusFilter !== 'all' || courierFilter !== 'all' || searchValue || sortOrder !== 'latest';
+  const hasActiveFilters = statusFilter !== 'all' || courierFilter !== 'all' || searchValue || sortOrder !== 'latest' || searchType !== 'all';
 
   return (
-    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-      {/* Search Input */}
-      <div className="relative flex-1 min-w-[200px]">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search orders, customers, tracking..."
-          value={searchValue}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 h-9"
-        />
+    <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center w-full">
+      {/* Search Section - Expanded */}
+      <div className="flex flex-1 w-full lg:w-auto gap-2 min-w-0">
+        {/* Search Type Selector */}
+        <Select value={searchType} onValueChange={(v) => onSearchTypeChange(v as SearchType)}>
+          <SelectTrigger className="w-[130px] h-9 shrink-0">
+            <SelectValue placeholder="Search in" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Fields</SelectItem>
+            <SelectItem value="order_number">Order Number</SelectItem>
+            <SelectItem value="tracking_id">Tracking ID</SelectItem>
+            <SelectItem value="tags">Tags</SelectItem>
+            <SelectItem value="order_id">Order ID</SelectItem>
+          </SelectContent>
+        </Select>
+        
+        {/* Search Input - Takes remaining space */}
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder={searchTypePlaceholders[searchType]}
+            value={searchValue}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="pl-9 h-9 w-full"
+          />
+        </div>
       </div>
 
       {/* Status Filter */}

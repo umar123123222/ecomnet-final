@@ -785,13 +785,34 @@ const OrderDashboard = () => {
       <Card className="border-border/50">
         {/* Unified Filter Bar */}
         <div className="flex items-center gap-3 p-3 border-b bg-muted/20">
-          {/* Search */}
-          <div className="flex-1 max-w-md">
+          {/* Search Section - Expanded */}
+          <div className="flex flex-1 gap-2 min-w-0">
+            {/* Search Type Selector */}
+            <Select value={filters.searchType} onValueChange={value => updateFilter('searchType', value)}>
+              <SelectTrigger className="w-[130px] h-8 text-xs shrink-0 bg-background">
+                <SelectValue placeholder="Search in" />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-50">
+                <SelectItem value="all">All Fields</SelectItem>
+                <SelectItem value="order_number">Order Number</SelectItem>
+                <SelectItem value="tracking_id">Tracking ID</SelectItem>
+                <SelectItem value="tags">Tags</SelectItem>
+                <SelectItem value="order_id">Order ID</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            {/* Search Input - Takes remaining space */}
             <Input 
-              placeholder="Search orders, tracking, customer..." 
+              placeholder={
+                filters.searchType === 'order_number' ? 'Search by order number...' :
+                filters.searchType === 'tracking_id' ? 'Search by tracking ID...' :
+                filters.searchType === 'tags' ? 'Search by tags...' :
+                filters.searchType === 'order_id' ? 'Search by order ID...' :
+                'Search orders, tracking, customer...'
+              }
               value={searchInput} 
               onChange={e => setSearchInput(e.target.value)} 
-              className="h-8 text-sm" 
+              className="h-8 text-sm flex-1" 
             />
           </div>
 
