@@ -7,7 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { Package, Truck, MapPin, Clock, CheckCircle, XCircle, AlertCircle, History, FileText, RefreshCw, RotateCcw, Box, ChevronRight, ChevronDown, Edit } from "lucide-react";
+import { Package, Truck, MapPin, Clock, CheckCircle, XCircle, AlertCircle, History, FileText, RefreshCw, RotateCcw, Box, ChevronRight, ChevronDown, Edit, Tag } from "lucide-react";
+import TagsNotes from "@/components/TagsNotes";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ConfirmOrderDialog } from "./ConfirmOrderDialog";
 import { BookCourierDialog } from "./BookCourierDialog";
@@ -135,6 +136,9 @@ interface Order {
   createdAtISO?: string;
   customer_id?: string | null;
   customerId?: string;
+  orderNotes?: string;
+  tags?: Array<{ id: string; text: string; addedBy: string; addedAt: string; canDelete: boolean }>;
+  userComments?: Array<{ id?: string; text: string; addedBy: string; addedAt: string; canDelete?: boolean }>;
 }
 interface OrderDetailsModalProps {
   order: Order | null;
@@ -535,14 +539,18 @@ export const OrderDetailsModal = ({
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 h-9 sm:h-10">
+            <TabsList className="grid w-full grid-cols-3 h-9 sm:h-10">
               <TabsTrigger value="tracking" className="text-xs sm:text-sm">
                 <Truck className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 Tracking
               </TabsTrigger>
+              <TabsTrigger value="notes" className="text-xs sm:text-sm">
+                <Tag className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                Tags & Notes
+              </TabsTrigger>
               <TabsTrigger value="activity" className="text-xs sm:text-sm">
                 <History className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                Activity Log
+                Activity
               </TabsTrigger>
             </TabsList>
 
@@ -695,6 +703,73 @@ export const OrderDetailsModal = ({
                 </div>
               )}
             </TabsContent>
+
+          <TabsContent value="notes" className="mt-4">
+            <TagsNotes
+              itemId={order.id}
+              orderNotes={order.orderNotes}
+              tags={order.tags || []}
+              notes={(order.userComments || []).map((comment, index) => ({
+                id: comment.id || `comment-${index}`,
+                text: comment.text,
+                addedBy: comment.addedBy,
+                addedAt: comment.addedAt,
+                canDelete: comment.canDelete ?? true
+              }))}
+              onAddTag={async (tag) => {
+                const existingTags = order.tags?.map(t => t.text) || [];
+                const newTags = [...existingTags, tag];
+                const { error } = await supabase
+                  .from('orders')
+                  .update({ tags: newTags })
+                  .eq('id', order.id);
+                if (!error) {
+                  toast({ title: "Tag added successfully" });
+                  handleRefresh();
+                }
+              }}
+              onAddNote={async (note) => {
+                const existingComments = order.userComments || [];
+                const newComment = {
+                  text: note,
+                  addedBy: 'User',
+                  addedAt: new Date().toISOString()
+                };
+                const { error } = await supabase
+                  .from('orders')
+                  .update({ comments: JSON.stringify([...existingComments, newComment]) })
+                  .eq('id', order.id);
+                if (!error) {
+                  toast({ title: "Note added successfully" });
+                  handleRefresh();
+                }
+              }}
+              onDeleteTag={async (tagId) => {
+                const existingTags = order.tags || [];
+                const newTags = existingTags.filter(t => t.id !== tagId).map(t => t.text);
+                const { error } = await supabase
+                  .from('orders')
+                  .update({ tags: newTags })
+                  .eq('id', order.id);
+                if (!error) {
+                  toast({ title: "Tag removed successfully" });
+                  handleRefresh();
+                }
+              }}
+              onDeleteNote={async (noteId) => {
+                const existingComments = order.userComments || [];
+                const newComments = existingComments.filter((_, index) => `comment-${index}` !== noteId);
+                const { error } = await supabase
+                  .from('orders')
+                  .update({ comments: JSON.stringify(newComments) })
+                  .eq('id', order.id);
+                if (!error) {
+                  toast({ title: "Note removed successfully" });
+                  handleRefresh();
+                }
+              }}
+            />
+          </TabsContent>
 
           <TabsContent value="activity" className="mt-4">
             <OrderActivityLog orderId={order.id} open={activeTab === 'activity'} onOpenChange={() => {}} embedded={true} />
