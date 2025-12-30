@@ -1,6 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, Package, MapPin, Truck, RotateCcw, Calendar, ChevronDown, ChevronUp } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Package, MapPin, Truck, RotateCcw, Calendar, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { startOfMonth, endOfMonth, subMonths } from "date-fns";
@@ -182,7 +181,7 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
           <Card className="border-border/50">
             <CardContent className="p-3">
               <div className="flex items-center gap-1.5 mb-1">
-                <Package className="h-3.5 w-3.5 text-primary" />
+                <Package className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Avg Order</span>
               </div>
               <div className="text-lg font-bold">Rs {Math.round(aov).toLocaleString()}</div>
@@ -194,7 +193,7 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
           <Card className="border-border/50">
             <CardContent className="p-3">
               <div className="flex items-center gap-1.5 mb-1">
-                <MapPin className="h-3.5 w-3.5 text-primary" />
+                <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Top Cities</span>
               </div>
               <ResponsiveContainer width="100%" height={50}>
@@ -220,7 +219,7 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
           <Card className="border-border/50">
             <CardContent className="p-3">
               <div className="flex items-center gap-1.5 mb-1">
-                <Truck className="h-3.5 w-3.5 text-primary" />
+                <Truck className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Couriers</span>
               </div>
               <ResponsiveContainer width="100%" height={50}>
@@ -249,15 +248,14 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
           <Card className="border-border/50">
             <CardContent className="p-3">
               <div className="flex items-center gap-1.5 mb-1">
-                <RotateCcw className="h-3.5 w-3.5 text-primary" />
+                <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Returns</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="text-lg font-bold">{returnRate.toFixed(1)}%</span>
-                <Badge variant={isGoodRate ? 'success' : 'destructive'} className="h-5 text-[10px] gap-0.5">
-                  {isGoodRate ? <TrendingDown className="h-2.5 w-2.5" /> : <TrendingUp className="h-2.5 w-2.5" />}
-                  {isGoodRate ? 'Good' : 'High'}
-                </Badge>
+                <span className={`text-[10px] ${isGoodRate ? 'text-muted-foreground' : 'text-destructive'}`}>
+                  {isGoodRate ? '↓ Good' : '↑ High'}
+                </span>
               </div>
               <div className="text-[10px] text-muted-foreground">{returnedOrders}/{filteredOrders.length}</div>
             </CardContent>
@@ -267,7 +265,7 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
           <Card className="border-border/50">
             <CardContent className="p-3">
               <div className="flex items-center gap-1.5 mb-1">
-                <Calendar className="h-3.5 w-3.5 text-primary" />
+                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">7-Day Trend</span>
               </div>
               <ResponsiveContainer width="100%" height={50}>
