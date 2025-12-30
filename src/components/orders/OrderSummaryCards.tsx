@@ -23,48 +23,36 @@ export const OrderSummaryCards = memo(({ totalCount, summaryData, onStatusFilter
       value: totalCount, 
       status: 'all',
       icon: Package,
-      color: 'text-primary',
-      bgColor: 'bg-primary/10',
     },
     { 
       title: 'Booked', 
       value: summaryData.booked, 
       status: 'booked',
       icon: Clock,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-500/10',
     },
     { 
       title: 'Dispatched', 
       value: summaryData.dispatched, 
       status: 'dispatched',
       icon: Truck,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-500/10',
     },
     { 
       title: 'Delivered', 
       value: summaryData.delivered, 
       status: 'delivered',
       icon: CheckCircle,
-      color: 'text-green-600',
-      bgColor: 'bg-green-500/10',
     },
     { 
       title: 'Cancelled', 
       value: summaryData.cancelled, 
       status: 'cancelled',
       icon: XCircle,
-      color: 'text-red-600',
-      bgColor: 'bg-red-500/10',
     },
     { 
       title: 'Returns', 
       value: summaryData.returns, 
       status: 'returned',
       icon: RotateCcw,
-      color: 'text-muted-foreground',
-      bgColor: 'bg-muted',
     },
   ], [totalCount, summaryData]);
 
@@ -76,11 +64,11 @@ export const OrderSummaryCards = memo(({ totalCount, summaryData, onStatusFilter
           <button
             key={card.status}
             onClick={() => onStatusFilter?.(card.status)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 hover:border-border hover:bg-muted/50 transition-colors ${card.bgColor}`}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-background hover:bg-muted/50 transition-colors text-sm"
           >
-            <Icon className={`h-4 w-4 ${card.color}`} />
-            <span className="text-xs font-medium text-muted-foreground">{card.title}</span>
-            <span className={`text-sm font-bold ${card.color}`}>
+            <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">{card.title}</span>
+            <span className="font-semibold text-foreground">
               {card.value.toLocaleString()}
             </span>
           </button>
