@@ -93,6 +93,24 @@ const OrderDashboard = () => {
   const [jumpToPage, setJumpToPage] = useState('');
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
   const [combinedStatus, setCombinedStatus] = useState<string>('all');
+  const [availableBundles, setAvailableBundles] = useState<string[]>([]);
+
+  // Fetch available bundle names
+  useEffect(() => {
+    const fetchBundles = async () => {
+      const { data } = await supabase
+        .from('order_items')
+        .select('bundle_name')
+        .not('bundle_name', 'is', null)
+        .neq('bundle_name', '');
+      
+      if (data) {
+        const uniqueBundles = [...new Set(data.map(item => item.bundle_name).filter(Boolean))] as string[];
+        setAvailableBundles(uniqueBundles.sort());
+      }
+    };
+    fetchBundles();
+  }, []);
 
   // Read search param from URL on page load
   useEffect(() => {
@@ -965,16 +983,28 @@ const OrderDashboard = () => {
                   <div className="space-y-3">
                     <Label className="text-base font-semibold flex items-center gap-2">
                       <Boxes className="h-4 w-4" />
-                      Has Bundles
+                      Bundle Filter
                     </Label>
                     <Select value={filters.hasBundle} onValueChange={value => updateFilter('hasBundle', value)}>
                       <SelectTrigger className="bg-background">
-                        <SelectValue placeholder="Select" />
+                        <SelectValue placeholder="Select bundle" />
                       </SelectTrigger>
-                      <SelectContent className="bg-background z-50">
+                      <SelectContent className="bg-background z-50 max-h-60">
                         <SelectItem value="all">All Orders</SelectItem>
-                        <SelectItem value="yes">With Bundles</SelectItem>
-                        <SelectItem value="no">Without Bundles</SelectItem>
+                        <SelectItem value="yes">Any Bundle</SelectItem>
+                        <SelectItem value="no">No Bundle</SelectItem>
+                        {availableBundles.length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
+                              Specific Bundles
+                            </div>
+                            {availableBundles.map(bundle => (
+                              <SelectItem key={bundle} value={bundle}>
+                                {bundle}
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>

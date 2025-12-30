@@ -203,29 +203,55 @@ export const useOrdersData = () => {
       // Handle bundle filter - need to get order IDs with bundles first
       let bundleOrderIds: string[] | null = null;
       if (filters.hasBundle !== 'all') {
-        const { data: bundleOrders } = await supabase
-          .from('order_items')
-          .select('order_id')
-          .or('bundle_name.neq.,is_bundle_component.eq.true');
-        
-        if (currentAbortController.signal.aborted) return;
-        
-        bundleOrderIds = [...new Set(bundleOrders?.map(item => item.order_id) || [])];
-        
+        // Check if it's a specific bundle name or yes/no filter
         if (filters.hasBundle === 'yes') {
+          const { data: bundleOrders } = await supabase
+            .from('order_items')
+            .select('order_id')
+            .or('bundle_name.neq.,is_bundle_component.eq.true');
+          
+          if (currentAbortController.signal.aborted) return;
+          
+          bundleOrderIds = [...new Set(bundleOrders?.map(item => item.order_id) || [])];
+          
           if (bundleOrderIds.length > 0) {
             query = query.in('id', bundleOrderIds);
           } else {
-            // No orders with bundles, return empty
             setOrders([]);
             setTotalCount(0);
             return;
           }
         } else if (filters.hasBundle === 'no') {
+          const { data: bundleOrders } = await supabase
+            .from('order_items')
+            .select('order_id')
+            .or('bundle_name.neq.,is_bundle_component.eq.true');
+          
+          if (currentAbortController.signal.aborted) return;
+          
+          bundleOrderIds = [...new Set(bundleOrders?.map(item => item.order_id) || [])];
+          
           if (bundleOrderIds.length > 0) {
             query = query.not('id', 'in', `(${bundleOrderIds.join(',')})`);
           }
-          // If no bundle orders, all orders qualify, no filter needed
+        } else {
+          // Specific bundle name selected
+          const { data: bundleOrders } = await supabase
+            .from('order_items')
+            .select('order_id')
+            .eq('bundle_name', filters.hasBundle);
+          
+          if (currentAbortController.signal.aborted) return;
+          
+          bundleOrderIds = [...new Set(bundleOrders?.map(item => item.order_id) || [])];
+          
+          if (bundleOrderIds.length > 0) {
+            query = query.in('id', bundleOrderIds);
+          } else {
+            setOrders([]);
+            setTotalCount(0);
+            return;
+          }
         }
       }
 
