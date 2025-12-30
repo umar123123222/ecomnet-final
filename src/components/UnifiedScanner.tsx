@@ -9,7 +9,8 @@ import { useHandheldScanner } from '@/contexts/HandheldScannerContext';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { useToast } from '@/hooks/use-toast';
 import { Camera, Type, Keyboard, ScanLine } from 'lucide-react';
-import Tesseract from 'tesseract.js';
+// Tesseract is dynamically imported when OCR is used to reduce bundle size
+type TesseractType = typeof import('tesseract.js');
 
 export interface ScanResult {
   orderId?: string;
@@ -254,6 +255,8 @@ const UnifiedScanner: React.FC<UnifiedScannerProps> = ({
 
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       
+      // Dynamic import Tesseract to reduce initial bundle size
+      const Tesseract = await import('tesseract.js');
       const { data } = await Tesseract.recognize(canvas, 'eng', {
         logger: (m) => {
           if (m.status === 'recognizing text') {

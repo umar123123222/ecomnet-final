@@ -3,7 +3,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { X, Camera, Flashlight, FlashlightOff, SwitchCamera, Volume2, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { BrowserMultiFormatReader } from '@zxing/library';
-import { jsPDF } from 'jspdf';
+// jsPDF is dynamically imported when needed to reduce bundle size
 
 export interface ScanResult {
   success: boolean;
@@ -202,7 +202,7 @@ const MobileCameraScanner: React.FC<MobileCameraScannerProps> = ({
   }, [stopCamera]);
 
   // Generate and download failed scans PDF - uses ref for latest data
-  const downloadFailedScansPDF = useCallback(() => {
+  const downloadFailedScansPDF = useCallback(async () => {
     const currentResults = scanResultsRef.current;
     const failedScans = currentResults.filter(r => !r.success);
     
@@ -217,6 +217,8 @@ const MobileCameraScanner: React.FC<MobileCameraScannerProps> = ({
     }
 
     try {
+      // Dynamic import for jsPDF to reduce bundle size
+      const { jsPDF } = await import('jspdf');
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
       
