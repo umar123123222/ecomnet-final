@@ -227,6 +227,24 @@ const OrdersMobileView: React.FC<OrdersMobileViewProps> = ({
               </div>
 
               <div className="space-y-3">
+                <Label className="text-base font-semibold">Filter Date By</Label>
+                <Select value={filters.dateFilterMode} onValueChange={value => updateFilter('dateFilterMode', value)}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select date field" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    <SelectItem value="created">Created Date</SelectItem>
+                    <SelectItem value="status">Status Date</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {filters.dateFilterMode === 'created' 
+                    ? 'Filter by when orders were created' 
+                    : 'Filter by when orders reached their current status'}
+                </p>
+              </div>
+
+              <div className="space-y-3">
                 <Label className="text-base font-semibold flex items-center gap-2">
                   <DollarSign className="h-4 w-4" />
                   Amount Range
