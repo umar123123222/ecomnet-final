@@ -3,11 +3,12 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { User, Phone, Mail, MapPin, Package, Calendar, ShoppingBag, Truck, Copy } from 'lucide-react';
+import { User, Phone, Mail, MapPin, Package, Calendar, ShoppingBag, Truck, Copy, Tag } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { downloadCourierLabel } from '@/utils/courierLabelDownload';
 import { useToast } from '@/hooks/use-toast';
 import type { FormattedOrder } from '@/hooks/useOrdersData';
+import TagsNotes from '@/components/TagsNotes';
 
 interface OrderExpandedRowProps {
   order: FormattedOrder;
@@ -102,9 +103,13 @@ export const OrderExpandedRow = memo(({ order }: OrderExpandedRowProps) => {
     <TableRow>
       <TableCell colSpan={9} className="bg-muted/30 p-6">
         <Tabs defaultValue="customer-details" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="customer-details">Customer Details</TabsTrigger>
             <TabsTrigger value="order-details">Order Details</TabsTrigger>
+            <TabsTrigger value="tags-notes">
+              <Tag className="h-4 w-4 mr-1.5" />
+              Tags & Notes
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="customer-details" className="mt-4">
@@ -278,6 +283,73 @@ export const OrderExpandedRow = memo(({ order }: OrderExpandedRowProps) => {
                 </Card>
               )}
             </div>
+          </TabsContent>
+
+          <TabsContent value="tags-notes" className="mt-4">
+            <Card className="border-border/50">
+              <CardContent className="p-5">
+                <TagsNotes
+                  itemId={order.id}
+                  orderNotes={order.orderNotes}
+                  tags={order.tags || []}
+                  notes={(order.userComments || []).map((comment: any, index: number) => ({
+                    id: comment.id || `comment-${index}`,
+                    text: comment.text,
+                    addedBy: comment.addedBy,
+                    addedAt: comment.addedAt,
+                    canDelete: comment.canDelete ?? true
+                  }))}
+                  onAddTag={async (tag) => {
+                    const existingTags = order.tags?.map(t => t.text) || [];
+                    const newTags = [...existingTags, tag];
+                    const { error } = await supabase
+                      .from('orders')
+                      .update({ tags: newTags })
+                      .eq('id', order.id);
+                    if (!error) {
+                      toast({ description: "Tag added successfully" });
+                    }
+                  }}
+                  onAddNote={async (note) => {
+                    const existingComments = order.userComments || [];
+                    const newComment = {
+                      text: note,
+                      addedBy: 'User',
+                      addedAt: new Date().toISOString()
+                    };
+                    const { error } = await supabase
+                      .from('orders')
+                      .update({ comments: JSON.stringify([...existingComments, newComment]) })
+                      .eq('id', order.id);
+                    if (!error) {
+                      toast({ description: "Note added successfully" });
+                    }
+                  }}
+                  onDeleteTag={async (tagId) => {
+                    const existingTags = order.tags || [];
+                    const newTags = existingTags.filter(t => t.id !== tagId).map(t => t.text);
+                    const { error } = await supabase
+                      .from('orders')
+                      .update({ tags: newTags })
+                      .eq('id', order.id);
+                    if (!error) {
+                      toast({ description: "Tag removed successfully" });
+                    }
+                  }}
+                  onDeleteNote={async (noteId) => {
+                    const existingComments = order.userComments || [];
+                    const newComments = existingComments.filter((_: any, index: number) => `comment-${index}` !== noteId);
+                    const { error } = await supabase
+                      .from('orders')
+                      .update({ comments: JSON.stringify(newComments) })
+                      .eq('id', order.id);
+                    if (!error) {
+                      toast({ description: "Note removed successfully" });
+                    }
+                  }}
+                />
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </TableCell>
