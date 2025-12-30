@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Clock, Package, CheckCircle, DollarSign, X } from "lucide-react";
+import { Clock, Package, CheckCircle, DollarSign } from "lucide-react";
 
 interface FilterPreset {
   id: string;
@@ -22,8 +21,8 @@ export const FilterPresets = ({ activePreset, onPresetSelect }: FilterPresetsPro
   const presets: FilterPreset[] = [
     {
       id: 'today',
-      name: "Today's Orders",
-      icon: <Clock className="h-4 w-4" />,
+      name: "Today",
+      icon: <Clock className="h-3.5 w-3.5" />,
       filters: {
         dateRange: {
           from: new Date(new Date().setHours(0, 0, 0, 0)),
@@ -33,16 +32,16 @@ export const FilterPresets = ({ activePreset, onPresetSelect }: FilterPresetsPro
     },
     {
       id: 'pending-dispatch',
-      name: "Pending Dispatch",
-      icon: <Package className="h-4 w-4" />,
+      name: "Pending",
+      icon: <Package className="h-3.5 w-3.5" />,
       filters: {
         status: 'pending',
       },
     },
     {
       id: 'delivered-7days',
-      name: "Delivered Last 7 Days",
-      icon: <CheckCircle className="h-4 w-4" />,
+      name: "Delivered 7d",
+      icon: <CheckCircle className="h-3.5 w-3.5" />,
       filters: {
         status: 'delivered',
         dateRange: {
@@ -53,8 +52,8 @@ export const FilterPresets = ({ activePreset, onPresetSelect }: FilterPresetsPro
     },
     {
       id: 'high-value',
-      name: "High-Value Orders",
-      icon: <DollarSign className="h-4 w-4" />,
+      name: "High Value",
+      icon: <DollarSign className="h-3.5 w-3.5" />,
       filters: {
         minAmount: 5000,
       },
@@ -62,26 +61,19 @@ export const FilterPresets = ({ activePreset, onPresetSelect }: FilterPresetsPro
   ];
 
   return (
-    <div className="flex flex-wrap gap-2 items-center animate-fade-in">
-      <span className="text-sm text-muted-foreground mr-2">Quick Filters:</span>
+    <div className="flex items-center gap-1">
       {presets.map((preset) => (
         <Button
           key={preset.id}
-          variant={activePreset === preset.id ? "default" : "outline"}
+          variant={activePreset === preset.id ? "secondary" : "ghost"}
           size="sm"
           onClick={() => onPresetSelect(activePreset === preset.id ? null : preset)}
-          className="gap-2"
+          className="h-7 px-2 gap-1 text-xs"
         >
           {preset.icon}
           {preset.name}
         </Button>
       ))}
-      {activePreset && (
-        <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => onPresetSelect(null)}>
-          Clear Filter
-          <X className="h-3 w-3" />
-        </Badge>
-      )}
     </div>
   );
 };

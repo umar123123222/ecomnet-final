@@ -671,58 +671,85 @@ const OrderDashboard = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-          <div className="shrink-0">
-            <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Order Management</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {totalCount > 0 ? `Showing ${pagination.start}–${pagination.end} of ${totalCount.toLocaleString()} orders` : 'Manage and track all your orders'}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {(isManager || primaryRole === 'super_admin') && (
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <AlertTriangle className="h-4 w-4" />
-                    <span className="hidden sm:inline">Fix Orders</span>
-                    <span className="sm:hidden">Fix</span>
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Fix Shopify Fulfilled Orders</DialogTitle>
-                  </DialogHeader>
-                  <FixShopifyFulfilledOrders />
-                </DialogContent>
-              </Dialog>
-            )}
-            <Button variant="outline" size="sm" onClick={() => setShowKPIPanel(!showKPIPanel)} className="gap-2">
-              {showKPIPanel ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              <span className="hidden sm:inline">{showKPIPanel ? 'Hide' : 'Show'} KPIs</span>
-              <span className="sm:hidden">KPIs</span>
-            </Button>
-            <Button variant="outline" onClick={fetchOrders} size="sm">
-              <RefreshCw className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Refresh</span>
-            </Button>
-            <NewOrderDialog onOrderCreated={handleNewOrderCreated} />
-            <Button variant="outline" size="sm" onClick={() => setShowBulkUpload(true)}>
-              <Upload className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Bulk Upload</span>
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExportToExcel} disabled={exporting}>
-              <FileSpreadsheet className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">{exporting ? 'Exporting...' : 'Export Excel'}</span>
-            </Button>
-            <BulkUploadDialog open={showBulkUpload} onOpenChange={setShowBulkUpload} onSuccess={handleNewOrderCreated} />
-          </div>
+    <div className="p-4 space-y-4">
+      {/* Compact Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Orders</h1>
+          <p className="text-xs text-muted-foreground">
+            {totalCount > 0 ? `${pagination.start}–${pagination.end} of ${totalCount.toLocaleString()}` : 'No orders'}
+          </p>
         </div>
+        
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={fetchOrders} className="h-8 px-2">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowKPIPanel(!showKPIPanel)} className="h-8 gap-1.5">
+            {showKPIPanel ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            <span className="text-xs">Analytics</span>
+          </Button>
+          <NewOrderDialog onOrderCreated={handleNewOrderCreated} />
+          
+          {/* More Actions Dropdown */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8">
+                More
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="w-80">
+              <SheetHeader>
+                <SheetTitle>Actions</SheetTitle>
+                <SheetDescription>Additional order management tools</SheetDescription>
+              </SheetHeader>
+              <div className="space-y-2 py-4">
+                {(isManager || primaryRole === 'super_admin') && (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start gap-2">
+                        <AlertTriangle className="h-4 w-4" />
+                        Fix Shopify Orders
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle>Fix Shopify Fulfilled Orders</DialogTitle>
+                      </DialogHeader>
+                      <FixShopifyFulfilledOrders />
+                    </DialogContent>
+                  </Dialog>
+                )}
+                <Button variant="outline" className="w-full justify-start gap-2" onClick={() => setShowBulkUpload(true)}>
+                  <Upload className="h-4 w-4" />
+                  Bulk Upload
+                </Button>
+                <Button variant="outline" className="w-full justify-start gap-2" onClick={handleExportToExcel} disabled={exporting}>
+                  <FileSpreadsheet className="h-4 w-4" />
+                  {exporting ? 'Exporting...' : 'Export Excel'}
+                </Button>
+              </div>
+            </SheetContent>
+          </Sheet>
+          <BulkUploadDialog open={showBulkUpload} onOpenChange={setShowBulkUpload} onSuccess={handleNewOrderCreated} />
+        </div>
+      </div>
 
-        <OrderKPIPanel isVisible={showKPIPanel} />
+      {/* Analytics Panel (Collapsible) */}
+      <OrderKPIPanel isVisible={showKPIPanel} />
+
+      {/* Status Summary + Quick Filters Row */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <OrderSummaryCards 
+          totalCount={totalCount} 
+          summaryData={summaryData} 
+          onStatusFilter={(status) => updateFilter('status', status)}
+        />
         <FilterPresets activePreset={activePreset} onPresetSelect={handlePresetSelect} />
+      </div>
+
+      {/* Bulk Operations (only when items selected) */}
+      {selectedOrders.size > 0 && (
         <BulkOperationsPanel
           selectedCount={selectedOrders.size}
           onStatusChange={handleBulkStatusChange}
@@ -734,60 +761,49 @@ const OrderDashboard = () => {
           couriers={couriers}
           userRole={primaryRole}
         />
-      </div>
-
-      {/* Summary Cards */}
-      <OrderSummaryCards totalCount={totalCount} summaryData={summaryData} />
+      )}
 
       {/* Orders Table */}
-      <Card>
+      <Card className="border-border/50">
         {/* Unified Filter Bar */}
-        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between p-4 bg-muted/30 border-b">
-          <div className="flex flex-1 gap-3 flex-wrap items-center w-full sm:w-auto">
-            <div className="flex items-center gap-2">
-              <Label className="text-sm whitespace-nowrap">Rows:</Label>
-              <Select value={String(pageSize)} onValueChange={val => handlePageSizeChange(Number(val))}>
-                <SelectTrigger className="w-[90px] h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-background z-50">
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex-1 min-w-[200px]">
-              <Input placeholder="Search orders, tracking ID, customer..." value={searchInput} onChange={e => setSearchInput(e.target.value)} className="h-9" />
-            </div>
-
-            {activeFiltersCount > 0 && (
-              <Badge variant="secondary" className="h-9 px-3">
-                {activeFiltersCount} filters active
-              </Badge>
-            )}
+        <div className="flex items-center gap-3 p-3 border-b bg-muted/20">
+          {/* Search */}
+          <div className="flex-1 max-w-md">
+            <Input 
+              placeholder="Search orders, tracking, customer..." 
+              value={searchInput} 
+              onChange={e => setSearchInput(e.target.value)} 
+              className="h-8 text-sm" 
+            />
           </div>
 
-          <div className="flex gap-2">
-            {activeFiltersCount > 0 && (
-              <Button variant="ghost" size="sm" onClick={handleClearFilters}>
-                <X className="h-4 w-4 mr-1" />
-                Clear All
-              </Button>
-            )}
+          {/* Rows per page */}
+          <Select value={String(pageSize)} onValueChange={val => handlePageSizeChange(Number(val))}>
+            <SelectTrigger className="w-20 h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-background z-50">
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
 
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Filter className="h-4 w-4 mr-1" />
-                  Filters
-                  {activeFiltersCount > 0 && (
-                    <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
-                      {activeFiltersCount}
-                    </Badge>
-                  )}
-                </Button>
-              </SheetTrigger>
+          {/* Active filters indicator */}
+          {activeFiltersCount > 0 && (
+            <Button variant="ghost" size="sm" onClick={handleClearFilters} className="h-8 gap-1 text-xs">
+              <X className="h-3.5 w-3.5" />
+              {activeFiltersCount} filters
+            </Button>
+          )}
+
+          {/* Filter Sheet */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 gap-1.5">
+                <Filter className="h-3.5 w-3.5" />
+                Filters
+              </Button>
+            </SheetTrigger>
               <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
                 <SheetHeader>
                   <SheetTitle>Filter Orders</SheetTitle>
@@ -963,7 +979,6 @@ const OrderDashboard = () => {
                 </div>
               </SheetContent>
             </Sheet>
-          </div>
         </div>
 
         {/* Table Header with Selection */}
