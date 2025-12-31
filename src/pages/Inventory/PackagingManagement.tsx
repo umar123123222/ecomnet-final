@@ -3,10 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Package, AlertTriangle, Edit, Trash2, PackagePlus, CheckCircle, MapPin, DollarSign, Boxes, Tag, Link2 } from "lucide-react";
+import { Plus, Search, Package, AlertTriangle, Edit, Trash2, PackagePlus, CheckCircle, MapPin, DollarSign, Boxes, Tag, Link2, Box, Filter, PackageX, TrendingDown, Layers } from "lucide-react";
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from "@/components/layout";
 import { useToast } from "@/hooks/use-toast";
 import { useBulkOperations } from "@/hooks/useBulkOperations";
@@ -52,6 +52,7 @@ import * as z from "zod";
 import { PackagingAdjustmentDialog } from "@/components/inventory/PackagingAdjustmentDialog";
 import { PackagingRulesManager } from "@/components/inventory/PackagingRulesManager";
 import { useUserRoles } from '@/hooks/useUserRoles';
+import { Skeleton } from "@/components/ui/skeleton";
 
 const packagingSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -280,17 +281,42 @@ export default function PackagingManagement() {
     setDialogOpen(true);
   };
 
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+
   const filteredItems = packagingItems?.filter(
-    (item) =>
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.sku.toLowerCase().includes(searchTerm.toLowerCase())
+    (item) => {
+      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.sku.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesType = typeFilter === "all" || item.type === typeFilter;
+      return matchesSearch && matchesType;
+    }
   );
 
   const getStockStatus = (item: any) => {
-    if (item.current_stock === 0) return { label: "Out of Stock", variant: "destructive" as const };
-    if (item.current_stock <= item.reorder_level) return { label: "Low Stock", variant: "secondary" as const };
-    return { label: "In Stock", variant: "default" as const };
+    if (item.current_stock === 0) return { label: "Out of Stock", variant: "destructive" as const, icon: PackageX };
+    if (item.current_stock <= item.reorder_level) return { label: "Low Stock", variant: "secondary" as const, icon: TrendingDown };
+    return { label: "In Stock", variant: "default" as const, icon: CheckCircle };
   };
+
+  const getTypeIcon = (type: string) => {
+    const icons: Record<string, string> = {
+      'bottle': '🍶',
+      'box': '📦',
+      'label': '🏷️',
+      'cap': '🧢',
+      'bag': '👜',
+      'wrapper': '🎁',
+      'other': '📋'
+    };
+    return icons[type] || '📦';
+  };
+
+  // Calculate stats
+  const totalItems = packagingItems?.length || 0;
+  const lowStockItems = packagingItems?.filter(i => i.current_stock <= i.reorder_level && i.current_stock > 0).length || 0;
+  const outOfStockItems = packagingItems?.filter(i => i.current_stock === 0).length || 0;
+  const activeItems = packagingItems?.filter(i => i.is_active).length || 0;
+  const totalValue = packagingItems?.reduce((sum, i) => sum + (i.current_stock * i.cost), 0) || 0;
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -346,25 +372,64 @@ export default function PackagingManagement() {
         }
       />
 
-      <StatsGrid columns={3}>
-        <StatsCard
-          title="Total Items"
-          value={packagingItems?.length || 0}
-          icon={Package}
-        />
-        <StatsCard
-          title="Low Stock Items"
-          value={packagingItems?.filter(i => i.current_stock <= i.reorder_level).length || 0}
-          icon={AlertTriangle}
-          variant="warning"
-        />
-        <StatsCard
-          title="Active Items"
-          value={packagingItems?.filter(i => i.is_active).length || 0}
-          icon={CheckCircle}
-          variant="success"
-        />
-      </StatsGrid>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="relative overflow-hidden">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Items</p>
+                <p className="text-2xl font-bold">{totalItems}</p>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Package className="h-5 w-5 text-primary" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="relative overflow-hidden border-orange-200 dark:border-orange-900/50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Low Stock</p>
+                <p className="text-2xl font-bold text-orange-600">{lowStockItems}</p>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                <AlertTriangle className="h-5 w-5 text-orange-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="relative overflow-hidden border-red-200 dark:border-red-900/50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Out of Stock</p>
+                <p className="text-2xl font-bold text-red-600">{outOfStockItems}</p>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <PackageX className="h-5 w-5 text-red-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="relative overflow-hidden">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Inventory Value</p>
+                <p className="text-2xl font-bold">PKR {totalValue.toLocaleString()}</p>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <DollarSign className="h-5 w-5 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {permissions.canManagePackaging && selectedItems.length > 0 && (
         <BulkOperationsPanel
@@ -380,34 +445,74 @@ export default function PackagingManagement() {
         />
       )}
 
-      <Card className="p-6">
-        <div className="flex items-center gap-2 mb-4 flex-wrap">
-          <Search className="h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search packaging items..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-sm"
-          />
-          <Select value={selectedOutlet} onValueChange={setSelectedOutlet}>
-            <SelectTrigger className="w-[180px]">
-              <MapPin className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Filter by outlet" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Outlets (Central)</SelectItem>
-              {outlets.map((outlet: any) => (
-                <SelectItem key={outlet.id} value={outlet.id}>{outlet.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <ReservationDateFilter
-            dateRange={dateRange}
-            onDateRangeChange={setDateRange}
-            onClear={clearDateFilter}
-            isLoading={isLoadingReservations}
-          />
-        </div>
+      {/* Main Table Card */}
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Layers className="h-5 w-5" />
+                Packaging Inventory
+              </CardTitle>
+              <CardDescription>
+                {filteredItems?.length || 0} items {searchTerm || typeFilter !== "all" ? "found" : "total"}
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        
+        <CardContent className="pt-0">
+          {/* Search and Filters */}
+          <div className="flex flex-col md:flex-row gap-3 mb-6 p-4 bg-muted/30 rounded-lg border">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or SKU..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 bg-background"
+              />
+            </div>
+            
+            <div className="flex flex-wrap gap-2">
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="w-[150px] bg-background">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="bottle">🍶 Bottle</SelectItem>
+                  <SelectItem value="box">📦 Box</SelectItem>
+                  <SelectItem value="label">🏷️ Label</SelectItem>
+                  <SelectItem value="cap">🧢 Cap</SelectItem>
+                  <SelectItem value="bag">👜 Bag</SelectItem>
+                  <SelectItem value="wrapper">🎁 Wrapper</SelectItem>
+                  <SelectItem value="other">📋 Other</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={selectedOutlet} onValueChange={setSelectedOutlet}>
+                <SelectTrigger className="w-[180px] bg-background">
+                  <MapPin className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Location" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Outlets (Central)</SelectItem>
+                  {outlets.map((outlet: any) => (
+                    <SelectItem key={outlet.id} value={outlet.id}>{outlet.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <ReservationDateFilter
+                dateRange={dateRange}
+                onDateRangeChange={setDateRange}
+                onClear={clearDateFilter}
+                isLoading={isLoadingReservations}
+              />
+            </div>
+          </div>
 
         <Table>
           <TableHeader>
@@ -436,15 +541,46 @@ export default function PackagingManagement() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={isFinanceUser ? 12 : (permissions.canManagePackaging ? 13 : 12)} className="text-center">
-                  Loading...
-                </TableCell>
-              </TableRow>
+              // Loading skeleton
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  {!isFinanceUser && permissions.canManagePackaging && (
+                    <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+                  )}
+                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                  {!isFinanceUser && <TableCell><Skeleton className="h-8 w-16" /></TableCell>}
+                </TableRow>
+              ))
             ) : filteredItems?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={isFinanceUser ? 12 : (permissions.canManagePackaging ? 13 : 12)} className="text-center">
-                  No packaging items found
+                <TableCell colSpan={isFinanceUser ? 12 : (permissions.canManagePackaging ? 13 : 12)} className="h-48">
+                  <div className="flex flex-col items-center justify-center text-center">
+                    <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                      <Package className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <h3 className="font-medium text-lg mb-1">No packaging items found</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {searchTerm || typeFilter !== "all" 
+                        ? "Try adjusting your search or filters" 
+                        : "Get started by adding your first packaging item"}
+                    </p>
+                    {permissions.canManagePackaging && !searchTerm && typeFilter === "all" && (
+                      <Button onClick={handleAddNew} size="sm">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Packaging Item
+                      </Button>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ) : (
@@ -457,7 +593,7 @@ export default function PackagingManagement() {
                   'none': '-'
                 }[item.allocation_type || 'none'];
                 return (
-                  <TableRow key={item.id}>
+                  <TableRow key={item.id} className="group hover:bg-muted/50 transition-colors">
                     {!isFinanceUser && permissions.canManagePackaging && (
                       <TableCell>
                         <Checkbox
@@ -466,11 +602,23 @@ export default function PackagingManagement() {
                         />
                       </TableCell>
                     )}
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell>{item.sku}</TableCell>
-                    <TableCell className="capitalize">{item.type}</TableCell>
                     <TableCell>
-                      <Badge variant={item.allocation_type === 'none' ? 'outline' : 'secondary'}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{getTypeIcon(item.type)}</span>
+                        <span className="font-medium">{item.name}</span>
+                        {!item.is_active && (
+                          <Badge variant="outline" className="text-xs">Inactive</Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{item.sku}</code>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="capitalize">{item.type}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={item.allocation_type === 'none' ? 'outline' : 'secondary'} className="text-xs">
                         {allocationLabel}
                       </Badge>
                     </TableCell>
@@ -502,20 +650,23 @@ export default function PackagingManagement() {
                       <span className="text-muted-foreground">{item.reorder_level}</span>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={status.variant}>{status.label}</Badge>
+                      <Badge variant={status.variant} className="gap-1">
+                        <status.icon className="h-3 w-3" />
+                        {status.label}
+                      </Badge>
                     </TableCell>
-                    <TableCell className="text-right">PKR {item.cost.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-medium">PKR {item.cost.toFixed(2)}</TableCell>
                     {!isFinanceUser && (
                       <TableCell>
-                        <div className="flex gap-2">
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           {permissions.canManagePackaging && (
                             <Button
                               variant="ghost"
-                              size="sm"
+                              size="icon"
+                              className="h-8 w-8"
                               onClick={() => handleEdit(item)}
                             >
-                              <Edit className="h-3 w-3 mr-1" />
-                              Edit
+                              <Edit className="h-4 w-4" />
                             </Button>
                           )}
                         </div>
@@ -527,6 +678,7 @@ export default function PackagingManagement() {
             )}
           </TableBody>
         </Table>
+        </CardContent>
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
