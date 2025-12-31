@@ -163,7 +163,7 @@ const Dashboard = () => {
     return `${sign}${value.toFixed(1)}%`;
   };
 
-  // Memoize summary data with real all-time data and calculated trends
+  // Memoize summary data - show current period stats when date range selected, otherwise all-time
   const summaryData = useMemo(() => {
     if (loading || !dashboardData) {
       return [{
@@ -225,65 +225,67 @@ const Dashboard = () => {
       }];
     }
 
-    // Use all-time stats for display, trends from period comparison
+    // Use current period stats when date range is selected, otherwise use all-time
+    const displayStats = dateRange?.from ? dashboardData.current : dashboardData.allTime;
+
     return [{
       title: "Total Orders",
-      value: (dashboardData.allTime.totalOrders || 0).toLocaleString(),
+      value: (displayStats.totalOrders || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.totalOrders),
       trend: dashboardData.trends.totalOrders >= 0 ? "up" : "down",
       icon: Package,
       color: "from-blue-500 to-cyan-500"
     }, {
       title: "Booked Orders",
-      value: (dashboardData.allTime.bookedOrders || 0).toLocaleString(),
+      value: (displayStats.bookedOrders || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.bookedOrders),
       trend: dashboardData.trends.bookedOrders >= 0 ? "up" : "down",
       icon: Calendar,
       color: "from-purple-500 to-pink-500"
     }, {
       title: "Dispatched Orders",
-      value: (dashboardData.allTime.dispatchedOrders || 0).toLocaleString(),
+      value: (displayStats.dispatchedOrders || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.dispatchedOrders),
       trend: dashboardData.trends.dispatchedOrders >= 0 ? "up" : "down",
       icon: Truck,
       color: "from-orange-500 to-yellow-500"
     }, {
       title: "Delivered Orders",
-      value: (dashboardData.allTime.deliveredOrders || 0).toLocaleString(),
+      value: (displayStats.deliveredOrders || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.deliveredOrders),
       trend: dashboardData.trends.deliveredOrders >= 0 ? "up" : "down",
       icon: CheckCircle,
       color: "from-green-500 to-emerald-500"
     }, {
       title: "Cancelled Orders",
-      value: (dashboardData.allTime.cancelledOrders || 0).toLocaleString(),
+      value: (displayStats.cancelledOrders || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.cancelledOrders),
       trend: dashboardData.trends.cancelledOrders >= 0 ? "up" : "down",
       icon: XCircle,
       color: "from-red-500 to-pink-500"
     }, {
       title: "Returned Orders",
-      value: (dashboardData.allTime.returnedOrders || 0).toLocaleString(),
+      value: (displayStats.returnedOrders || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.returnedOrders),
       trend: dashboardData.trends.returnedOrders >= 0 ? "up" : "down",
       icon: RotateCcw,
       color: "from-indigo-500 to-purple-500"
     }, {
       title: "Pending Orders",
-      value: (dashboardData.allTime.pendingOrders || 0).toLocaleString(),
+      value: (displayStats.pendingOrders || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.pendingOrders),
       trend: dashboardData.trends.pendingOrders >= 0 ? "up" : "down",
       icon: Package,
       color: "from-gray-500 to-gray-600"
     }, {
       title: "Customers",
-      value: (dashboardData.allTime.customers || 0).toLocaleString(),
+      value: (displayStats.customers || 0).toLocaleString(),
       change: formatTrend(dashboardData.trends.customers),
       trend: dashboardData.trends.customers >= 0 ? "up" : "down",
       icon: Users,
       color: "from-teal-500 to-blue-500"
     }];
-  }, [dashboardData, loading]);
+  }, [dashboardData, loading, dateRange]);
 
   // Handler functions for button actions
   const handleExportReport = () => {
@@ -343,38 +345,62 @@ const Dashboard = () => {
   const { data: courierData = [] } = useQuery({
     queryKey: ['courier-performance', dateRange],
     queryFn: async () => {
-      const { data: orders, error } = await supabase
+      const ranges = getDateRanges();
+      
+      let query = supabase
         .from('orders')
         .select('courier, status')
         .not('courier', 'is', null)
-        .in('status', ['delivered', 'returned', 'cancelled']);
+        .in('status', ['delivered', 'returned']); // Only count delivered and returned for success rate
+      
+      // Apply date filter if selected
+      if (dateRange?.from) {
+        query = query.gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd);
+      }
+      
+      const { data: orders, error } = await query;
       
       if (error) throw error;
       
       // Group by courier and calculate success rates
-      const courierStats: Record<string, { delivered: number; total: number }> = {};
+      // Success Rate = delivered / (delivered + returned) * 100
+      const courierStats: Record<string, { delivered: number; returned: number }> = {};
       
       orders?.forEach(order => {
         if (!order.courier) return;
-        if (!courierStats[order.courier]) {
-          courierStats[order.courier] = { delivered: 0, total: 0 };
+        const courierName = order.courier.toLowerCase();
+        if (!courierStats[courierName]) {
+          courierStats[courierName] = { delivered: 0, returned: 0 };
         }
-        courierStats[order.courier].total++;
         if (order.status === 'delivered') {
-          courierStats[order.courier].delivered++;
+          courierStats[courierName].delivered++;
+        } else if (order.status === 'returned') {
+          courierStats[courierName].returned++;
         }
       });
       
-      return Object.entries(courierStats).map(([name, stats]) => {
-        const rate = stats.total > 0 ? ((stats.delivered / stats.total) * 100).toFixed(1) : '0.0';
-        const rateNum = parseFloat(rate);
-        return {
-          name: `${name.charAt(0).toUpperCase() + name.slice(1)} Success Rate`,
-          rate: `${rate}%`,
-          status: rateNum >= 90 ? 'success' : rateNum >= 75 ? 'warning' : 'destructive',
-          label: rateNum >= 90 ? 'Excellent' : rateNum >= 75 ? 'Good' : 'Needs Improvement'
-        };
+      // Ensure all known couriers appear (postex, leopard, tcs, other)
+      const knownCouriers = ['postex', 'leopard', 'tcs', 'other'];
+      knownCouriers.forEach(courier => {
+        if (!courierStats[courier]) {
+          courierStats[courier] = { delivered: 0, returned: 0 };
+        }
       });
+      
+      return Object.entries(courierStats)
+        .filter(([name]) => knownCouriers.includes(name)) // Only show known couriers
+        .map(([name, stats]) => {
+          const total = stats.delivered + stats.returned;
+          const rate = total > 0 ? ((stats.delivered / total) * 100).toFixed(1) : 'N/A';
+          const rateNum = rate === 'N/A' ? 0 : parseFloat(rate);
+          const displayName = name.charAt(0).toUpperCase() + name.slice(1);
+          return {
+            name: `${displayName} Success Rate`,
+            rate: rate === 'N/A' ? 'No Data' : `${rate}%`,
+            status: rate === 'N/A' ? 'warning' : rateNum >= 90 ? 'success' : rateNum >= 75 ? 'warning' : 'destructive',
+            label: rate === 'N/A' ? 'No Data' : rateNum >= 90 ? 'Excellent' : rateNum >= 75 ? 'Good' : 'Needs Improvement'
+          };
+        });
     },
     staleTime: 5 * 60 * 1000,
   });
