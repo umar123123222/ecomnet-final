@@ -240,10 +240,12 @@ Deno.serve(async (req) => {
 
     // SYNC ORDER ITEMS - Update order_items table from Shopify line items
     // lineItems already declared at line 103
+    // Use activeLineItems (filtered) - only sync items that are still active in Shopify
+    // This ensures removed items are deleted and only current items are synced
     const itemsSyncResult = await syncOrderItems(
       supabaseAdmin,
       currentOrderState.id,
-      lineItems,
+      activeLineItems,
       true // isUpdate = true - will delete existing items first
     );
 
