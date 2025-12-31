@@ -405,8 +405,8 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] p-0 gap-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b bg-muted/30">
+      <DialogContent className="max-w-3xl max-h-[90vh] p-0 gap-0 overflow-hidden flex flex-col">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b bg-muted/30 shrink-0">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
               {isBundle ? <Gift className="h-5 w-5 text-primary" /> : <Package className="h-5 w-5 text-primary" />}
@@ -420,9 +420,9 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
           </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full">
-          <Tabs defaultValue="basic" className="flex-1">
-            <div className="px-6 pt-4 border-b">
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
+          <Tabs defaultValue="basic" className="flex flex-col flex-1 overflow-hidden">
+            <div className="px-6 pt-4 border-b shrink-0">
               <TabsList className="grid w-full grid-cols-3 h-9">
                 <TabsTrigger value="basic" className="text-sm gap-1.5">
                   <Info className="h-3.5 w-3.5" />
@@ -439,7 +439,7 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
               </TabsList>
             </div>
 
-            <ScrollArea className="flex-1 max-h-[calc(90vh-260px)]">
+            <ScrollArea className="flex-1 overflow-y-auto">
               <div className="px-6 py-5">
                 {/* Basic Info Tab */}
                 <TabsContent value="basic" className="mt-0 space-y-5">

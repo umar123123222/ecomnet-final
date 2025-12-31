@@ -530,7 +530,7 @@ export default function PackagingManagement() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] p-0 gap-0 overflow-hidden">
+        <DialogContent className="max-w-2xl max-h-[90vh] p-0 gap-0 overflow-hidden flex flex-col">
           <DialogHeader className="px-6 pt-6 pb-4 border-b bg-muted/30 shrink-0">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
