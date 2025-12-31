@@ -181,9 +181,9 @@ useEffect(() => {
         .gte('dispatch_date', dateFromISO)
         .lte('dispatch_date', dateToISO);
       
-      // Apply courier filter server-side
+      // Apply courier filter server-side - use eq() for ENUM columns
       if (courierFilter && courierFilter !== "all") {
-        countQuery = countQuery.ilike('courier', courierFilter);
+        countQuery = countQuery.eq('courier', courierFilter.toLowerCase());
       }
       
       // Apply user filter server-side
@@ -239,9 +239,9 @@ useEffect(() => {
         .gte('dispatch_date', dateFromISO)
         .lte('dispatch_date', dateToISO);
       
-      // Apply courier filter server-side
+      // Apply courier filter server-side - use eq() for ENUM columns
       if (courierFilter && courierFilter !== "all") {
-        dataQuery = dataQuery.ilike('courier', courierFilter);
+        dataQuery = dataQuery.eq('courier', courierFilter.toLowerCase());
       }
       
       // Apply user filter server-side

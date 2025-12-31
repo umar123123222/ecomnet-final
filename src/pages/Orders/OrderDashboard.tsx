@@ -303,8 +303,15 @@ const OrderDashboard = () => {
         body: { courier_code: courier.code, order_ids: eligibleOrderIds },
       });
 
+      // Handle both invocation errors and application-level errors
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Failed to generate AWBs');
+      if (!data?.success) {
+        const errorMessage = data?.error || 'Failed to generate AWBs';
+        console.error('[AWB] Generation failed:', data);
+        throw new Error(errorMessage);
+      }
+      
+      console.log('[AWB] Generation response:', data);
 
       // Poll for completion
       const pollIntervalMs = 1500;

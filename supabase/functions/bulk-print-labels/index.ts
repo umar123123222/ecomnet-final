@@ -219,11 +219,12 @@ serve(async (req) => {
 
     console.log(`[BULK-PRINT] Starting for ${order_ids.length} orders, courier: ${courier_code}`);
 
-    // Get courier details
+    // Get courier details - use eq() instead of ilike() for text columns
+    const normalizedCourierCode = courier_code.toLowerCase();
     const { data: courier, error: courierError } = await supabase
       .from('couriers')
       .select('*')
-      .ilike('code', courier_code)
+      .eq('code', normalizedCourierCode)
       .single();
 
     if (courierError || !courier) {
@@ -233,12 +234,12 @@ serve(async (req) => {
     const printConfig = courier.print_config || {};
     console.log('[BULK-PRINT] Courier print_config:', printConfig);
 
-    // Get dispatches with their label info
+    // Get dispatches with their label info - use eq() for ENUM courier column
     const { data: dispatches, error: dispatchError } = await supabase
       .from('dispatches')
       .select('id, order_id, tracking_id, label_storage_path, label_data, label_url')
       .in('order_id', order_ids)
-      .ilike('courier', courier_code);
+      .eq('courier', normalizedCourierCode);
 
     if (dispatchError) {
       throw dispatchError;
