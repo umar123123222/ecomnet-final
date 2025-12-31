@@ -99,16 +99,16 @@ const OrderDashboard = () => {
   // Fetch available bundle names and products
   useEffect(() => {
     const fetchBundlesAndProducts = async () => {
-      // Fetch bundles
+      // Fetch bundles from products table (all bundles, not just ordered ones)
       const { data: bundleData } = await supabase
-        .from('order_items')
-        .select('bundle_name')
-        .not('bundle_name', 'is', null)
-        .neq('bundle_name', '');
+        .from('products')
+        .select('name, sku')
+        .eq('is_bundle', true)
+        .eq('is_active', true)
+        .order('name');
       
       if (bundleData) {
-        const uniqueBundles = [...new Set(bundleData.map(item => item.bundle_name).filter(Boolean))] as string[];
-        setAvailableBundles(uniqueBundles.sort());
+        setAvailableBundles(bundleData.map(b => b.name));
       }
 
       // Fetch products for product filter
