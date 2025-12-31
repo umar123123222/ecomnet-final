@@ -238,15 +238,28 @@ const OrderDashboard = () => {
   // Generate AWBs
   const handleGenerateAWBs = async (orderIds: string[], courierId: string, courierName: string) => {
     try {
+      // First try to get tracking IDs from dispatches table
       const { data: dispatches } = await supabase
         .from('dispatches')
         .select('tracking_id, order_id')
         .in('order_id', orderIds)
         .not('tracking_id', 'is', null);
 
-      const trackingIds = dispatches?.map(d => d.tracking_id) || [];
+      let trackingIds = dispatches?.map(d => d.tracking_id) || [];
+      
+      // If no dispatches found, fallback to orders.tracking_id
       if (trackingIds.length === 0) {
-        toast({ title: "No tracking IDs found", description: "Please try again.", variant: "destructive" });
+        const { data: ordersWithTracking } = await supabase
+          .from('orders')
+          .select('id, tracking_id')
+          .in('id', orderIds)
+          .not('tracking_id', 'is', null);
+        
+        trackingIds = ordersWithTracking?.map(o => o.tracking_id).filter(Boolean) as string[] || [];
+      }
+      
+      if (trackingIds.length === 0) {
+        toast({ title: "No tracking IDs found", description: "Selected orders don't have tracking IDs. Book them with a courier first.", variant: "destructive" });
         return;
       }
 
