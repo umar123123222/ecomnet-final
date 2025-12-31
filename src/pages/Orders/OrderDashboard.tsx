@@ -299,7 +299,7 @@ const OrderDashboard = () => {
 
       toast({ title: "Generating AWBs...", description: `Processing ${trackingIds.length} labels...` });
 
-      const { data, error } = await supabase.functions.invoke('generate-courier-awbs', {
+      const { data, error } = await supabase.functions.invoke('generate-courier-awbs-v2', {
         body: { courier_code: courier.code, order_ids: eligibleOrderIds },
       });
 

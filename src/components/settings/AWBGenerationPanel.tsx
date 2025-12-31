@@ -77,7 +77,7 @@ export function AWBGenerationPanel({
       const {
         data,
         error
-      } = await supabase.functions.invoke('generate-courier-awbs', {
+      } = await supabase.functions.invoke('generate-courier-awbs-v2', {
         body: {
           courier_code: selectedCourier,
           order_ids: orderUUIDs
