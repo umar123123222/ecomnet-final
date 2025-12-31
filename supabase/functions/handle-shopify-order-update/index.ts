@@ -230,7 +230,7 @@ Deno.serve(async (req) => {
     if (updateError) throw updateError;
 
     // SYNC ORDER ITEMS - Update order_items table from Shopify line items
-    const lineItems = order.line_items || [];
+    // lineItems already declared at line 103
     const itemsSyncResult = await syncOrderItems(
       supabaseAdmin,
       currentOrderState.id,
