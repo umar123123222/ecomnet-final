@@ -204,11 +204,40 @@ serve(async (req) => {
     console.log('[AWB] Starting generation for courier:', courier_code);
     console.log('[AWB] Order IDs:', order_ids);
 
-    // Get dispatches with tracking IDs for these orders
+    // Only generate AWBs for booked (not dispatched) orders
+    const { data: eligibleOrders, error: eligibleOrdersError } = await supabaseClient
+      .from('orders')
+      .select('id,status,courier,tracking_id')
+      .in('id', order_ids)
+      .eq('status', 'booked')
+      .ilike('courier', courier_code);
+
+    if (eligibleOrdersError) {
+      console.error('[AWB] Error fetching eligible orders:', eligibleOrdersError);
+      throw eligibleOrdersError;
+    }
+
+    const eligibleOrderIds = (eligibleOrders || []).map((o: any) => o.id);
+
+    console.log(`[AWB] Eligible booked orders: ${eligibleOrderIds.length} of ${order_ids.length}`);
+
+    if (eligibleOrderIds.length === 0) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'No eligible booked (not dispatched) orders found for AWB generation',
+          found: 0,
+          requested: order_ids.length,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // Build tracking IDs map from dispatches, with fallback to orders.tracking_id
     const { data: dispatches, error: dispatchError } = await supabaseClient
       .from('dispatches')
       .select('id, tracking_id, order_id')
-      .in('order_id', order_ids)
+      .in('order_id', eligibleOrderIds)
       .ilike('courier', courier_code)
       .not('tracking_id', 'is', null);
 
@@ -217,24 +246,34 @@ serve(async (req) => {
       throw dispatchError;
     }
 
-    console.log(`[AWB] Found ${dispatches?.length || 0} dispatches with tracking IDs out of ${order_ids.length} orders`);
+    const trackingByOrderId = new Map<string, string>();
+    (dispatches || []).forEach((d: any) => {
+      if (d?.order_id && d?.tracking_id) trackingByOrderId.set(d.order_id, d.tracking_id);
+    });
 
-    if (!dispatches || dispatches.length === 0) {
-      console.error('[AWB] No dispatches found with tracking IDs');
+    (eligibleOrders || []).forEach((o: any) => {
+      if (o?.id && o?.tracking_id && !trackingByOrderId.has(o.id)) trackingByOrderId.set(o.id, o.tracking_id);
+    });
+
+    const trackingIds = Array.from(trackingByOrderId.values());
+
+    console.log(`[AWB] Found ${trackingIds.length} tracking IDs for ${eligibleOrderIds.length} eligible orders`);
+
+    if (trackingIds.length === 0) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'No dispatches found with tracking IDs for these orders',
+        JSON.stringify({
+          success: false,
+          error: 'No tracking IDs found for eligible booked orders',
           found: 0,
-          requested: order_ids.length
+          requested: eligibleOrderIds.length,
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    const trackingIds = dispatches.map(d => d.tracking_id);
     console.log(`[AWB] Processing ${trackingIds.length} tracking IDs:`, trackingIds);
 
+    const orderIds = eligibleOrderIds;
     // Get API settings for this courier
     const { data: apiSettings, error: settingsError } = await supabaseClient
       .from('api_settings')
@@ -281,12 +320,12 @@ serve(async (req) => {
       .from('courier_awbs')
       .insert({
         courier_code: courier_code,
-        order_ids: order_ids,
+        order_ids: orderIds,
         tracking_ids: [],
         generated_by: user.id,
         status: 'processing',
-        total_orders: order_ids.length,
-        batch_count: Math.ceil(order_ids.length / 10)
+        total_orders: orderIds.length,
+        batch_count: Math.ceil(orderIds.length / 10),
       })
       .select()
       .single();
@@ -299,8 +338,8 @@ serve(async (req) => {
     // Process in batches of 10 (PostEx limit)
     const batchSize = 10;
     const batches = [];
-    for (let i = 0; i < order_ids.length; i += batchSize) {
-      batches.push(order_ids.slice(i, i + batchSize));
+    for (let i = 0; i < orderIds.length; i += batchSize) {
+      batches.push(orderIds.slice(i, i + batchSize));
     }
 
     console.log(`[AWB] Processing ${batches.length} batches`);
@@ -313,21 +352,13 @@ serve(async (req) => {
       const batch = batches[batchIndex];
       console.log(`[AWB] Processing batch ${batchIndex + 1}/${batches.length} with ${batch.length} orders`);
 
-      // Get dispatch records for this batch
-      const { data: dispatches, error: dispatchError } = await supabaseClient
-        .from('dispatches')
-        .select('tracking_id, order_id')
-        .in('order_id', batch)
-        .ilike('courier', courier_code);
+      // Get tracking IDs for this batch (dispatches first, fallback to orders)
+      const trackingIds = batch
+        .map((orderId: string) => trackingByOrderId.get(orderId))
+        .filter(Boolean) as string[];
 
-      if (dispatchError) {
-        console.error(`[AWB] Error fetching dispatches for batch ${batchIndex + 1}:`, dispatchError);
-        continue;
-      }
-
-      const trackingIds = dispatches?.map(d => d.tracking_id).filter(Boolean) || [];
       console.log(`[AWB] Found ${trackingIds.length} tracking IDs in batch ${batchIndex + 1}`);
-      
+
       if (trackingIds.length === 0) {
         console.log(`[AWB] No tracking IDs found for batch ${batchIndex + 1}, skipping`);
         continue;
