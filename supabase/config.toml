@@ -192,6 +192,9 @@ verify_jwt = true
 [functions.generate-courier-awbs]
 verify_jwt = true
 
+[functions.generate-courier-awbs-v2]
+verify_jwt = true
+
 [functions.bulk-courier-booking]
 verify_jwt = true
 
