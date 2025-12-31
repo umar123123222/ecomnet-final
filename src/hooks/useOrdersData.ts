@@ -269,11 +269,12 @@ export const useOrdersData = () => {
           }
           // If too many to exclude, we skip this filter (rare edge case)
         } else {
-          // Specific bundle name selected
+          // Specific bundle name selected - use ilike for partial match
+          // because bundle_name in order_items may include SKU suffix like "3x Perfume Bundle. | SKU: 9999"
           const { data: bundleOrders, error: bundleError } = await supabase
             .from('order_items')
             .select('order_id')
-            .eq('bundle_name', filters.hasBundle);
+            .ilike('bundle_name', `${filters.hasBundle}%`);
           
           if (currentAbortController.signal.aborted) return;
           if (bundleError) {
