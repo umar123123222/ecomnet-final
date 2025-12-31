@@ -19,6 +19,7 @@ export interface OrderFilters {
   city: string;
   hasTrackingId: string;
   hasBundle: string;
+  productId: string;
 }
 
 export interface FormattedOrder {
@@ -119,7 +120,8 @@ export const useOrdersData = () => {
     amountMax: undefined,
     city: 'all',
     hasTrackingId: 'all',
-    hasBundle: 'all'
+    hasBundle: 'all',
+    productId: 'all'
   });
 
   const [newOrdersCount, setNewOrdersCount] = useState(0);
@@ -272,6 +274,26 @@ export const useOrdersData = () => {
             setTotalCount(0);
             return;
           }
+        }
+      }
+
+      // Handle product filter - filter by product_id in order_items (includes bundle components)
+      if (filters.productId !== 'all') {
+        const { data: productOrders } = await supabase
+          .from('order_items')
+          .select('order_id')
+          .eq('product_id', filters.productId);
+        
+        if (currentAbortController.signal.aborted) return;
+        
+        const productOrderIds = [...new Set(productOrders?.map(item => item.order_id) || [])];
+        
+        if (productOrderIds.length > 0) {
+          query = query.in('id', productOrderIds);
+        } else {
+          setOrders([]);
+          setTotalCount(0);
+          return;
         }
       }
 
@@ -658,7 +680,8 @@ export const useOrdersData = () => {
       amountMax: undefined,
       city: 'all',
       hasTrackingId: 'all',
-      hasBundle: 'all'
+      hasBundle: 'all',
+      productId: 'all'
     });
     setPage(0);
   }, []);

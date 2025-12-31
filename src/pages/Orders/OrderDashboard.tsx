@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Label } from '@/components/ui/label';
-import { Search, Upload, Filter, X, RefreshCw, AlertTriangle, AlertCircle, MapPin, Eye, EyeOff, Package, DollarSign, Smartphone, FileSpreadsheet, Boxes } from 'lucide-react';
+import { Search, Upload, Filter, X, RefreshCw, AlertTriangle, AlertCircle, MapPin, Eye, EyeOff, Package, DollarSign, Smartphone, FileSpreadsheet, Boxes, ShoppingBag } from 'lucide-react';
 import NewOrderDialog from '@/components/NewOrderDialog';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { useUserRoles } from '@/hooks/useUserRoles';
@@ -94,22 +94,35 @@ const OrderDashboard = () => {
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
   const [combinedStatus, setCombinedStatus] = useState<string>('all');
   const [availableBundles, setAvailableBundles] = useState<string[]>([]);
+  const [availableProducts, setAvailableProducts] = useState<{id: string; name: string; sku: string | null}[]>([]);
 
-  // Fetch available bundle names
+  // Fetch available bundle names and products
   useEffect(() => {
-    const fetchBundles = async () => {
-      const { data } = await supabase
+    const fetchBundlesAndProducts = async () => {
+      // Fetch bundles
+      const { data: bundleData } = await supabase
         .from('order_items')
         .select('bundle_name')
         .not('bundle_name', 'is', null)
         .neq('bundle_name', '');
       
-      if (data) {
-        const uniqueBundles = [...new Set(data.map(item => item.bundle_name).filter(Boolean))] as string[];
+      if (bundleData) {
+        const uniqueBundles = [...new Set(bundleData.map(item => item.bundle_name).filter(Boolean))] as string[];
         setAvailableBundles(uniqueBundles.sort());
       }
+
+      // Fetch products for product filter
+      const { data: productData } = await supabase
+        .from('products')
+        .select('id, name, sku')
+        .eq('is_active', true)
+        .order('name');
+      
+      if (productData) {
+        setAvailableProducts(productData);
+      }
     };
-    fetchBundles();
+    fetchBundlesAndProducts();
   }, []);
 
   // Read search param from URL on page load
@@ -1028,6 +1041,34 @@ const OrderDashboard = () => {
                         )}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold flex items-center gap-2">
+                      <ShoppingBag className="h-4 w-4" />
+                      Product Filter
+                    </Label>
+                    <Select value={filters.productId} onValueChange={value => updateFilter('productId', value)}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Select product" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-50 max-h-60">
+                        <SelectItem value="all">All Products</SelectItem>
+                        {availableProducts.map(product => (
+                          <SelectItem key={product.id} value={product.id}>
+                            <div className="flex items-center gap-2">
+                              <span>{product.name}</span>
+                              {product.sku && (
+                                <span className="text-xs text-muted-foreground">({product.sku})</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Filter orders containing this product (includes bundle components)
+                    </p>
                   </div>
 
                   <div className="space-y-3">
