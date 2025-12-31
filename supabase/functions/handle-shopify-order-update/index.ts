@@ -104,6 +104,14 @@ Deno.serve(async (req) => {
     const activeLineItems = filterActiveLineItems(lineItems);
     const normalizedPhone = normalizePhone(order.customer?.phone || order.shipping_address?.phone);
 
+    // Extract shipping charges from Shopify order
+    const shippingCharges = parseFloat(
+      order.total_shipping_price_set?.shop_money?.amount || 
+      order.shipping_lines?.reduce((sum: number, line: any) => sum + parseFloat(line.price || '0'), 0).toString() || 
+      '0'
+    );
+    console.log(`Order ${order.name} shipping charges: ${shippingCharges}`);
+
     // Check if order exists and fetch current state
     const { data: currentOrderState } = await supabaseAdmin
       .from('orders')
@@ -206,7 +214,8 @@ Deno.serve(async (req) => {
       customer_phone: normalizedPhone,
       customer_address: order.shipping_address?.address1 || null,
       city: order.shipping_address?.city || null,
-      total_amount: calculateOrderTotal(lineItems, order.total_price || '0'),
+      total_amount: calculateOrderTotal(lineItems, order.total_price || '0', shippingCharges),
+      shipping_charges: shippingCharges,
       items: activeLineItems,
       notes: order.note || null,
       tags: allTags,
