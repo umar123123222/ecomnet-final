@@ -18,10 +18,12 @@ Deno.serve(async (req) => {
 
     console.log('Starting scheduled database cleanup...');
 
-    const results = {
+const results = {
       sync_queue_deleted: 0,
       tracking_history_deduplicated: 0,
       old_notifications_deleted: 0,
+      expired_labels_deleted: 0,
+      bulk_prints_deleted: 0,
       errors: [] as string[],
     };
 
@@ -143,6 +145,90 @@ Deno.serve(async (req) => {
       }
     } catch (e: any) {
       results.errors.push(`activity_logs: ${e.message}`);
+    }
+
+    // 6. Clean up expired courier labels from storage
+    try {
+      const { data: expiredLabels, error: expiredError } = await supabase
+        .from('dispatches')
+        .select('id, label_storage_path')
+        .lt('label_expires_at', new Date().toISOString())
+        .not('label_storage_path', 'is', null);
+
+      if (expiredError) {
+        console.error('Expired labels query error:', expiredError);
+        results.errors.push(`expired_labels_query: ${expiredError.message}`);
+      } else if (expiredLabels && expiredLabels.length > 0) {
+        console.log(`Found ${expiredLabels.length} expired labels to delete`);
+
+        // Delete files from storage
+        const pathsToDelete = expiredLabels.map(l => l.label_storage_path).filter(Boolean);
+        if (pathsToDelete.length > 0) {
+          const { error: storageError } = await supabase.storage
+            .from('courier-labels')
+            .remove(pathsToDelete);
+
+          if (storageError) {
+            console.error('Storage delete error:', storageError);
+            results.errors.push(`storage_delete: ${storageError.message}`);
+          } else {
+            results.expired_labels_deleted = pathsToDelete.length;
+            console.log(`Deleted ${pathsToDelete.length} expired label files from storage`);
+          }
+        }
+
+        // Clear the paths from dispatches table
+        const expiredIds = expiredLabels.map(l => l.id);
+        const { error: clearError } = await supabase
+          .from('dispatches')
+          .update({ 
+            label_storage_path: null, 
+            label_cached_at: null, 
+            label_expires_at: null 
+          })
+          .in('id', expiredIds);
+
+        if (clearError) {
+          console.error('Clear expired paths error:', clearError);
+          results.errors.push(`clear_paths: ${clearError.message}`);
+        }
+      }
+    } catch (e: any) {
+      results.errors.push(`expired_labels: ${e.message}`);
+    }
+
+    // 7. Clean up old bulk print PDFs (older than 7 days)
+    try {
+      const { data: bulkPrintFiles, error: listError } = await supabase.storage
+        .from('courier-labels')
+        .list('bulk-prints', { limit: 1000 });
+
+      if (listError) {
+        console.error('List bulk prints error:', listError);
+        results.errors.push(`list_bulk_prints: ${listError.message}`);
+      } else if (bulkPrintFiles && bulkPrintFiles.length > 0) {
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const oldFiles = bulkPrintFiles.filter(f => 
+          f.created_at && new Date(f.created_at) < sevenDaysAgo
+        );
+
+        if (oldFiles.length > 0) {
+          const pathsToDelete = oldFiles.map(f => `bulk-prints/${f.name}`);
+          const { error: deleteError } = await supabase.storage
+            .from('courier-labels')
+            .remove(pathsToDelete);
+
+          if (deleteError) {
+            console.error('Delete bulk prints error:', deleteError);
+            results.errors.push(`delete_bulk_prints: ${deleteError.message}`);
+          } else {
+            results.bulk_prints_deleted = oldFiles.length;
+            console.log(`Deleted ${oldFiles.length} old bulk print files`);
+          }
+        }
+      }
+    } catch (e: any) {
+      results.errors.push(`bulk_prints: ${e.message}`);
     }
 
     console.log('Database cleanup completed:', results);

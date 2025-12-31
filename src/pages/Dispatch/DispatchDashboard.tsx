@@ -31,6 +31,7 @@ import { logActivity } from '@/utils/activityLogger';
 import { useHandheldScanner } from '@/contexts/HandheldScannerContext';
 import { useScannerMode } from '@/hooks/useScannerMode';
 import { useUserRoles } from '@/hooks/useUserRoles';
+import WarehouseBulkPrint from '@/components/dispatch/WarehouseBulkPrint';
 
 const DispatchDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -1510,6 +1511,17 @@ const metrics = useMemo(() => {
             <FileSpreadsheet className="h-4 w-4" />
             Export
           </Button>
+
+          {/* Bulk Print Labels - warehouse function */}
+          {selectedDispatches.length > 0 && courierFilter !== 'all' && (
+            <WarehouseBulkPrint
+              selectedOrderIds={selectedDispatches.map(id => {
+                const dispatch = dispatches.find(d => d.id === id);
+                return dispatch?.order_id;
+              }).filter(Boolean)}
+              courierCode={courierFilter}
+            />
+          )}
 
           {canUseDispatchActions && (
             <>
