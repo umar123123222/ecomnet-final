@@ -204,17 +204,22 @@ serve(async (req) => {
     console.log('[AWB] Starting generation for courier:', courier_code);
     console.log('[AWB] Order IDs:', order_ids);
 
-    // Only generate AWBs for booked (not dispatched) orders
+    // Only generate AWBs for booked (not dispatched) orders - don't filter by courier since orders may have lowercase/mixed case
     const { data: eligibleOrders, error: eligibleOrdersError } = await supabaseClient
       .from('orders')
       .select('id,status,courier,tracking_id')
       .in('id', order_ids)
-      .eq('status', 'booked')
-      .ilike('courier', courier_code);
+      .eq('status', 'booked');
 
     if (eligibleOrdersError) {
       console.error('[AWB] Error fetching eligible orders:', eligibleOrdersError);
-      throw eligibleOrdersError;
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Database error: ${eligibleOrdersError.message}`,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
+      );
     }
 
     const eligibleOrderIds = (eligibleOrders || []).map((o: any) => o.id);
@@ -229,7 +234,7 @@ serve(async (req) => {
           found: 0,
           requested: order_ids.length,
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
       );
     }
 
@@ -238,12 +243,17 @@ serve(async (req) => {
       .from('dispatches')
       .select('id, tracking_id, order_id')
       .in('order_id', eligibleOrderIds)
-      .ilike('courier', courier_code)
       .not('tracking_id', 'is', null);
 
     if (dispatchError) {
       console.error('[AWB] Error fetching dispatches:', dispatchError);
-      throw dispatchError;
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Database error fetching dispatches: ${dispatchError.message}`,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
+      );
     }
 
     const trackingByOrderId = new Map<string, string>();
@@ -285,7 +295,13 @@ serve(async (req) => {
 
     if (settingsError) {
       console.error('[SETTINGS] Error fetching API settings:', settingsError);
-      throw new Error('Failed to fetch courier API settings');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Failed to fetch courier API settings',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
+      );
     }
 
     console.log(`[SETTINGS] Retrieved ${apiSettings?.length || 0} settings`);
@@ -298,21 +314,38 @@ serve(async (req) => {
     const apiKey = settingsMap[`${courier_code.toUpperCase()}_API_KEY`];
     let awbEndpoint = settingsMap[`${courier_code.toUpperCase()}_AWB_ENDPOINT`];
 
-    // Use default PostEx AWB endpoint if not configured
-    if (!awbEndpoint && courier_code.toLowerCase() === 'postex') {
-      awbEndpoint = 'https://api.postex.pk/services/integration/api/order/v1/get-invoice';
-      console.log('[SETTINGS] Using default PostEx AWB endpoint');
+    // Use default endpoints if not configured
+    if (!awbEndpoint) {
+      if (courier_code.toLowerCase() === 'postex') {
+        awbEndpoint = 'https://api.postex.pk/services/integration/api/order/v1/get-invoice';
+        console.log('[SETTINGS] Using default PostEx AWB endpoint');
+      } else if (courier_code.toLowerCase() === 'leopard') {
+        awbEndpoint = 'https://merchantapistaging.leopardscourier.com/api/getAirWayBillPrint/';
+        console.log('[SETTINGS] Using default Leopard AWB endpoint');
+      }
     }
 
     console.log('[SETTINGS] API Key present:', !!apiKey);
     console.log('[SETTINGS] AWB Endpoint:', awbEndpoint);
 
     if (!apiKey) {
-      throw new Error(`API key not configured for ${courier_code}`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `API key not configured for ${courier_code.toUpperCase()}. Please configure ${courier_code.toUpperCase()}_API_KEY in Settings.`,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
+      );
     }
 
     if (!awbEndpoint) {
-      throw new Error(`AWB endpoint not configured for ${courier_code}`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `AWB endpoint not configured for ${courier_code.toUpperCase()}. Please configure ${courier_code.toUpperCase()}_AWB_ENDPOINT in Settings.`,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
+      );
     }
 
     // Create AWB record
@@ -332,7 +365,13 @@ serve(async (req) => {
 
     if (awbError || !awbRecord) {
       console.error('Error creating AWB record:', awbError);
-      throw new Error('Failed to create AWB record');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Failed to create AWB record in database',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },
+      );
     }
 
     // Process in batches of 10 (PostEx limit)
