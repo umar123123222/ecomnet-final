@@ -379,7 +379,7 @@ const Dashboard = () => {
       });
       
       // Ensure all known couriers appear
-      const knownCouriers = ['postex', 'leopard', 'tcs', 'other'];
+      const knownCouriers = ['postex', 'leopard', 'tcs'];
       knownCouriers.forEach(courier => {
         if (!courierStats[courier]) {
           courierStats[courier] = { delivered: 0, returned: 0 };
