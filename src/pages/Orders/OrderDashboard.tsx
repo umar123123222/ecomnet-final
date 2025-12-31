@@ -238,28 +238,59 @@ const OrderDashboard = () => {
   // Generate AWBs
   const handleGenerateAWBs = async (orderIds: string[], courierId: string, courierName: string) => {
     try {
+      // Only generate AWBs for booked (not dispatched) orders
+      const { data: orderRows, error: orderRowsError } = await supabase
+        .from('orders')
+        .select('id,status')
+        .in('id', orderIds);
+
+      if (orderRowsError) throw orderRowsError;
+
+      const eligibleOrderIds = (orderRows || []).filter((o: any) => o.status === 'booked').map((o: any) => o.id);
+      const skippedCount = orderIds.length - eligibleOrderIds.length;
+
+      if (eligibleOrderIds.length === 0) {
+        toast({
+          title: "No eligible orders",
+          description: "AWBs can only be generated for booked (not dispatched) orders.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (skippedCount > 0) {
+        toast({
+          title: "Skipped non-booked orders",
+          description: `${skippedCount} order(s) were skipped because they are not booked.`,
+        });
+      }
+
       // First try to get tracking IDs from dispatches table
       const { data: dispatches } = await supabase
         .from('dispatches')
         .select('tracking_id, order_id')
-        .in('order_id', orderIds)
+        .in('order_id', eligibleOrderIds)
         .not('tracking_id', 'is', null);
 
       let trackingIds = dispatches?.map(d => d.tracking_id) || [];
-      
+
       // If no dispatches found, fallback to orders.tracking_id
       if (trackingIds.length === 0) {
         const { data: ordersWithTracking } = await supabase
           .from('orders')
           .select('id, tracking_id')
-          .in('id', orderIds)
+          .in('id', eligibleOrderIds)
           .not('tracking_id', 'is', null);
-        
+
         trackingIds = ordersWithTracking?.map(o => o.tracking_id).filter(Boolean) as string[] || [];
       }
-      
+
       if (trackingIds.length === 0) {
-        toast({ title: "No tracking IDs found", description: "Selected orders don't have tracking IDs. Book them with a courier first.", variant: "destructive" });
+        toast({
+          title: "No tracking IDs found",
+          description: "Selected booked orders don't have tracking IDs. Book them with a courier first.",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -269,7 +300,7 @@ const OrderDashboard = () => {
       toast({ title: "Generating AWBs...", description: `Processing ${trackingIds.length} labels...` });
 
       const { data, error } = await supabase.functions.invoke('generate-courier-awbs', {
-        body: { courier_code: courier.code, order_ids: orderIds }
+        body: { courier_code: courier.code, order_ids: eligibleOrderIds },
       });
 
       if (error) throw error;
@@ -300,7 +331,7 @@ const OrderDashboard = () => {
 
       // Download PDF
       const pdfData = awbRecord.pdf_data as string;
-      const labelCount = awbRecord.tracking_ids?.length || orderIds.length;
+      const labelCount = awbRecord.tracking_ids?.length || eligibleOrderIds.length;
       const link = document.createElement('a');
       link.href = `data:application/pdf;base64,${pdfData}`;
       link.download = `awb-${courierName}-${labelCount}labels.pdf`;
