@@ -351,9 +351,9 @@ const Dashboard = () => {
         .from('orders')
         .select('courier, status')
         .not('courier', 'is', null)
-        .in('status', ['delivered', 'returned']); // Only count delivered and returned for success rate
+        .in('status', ['delivered', 'returned'])
+        .limit(100000); // High limit to get all orders
       
-      // Apply date filter if selected
       if (dateRange?.from) {
         query = query.gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd);
       }
@@ -363,7 +363,6 @@ const Dashboard = () => {
       if (error) throw error;
       
       // Group by courier and calculate success rates
-      // Success Rate = delivered / (delivered + returned) * 100
       const courierStats: Record<string, { delivered: number; returned: number }> = {};
       
       orders?.forEach(order => {
@@ -379,7 +378,7 @@ const Dashboard = () => {
         }
       });
       
-      // Ensure all known couriers appear (postex, leopard, tcs, other)
+      // Ensure all known couriers appear
       const knownCouriers = ['postex', 'leopard', 'tcs', 'other'];
       knownCouriers.forEach(courier => {
         if (!courierStats[courier]) {
@@ -388,7 +387,7 @@ const Dashboard = () => {
       });
       
       return Object.entries(courierStats)
-        .filter(([name]) => knownCouriers.includes(name)) // Only show known couriers
+        .filter(([name]) => knownCouriers.includes(name))
         .map(([name, stats]) => {
           const total = stats.delivered + stats.returned;
           const rate = total > 0 ? ((stats.delivered / total) * 100).toFixed(1) : 'N/A';
