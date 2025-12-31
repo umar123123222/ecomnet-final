@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 import { crypto } from 'https://deno.land/std@0.177.0/crypto/mod.ts';
 import { getEcomnetStatusTag } from '../_shared/ecomnetStatusTags.ts';
 import { calculateOrderTotal, filterActiveLineItems } from '../_shared/orderTotalCalculator.ts';
+import { syncOrderItems } from '../_shared/orderItemsSync.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -482,7 +483,17 @@ Deno.serve(async (req) => {
       
       console.log('Updated existing order:', existingOrder.id);
 
-      // Log order update activity
+      // SYNC ORDER ITEMS - Update order_items table from Shopify line items
+      const itemsSyncResult = await syncOrderItems(
+        supabase,
+        existingOrder.id,
+        order.line_items || [],
+        true // isUpdate = true - will delete existing items first
+      );
+      
+      console.log(`✓ Items synced for existing order: ${itemsSyncResult.itemsCreated} created, ${itemsSyncResult.itemsDeleted} deleted`);
+
+      // Log order update activity with items sync info
       await supabase
         .from('activity_logs')
         .insert({
@@ -495,6 +506,12 @@ Deno.serve(async (req) => {
             customer_name: orderData.customer_name,
             previous_status: currentOrderState?.status,
             new_status: finalStatus,
+            items_synced: {
+              created: itemsSyncResult.itemsCreated,
+              deleted: itemsSyncResult.itemsDeleted,
+              matched: itemsSyncResult.matchedProducts,
+              bundleComponents: itemsSyncResult.bundleComponents
+            },
             source: 'shopify_webhook',
           },
           user_id: '00000000-0000-0000-0000-000000000000',

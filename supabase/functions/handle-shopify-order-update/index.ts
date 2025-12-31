@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 import { getEcomnetStatusTag } from '../_shared/ecomnetStatusTags.ts';
 import { calculateOrderTotal, filterActiveLineItems } from '../_shared/orderTotalCalculator.ts';
+import { syncOrderItems } from '../_shared/orderItemsSync.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -228,14 +229,24 @@ Deno.serve(async (req) => {
 
     if (updateError) throw updateError;
 
+    // SYNC ORDER ITEMS - Update order_items table from Shopify line items
+    const lineItems = order.line_items || [];
+    const itemsSyncResult = await syncOrderItems(
+      supabaseAdmin,
+      currentOrderState.id,
+      lineItems,
+      true // isUpdate = true - will delete existing items first
+    );
+
     console.log(`Successfully updated order: ${currentOrderState.id}`);
     console.log(`- Address updated from Shopify`);
     console.log(`- Tags synced: ${allTags.length} tags (${shopifyTags.length} from Shopify + Ecomnet status)`);
     console.log(`- Status: ${preservedStatus}`);
     console.log(`- Courier: ${extractedCourier || 'none'} ${extractedCourier !== currentOrderState.courier ? '(extracted from fulfillment)' : '(preserved)'}`);
     console.log(`- Tracking: ${extractedTracking || 'none'} ${extractedTracking !== currentOrderState.tracking_id ? '(extracted from fulfillment)' : '(preserved)'}`);
+    console.log(`- Items synced: ${itemsSyncResult.itemsCreated} created, ${itemsSyncResult.itemsDeleted} deleted, ${itemsSyncResult.matchedProducts} matched`);
 
-    // Log order update activity
+    // Log order update activity with items sync info
     await supabaseAdmin
       .from('activity_logs')
       .insert({
@@ -248,6 +259,12 @@ Deno.serve(async (req) => {
           address_updated: true,
           status_preserved: preservedStatus,
           courier_preserved: currentOrderState.courier,
+          items_synced: {
+            created: itemsSyncResult.itemsCreated,
+            deleted: itemsSyncResult.itemsDeleted,
+            matched: itemsSyncResult.matchedProducts,
+            bundleComponents: itemsSyncResult.bundleComponents
+          },
           source: 'shopify_webhook',
         },
         user_id: '00000000-0000-0000-0000-000000000000', // System user
@@ -258,7 +275,8 @@ Deno.serve(async (req) => {
         success: true, 
         orderId: currentOrderState.id,
         tagsCount: allTags.length,
-        message: 'Order updated - address & tags synced from Shopify, local courier data preserved'
+        itemsSynced: itemsSyncResult,
+        message: 'Order updated - address, tags & items synced from Shopify, local courier data preserved'
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
