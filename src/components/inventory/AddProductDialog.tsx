@@ -13,7 +13,10 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Package, Gift } from "lucide-react";
+import { Loader2, Package, Gift, DollarSign, Tag, Boxes, Info, Settings2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 
 const productSchema = z.object({
   sku: z.string().trim().max(50, "SKU must be less than 50 characters").nullable().transform(v => v ?? "").optional().or(z.literal("")),
@@ -402,395 +405,437 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{product ? "Edit Product" : "Add New Product"}</DialogTitle>
-          <DialogDescription>
-            {product ? "Update product information" : "Create a new product in your catalog"}
-          </DialogDescription>
+      <DialogContent className="max-w-3xl max-h-[90vh] p-0 gap-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b bg-muted/30">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              {isBundle ? <Gift className="h-5 w-5 text-primary" /> : <Package className="h-5 w-5 text-primary" />}
+            </div>
+            <div>
+              <DialogTitle className="text-lg">{product ? "Edit Product" : "Add New Product"}</DialogTitle>
+              <DialogDescription className="text-sm">
+                {product ? "Update product information and settings" : "Create a new product in your catalog"}
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="sku">SKU</Label>
-              <Input
-                id="sku"
-                {...register("sku")}
-                placeholder="PROD-001"
-                disabled={!!product}
-              />
-              {errors.sku && (
-                <p className="text-sm text-red-500">{errors.sku.message}</p>
-              )}
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full">
+          <Tabs defaultValue="basic" className="flex-1">
+            <div className="px-6 pt-4 border-b">
+              <TabsList className="grid w-full grid-cols-3 h-9">
+                <TabsTrigger value="basic" className="text-sm gap-1.5">
+                  <Info className="h-3.5 w-3.5" />
+                  Basic Info
+                </TabsTrigger>
+                <TabsTrigger value="pricing" className="text-sm gap-1.5">
+                  <DollarSign className="h-3.5 w-3.5" />
+                  Pricing
+                </TabsTrigger>
+                <TabsTrigger value="advanced" className="text-sm gap-1.5">
+                  <Settings2 className="h-3.5 w-3.5" />
+                  Advanced
+                </TabsTrigger>
+              </TabsList>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="name">Product Name *</Label>
-              <Input
-                id="name"
-                {...register("name")}
-                placeholder="Product Name"
-              />
-              {errors.name && (
-                <p className="text-sm text-red-500">{errors.name.message}</p>
-              )}
-            </div>
-          </div>
+            <ScrollArea className="flex-1 max-h-[calc(90vh-260px)]">
+              <div className="px-6 py-5">
+                {/* Basic Info Tab */}
+                <TabsContent value="basic" className="mt-0 space-y-5">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="sku" className="text-sm font-medium">SKU</Label>
+                      <Input
+                        id="sku"
+                        {...register("sku")}
+                        placeholder="PROD-001"
+                        disabled={!!product}
+                        className="h-9"
+                      />
+                      {errors.sku && <p className="text-xs text-destructive">{errors.sku.message}</p>}
+                    </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              {...register("description")}
-              placeholder="Product description"
-              rows={3}
-            />
-            {errors.description && (
-              <p className="text-sm text-red-500">{errors.description.message}</p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
-              <Input
-                id="category"
-                {...register("category")}
-                placeholder="Electronics, Clothing, etc."
-              />
-              {errors.category && (
-                <p className="text-sm text-red-500">{errors.category.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="supplier_id">Supplier</Label>
-              <Select 
-                value={supplierId} 
-                onValueChange={(value) => setValue("supplier_id", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select supplier (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers.map((supplier) => (
-                    <SelectItem key={supplier.id} value={supplier.id}>
-                      {supplier.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.supplier_id && (
-                <p className="text-sm text-red-500">{errors.supplier_id.message}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="size">Size</Label>
-              <Input
-                id="size"
-                {...register("size")}
-                placeholder="e.g., 500, 1"
-              />
-              {errors.size && (
-                <p className="text-sm text-red-500">{errors.size.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="unit_type">Unit</Label>
-              <Select 
-                value={unitType} 
-                onValueChange={(value) => setValue("unit_type", value as any)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select unit" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ml">ml</SelectItem>
-                  <SelectItem value="liters">Liters</SelectItem>
-                  <SelectItem value="grams">Grams</SelectItem>
-                  <SelectItem value="kg">Kg</SelectItem>
-                  <SelectItem value="pieces">Pieces</SelectItem>
-                  <SelectItem value="boxes">Boxes</SelectItem>
-                </SelectContent>
-              </Select>
-              {errors.unit_type && (
-                <p className="text-sm text-red-500">{errors.unit_type.message}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="cost">Cost (PKR) *</Label>
-              <Input
-                id="cost"
-                type="number"
-                step="0.01"
-                {...register("cost", { valueAsNumber: true })}
-                placeholder="Raw materials + packaging"
-              />
-              <p className="text-xs text-muted-foreground">Raw materials + packaging cost</p>
-              {errors.cost && (
-                <p className="text-sm text-destructive">{errors.cost.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="price">Retail Price (PKR) *</Label>
-              <Input
-                id="price"
-                type="number"
-                step="0.01"
-                {...register("price", { valueAsNumber: true })}
-                placeholder="Selling price"
-              />
-              <p className="text-xs text-muted-foreground">Retail selling price per unit</p>
-              {errors.price && (
-                <p className="text-sm text-destructive">{errors.price.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="reorder_level">Reorder Level *</Label>
-              <Input
-                id="reorder_level"
-                type="number"
-                {...register("reorder_level", { valueAsNumber: true })}
-                placeholder="10"
-              />
-              {errors.reorder_level && (
-                <p className="text-sm text-red-500">{errors.reorder_level.message}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-4 rounded-lg border p-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="requires_packaging" className="text-base cursor-pointer">
-                  Requires Packaging
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Does this product require packaging materials (bottles, boxes, etc.)?
-                </p>
-              </div>
-              <Switch
-                id="requires_packaging"
-                checked={requiresPackaging}
-                onCheckedChange={(checked) => {
-                  setValue("requires_packaging", checked);
-                  if (!checked) {
-                    setPackagingRequirements({});
-                  }
-                }}
-              />
-            </div>
-
-            {requiresPackaging && (
-              <div className="mt-4 space-y-3 border-t pt-4">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Package className="h-4 w-4" />
-                  Select Packaging Items & Quantities
-                </div>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {packagingItems.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No active packaging items available</p>
-                  ) : (
-                    packagingItems.map((item) => {
-                      const isSelected = packagingRequirements[item.id] > 0;
-                      return (
-                        <div key={item.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50">
-                          <Checkbox
-                            id={`pkg-${item.id}`}
-                            checked={isSelected}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setPackagingRequirements(prev => ({ ...prev, [item.id]: 1 }));
-                              } else {
-                                setPackagingRequirements(prev => {
-                                  const updated = { ...prev };
-                                  delete updated[item.id];
-                                  return updated;
-                                });
-                              }
-                            }}
-                          />
-                          <Label htmlFor={`pkg-${item.id}`} className="flex-1 cursor-pointer">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <span className="font-medium">{item.name}</span>
-                                <span className="text-xs text-muted-foreground ml-2">
-                                  ({item.type} • Stock: {item.current_stock})
-                                </span>
-                              </div>
-                            </div>
-                          </Label>
-                          {isSelected && (
-                            <Input
-                              type="number"
-                              min="1"
-                              className="w-20"
-                              value={packagingRequirements[item.id] || 1}
-                              onChange={(e) => {
-                                const value = parseInt(e.target.value) || 1;
-                                setPackagingRequirements(prev => ({
-                                  ...prev,
-                                  [item.id]: Math.max(1, value)
-                                }));
-                              }}
-                              placeholder="Qty"
-                            />
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-4 rounded-lg border p-4 border-purple-200 bg-purple-50/50">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="is_bundle" className="text-base cursor-pointer">
-                  🎁 This is a Bundle/Deal
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Create a gift set, tester box, or deal combining multiple products
-                </p>
-              </div>
-              <Switch
-                id="is_bundle"
-                checked={isBundle}
-                onCheckedChange={(checked) => {
-                  setValue("is_bundle", checked);
-                  if (!checked) {
-                    setBundleItems({});
-                    setBundleSearchTerm("");
-                  }
-                }}
-              />
-            </div>
-
-            {isBundle && (
-              <div className="mt-4 space-y-3 border-t pt-4">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Gift className="h-4 w-4" />
-                  Select Products to Include in Bundle
-                </div>
-                
-                <Input
-                  placeholder="Search products..."
-                  value={bundleSearchTerm}
-                  onChange={(e) => setBundleSearchTerm(e.target.value)}
-                />
-                
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {filteredBundleProducts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      {bundleSearchTerm ? "No products found" : "No products available"}
-                    </p>
-                  ) : (
-                    filteredBundleProducts.map((prod) => {
-                      const isSelected = !!bundleItems[prod.id];
-                      return (
-                        <div key={prod.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50">
-                          <Checkbox
-                            id={`bundle-${prod.id}`}
-                            checked={isSelected}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setBundleItems(prev => ({ 
-                                  ...prev, 
-                                  [prod.id]: { quantity: 1 } 
-                                }));
-                              } else {
-                                setBundleItems(prev => {
-                                  const updated = { ...prev };
-                                  delete updated[prod.id];
-                                  return updated;
-                                });
-                              }
-                            }}
-                          />
-                          <Label htmlFor={`bundle-${prod.id}`} className="flex-1 cursor-pointer">
-                            <span className="font-medium">{prod.name}</span>
-                            <span className="text-xs text-muted-foreground ml-2">
-                              ({prod.sku || 'No SKU'} • {prod.size}{prod.unit_type})
-                            </span>
-                          </Label>
-                          {isSelected && (
-                            <>
-                              <Input
-                                type="number"
-                                min="1"
-                                className="w-16"
-                                value={bundleItems[prod.id]?.quantity || 1}
-                                onChange={(e) => {
-                                  const value = parseInt(e.target.value) || 1;
-                                  setBundleItems(prev => ({
-                                    ...prev,
-                                    [prod.id]: {
-                                      ...prev[prod.id],
-                                      quantity: Math.max(1, value)
-                                    }
-                                  }));
-                                }}
-                                placeholder="Qty"
-                              />
-                              <Input
-                                className="w-32"
-                                value={bundleItems[prod.id]?.notes || ""}
-                                onChange={(e) => {
-                                  setBundleItems(prev => ({
-                                    ...prev,
-                                    [prod.id]: {
-                                      ...prev[prod.id],
-                                      notes: e.target.value
-                                    }
-                                  }));
-                                }}
-                                placeholder="Notes (e.g., 5ml)"
-                              />
-                            </>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-                
-                {Object.keys(bundleItems).length > 0 && (
-                  <div className="mt-2 p-2 bg-purple-100 rounded text-sm">
-                    Bundle contains {Object.keys(bundleItems).length} products
+                    <div className="space-y-2">
+                      <Label htmlFor="name" className="text-sm font-medium">Product Name <span className="text-destructive">*</span></Label>
+                      <Input
+                        id="name"
+                        {...register("name")}
+                        placeholder="Enter product name"
+                        className="h-9"
+                      />
+                      {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+                    </div>
                   </div>
-                )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="description" className="text-sm font-medium">Description</Label>
+                    <Textarea
+                      id="description"
+                      {...register("description")}
+                      placeholder="Describe your product..."
+                      rows={3}
+                      className="resize-none"
+                    />
+                    {errors.description && <p className="text-xs text-destructive">{errors.description.message}</p>}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="category" className="text-sm font-medium">Category</Label>
+                      <Input
+                        id="category"
+                        {...register("category")}
+                        placeholder="e.g., Fragrances, Oils"
+                        className="h-9"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="supplier_id" className="text-sm font-medium">Supplier</Label>
+                      <Select 
+                        value={supplierId} 
+                        onValueChange={(value) => setValue("supplier_id", value)}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select supplier (optional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {suppliers.map((supplier) => (
+                            <SelectItem key={supplier.id} value={supplier.id}>
+                              {supplier.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="size" className="text-sm font-medium">Size / Volume</Label>
+                      <Input
+                        id="size"
+                        {...register("size")}
+                        placeholder="e.g., 500, 100"
+                        className="h-9"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="unit_type" className="text-sm font-medium">Unit Type</Label>
+                      <Select 
+                        value={unitType} 
+                        onValueChange={(value) => setValue("unit_type", value as any)}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ml">ml (Milliliters)</SelectItem>
+                          <SelectItem value="liters">Liters</SelectItem>
+                          <SelectItem value="grams">Grams</SelectItem>
+                          <SelectItem value="kg">Kilograms</SelectItem>
+                          <SelectItem value="pieces">Pieces</SelectItem>
+                          <SelectItem value="boxes">Boxes</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                    <Switch
+                      id="is_active"
+                      checked={isActive}
+                      onCheckedChange={(checked) => setValue("is_active", checked)}
+                    />
+                    <Label htmlFor="is_active" className="cursor-pointer flex-1">
+                      <span className="font-medium">Active Product</span>
+                      <p className="text-xs text-muted-foreground">Product will be available for orders</p>
+                    </Label>
+                  </div>
+                </TabsContent>
+
+                {/* Pricing Tab */}
+                <TabsContent value="pricing" className="mt-0 space-y-5">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="cost" className="text-sm font-medium">Cost (PKR) <span className="text-destructive">*</span></Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rs.</span>
+                        <Input
+                          id="cost"
+                          type="number"
+                          step="0.01"
+                          {...register("cost", { valueAsNumber: true })}
+                          placeholder="0.00"
+                          className="h-9 pl-10"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Raw materials + packaging</p>
+                      {errors.cost && <p className="text-xs text-destructive">{errors.cost.message}</p>}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="price" className="text-sm font-medium">Retail Price (PKR) <span className="text-destructive">*</span></Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rs.</span>
+                        <Input
+                          id="price"
+                          type="number"
+                          step="0.01"
+                          {...register("price", { valueAsNumber: true })}
+                          placeholder="0.00"
+                          className="h-9 pl-10"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Customer selling price</p>
+                      {errors.price && <p className="text-xs text-destructive">{errors.price.message}</p>}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="reorder_level" className="text-sm font-medium">Reorder Level <span className="text-destructive">*</span></Label>
+                      <Input
+                        id="reorder_level"
+                        type="number"
+                        {...register("reorder_level", { valueAsNumber: true })}
+                        placeholder="10"
+                        className="h-9"
+                      />
+                      <p className="text-xs text-muted-foreground">Low stock alert threshold</p>
+                      {errors.reorder_level && <p className="text-xs text-destructive">{errors.reorder_level.message}</p>}
+                    </div>
+                  </div>
+
+                  {/* Profit calculation preview */}
+                  {watch("price") > 0 && watch("cost") > 0 && (
+                    <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-green-700 dark:text-green-400">Profit Margin</span>
+                        <div className="text-right">
+                          <span className="text-lg font-bold text-green-700 dark:text-green-400">
+                            Rs. {(watch("price") - watch("cost")).toFixed(2)}
+                          </span>
+                          <span className="text-xs text-green-600 dark:text-green-500 ml-2">
+                            ({((watch("price") - watch("cost")) / watch("price") * 100).toFixed(1)}%)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
+
+                {/* Advanced Tab */}
+                <TabsContent value="advanced" className="mt-0 space-y-5">
+                  {/* Packaging Section */}
+                  <div className="rounded-lg border overflow-hidden">
+                    <div className="flex items-center justify-between p-4 bg-muted/30">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-md bg-background flex items-center justify-center border">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <Label htmlFor="requires_packaging" className="font-medium cursor-pointer">
+                            Requires Packaging
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Link packaging materials to this product
+                          </p>
+                        </div>
+                      </div>
+                      <Switch
+                        id="requires_packaging"
+                        checked={requiresPackaging}
+                        onCheckedChange={(checked) => {
+                          setValue("requires_packaging", checked);
+                          if (!checked) setPackagingRequirements({});
+                        }}
+                      />
+                    </div>
+
+                    {requiresPackaging && (
+                      <div className="p-4 border-t bg-background">
+                        <p className="text-sm font-medium mb-3 flex items-center gap-2">
+                          <Tag className="h-3.5 w-3.5" />
+                          Select Packaging Items
+                        </p>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {packagingItems.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-4">No active packaging items available</p>
+                          ) : (
+                            packagingItems.map((item) => {
+                              const isSelected = packagingRequirements[item.id] > 0;
+                              return (
+                                <div key={item.id} className={`flex items-center gap-3 p-2.5 rounded-md border transition-colors ${isSelected ? 'bg-primary/5 border-primary/30' : 'hover:bg-muted/50'}`}>
+                                  <Checkbox
+                                    id={`pkg-${item.id}`}
+                                    checked={isSelected}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setPackagingRequirements(prev => ({ ...prev, [item.id]: 1 }));
+                                      } else {
+                                        setPackagingRequirements(prev => {
+                                          const updated = { ...prev };
+                                          delete updated[item.id];
+                                          return updated;
+                                        });
+                                      }
+                                    }}
+                                  />
+                                  <Label htmlFor={`pkg-${item.id}`} className="flex-1 cursor-pointer">
+                                    <span className="font-medium text-sm">{item.name}</span>
+                                    <span className="text-xs text-muted-foreground ml-2">
+                                      {item.type} • Stock: {item.current_stock}
+                                    </span>
+                                  </Label>
+                                  {isSelected && (
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      className="w-16 h-8 text-center"
+                                      value={packagingRequirements[item.id] || 1}
+                                      onChange={(e) => {
+                                        const value = parseInt(e.target.value) || 1;
+                                        setPackagingRequirements(prev => ({
+                                          ...prev,
+                                          [item.id]: Math.max(1, value)
+                                        }));
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bundle Section */}
+                  <div className="rounded-lg border overflow-hidden border-purple-200 dark:border-purple-900">
+                    <div className="flex items-center justify-between p-4 bg-purple-50/50 dark:bg-purple-950/30">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-md bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
+                          <Gift className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <div>
+                          <Label htmlFor="is_bundle" className="font-medium cursor-pointer">
+                            Bundle / Deal Product
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Create a set combining multiple products
+                          </p>
+                        </div>
+                      </div>
+                      <Switch
+                        id="is_bundle"
+                        checked={isBundle}
+                        onCheckedChange={(checked) => {
+                          setValue("is_bundle", checked);
+                          if (!checked) {
+                            setBundleItems({});
+                            setBundleSearchTerm("");
+                          }
+                        }}
+                      />
+                    </div>
+
+                    {isBundle && (
+                      <div className="p-4 border-t bg-background">
+                        <Input
+                          placeholder="Search products to add..."
+                          value={bundleSearchTerm}
+                          onChange={(e) => setBundleSearchTerm(e.target.value)}
+                          className="mb-3 h-9"
+                        />
+                        
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {filteredBundleProducts.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-4">
+                              {bundleSearchTerm ? "No products found" : "No products available"}
+                            </p>
+                          ) : (
+                            filteredBundleProducts.slice(0, 10).map((prod) => {
+                              const isSelected = !!bundleItems[prod.id];
+                              return (
+                                <div key={prod.id} className={`flex items-center gap-3 p-2.5 rounded-md border transition-colors ${isSelected ? 'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800' : 'hover:bg-muted/50'}`}>
+                                  <Checkbox
+                                    id={`bundle-${prod.id}`}
+                                    checked={isSelected}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setBundleItems(prev => ({ ...prev, [prod.id]: { quantity: 1 } }));
+                                      } else {
+                                        setBundleItems(prev => {
+                                          const updated = { ...prev };
+                                          delete updated[prod.id];
+                                          return updated;
+                                        });
+                                      }
+                                    }}
+                                  />
+                                  <Label htmlFor={`bundle-${prod.id}`} className="flex-1 cursor-pointer">
+                                    <span className="font-medium text-sm">{prod.name}</span>
+                                    <span className="text-xs text-muted-foreground ml-2">
+                                      {prod.sku || 'No SKU'} • {prod.size}{prod.unit_type}
+                                    </span>
+                                  </Label>
+                                  {isSelected && (
+                                    <div className="flex items-center gap-2">
+                                      <Input
+                                        type="number"
+                                        min="1"
+                                        className="w-14 h-8 text-center"
+                                        value={bundleItems[prod.id]?.quantity || 1}
+                                        onChange={(e) => {
+                                          const value = parseInt(e.target.value) || 1;
+                                          setBundleItems(prev => ({
+                                            ...prev,
+                                            [prod.id]: { ...prev[prod.id], quantity: Math.max(1, value) }
+                                          }));
+                                        }}
+                                      />
+                                      <Input
+                                        className="w-24 h-8"
+                                        value={bundleItems[prod.id]?.notes || ""}
+                                        onChange={(e) => {
+                                          setBundleItems(prev => ({
+                                            ...prev,
+                                            [prod.id]: { ...prev[prod.id], notes: e.target.value }
+                                          }));
+                                        }}
+                                        placeholder="e.g., 5ml"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                        
+                        {Object.keys(bundleItems).length > 0 && (
+                          <div className="mt-3 p-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-md text-sm font-medium text-purple-700 dark:text-purple-300 flex items-center gap-2">
+                            <Boxes className="h-4 w-4" />
+                            Bundle contains {Object.keys(bundleItems).length} product{Object.keys(bundleItems).length > 1 ? 's' : ''}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
               </div>
-            )}
-          </div>
+            </ScrollArea>
+          </Tabs>
 
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="is_active"
-              checked={isActive}
-              onCheckedChange={(checked) => setValue("is_active", checked)}
-            />
-            <Label htmlFor="is_active" className="cursor-pointer">
-              Active Product
-            </Label>
-          </div>
-
-          <DialogFooter>
+          <Separator />
+          
+          <DialogFooter className="px-6 py-4 bg-muted/20">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {product ? "Update Product" : "Create Product"}
             </Button>
