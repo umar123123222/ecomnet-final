@@ -157,7 +157,11 @@ async function consolidateAWBs(pdfBase64Array: string[]): Promise<string> {
   }
 }
 
+const FUNCTION_VERSION = '2025-12-31T15:00:00Z';
+
 serve(async (req) => {
+  console.log(`[AWB] Function version: ${FUNCTION_VERSION}`);
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -176,10 +180,19 @@ serve(async (req) => {
     const { courier_code, order_ids } = await req.json();
 
     if (!courier_code || !order_ids || order_ids.length === 0) {
-      throw new Error('Missing courier_code or order_ids');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Missing courier_code or order_ids',
+          function_version: FUNCTION_VERSION
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      );
     }
 
-    console.log(`Generating AWBs for ${courier_code} with ${order_ids.length} orders`);
+    // Normalize courier code to lowercase for ENUM comparison
+    const normalizedCourierCode = courier_code.toLowerCase();
+    console.log(`[AWB] Generating AWBs for ${normalizedCourierCode} (original: ${courier_code}) with ${order_ids.length} orders`);
 
     // Get authenticated user from JWT token
     const authHeader = req.headers.get('Authorization');
@@ -559,7 +572,8 @@ serve(async (req) => {
           total_pages: pageCount,
           labels_per_page: 3
         },
-        message: `Successfully generated ${labelCount} label${labelCount !== 1 ? 's' : ''} (${pageCount} page${pageCount !== 1 ? 's' : ''})`
+        message: `Successfully generated ${labelCount} label${labelCount !== 1 ? 's' : ''} (${pageCount} page${pageCount !== 1 ? 's' : ''})`,
+        function_version: FUNCTION_VERSION
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -568,15 +582,16 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in generate-courier-awbs:', error);
+    console.error('[AWB] Unexpected error:', error);
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message
+        error: error.message || 'Unexpected error occurred',
+        function_version: FUNCTION_VERSION
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
+        status: 200, // Return 200 with error details instead of 500
       }
     );
   }
