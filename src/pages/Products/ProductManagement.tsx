@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw, Filter, PackagePlus, SlidersHorizontal, DollarSign, Layers, Pencil, MapPin, ChevronDown, CheckSquare, Square, ListChecks } from "lucide-react";
+import { Package, Search, Plus, Loader2, Edit, AlertCircle, CheckCircle, XCircle, Download, Trash2, RefreshCw, Filter, PackagePlus, SlidersHorizontal, DollarSign, Layers, Pencil, MapPin, ChevronDown, CheckSquare, Square, ListChecks, Boxes, Box } from "lucide-react";
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from "@/components/layout";
 import { Product } from "@/types/inventory";
 import { AddProductDialog } from "@/components/inventory/AddProductDialog";
@@ -136,7 +136,8 @@ const ProductManagement = () => {
     categoryField: 'category',
     amountField: 'price',
     customFilters: {
-      status: (product, value) => value === 'active' ? product.is_active : !product.is_active
+      status: (product, value) => value === 'active' ? product.is_active : !product.is_active,
+      isBundle: (product, value) => value === 'bundle' ? product.is_bundle === true : product.is_bundle !== true
     }
   });
 
@@ -370,80 +371,117 @@ const ProductManagement = () => {
           </div>
           
           {/* Search and Filter Bar */}
-          <div className="flex items-center gap-4 mt-4 flex-wrap">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search by name, SKU, category..." 
-                value={filters.search || ''} 
-                onChange={e => updateFilter('search', e.target.value)} 
-                className="pl-10" 
-              />
+          <div className="flex flex-col gap-4 mt-4">
+            {/* Search Row */}
+            <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center w-full">
+              <div className="relative flex-1 w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Search by name, SKU, category, description..." 
+                  value={filters.search || ''} 
+                  onChange={e => updateFilter('search', e.target.value)} 
+                  className="pl-10 h-10" 
+                />
+              </div>
+              
+              {activeFiltersCount > 0 && (
+                <Button variant="outline" size="sm" onClick={resetFilters} className="gap-2 shrink-0">
+                  <XCircle className="h-4 w-4" />
+                  Clear {activeFiltersCount} Filter{activeFiltersCount > 1 ? 's' : ''}
+                </Button>
+              )}
             </div>
             
-            <Select 
-              value={filters.customValues?.status || 'all'} 
-              onValueChange={value => {
-                if (value === 'all') {
-                  updateCustomFilter('status', undefined);
-                } else {
-                  updateCustomFilter('status', value);
-                }
-              }}
-            >
-              <SelectTrigger className="w-[180px]">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Products</SelectItem>
-                <SelectItem value="active">Active Only</SelectItem>
-                <SelectItem value="inactive">Inactive Only</SelectItem>
-            </SelectContent>
-            </Select>
+            {/* Filters Row */}
+            <div className="flex flex-wrap gap-2 items-center">
+              <Select 
+                value={filters.customValues?.status || 'all'} 
+                onValueChange={value => {
+                  if (value === 'all') {
+                    updateCustomFilter('status', undefined);
+                  } else {
+                    updateCustomFilter('status', value);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-[140px] h-9">
+                  <Filter className="h-4 w-4 mr-2 shrink-0" />
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="active">Active Only</SelectItem>
+                  <SelectItem value="inactive">Inactive Only</SelectItem>
+                </SelectContent>
+              </Select>
 
-            <Select 
-              value={filters.category || 'all'} 
-              onValueChange={value => updateFilter('category', value === 'all' ? '' : value)}
-            >
-              <SelectTrigger className="w-[180px]">
-                <Layers className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filter by category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {uniqueCategories.map((category) => (
-                  <SelectItem key={category} value={category}>{category}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select 
+                value={filters.customValues?.isBundle || 'all'} 
+                onValueChange={value => {
+                  if (value === 'all') {
+                    updateCustomFilter('isBundle', undefined);
+                  } else {
+                    updateCustomFilter('isBundle', value);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-[140px] h-9">
+                  <Boxes className="h-4 w-4 mr-2 shrink-0" />
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="bundle">
+                    <span className="flex items-center gap-2">
+                      <Boxes className="h-3.5 w-3.5" />
+                      Bundles Only
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="single">
+                    <span className="flex items-center gap-2">
+                      <Box className="h-3.5 w-3.5" />
+                      Single Products
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
 
-            <Select value={selectedOutlet} onValueChange={setSelectedOutlet}>
-              <SelectTrigger className="w-[180px]">
-                <MapPin className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filter by outlet" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Outlets</SelectItem>
-                {outlets.map((outlet: any) => (
-                  <SelectItem key={outlet.id} value={outlet.id}>{outlet.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select 
+                value={filters.category || 'all'} 
+                onValueChange={value => updateFilter('category', value === 'all' ? '' : value)}
+              >
+                <SelectTrigger className="w-[160px] h-9">
+                  <Layers className="h-4 w-4 mr-2 shrink-0" />
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {uniqueCategories.map((category) => (
+                    <SelectItem key={category} value={category}>{category}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <ReservationDateFilter
-              dateRange={dateRange}
-              onDateRangeChange={setDateRange}
-              onClear={clearDateFilter}
-              isLoading={isLoadingReservations}
-            />
+              <Select value={selectedOutlet} onValueChange={setSelectedOutlet}>
+                <SelectTrigger className="w-[160px] h-9">
+                  <MapPin className="h-4 w-4 mr-2 shrink-0" />
+                  <SelectValue placeholder="Outlet" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Outlets</SelectItem>
+                  {outlets.map((outlet: any) => (
+                    <SelectItem key={outlet.id} value={outlet.id}>{outlet.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            {activeFiltersCount > 0 && (
-              <Button variant="ghost" size="sm" onClick={resetFilters} className="gap-2">
-                <XCircle className="h-4 w-4" />
-                Clear Filters
-              </Button>
-            )}
+              <ReservationDateFilter
+                dateRange={dateRange}
+                onDateRangeChange={setDateRange}
+                onClear={clearDateFilter}
+                isLoading={isLoadingReservations}
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -490,6 +528,7 @@ const ProductManagement = () => {
                     )}
                     <TableHead>SKU</TableHead>
                     <TableHead>Name</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead className="text-right">Cost</TableHead>
                     <TableHead className="text-right">Retail Price</TableHead>
@@ -512,7 +551,20 @@ const ProductManagement = () => {
                         </TableCell>
                       )}
                       <TableCell className="font-mono text-sm">{product.sku}</TableCell>
-                      <TableCell className="font-medium">{product.name}</TableCell>
+                      <TableCell className="font-medium max-w-[200px] truncate" title={product.name}>{product.name}</TableCell>
+                      <TableCell>
+                        {product.is_bundle ? (
+                          <Badge variant="secondary" className="gap-1">
+                            <Boxes className="h-3 w-3" />
+                            Bundle
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="gap-1 text-muted-foreground">
+                            <Box className="h-3 w-3" />
+                            Single
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {permissions.canManageProducts ? (
                           <InlineEditableCell
@@ -614,8 +666,12 @@ const ProductManagement = () => {
                     </TableRow>
                   )) : (
                     <TableRow>
-                      <TableCell colSpan={isFinanceUser ? 10 : 11} className="text-center py-8 text-muted-foreground">
-                        No products found
+                      <TableCell colSpan={isFinanceUser ? 11 : 12} className="text-center py-12">
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                          <Package className="h-10 w-10 opacity-40" />
+                          <p className="font-medium">No products found</p>
+                          <p className="text-sm">Try adjusting your filters or add a new product</p>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )}
