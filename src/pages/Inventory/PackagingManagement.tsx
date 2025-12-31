@@ -530,8 +530,8 @@ export default function PackagingManagement() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] p-0 gap-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b bg-muted/30">
+        <DialogContent className="max-w-2xl max-h-[90vh] p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b bg-muted/30 shrink-0">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
                 <Package className="h-5 w-5 text-primary" />
@@ -550,8 +550,8 @@ export default function PackagingManagement() {
           </DialogHeader>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col">
-              <div className="px-6 py-5 space-y-5 max-h-[calc(90vh-200px)] overflow-y-auto">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col overflow-hidden">
+              <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
                 {/* Basic Info Section */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
