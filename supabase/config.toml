@@ -236,3 +236,6 @@ verify_jwt = false
 
 [functions.scheduled-dispatch-summary]
 verify_jwt = false
+
+[functions.bulk-print-labels]
+verify_jwt = true

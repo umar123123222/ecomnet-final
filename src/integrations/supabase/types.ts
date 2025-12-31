@@ -656,14 +656,17 @@ export type Database = {
           courier_code: string
           created_at: string
           error_message: string | null
+          expires_at: string | null
           generated_at: string
           generated_by: string | null
           html_images: string | null
           id: string
+          labels_per_page: number | null
           order_ids: string[]
           pdf_data: string | null
           pdf_url: string | null
           status: string
+          storage_path: string | null
           total_orders: number
           tracking_ids: string[]
         }
@@ -672,14 +675,17 @@ export type Database = {
           courier_code: string
           created_at?: string
           error_message?: string | null
+          expires_at?: string | null
           generated_at?: string
           generated_by?: string | null
           html_images?: string | null
           id?: string
+          labels_per_page?: number | null
           order_ids: string[]
           pdf_data?: string | null
           pdf_url?: string | null
           status?: string
+          storage_path?: string | null
           total_orders?: number
           tracking_ids: string[]
         }
@@ -688,14 +694,17 @@ export type Database = {
           courier_code?: string
           created_at?: string
           error_message?: string | null
+          expires_at?: string | null
           generated_at?: string
           generated_by?: string | null
           html_images?: string | null
           id?: string
+          labels_per_page?: number | null
           order_ids?: string[]
           pdf_data?: string | null
           pdf_url?: string | null
           status?: string
+          storage_path?: string | null
           total_orders?: number
           tracking_ids?: string[]
         }
@@ -1116,6 +1125,7 @@ export type Database = {
           load_sheet_endpoint: string | null
           name: string
           pricing_config: Json | null
+          print_config: Json | null
           rates_endpoint: string | null
           shipper_advice_list_endpoint: string | null
           shipper_advice_save_endpoint: string | null
@@ -1146,6 +1156,7 @@ export type Database = {
           load_sheet_endpoint?: string | null
           name: string
           pricing_config?: Json | null
+          print_config?: Json | null
           rates_endpoint?: string | null
           shipper_advice_list_endpoint?: string | null
           shipper_advice_save_endpoint?: string | null
@@ -1176,6 +1187,7 @@ export type Database = {
           load_sheet_endpoint?: string | null
           name?: string
           pricing_config?: Json | null
+          print_config?: Json | null
           rates_endpoint?: string | null
           shipper_advice_list_endpoint?: string | null
           shipper_advice_save_endpoint?: string | null
@@ -1309,8 +1321,11 @@ export type Database = {
           dispatched_by: string | null
           estimated_delivery: string | null
           id: string
+          label_cached_at: string | null
           label_data: string | null
+          label_expires_at: string | null
           label_format: string | null
+          label_storage_path: string | null
           label_url: string | null
           last_tracking_update: string | null
           notes: string | null
@@ -1328,8 +1343,11 @@ export type Database = {
           dispatched_by?: string | null
           estimated_delivery?: string | null
           id?: string
+          label_cached_at?: string | null
           label_data?: string | null
+          label_expires_at?: string | null
           label_format?: string | null
+          label_storage_path?: string | null
           label_url?: string | null
           last_tracking_update?: string | null
           notes?: string | null
@@ -1347,8 +1365,11 @@ export type Database = {
           dispatched_by?: string | null
           estimated_delivery?: string | null
           id?: string
+          label_cached_at?: string | null
           label_data?: string | null
+          label_expires_at?: string | null
           label_format?: string | null
+          label_storage_path?: string | null
           label_url?: string | null
           last_tracking_update?: string | null
           notes?: string | null

@@ -373,7 +373,38 @@ serve(async (req) => {
       }
     }
 
-    // Create dispatch record with label information
+    // Upload label to Supabase Storage instead of storing base64 in DB
+    let labelStoragePath: string | null = null;
+    const labelExpiresAt = new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString(); // 120 days
+
+    if (labelData) {
+      try {
+        const yearMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+        labelStoragePath = `${courierCode.toLowerCase()}/${yearMonth}/${trackingId}.pdf`;
+        
+        // Convert base64 to Uint8Array
+        const labelBytes = Uint8Array.from(atob(labelData), c => c.charCodeAt(0));
+        
+        const { error: uploadError } = await supabase.storage
+          .from('courier-labels')
+          .upload(labelStoragePath, labelBytes, {
+            contentType: 'application/pdf',
+            upsert: true
+          });
+
+        if (uploadError) {
+          console.error('[BOOKING] Failed to upload label to storage:', uploadError);
+          labelStoragePath = null; // Fallback: don't store path if upload fails
+        } else {
+          console.log('[BOOKING] Label uploaded to storage:', labelStoragePath);
+        }
+      } catch (uploadErr) {
+        console.error('[BOOKING] Exception uploading label:', uploadErr);
+        labelStoragePath = null;
+      }
+    }
+
+    // Create dispatch record with storage path (not base64 data)
     const { error: dispatchError } = await supabase
       .from('dispatches')
       .insert({
@@ -384,8 +415,11 @@ serve(async (req) => {
         courier_booking_id: bookingResponse.booking_id || trackingId,
         courier_response: bookingResponse,
         label_url: labelUrl,
-        label_data: labelData,
-        label_format: labelFormat
+        label_data: labelStoragePath ? null : labelData, // Only store base64 if storage upload failed
+        label_format: labelFormat,
+        label_storage_path: labelStoragePath,
+        label_cached_at: labelStoragePath ? new Date().toISOString() : null,
+        label_expires_at: labelStoragePath ? labelExpiresAt : null
       });
 
     if (dispatchError) {
