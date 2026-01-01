@@ -3,16 +3,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Package, Bell, FileText, BarChart3, Loader2, LogOut, Building2, AlertTriangle } from "lucide-react";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Package, Bell, FileText, BarChart3, Loader2, LogOut, Building2, AlertTriangle, Menu } from "lucide-react";
 import { AssignedInventory } from "@/components/suppliers/AssignedInventory";
 import { LowStockNotifications } from "@/components/suppliers/LowStockNotifications";
 import { SupplierPurchaseOrders } from "@/components/suppliers/SupplierPurchaseOrders";
 import { SupplierPerformance } from "@/components/suppliers/SupplierPerformance";
 import { SupplierDiscrepancies } from "@/components/suppliers/SupplierDiscrepancies";
 import { useAuth } from "@/contexts/AuthContext";
+import { useState } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function SupplierPortal() {
   const { user, signOut } = useAuth();
+  const [activeTab, setActiveTab] = useState("orders");
 
   const { data: supplierProfile, isLoading: isLoadingProfile } = useQuery({
     queryKey: ["supplier-profile", user?.id],
@@ -34,7 +43,6 @@ export default function SupplierPortal() {
     queryFn: async () => {
       if (!supplierProfile?.supplier_id) return null;
 
-      // Get assigned items count
       const { data: assignments, error: assignError } = await supabase
         .from("supplier_products")
         .select("id")
@@ -42,7 +50,6 @@ export default function SupplierPortal() {
       
       if (assignError) throw assignError;
 
-      // Get pending low stock alerts count
       const { data: alerts, error: alertError } = await supabase
         .from("low_stock_notifications")
         .select("id")
@@ -51,7 +58,6 @@ export default function SupplierPortal() {
 
       if (alertError) throw alertError;
 
-      // Get pending POs count (awaiting confirmation)
       const { data: pendingPOs, error: poError } = await supabase
         .from("purchase_orders")
         .select("id, supplier_confirmed")
@@ -61,7 +67,6 @@ export default function SupplierPortal() {
 
       if (poError) throw poError;
 
-      // Get confirmed but not shipped POs
       const { data: toShipPOs, error: shipError } = await supabase
         .from("purchase_orders")
         .select("id")
@@ -72,7 +77,6 @@ export default function SupplierPortal() {
 
       if (shipError) throw shipError;
 
-      // Get discrepancies count (unacknowledged)
       const { data: discrepancies, error: discError } = await supabase
         .from("goods_received_notes")
         .select("id")
@@ -92,28 +96,32 @@ export default function SupplierPortal() {
     enabled: !!supplierProfile?.supplier_id,
   });
 
-  // Show loading state
   if (isLoadingProfile) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading portal...</p>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/30 to-background">
+        <div className="text-center space-y-4">
+          <div className="relative">
+            <div className="w-16 h-16 border-4 border-primary/20 rounded-full" />
+            <div className="absolute inset-0 w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+          <p className="text-muted-foreground font-medium">Loading your portal...</p>
         </div>
       </div>
     );
   }
 
-  // Show error if no supplier profile found
   if (!supplierProfile) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
-        <Card className="p-8 text-center max-w-md">
-          <h2 className="text-xl font-semibold text-destructive mb-2">Access Denied</h2>
-          <p className="text-muted-foreground mb-4">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-muted/30 to-background p-4">
+        <Card className="p-8 text-center max-w-md shadow-xl border-destructive/20">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-destructive/10 flex items-center justify-center">
+            <AlertTriangle className="h-8 w-8 text-destructive" />
+          </div>
+          <h2 className="text-xl font-bold text-destructive mb-2">Access Denied</h2>
+          <p className="text-muted-foreground mb-6">
             No supplier profile found for your account. Please contact an administrator.
           </p>
-          <Button variant="outline" onClick={() => signOut()}>
+          <Button variant="outline" onClick={() => signOut()} className="w-full">
             <LogOut className="mr-2 h-4 w-4" />
             Sign Out
           </Button>
@@ -122,148 +130,198 @@ export default function SupplierPortal() {
     );
   }
 
+  const StatCard = ({ icon: Icon, label, value, color, onClick, active }: any) => (
+    <button
+      onClick={onClick}
+      className={`p-4 rounded-xl border transition-all duration-200 text-left w-full ${
+        active 
+          ? 'bg-primary/10 border-primary shadow-md ring-2 ring-primary/20' 
+          : 'bg-card hover:bg-muted/50 hover:shadow-md border-border'
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <div className={`p-2.5 rounded-xl ${color}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-muted-foreground truncate">{label}</p>
+          <p className={`text-2xl font-bold ${active ? 'text-primary' : ''}`}>{value}</p>
+        </div>
+      </div>
+    </button>
+  );
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
       {/* Header */}
-      <header className="bg-background/80 backdrop-blur-sm border-b sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <Building2 className="h-6 w-6 text-primary" />
+      <header className="bg-card/80 backdrop-blur-xl border-b sticky top-0 z-50 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-2 sm:p-2.5 bg-primary/10 rounded-xl shrink-0">
+                <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl font-bold truncate">Supplier Portal</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                  {supplierProfile.supplier?.name}
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold">Supplier Portal</h1>
-              <p className="text-sm text-muted-foreground">{supplierProfile.supplier?.name}</p>
-            </div>
+            
+            {/* Desktop sign out */}
+            <Button 
+              variant="outline" 
+              onClick={() => signOut()}
+              className="hidden sm:flex rounded-xl"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out
+            </Button>
+            
+            {/* Mobile menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild className="sm:hidden">
+                <Button variant="ghost" size="icon" className="rounded-xl">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 rounded-xl">
+                <DropdownMenuItem onClick={() => signOut()} className="text-destructive">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <Button variant="outline" onClick={() => signOut()}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Sign Out
-          </Button>
         </div>
       </header>
 
-      <main className="container mx-auto p-6 space-y-6">
-        {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-5">
-          <Card className="p-6 bg-background/80 backdrop-blur-sm">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-primary/10 rounded-lg">
-                <Package className="h-6 w-6 text-primary" />
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+        {/* Stats Grid - Horizontal scroll on mobile */}
+        <div className="relative -mx-4 px-4 sm:mx-0 sm:px-0">
+          <ScrollArea className="w-full">
+            <div className="flex gap-3 sm:grid sm:grid-cols-5 sm:gap-4 pb-2 sm:pb-0">
+              <div className="shrink-0 w-[160px] sm:w-auto">
+                <StatCard
+                  icon={Package}
+                  label="Assigned Items"
+                  value={stats?.assignedItems || 0}
+                  color="bg-primary/10 text-primary"
+                  onClick={() => setActiveTab("inventory")}
+                  active={activeTab === "inventory"}
+                />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Assigned Items</p>
-                <p className="text-3xl font-bold">{stats?.assignedItems || 0}</p>
+              <div className="shrink-0 w-[160px] sm:w-auto">
+                <StatCard
+                  icon={Bell}
+                  label="Pending Alerts"
+                  value={stats?.lowStockAlerts || 0}
+                  color="bg-amber-500/10 text-amber-600"
+                  onClick={() => setActiveTab("notifications")}
+                  active={activeTab === "notifications"}
+                />
               </div>
-            </div>
-          </Card>
-
-          <Card className="p-6 bg-background/80 backdrop-blur-sm">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-yellow-500/10 rounded-lg">
-                <Bell className="h-6 w-6 text-yellow-600" />
+              <div className="shrink-0 w-[160px] sm:w-auto">
+                <StatCard
+                  icon={FileText}
+                  label="POs to Review"
+                  value={stats?.pendingPOs || 0}
+                  color="bg-orange-500/10 text-orange-600"
+                  onClick={() => setActiveTab("orders")}
+                  active={activeTab === "orders"}
+                />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Pending Alerts</p>
-                <p className="text-3xl font-bold text-yellow-600">{stats?.lowStockAlerts || 0}</p>
+              <div className="shrink-0 w-[160px] sm:w-auto">
+                <StatCard
+                  icon={Package}
+                  label="Ready to Ship"
+                  value={stats?.toShipPOs || 0}
+                  color="bg-blue-500/10 text-blue-600"
+                  onClick={() => setActiveTab("orders")}
+                  active={false}
+                />
               </div>
-            </div>
-          </Card>
-
-          <Card className="p-6 bg-background/80 backdrop-blur-sm">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-orange-500/10 rounded-lg">
-                <FileText className="h-6 w-6 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">POs to Review</p>
-                <p className="text-3xl font-bold text-orange-600">{stats?.pendingPOs || 0}</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-6 bg-background/80 backdrop-blur-sm">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-blue-500/10 rounded-lg">
-                <Package className="h-6 w-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Ready to Ship</p>
-                <p className="text-3xl font-bold text-blue-600">{stats?.toShipPOs || 0}</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-6 bg-background/80 backdrop-blur-sm">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-red-500/10 rounded-lg">
-                <AlertTriangle className="h-6 w-6 text-red-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Discrepancies</p>
-                <p className="text-3xl font-bold text-red-600">{stats?.discrepancies || 0}</p>
+              <div className="shrink-0 w-[160px] sm:w-auto">
+                <StatCard
+                  icon={AlertTriangle}
+                  label="Discrepancies"
+                  value={stats?.discrepancies || 0}
+                  color="bg-red-500/10 text-red-600"
+                  onClick={() => setActiveTab("discrepancies")}
+                  active={activeTab === "discrepancies"}
+                />
               </div>
             </div>
-          </Card>
+            <ScrollBar orientation="horizontal" className="sm:hidden" />
+          </ScrollArea>
         </div>
 
-        {/* Main Content Tabs */}
-        <Card className="bg-background/80 backdrop-blur-sm">
-          <Tabs defaultValue="orders" className="w-full">
-            <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent">
-              <TabsTrigger 
-                value="orders" 
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-4"
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                Purchase Orders
-                {(stats?.pendingPOs || 0) > 0 && (
-                  <span className="ml-2 bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">
-                    {stats?.pendingPOs}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger 
-                value="notifications"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-4"
-              >
-                <Bell className="mr-2 h-4 w-4" />
-                Stock Alerts
-                {(stats?.lowStockAlerts || 0) > 0 && (
-                  <span className="ml-2 bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">
-                    {stats?.lowStockAlerts}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger 
-                value="inventory"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-4"
-              >
-                <Package className="mr-2 h-4 w-4" />
-                Inventory
-              </TabsTrigger>
-              <TabsTrigger 
-                value="discrepancies"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-4"
-              >
-                <AlertTriangle className="mr-2 h-4 w-4" />
-                Discrepancies
-                {(stats?.discrepancies || 0) > 0 && (
-                  <span className="ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
-                    {stats?.discrepancies}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger 
-                value="performance"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-4"
-              >
-                <BarChart3 className="mr-2 h-4 w-4" />
-                Performance
-              </TabsTrigger>
-            </TabsList>
+        {/* Main Content */}
+        <Card className="bg-card/80 backdrop-blur-sm border shadow-sm overflow-hidden rounded-xl">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            {/* Tab Navigation - Scrollable on mobile */}
+            <div className="border-b bg-muted/30">
+              <ScrollArea className="w-full">
+                <TabsList className="inline-flex w-auto min-w-full h-auto p-1 bg-transparent gap-1">
+                  <TabsTrigger 
+                    value="orders" 
+                    className="flex-shrink-0 rounded-lg px-4 py-2.5 text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2"
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span className="hidden xs:inline">Purchase</span> Orders
+                    {(stats?.pendingPOs || 0) > 0 && (
+                      <span className="ml-1 bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full font-semibold">
+                        {stats?.pendingPOs}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="notifications"
+                    className="flex-shrink-0 rounded-lg px-4 py-2.5 text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2"
+                  >
+                    <Bell className="h-4 w-4" />
+                    <span className="hidden xs:inline">Stock</span> Alerts
+                    {(stats?.lowStockAlerts || 0) > 0 && (
+                      <span className="ml-1 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full font-semibold">
+                        {stats?.lowStockAlerts}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="inventory"
+                    className="flex-shrink-0 rounded-lg px-4 py-2.5 text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2"
+                  >
+                    <Package className="h-4 w-4" />
+                    Inventory
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="discrepancies"
+                    className="flex-shrink-0 rounded-lg px-4 py-2.5 text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2"
+                  >
+                    <AlertTriangle className="h-4 w-4" />
+                    <span className="hidden xs:inline">Discrepancies</span>
+                    <span className="xs:hidden">Issues</span>
+                    {(stats?.discrepancies || 0) > 0 && (
+                      <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full font-semibold">
+                        {stats?.discrepancies}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="performance"
+                    className="flex-shrink-0 rounded-lg px-4 py-2.5 text-sm font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2"
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                    <span className="hidden xs:inline">Performance</span>
+                    <span className="xs:hidden">Stats</span>
+                  </TabsTrigger>
+                </TabsList>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            </div>
 
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <TabsContent value="orders" className="m-0">
                 <SupplierPurchaseOrders supplierId={supplierProfile.supplier_id} />
               </TabsContent>

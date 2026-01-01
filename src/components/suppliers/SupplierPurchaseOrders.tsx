@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { 
   FileText, Eye, AlertTriangle, Check, X, Truck, 
-  Clock, Package, DollarSign, CreditCard, CheckCircle2
+  Clock, Package, DollarSign, CreditCard, CheckCircle2,
+  ChevronRight, Calendar, Building2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -28,14 +30,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { PODetailsDialog } from "./PODetailsDialog";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface SupplierPurchaseOrdersProps {
   supplierId: string;
@@ -44,6 +47,7 @@ interface SupplierPurchaseOrdersProps {
 export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedPO, setSelectedPO] = useState<any>(null);
   const [actionDialog, setActionDialog] = useState<{ type: string; po: any } | null>(null);
@@ -116,7 +120,6 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
         .eq("id", data.id);
       if (error) throw error;
 
-      // Trigger lifecycle email for confirmation
       try {
         await supabase.functions.invoke('send-po-lifecycle-email', {
           body: {
@@ -182,7 +185,6 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
         .eq("id", data.id);
       if (error) throw error;
 
-      // Trigger lifecycle email for shipping
       try {
         await supabase.functions.invoke('send-po-lifecycle-email', {
           body: {
@@ -222,7 +224,6 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
         .eq("id", data.id);
       if (error) throw error;
 
-      // Trigger lifecycle email for payment confirmation - TO finance, CC others
       try {
         await supabase.functions.invoke('send-po-lifecycle-email', {
           body: {
@@ -259,7 +260,7 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
 
   const getStatusBadge = (po: any) => {
     const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string; className?: string }> = {
-      pending: { variant: 'secondary', label: 'Awaiting Your Response' },
+      pending: { variant: 'secondary', label: 'Awaiting Response' },
       sent: { variant: 'outline', label: 'Sent' },
       confirmed: { variant: 'default', label: 'Confirmed' },
       supplier_rejected: { variant: 'destructive', label: 'Rejected' },
@@ -277,223 +278,333 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
     return <Badge variant="secondary">{po.status?.toUpperCase() || 'Unknown'}</Badge>;
   };
 
-  // Summary stats - pending POs now go directly to supplier
   const pendingPOs = purchaseOrders?.filter((po: any) => 
     po.status === "pending" && !po.supplier_confirmed && !po.supplier_rejected
   ).length || 0;
   const confirmedPOs = purchaseOrders?.filter((po: any) => po.status === "confirmed" && !po.shipped_at).length || 0;
   const shippedPOs = purchaseOrders?.filter((po: any) => po.shipped_at).length || 0;
-  
-  // Paid POs awaiting supplier confirmation
   const paidPOs = purchaseOrders?.filter((po: any) => 
     po.paid_amount && po.paid_amount > 0 && !po.supplier_payment_confirmed
   ).length || 0;
 
-  return (
-    <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-5">
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-yellow-500/10 rounded-lg">
-              <Clock className="h-5 w-5 text-yellow-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Pending Review</p>
-              <p className="text-2xl font-bold text-yellow-600">{pendingPOs}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-500/10 rounded-lg">
-              <Check className="h-5 w-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Confirmed</p>
-              <p className="text-2xl font-bold text-green-600">{confirmedPOs}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-500/10 rounded-lg">
-              <Truck className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Shipped</p>
-              <p className="text-2xl font-bold text-blue-600">{shippedPOs}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-500/10 rounded-lg">
-              <CreditCard className="h-5 w-5 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Payments to Confirm</p>
-              <p className="text-2xl font-bold text-purple-600">{paidPOs}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <DollarSign className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Value</p>
-              <p className="text-2xl font-bold">
-                PKR {(purchaseOrders?.reduce((sum: number, po: any) => sum + (po.total_amount || 0), 0) || 0).toLocaleString()}
-              </p>
-            </div>
-          </div>
-        </Card>
-      </div>
+  // Mobile Card Component for PO
+  const POCard = ({ po }: { po: any }) => {
+    const isPending = po.status === "pending" && !po.supplier_confirmed && !po.supplier_rejected;
+    const canShip = po.supplier_confirmed && !po.shipped_at && po.status !== "cancelled";
+    const canConfirmPayment = po.paid_amount && po.paid_amount > 0 && !po.supplier_payment_confirmed;
 
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-muted-foreground" />
-            <h2 className="text-xl font-semibold">Purchase Orders</h2>
+    return (
+      <Card 
+        className={`p-4 space-y-3 rounded-xl transition-all ${
+          po.hasVariance ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-950/10' : ''
+        }`}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="space-y-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-sm">{po.po_number}</span>
+              {getStatusBadge(po)}
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Calendar className="h-3 w-3" />
+              {new Date(po.order_date).toLocaleDateString()}
+            </div>
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="sent">Sent</SelectItem>
-              <SelectItem value="confirmed">Confirmed</SelectItem>
-              <SelectItem value="in_transit">In Transit</SelectItem>
-              <SelectItem value="partially_received">Partially Received</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="supplier_rejected">Rejected</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="shrink-0 rounded-lg"
+            onClick={() => setSelectedPO(po)}
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
         </div>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>PO Number</TableHead>
-              <TableHead>Order Date</TableHead>
-              <TableHead>Outlet</TableHead>
-              <TableHead>Items</TableHead>
-              <TableHead>Total Amount</TableHead>
-              <TableHead>Delivery Date</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Payment</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        {/* Details */}
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="space-y-0.5">
+            <p className="text-xs text-muted-foreground">Outlet</p>
+            <p className="font-medium truncate">{po.outlet?.name || "-"}</p>
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-xs text-muted-foreground">Items</p>
+            <p className="font-medium">{po.totalOrdered} items</p>
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-xs text-muted-foreground">Amount</p>
+            <p className="font-semibold">PKR {po.total_amount?.toLocaleString()}</p>
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-xs text-muted-foreground">Delivery</p>
+            <p className="font-medium">
+              {po.supplier_delivery_date 
+                ? new Date(po.supplier_delivery_date).toLocaleDateString()
+                : po.expected_delivery_date
+                  ? new Date(po.expected_delivery_date).toLocaleDateString()
+                  : "-"}
+            </p>
+          </div>
+        </div>
+
+        {/* Payment Status */}
+        {(po.paid_amount > 0 || canConfirmPayment) && (
+          <div className="pt-2 border-t">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Payment</span>
+              {po.supplier_payment_confirmed ? (
+                <Badge className="bg-green-500 text-xs">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Confirmed
+                </Badge>
+              ) : po.paid_amount > 0 ? (
+                <Badge className="bg-purple-500 text-xs">
+                  PKR {po.paid_amount?.toLocaleString()}
+                </Badge>
+              ) : null}
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        {(isPending || canShip || canConfirmPayment) && (
+          <div className="flex gap-2 pt-2 border-t">
+            {isPending && (
+              <>
+                <Button 
+                  size="sm"
+                  className="flex-1 rounded-lg bg-green-600 hover:bg-green-700"
+                  onClick={() => setActionDialog({ type: "confirm", po })}
+                >
+                  <Check className="h-4 w-4 mr-1" />
+                  Confirm
+                </Button>
+                <Button 
+                  size="sm"
+                  variant="destructive"
+                  className="flex-1 rounded-lg"
+                  onClick={() => setActionDialog({ type: "reject", po })}
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Reject
+                </Button>
+              </>
+            )}
+            {canShip && (
+              <Button 
+                size="sm"
+                variant="outline"
+                className="flex-1 rounded-lg text-blue-600 border-blue-200"
+                onClick={() => setActionDialog({ type: "ship", po })}
+              >
+                <Truck className="h-4 w-4 mr-1" />
+                Mark Shipped
+              </Button>
+            )}
+            {canConfirmPayment && (
+              <Button 
+                size="sm"
+                variant="outline"
+                className="flex-1 rounded-lg text-purple-600 border-purple-200"
+                onClick={() => setActionDialog({ type: "confirm_payment", po })}
+              >
+                <CreditCard className="h-4 w-4 mr-1" />
+                Confirm Payment
+              </Button>
+            )}
+          </div>
+        )}
+      </Card>
+    );
+  };
+
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      {/* Summary Cards - Horizontal scroll on mobile */}
+      <div className="relative -mx-4 px-4 sm:mx-0 sm:px-0">
+        <ScrollArea className="w-full">
+          <div className="flex gap-3 sm:grid sm:grid-cols-5 sm:gap-4 pb-2 sm:pb-0">
+            {[
+              { icon: Clock, label: "Pending Review", value: pendingPOs, color: "text-amber-600", bg: "bg-amber-500/10" },
+              { icon: Check, label: "Confirmed", value: confirmedPOs, color: "text-green-600", bg: "bg-green-500/10" },
+              { icon: Truck, label: "Shipped", value: shippedPOs, color: "text-blue-600", bg: "bg-blue-500/10" },
+              { icon: CreditCard, label: "Payments to Confirm", value: paidPOs, color: "text-purple-600", bg: "bg-purple-500/10" },
+              { icon: DollarSign, label: "Total Value", value: `PKR ${(purchaseOrders?.reduce((sum: number, po: any) => sum + (po.total_amount || 0), 0) || 0).toLocaleString()}`, color: "text-primary", bg: "bg-primary/10" },
+            ].map((stat, idx) => (
+              <Card key={idx} className="shrink-0 w-[150px] sm:w-auto p-3 sm:p-4 rounded-xl">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className={`p-2 rounded-lg ${stat.bg}`}>
+                    <stat.icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.color}`} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{stat.label}</p>
+                    <p className={`text-lg sm:text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+          <ScrollBar orientation="horizontal" className="sm:hidden" />
+        </ScrollArea>
+      </div>
+
+      {/* Filter & Content */}
+      <Card className="rounded-xl overflow-hidden">
+        <div className="p-4 sm:p-6 border-b bg-muted/30">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-muted-foreground" />
+              <h2 className="text-lg sm:text-xl font-semibold">Purchase Orders</h2>
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[180px] rounded-lg">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="sent">Sent</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="in_transit">In Transit</SelectItem>
+                <SelectItem value="partially_received">Partially Received</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="supplier_rejected">Rejected</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Mobile: Card View */}
+        {isMobile ? (
+          <div className="p-4 space-y-3">
             {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={9} className="text-center">Loading...</TableCell>
-              </TableRow>
+              <div className="text-center py-8 text-muted-foreground">Loading...</div>
             ) : purchaseOrders?.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9} className="text-center">No purchase orders found</TableCell>
-              </TableRow>
+              <div className="text-center py-8 text-muted-foreground">No purchase orders found</div>
             ) : (
               purchaseOrders?.map((po: any) => (
-                <TableRow key={po.id} className={po.hasVariance ? "bg-yellow-50 dark:bg-yellow-950/10" : ""}>
-                  <TableCell className="font-medium">{po.po_number}</TableCell>
-                  <TableCell>{new Date(po.order_date).toLocaleDateString()}</TableCell>
-                  <TableCell>{po.outlet?.name || "-"}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{po.totalOrdered} items</Badge>
-                  </TableCell>
-                  <TableCell>PKR {po.total_amount?.toLocaleString()}</TableCell>
-                  <TableCell>
-                    {po.supplier_delivery_date 
-                      ? new Date(po.supplier_delivery_date).toLocaleDateString()
-                      : po.expected_delivery_date
-                        ? new Date(po.expected_delivery_date).toLocaleDateString()
-                        : "-"}
-                  </TableCell>
-                  <TableCell>{getStatusBadge(po)}</TableCell>
-                  <TableCell>
-                    {po.paid_amount && po.paid_amount > 0 ? (
-                      po.supplier_payment_confirmed ? (
-                        <Badge className="bg-green-500">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Confirmed
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-purple-500">
-                          PKR {po.paid_amount?.toLocaleString()}
-                        </Badge>
-                      )
-                    ) : (
-                      <span className="text-muted-foreground text-sm">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => setSelectedPO(po)}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      
-                      {/* Show confirm/reject for pending orders (awaiting supplier response) */}
-                      {po.status === "pending" && !po.supplier_confirmed && !po.supplier_rejected && (
-                        <>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            className="text-green-600"
-                            onClick={() => setActionDialog({ type: "confirm", po })}
-                            title="Confirm Order"
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            className="text-destructive"
-                            onClick={() => setActionDialog({ type: "reject", po })}
-                            title="Reject Order"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                      
-                      {/* Show ship button for confirmed orders */}
-                      {po.supplier_confirmed && !po.shipped_at && po.status !== "cancelled" && (
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          className="text-blue-600"
-                          onClick={() => setActionDialog({ type: "ship", po })}
-                        >
-                          <Truck className="h-4 w-4" />
-                        </Button>
-                      )}
-
-                      {/* Show payment confirmation button for paid POs */}
-                      {po.paid_amount && po.paid_amount > 0 && !po.supplier_payment_confirmed && (
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          className="text-purple-600"
-                          onClick={() => setActionDialog({ type: "confirm_payment", po })}
-                          title="Confirm Payment Receipt"
-                        >
-                          <CreditCard className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
+                <POCard key={po.id} po={po} />
               ))
             )}
-          </TableBody>
-        </Table>
+          </div>
+        ) : (
+          /* Desktop: Table View */
+          <div className="p-4 sm:p-6">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>PO Number</TableHead>
+                  <TableHead>Order Date</TableHead>
+                  <TableHead>Outlet</TableHead>
+                  <TableHead>Items</TableHead>
+                  <TableHead>Total Amount</TableHead>
+                  <TableHead>Delivery Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Payment</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center">Loading...</TableCell>
+                  </TableRow>
+                ) : purchaseOrders?.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center">No purchase orders found</TableCell>
+                  </TableRow>
+                ) : (
+                  purchaseOrders?.map((po: any) => (
+                    <TableRow key={po.id} className={po.hasVariance ? "bg-amber-50 dark:bg-amber-950/10" : ""}>
+                      <TableCell className="font-medium">{po.po_number}</TableCell>
+                      <TableCell>{new Date(po.order_date).toLocaleDateString()}</TableCell>
+                      <TableCell>{po.outlet?.name || "-"}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{po.totalOrdered} items</Badge>
+                      </TableCell>
+                      <TableCell>PKR {po.total_amount?.toLocaleString()}</TableCell>
+                      <TableCell>
+                        {po.supplier_delivery_date 
+                          ? new Date(po.supplier_delivery_date).toLocaleDateString()
+                          : po.expected_delivery_date
+                            ? new Date(po.expected_delivery_date).toLocaleDateString()
+                            : "-"}
+                      </TableCell>
+                      <TableCell>{getStatusBadge(po)}</TableCell>
+                      <TableCell>
+                        {po.paid_amount && po.paid_amount > 0 ? (
+                          po.supplier_payment_confirmed ? (
+                            <Badge className="bg-green-500">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Confirmed
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-purple-500">
+                              PKR {po.paid_amount?.toLocaleString()}
+                            </Badge>
+                          )
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => setSelectedPO(po)} className="rounded-lg">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          
+                          {po.status === "pending" && !po.supplier_confirmed && !po.supplier_rejected && (
+                            <>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="text-green-600 rounded-lg"
+                                onClick={() => setActionDialog({ type: "confirm", po })}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="text-destructive rounded-lg"
+                                onClick={() => setActionDialog({ type: "reject", po })}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                          
+                          {po.supplier_confirmed && !po.shipped_at && po.status !== "cancelled" && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              className="text-blue-600 rounded-lg"
+                              onClick={() => setActionDialog({ type: "ship", po })}
+                            >
+                              <Truck className="h-4 w-4" />
+                            </Button>
+                          )}
+
+                          {po.paid_amount && po.paid_amount > 0 && !po.supplier_payment_confirmed && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              className="text-purple-600 rounded-lg"
+                              onClick={() => setActionDialog({ type: "confirm_payment", po })}
+                            >
+                              <CreditCard className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </Card>
 
       {/* PO Details Dialog */}
@@ -505,36 +616,45 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
         />
       )}
 
-      {/* Confirm Dialog */}
-      <Dialog open={actionDialog?.type === "confirm"} onOpenChange={() => setActionDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Purchase Order</DialogTitle>
-            <DialogDescription>
+      {/* Confirm Sheet/Dialog */}
+      <Sheet open={actionDialog?.type === "confirm"} onOpenChange={() => setActionDialog(null)}>
+        <SheetContent side={isMobile ? "bottom" : "right"} className={isMobile ? "rounded-t-2xl" : "sm:max-w-md"}>
+          <SheetHeader className="text-left">
+            <SheetTitle className="flex items-center gap-2">
+              <div className="p-2 bg-green-500/10 rounded-lg">
+                <Check className="h-5 w-5 text-green-600" />
+              </div>
+              Confirm Order
+            </SheetTitle>
+            <SheetDescription>
               Confirm {actionDialog?.po?.po_number} for {actionDialog?.po?.totalOrdered} items
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4 py-6">
+            <div className="space-y-2">
               <Label>Expected Delivery Date *</Label>
               <Input
                 type="date"
                 value={deliveryDate}
                 onChange={(e) => setDeliveryDate(e.target.value)}
                 min={new Date().toISOString().split("T")[0]}
+                className="rounded-lg"
               />
             </div>
-            <div>
+            <div className="space-y-2">
               <Label>Notes (Optional)</Label>
               <Textarea
                 placeholder="Any notes about this order..."
                 value={supplierNotes}
                 onChange={(e) => setSupplierNotes(e.target.value)}
+                className="rounded-lg min-h-[100px]"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setActionDialog(null)}>Cancel</Button>
+          <SheetFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setActionDialog(null)} className="rounded-lg w-full sm:w-auto">
+              Cancel
+            </Button>
             <Button
               onClick={() => confirmMutation.mutate({
                 id: actionDialog?.po?.id,
@@ -542,34 +662,43 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
                 notes: supplierNotes,
               })}
               disabled={!deliveryDate || confirmMutation.isPending}
+              className="rounded-lg bg-green-600 hover:bg-green-700 w-full sm:w-auto"
             >
               {confirmMutation.isPending ? "Confirming..." : "Confirm Order"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
-      {/* Reject Dialog */}
-      <Dialog open={actionDialog?.type === "reject"} onOpenChange={() => setActionDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject Purchase Order</DialogTitle>
-            <DialogDescription>
+      {/* Reject Sheet/Dialog */}
+      <Sheet open={actionDialog?.type === "reject"} onOpenChange={() => setActionDialog(null)}>
+        <SheetContent side={isMobile ? "bottom" : "right"} className={isMobile ? "rounded-t-2xl" : "sm:max-w-md"}>
+          <SheetHeader className="text-left">
+            <SheetTitle className="flex items-center gap-2">
+              <div className="p-2 bg-red-500/10 rounded-lg">
+                <X className="h-5 w-5 text-red-600" />
+              </div>
+              Reject Order
+            </SheetTitle>
+            <SheetDescription>
               Reject {actionDialog?.po?.po_number}?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4 py-6">
+            <div className="space-y-2">
               <Label>Reason for Rejection *</Label>
               <Textarea
                 placeholder="Why are you rejecting this order?"
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
+                className="rounded-lg min-h-[120px]"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setActionDialog(null)}>Cancel</Button>
+          <SheetFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setActionDialog(null)} className="rounded-lg w-full sm:w-auto">
+              Cancel
+            </Button>
             <Button
               variant="destructive"
               onClick={() => rejectMutation.mutate({
@@ -577,24 +706,30 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
                 reason: rejectReason,
               })}
               disabled={!rejectReason || rejectMutation.isPending}
+              className="rounded-lg w-full sm:w-auto"
             >
               {rejectMutation.isPending ? "Rejecting..." : "Reject Order"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
-      {/* Ship Dialog */}
-      <Dialog open={actionDialog?.type === "ship"} onOpenChange={() => setActionDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Mark as Shipped</DialogTitle>
-            <DialogDescription>
+      {/* Ship Sheet/Dialog */}
+      <Sheet open={actionDialog?.type === "ship"} onOpenChange={() => setActionDialog(null)}>
+        <SheetContent side={isMobile ? "bottom" : "right"} className={isMobile ? "rounded-t-2xl" : "sm:max-w-md"}>
+          <SheetHeader className="text-left">
+            <SheetTitle className="flex items-center gap-2">
+              <div className="p-2 bg-blue-500/10 rounded-lg">
+                <Truck className="h-5 w-5 text-blue-600" />
+              </div>
+              Mark as Shipped
+            </SheetTitle>
+            <SheetDescription>
               Mark {actionDialog?.po?.po_number} as shipped
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4 py-6">
+            <div className="space-y-2">
               <Label>Delivery Charges *</Label>
               <Input
                 type="number"
@@ -602,27 +737,32 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
                 value={deliveryCharges}
                 onChange={(e) => setDeliveryCharges(e.target.value)}
                 min="0"
+                className="rounded-lg"
               />
             </div>
-            <div>
+            <div className="space-y-2">
               <Label>Tracking Number (Optional)</Label>
               <Input
                 placeholder="Enter tracking number..."
                 value={trackingNumber}
                 onChange={(e) => setTrackingNumber(e.target.value)}
+                className="rounded-lg"
               />
             </div>
-            <div>
+            <div className="space-y-2">
               <Label>Notes (Optional)</Label>
               <Textarea
                 placeholder="Shipping notes..."
                 value={supplierNotes}
                 onChange={(e) => setSupplierNotes(e.target.value)}
+                className="rounded-lg min-h-[100px]"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setActionDialog(null)}>Cancel</Button>
+          <SheetFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setActionDialog(null)} className="rounded-lg w-full sm:w-auto">
+              Cancel
+            </Button>
             <Button
               onClick={() => shipMutation.mutate({
                 id: actionDialog?.po?.id,
@@ -631,24 +771,30 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
                 deliveryCharges: parseFloat(deliveryCharges) || 0,
               })}
               disabled={deliveryCharges === "" || shipMutation.isPending}
+              className="rounded-lg bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
             >
               {shipMutation.isPending ? "Updating..." : "Mark as Shipped"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
-      {/* Confirm Payment Dialog */}
-      <Dialog open={actionDialog?.type === "confirm_payment"} onOpenChange={() => setActionDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Payment Receipt</DialogTitle>
-            <DialogDescription>
+      {/* Confirm Payment Sheet/Dialog */}
+      <Sheet open={actionDialog?.type === "confirm_payment"} onOpenChange={() => setActionDialog(null)}>
+        <SheetContent side={isMobile ? "bottom" : "right"} className={isMobile ? "rounded-t-2xl" : "sm:max-w-md"}>
+          <SheetHeader className="text-left">
+            <SheetTitle className="flex items-center gap-2">
+              <div className="p-2 bg-purple-500/10 rounded-lg">
+                <CreditCard className="h-5 w-5 text-purple-600" />
+              </div>
+              Confirm Payment
+            </SheetTitle>
+            <SheetDescription>
               Confirm that you have received payment for {actionDialog?.po?.po_number}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4 py-6">
+            <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-xl border border-green-200 dark:border-green-800">
               <div className="flex items-center gap-2 mb-2">
                 <CreditCard className="h-5 w-5 text-green-600" />
                 <span className="font-semibold text-green-700 dark:text-green-400">Payment Amount</span>
@@ -667,19 +813,22 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
                 </p>
               )}
             </div>
-            <div>
+            <div className="space-y-2">
               <Label>Notes (Optional)</Label>
               <Textarea
                 placeholder="Any notes about this payment..."
                 value={paymentConfirmNotes}
                 onChange={(e) => setPaymentConfirmNotes(e.target.value)}
+                className="rounded-lg min-h-[100px]"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setActionDialog(null)}>Cancel</Button>
+          <SheetFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setActionDialog(null)} className="rounded-lg w-full sm:w-auto">
+              Cancel
+            </Button>
             <Button
-              className="bg-green-600 hover:bg-green-700"
+              className="rounded-lg bg-green-600 hover:bg-green-700 w-full sm:w-auto"
               onClick={() => confirmPaymentMutation.mutate({
                 id: actionDialog?.po?.id,
                 notes: paymentConfirmNotes,
@@ -688,9 +837,9 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
             >
               {confirmPaymentMutation.isPending ? "Confirming..." : "Confirm Payment Received"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
