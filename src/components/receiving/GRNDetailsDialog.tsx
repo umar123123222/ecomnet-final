@@ -230,7 +230,7 @@ const GRNDetailsDialog: React.FC<GRNDetailsDialogProps> = ({ isOpen, onClose, gr
   return (
     <>
       <Dialog open={isOpen} onOpenChange={() => onClose()}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl m-4 sm:m-6">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl mx-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
               <Package className="h-6 w-6" />
