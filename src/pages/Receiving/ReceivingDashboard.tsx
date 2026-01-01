@@ -5,11 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Package, AlertTriangle, CheckCircle2, ScanBarcode, Upload, X, ImageIcon, Eye } from 'lucide-react';
+import { Search, Package, AlertTriangle, CheckCircle2, ScanBarcode, Upload, X, Eye, ClipboardCheck, Truck, Clock, XCircle, ArrowRight, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { format } from 'date-fns';
@@ -17,6 +17,8 @@ import UnifiedScanner from '@/components/UnifiedScanner';
 import type { ScanResult } from '@/components/UnifiedScanner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import GRNDetailsDialog from '@/components/receiving/GRNDetailsDialog';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { StatsCard } from '@/components/layout';
 
 interface GRN {
   id: string;
@@ -52,7 +54,9 @@ const ReceivingDashboard = () => {
   const { profile } = useAuth();
   const { hasAnyRole } = useUserRoles();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isReceivingDialogOpen, setIsReceivingDialogOpen] = useState(false);
   const [selectedPO, setSelectedPO] = useState<any>(null);
   const [receivingItems, setReceivingItems] = useState<ReceivingItem[]>([]);
@@ -91,11 +95,10 @@ const ReceivingDashboard = () => {
     }
   });
 
-  // Fetch pending POs for receiving (excluding POs that already have an active GRN)
+  // Fetch pending POs for receiving
   const { data: pendingPOs = [], isLoading: isPendingPOsLoading } = useQuery({
     queryKey: ['pending-pos-receiving'],
     queryFn: async () => {
-      // First, get all POs with confirmed/shipped status
       const { data: allPOs, error: poError } = await supabase
         .from('purchase_orders')
         .select(`
@@ -113,7 +116,6 @@ const ReceivingDashboard = () => {
       if (poError) throw poError;
       if (!allPOs?.length) return [];
 
-      // Get PO IDs that already have a GRN (including rejected - no re-receiving allowed)
       const { data: existingGRNs, error: grnError } = await supabase
         .from('goods_received_notes')
         .select('po_id')
@@ -121,7 +123,6 @@ const ReceivingDashboard = () => {
 
       if (grnError) throw grnError;
 
-      // Filter out POs that already have any GRN
       const grnPoIds = new Set(existingGRNs?.map(g => g.po_id) || []);
       return allPOs.filter(po => !grnPoIds.has(po.id));
     },
@@ -219,7 +220,6 @@ const ReceivingDashboard = () => {
           .upload(filePath, file);
         
         if (uploadError) {
-          // Try creating the bucket if it doesn't exist
           if (uploadError.message.includes('not found')) {
             toast({
               title: 'Upload Error',
@@ -274,7 +274,7 @@ const ReceivingDashboard = () => {
 
   const updateItemField = (index: number, field: string, value: string) => {
     const newItems = [...receivingItems];
-    newItems[index][field] = value;
+    (newItems[index] as any)[field] = value;
     setReceivingItems(newItems);
   };
 
@@ -292,27 +292,22 @@ const ReceivingDashboard = () => {
   };
 
   const handleScanResult = (result: ScanResult) => {
-    // Extract SKU from rawData
     const scannedSKU = result.rawData.trim();
     
-    // Find matching item in receivingItems by SKU
     const matchedIndex = receivingItems.findIndex(
       item => item.sku.toLowerCase() === scannedSKU.toLowerCase()
     );
     
     if (matchedIndex !== -1) {
-      // Increment received quantity
       const newItems = [...receivingItems];
       newItems[matchedIndex].quantity_received += 1;
       setReceivingItems(newItems);
       
-      // Track scan count
       setScannedItemsCount(prev => ({
         ...prev,
         [matchedIndex]: (prev[matchedIndex] || 0) + 1
       }));
       
-      // Check for over-receiving
       if (newItems[matchedIndex].quantity_received > newItems[matchedIndex].quantity_expected) {
         toast({
           title: 'Warning: Over-Receiving',
@@ -320,7 +315,6 @@ const ReceivingDashboard = () => {
           duration: 4000
         });
       } else {
-        // Success toast
         toast({
           title: 'Item Scanned',
           description: `${newItems[matchedIndex].name} - Quantity: ${newItems[matchedIndex].quantity_received}`,
@@ -328,13 +322,11 @@ const ReceivingDashboard = () => {
         });
       }
       
-      // Auto-close if not in continuous mode
       if (!continuousScanMode) {
         setIsScannerOpen(false);
         setCurrentScanningItemIndex(null);
       }
     } else {
-      // No match found
       toast({
         title: 'Item Not Found',
         description: `SKU "${scannedSKU}" not found in this PO`,
@@ -347,7 +339,6 @@ const ReceivingDashboard = () => {
   // Create GRN mutation
   const createGRNMutation = useMutation({
     mutationFn: async () => {
-      // Validate - items with discrepancy must have notes or damage reason
       const discrepancyWithoutReason = receivingItems.some(
         item => item.quantity_received < item.quantity_expected && 
                 !item.damage_reason && 
@@ -358,7 +349,6 @@ const ReceivingDashboard = () => {
         throw new Error('Please provide a reason for items with quantity discrepancies');
       }
 
-      // Validate - damaged, wrong_item, or defective must have images
       const requiresImageButMissing = receivingItems.some(
         item => ['damaged', 'wrong_item', 'defective'].includes(item.damage_reason) && 
                 item.damage_images.length === 0
@@ -384,6 +374,7 @@ const ReceivingDashboard = () => {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['grns'] });
       queryClient.invalidateQueries({ queryKey: ['pending-pos'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-pos-receiving'] });
       setIsReceivingDialogOpen(false);
       setSelectedPO(null);
       setReceivingItems([]);
@@ -417,20 +408,23 @@ const ReceivingDashboard = () => {
   }
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string }> = {
-      pending_inspection: { variant: 'secondary', label: 'Pending Inspection' },
+    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string, className?: string }> = {
+      pending_inspection: { variant: 'secondary', label: 'Pending', className: 'bg-amber-100 text-amber-700 border-amber-200' },
       inspected: { variant: 'outline', label: 'Inspected' },
-      accepted: { variant: 'default', label: 'Accepted' },
+      accepted: { variant: 'default', label: 'Accepted', className: 'bg-green-100 text-green-700 border-green-200' },
       rejected: { variant: 'destructive', label: 'Rejected' },
-      partial_accept: { variant: 'outline', label: 'Partial Accept' }
+      partial_accept: { variant: 'outline', label: 'Partial', className: 'bg-blue-100 text-blue-700 border-blue-200' }
     };
     const config = variants[status] || variants.pending_inspection;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    return <Badge variant={config.variant} className={config.className}>{config.label}</Badge>;
   };
 
-  const filteredGRNs = grns.filter(grn =>
-    grn.grn_number.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredGRNs = grns.filter(grn => {
+    const matchesSearch = grn.grn_number.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || grn.status === statusFilter || 
+      (statusFilter === 'discrepancy' && grn.discrepancy_flag);
+    return matchesSearch && matchesStatus;
+  });
 
   const stats = {
     pending: grns.filter(g => g.status === 'pending_inspection').length,
@@ -440,110 +434,132 @@ const ReceivingDashboard = () => {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-4 md:py-6 px-4 md:px-6 space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold">Goods Receiving</h1>
-          <p className="text-muted-foreground">Receive and inspect incoming shipments</p>
+          <h1 className="text-2xl md:text-3xl font-bold">Goods Receiving</h1>
+          <p className="text-sm md:text-base text-muted-foreground">Receive and inspect incoming shipments</p>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Pending Inspection</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.pending}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Accepted</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.accepted}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">With Discrepancy</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-amber-600">{stats.withDiscrepancy}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Rejected</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.rejected}</div>
-          </CardContent>
-        </Card>
+      {/* Stats - Mobile: 2 columns, Desktop: 4 columns */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <StatsCard
+          title="Pending"
+          value={stats.pending}
+          icon={Clock}
+          onClick={() => setStatusFilter(statusFilter === 'pending_inspection' ? 'all' : 'pending_inspection')}
+          className={statusFilter === 'pending_inspection' ? 'ring-2 ring-primary' : ''}
+        />
+        <StatsCard
+          title="Accepted"
+          value={stats.accepted}
+          icon={CheckCircle2}
+          variant="success"
+          onClick={() => setStatusFilter(statusFilter === 'accepted' ? 'all' : 'accepted')}
+          className={statusFilter === 'accepted' ? 'ring-2 ring-primary' : ''}
+        />
+        <StatsCard
+          title="Discrepancy"
+          value={stats.withDiscrepancy}
+          icon={AlertTriangle}
+          variant="warning"
+          onClick={() => setStatusFilter(statusFilter === 'discrepancy' ? 'all' : 'discrepancy')}
+          className={statusFilter === 'discrepancy' ? 'ring-2 ring-primary' : ''}
+        />
+        <StatsCard
+          title="Rejected"
+          value={stats.rejected}
+          icon={XCircle}
+          variant="danger"
+          onClick={() => setStatusFilter(statusFilter === 'rejected' ? 'all' : 'rejected')}
+          className={statusFilter === 'rejected' ? 'ring-2 ring-primary' : ''}
+        />
       </div>
 
       {/* Pending POs for Receiving */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Pending Purchase Orders (Ready to Receive)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isPendingPOsLoading ? (
-            <div className="text-center py-4 text-muted-foreground">Loading pending POs...</div>
-          ) : pendingPOs.length === 0 ? (
-            <div className="text-center py-4 text-muted-foreground">No pending POs available for receiving.</div>
-          ) : (
-            <div className="space-y-2">
-              {pendingPOs.map((po: any) => (
-                <div key={po.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{po.po_number}</p>
+      {pendingPOs.length > 0 && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Truck className="h-5 w-5 text-primary" />
+              <CardTitle className="text-base md:text-lg">Ready to Receive ({pendingPOs.length})</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {isPendingPOsLoading ? (
+              <div className="text-center py-4 text-muted-foreground">Loading...</div>
+            ) : (
+              <div className="space-y-2">
+                {pendingPOs.map((po: any) => (
+                  <div 
+                    key={po.id} 
+                    className="flex items-center justify-between p-3 bg-background rounded-lg border hover:shadow-sm transition-all active:scale-[0.99]"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm md:text-base">{po.po_number}</span>
                         {po.status === 'in_transit' && (
-                          <Badge className="bg-blue-500">Shipped</Badge>
+                          <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs">Shipped</Badge>
                         )}
                         {po.status === 'partially_received' && (
-                          <Badge variant="secondary">Partial</Badge>
+                          <Badge variant="secondary" className="text-xs">Partial</Badge>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        {po.suppliers?.name} → {po.outlets?.name}
+                      <p className="text-xs md:text-sm text-muted-foreground truncate">
+                        {po.suppliers?.name}
+                        <ArrowRight className="inline h-3 w-3 mx-1" />
+                        {po.outlets?.name}
                       </p>
                       {po.shipping_tracking && (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground mt-0.5">
                           Tracking: {po.shipping_tracking}
                         </p>
                       )}
                     </div>
+                    <Button 
+                      size={isMobile ? "sm" : "default"}
+                      onClick={() => startReceiving(po)}
+                      className="ml-2 shrink-0"
+                    >
+                      {isMobile ? 'Receive' : 'Start Receiving'}
+                    </Button>
                   </div>
-                  <Button onClick={() => startReceiving(po)}>
-                    Start Receiving
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Search */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by GRN number..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Search and Filter */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search GRN number..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        {isMobile && (
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <SelectValue placeholder="Filter status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="pending_inspection">Pending</SelectItem>
+              <SelectItem value="accepted">Accepted</SelectItem>
+              <SelectItem value="partial_accept">Partial</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+              <SelectItem value="discrepancy">Has Discrepancy</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+      </div>
 
       {/* GRN List */}
       {isLoading ? (
@@ -556,70 +572,108 @@ const ReceivingDashboard = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {filteredGRNs.map((grn) => (
-            <Card key={grn.id} className="hover:shadow-lg transition-shadow">
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-3 flex-1">
-                    <div className="flex items-center gap-3">
-                      <Package className="h-5 w-5 text-primary" />
-                      <div>
-                        <h3 className="font-semibold text-lg">{grn.grn_number}</h3>
+            <Card 
+              key={grn.id} 
+              className="hover:shadow-md transition-all cursor-pointer active:scale-[0.995]"
+              onClick={() => {
+                setSelectedGRNId(grn.id);
+                setIsGRNDetailsOpen(true);
+              }}
+            >
+              <CardContent className="p-4">
+                {/* Mobile Layout */}
+                {isMobile ? (
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        <ClipboardCheck className="h-5 w-5 text-primary shrink-0" />
+                        <div>
+                          <p className="font-semibold">{grn.grn_number}</p>
+                          <p className="text-xs text-muted-foreground">
+                            PO: {grn.purchase_orders?.po_number}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {grn.discrepancy_flag && (
+                          <AlertTriangle className="h-4 w-4 text-amber-500" />
+                        )}
+                        {getStatusBadge(grn.status)}
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground truncate max-w-[60%]">
+                        {grn.suppliers?.name}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {grn.total_items_received}/{grn.total_items_expected} items
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">
+                        {format(new Date(grn.received_date), 'MMM dd, yyyy')}
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                ) : (
+                  /* Desktop Layout */
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4 flex-1">
+                      <ClipboardCheck className="h-6 w-6 text-primary shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-3">
+                          <h3 className="font-semibold text-lg">{grn.grn_number}</h3>
+                          {getStatusBadge(grn.status)}
+                          {grn.discrepancy_flag && (
+                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Discrepancy
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground">
-                          PO: {grn.purchase_orders?.po_number}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {grn.suppliers?.name} → {grn.outlets?.name}
+                          PO: {grn.purchase_orders?.po_number} • {grn.suppliers?.name} → {grn.outlets?.name}
                         </p>
                       </div>
                     </div>
                     
-                    <div className="flex gap-6 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Received:</span>{' '}
-                        {format(new Date(grn.received_date), 'MMM dd, yyyy')}
+                    <div className="flex items-center gap-6 text-sm">
+                      <div className="text-right">
+                        <p className="text-muted-foreground">Received</p>
+                        <p className="font-medium">{format(new Date(grn.received_date), 'MMM dd, yyyy')}</p>
                       </div>
-                      <div>
-                        <span className="text-muted-foreground">Items:</span>{' '}
-                        {grn.total_items_received} / {grn.total_items_expected}
+                      <div className="text-right">
+                        <p className="text-muted-foreground">Items</p>
+                        <p className="font-medium">{grn.total_items_received}/{grn.total_items_expected}</p>
                       </div>
-                      {grn.discrepancy_flag && (
-                        <div className="flex items-center gap-1 text-amber-600">
-                          <AlertTriangle className="h-4 w-4" />
-                          <span>Discrepancy</span>
-                        </div>
-                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedGRNId(grn.id);
+                          setIsGRNDetailsOpen(true);
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        View
+                      </Button>
                     </div>
                   </div>
-                  
-                  <div className="flex flex-col items-end gap-2">
-                    {getStatusBadge(grn.status)}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedGRNId(grn.id);
-                        setIsGRNDetailsOpen(true);
-                      }}
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      {grn.discrepancy_flag && 
-                       !['accepted', 'partial_accept', 'rejected', 'resolved'].includes(grn.status) && 
-                       canResolve
-                        ? 'Resolve'
-                        : 'View Details'}
-                    </Button>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           ))}
         </div>
       )}
 
-      {/* Receiving Dialog */}
-      <Dialog open={isReceivingDialogOpen} onOpenChange={(open) => {
+      {/* Receiving Sheet */}
+      <Sheet open={isReceivingDialogOpen} onOpenChange={(open) => {
         setIsReceivingDialogOpen(open);
         if (!open) {
           setSelectedPO(null);
@@ -629,48 +683,48 @@ const ReceivingDashboard = () => {
           setIsScannerOpen(false);
         }
       }}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              Receive Goods - {selectedPO?.po_number}
-            </DialogTitle>
-            <p className="text-sm text-muted-foreground">
-              From: {selectedPO?.suppliers?.name} → To: {selectedPO?.outlets?.name}
-            </p>
-          </DialogHeader>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+          <SheetHeader className="pb-4 border-b">
+            <SheetTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-primary" />
+              Receive Goods
+            </SheetTitle>
+            <SheetDescription>
+              {selectedPO?.po_number} • {selectedPO?.suppliers?.name} → {selectedPO?.outlets?.name}
+            </SheetDescription>
+          </SheetHeader>
 
-          <div className="space-y-6">
-            {/* Warehouse Info */}
-            {mainWarehouse && (
-              <div>
-                <Label>Receiving Warehouse</Label>
-                <Input 
-                  value={mainWarehouse.name} 
-                  disabled 
-                  className="bg-muted"
-                />
+          <div className="py-4 space-y-4">
+            {/* Transfer Route Visual */}
+            <div className="flex items-center justify-center gap-3 p-3 bg-muted/50 rounded-lg">
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">From</p>
+                <p className="font-medium text-sm">{selectedPO?.suppliers?.name || 'Supplier'}</p>
               </div>
-            )}
+              <ArrowRight className="h-5 w-5 text-muted-foreground" />
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">To</p>
+                <p className="font-medium text-sm">{mainWarehouse?.name || 'Warehouse'}</p>
+              </div>
+            </div>
 
             {/* Items to Receive */}
             {receivingItems.length > 0 ? (
               <div className="space-y-4">
                 {/* Header */}
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Items to Receive</h3>
-                  <div className="flex gap-2">
-                    <Badge variant="outline">
-                      {receivingItems.length} item(s)
-                    </Badge>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={startContinuousScanning}
-                    >
-                      <ScanBarcode className="h-4 w-4 mr-2" />
-                      Scan Items
-                    </Button>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold">Items</h3>
+                    <Badge variant="outline">{receivingItems.length}</Badge>
                   </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={startContinuousScanning}
+                  >
+                    <ScanBarcode className="h-4 w-4 mr-2" />
+                    Scan
+                  </Button>
                 </div>
 
                 {/* Items List */}
@@ -690,90 +744,95 @@ const ReceivingDashboard = () => {
                             : ''
                         }
                       >
-                        <CardContent className="pt-4 space-y-4">
+                        <CardContent className="p-3 space-y-3">
                           {/* Item Header */}
                           <div className="flex items-start justify-between">
                             <div className="flex items-center gap-2">
                               {hasDiscrepancy && (
-                                <AlertTriangle className="h-5 w-5 text-amber-600" />
+                                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
                               )}
                               {isScanned && !hasDiscrepancy && (
-                                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                                <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
                               )}
-                              <div>
-                                <p className="font-medium">{item.name}</p>
-                                <p className="text-sm text-muted-foreground">{item.sku}</p>
+                              <div className="min-w-0">
+                                <p className="font-medium text-sm truncate">{item.name}</p>
+                                <p className="text-xs text-muted-foreground">{item.sku}</p>
                               </div>
                             </div>
                             <Button
-                              size="sm"
+                              size="icon"
                               variant="ghost"
+                              className="h-8 w-8"
                               onClick={() => openScannerForItem(index)}
-                              title="Scan barcode"
                             >
                               <ScanBarcode className="h-4 w-4" />
                             </Button>
                           </div>
 
                           {/* Quantity Row */}
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div>
-                              <Label className="text-xs text-muted-foreground">Expected</Label>
-                              <div className="font-semibold text-lg">{item.quantity_expected}</div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                              <span className="text-xs text-muted-foreground">Expected</span>
+                              <span className="font-semibold">{item.quantity_expected}</span>
                             </div>
                             <div>
-                              <Label className="text-xs">Received Qty *</Label>
                               <Input
                                 type="number"
                                 min="0"
                                 value={item.quantity_received}
                                 onChange={(e) => updateReceivedQuantity(index, e.target.value)}
-                                className={hasDiscrepancy ? 'border-amber-500' : ''}
+                                className={`h-9 text-center font-medium ${hasDiscrepancy ? 'border-amber-500' : ''}`}
                               />
                             </div>
+                          </div>
+
+                          {/* Optional Fields (Collapsed on Mobile) */}
+                          <div className="grid grid-cols-2 gap-3">
                             <div>
                               <Label className="text-xs">Batch #</Label>
                               <Input
                                 placeholder="Optional"
                                 value={item.batch_number}
                                 onChange={(e) => updateItemField(index, 'batch_number', e.target.value)}
+                                className="h-8 text-sm"
                               />
                             </div>
                             <div>
-                              <Label className="text-xs">Expiry Date</Label>
+                              <Label className="text-xs">Expiry</Label>
                               <Input
                                 type="date"
                                 value={item.expiry_date}
                                 onChange={(e) => updateItemField(index, 'expiry_date', e.target.value)}
+                                className="h-8 text-sm"
                               />
                             </div>
                           </div>
 
-                          {/* Discrepancy Section - Only show when quantity is less */}
+                          {/* Discrepancy Section */}
                           {hasDiscrepancy && (
-                            <div className="border-t pt-4 space-y-3">
+                            <div className="border-t pt-3 space-y-3">
                               <div className="flex items-center gap-2 text-amber-700">
                                 <AlertTriangle className="h-4 w-4" />
-                                <span className="text-sm font-medium">
-                                  Missing {item.quantity_expected - item.quantity_received} item(s) - Please provide reason
+                                <span className="text-xs font-medium">
+                                  Missing {item.quantity_expected - item.quantity_received} item(s)
                                 </span>
                               </div>
                               
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-3">
                                 <div>
-                                  <Label className="text-xs">Reason for Discrepancy *</Label>
+                                  <Label className="text-xs">Reason *</Label>
                                   <Select
                                     value={item.damage_reason}
                                     onValueChange={(value) => updateItemField(index, 'damage_reason', value)}
                                   >
-                                    <SelectTrigger>
+                                    <SelectTrigger className="h-9">
                                       <SelectValue placeholder="Select reason" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="damaged">Damaged Items</SelectItem>
-                                      <SelectItem value="missing">Missing from Shipment</SelectItem>
-                                      <SelectItem value="wrong_item">Wrong Item Received</SelectItem>
-                                      <SelectItem value="defective">Defective/Quality Issue</SelectItem>
+                                      <SelectItem value="damaged">Damaged</SelectItem>
+                                      <SelectItem value="missing">Missing</SelectItem>
+                                      <SelectItem value="wrong_item">Wrong Item</SelectItem>
+                                      <SelectItem value="defective">Quality Issue</SelectItem>
                                       <SelectItem value="short_shipment">Short Shipment</SelectItem>
                                       <SelectItem value="other">Other</SelectItem>
                                     </SelectContent>
@@ -782,33 +841,31 @@ const ReceivingDashboard = () => {
                                 <div>
                                   <Label className="text-xs">Notes</Label>
                                   <Input
-                                    placeholder="Additional details..."
+                                    placeholder="Details..."
                                     value={item.notes}
                                     onChange={(e) => updateItemField(index, 'notes', e.target.value)}
+                                    className="h-9"
                                   />
                                 </div>
                               </div>
 
-                              {/* Image Upload for Damage Proof */}
-                              {(item.damage_reason === 'damaged' || item.damage_reason === 'defective' || item.damage_reason === 'wrong_item') && (
+                              {/* Image Upload */}
+                              {['damaged', 'defective', 'wrong_item'].includes(item.damage_reason) && (
                                 <div className="space-y-2">
                                   <Label className="text-xs flex items-center gap-1">
-                                    Upload Proof Images <span className="text-destructive">*</span>
-                                    {item.damage_images.length === 0 && (
-                                      <span className="text-destructive text-xs">(Required)</span>
-                                    )}
+                                    Proof Images <span className="text-destructive">*</span>
                                   </Label>
                                   <div className="flex flex-wrap gap-2">
                                     {item.damage_images.map((img, imgIndex) => (
                                       <div key={imgIndex} className="relative group">
                                         <img 
                                           src={img} 
-                                          alt={`Damage proof ${imgIndex + 1}`}
-                                          className="w-16 h-16 object-cover rounded border"
+                                          alt={`Proof ${imgIndex + 1}`}
+                                          className="w-14 h-14 object-cover rounded border"
                                         />
                                         <button
                                           onClick={() => removeImage(index, imgIndex)}
-                                          className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                          className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5"
                                         >
                                           <X className="h-3 w-3" />
                                         </button>
@@ -817,16 +874,16 @@ const ReceivingDashboard = () => {
                                     <button
                                       onClick={() => fileInputRefs.current[index]?.click()}
                                       disabled={uploadingIndex === index}
-                                      className={`w-16 h-16 border-2 border-dashed rounded flex items-center justify-center transition-colors ${
+                                      className={`w-14 h-14 border-2 border-dashed rounded flex items-center justify-center transition-colors ${
                                         item.damage_images.length === 0 
-                                          ? 'border-destructive text-destructive hover:bg-destructive/10' 
-                                          : 'text-muted-foreground hover:border-primary hover:text-primary'
+                                          ? 'border-destructive text-destructive' 
+                                          : 'border-muted-foreground/30 text-muted-foreground'
                                       }`}
                                     >
                                       {uploadingIndex === index ? (
                                         <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
                                       ) : (
-                                        <Upload className="h-5 w-5" />
+                                        <Upload className="h-4 w-4" />
                                       )}
                                     </button>
                                     <input
@@ -838,9 +895,6 @@ const ReceivingDashboard = () => {
                                       onChange={(e) => handleImageUpload(index, e.target.files)}
                                     />
                                   </div>
-                                  <p className="text-xs text-muted-foreground">
-                                    Upload photos as proof of damage/issue (max 5MB each) - Required
-                                  </p>
                                 </div>
                               )}
                             </div>
@@ -851,59 +905,60 @@ const ReceivingDashboard = () => {
                   })}
                 </div>
 
-                {/* Discrepancy Summary Warning */}
+                {/* Discrepancy Warning */}
                 {receivingItems.some(item => item.quantity_received < item.quantity_expected) && (
-                  <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                    <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-amber-900">Quantity Discrepancy Detected</h4>
-                      <p className="text-sm text-amber-800 mt-1">
-                        Items with quantity differences will be flagged. Managers and the supplier will be automatically notified.
-                      </p>
+                  <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-amber-900">Discrepancy Detected</p>
+                      <p className="text-xs text-amber-800">Managers will be notified.</p>
                     </div>
                   </div>
                 )}
 
                 {/* General Notes */}
                 <div>
-                  <Label>General Notes</Label>
+                  <Label className="text-sm">General Notes</Label>
                   <Textarea
-                    placeholder="Add any additional notes about this receiving..."
+                    placeholder="Additional notes..."
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    rows={3}
+                    rows={2}
+                    className="mt-1"
                   />
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-3 justify-end pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setIsReceivingDialogOpen(false);
-                      setSelectedPO(null);
-                      setReceivingItems([]);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={() => createGRNMutation.mutate()}
-                    disabled={createGRNMutation.isPending || receivingItems.length === 0}
-                  >
-                    {createGRNMutation.isPending ? 'Creating GRN...' : 'Complete Receiving'}
-                  </Button>
                 </div>
               </div>
             ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <Package className="mx-auto h-12 w-12 mb-4" />
-                <p>Loading items...</p>
+              <div className="text-center py-8 text-muted-foreground">
+                <Package className="mx-auto h-10 w-10 mb-3 opacity-50" />
+                <p className="text-sm">Loading items...</p>
               </div>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+
+          {/* Footer Actions */}
+          <div className="flex gap-3 pt-4 border-t sticky bottom-0 bg-background pb-4">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                setIsReceivingDialogOpen(false);
+                setSelectedPO(null);
+                setReceivingItems([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={() => createGRNMutation.mutate()}
+              disabled={createGRNMutation.isPending || receivingItems.length === 0}
+            >
+              {createGRNMutation.isPending ? 'Creating...' : 'Complete'}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Scanner Dialog */}
       <UnifiedScanner
