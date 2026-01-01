@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, FileText, Calendar, DollarSign, XCircle, CheckCircle, CreditCard, Loader2, ClipboardList, Package, Truck, Building2, ArrowRight, Minus, X } from 'lucide-react';
-import { PageContainer, PageHeader, StatsCard, StatsGrid } from '@/components/layout';
+import { PageContainer, PageHeader, StatsCard } from '@/components/layout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCurrency } from '@/hooks/useCurrency';
 import { format } from 'date-fns';
@@ -20,6 +20,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
 
 interface PurchaseOrder {
   id: string;
@@ -509,242 +510,6 @@ const PurchaseOrderDashboard = () => {
   const totalValue = selectedItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
   const selectedSupplier = suppliers.find(s => s.id === formData.supplier_id);
 
-  // Create PO Form Content
-  const CreatePOFormContent = () => (
-    <form onSubmit={handleSubmit} className="flex flex-col h-full">
-      <Tabs defaultValue="details" className="flex-1 flex flex-col">
-        <TabsList className="grid w-full grid-cols-2 mb-4">
-          <TabsTrigger value="details" className="text-sm">Details</TabsTrigger>
-          <TabsTrigger value="items" className="text-sm">
-            Items {selectedItems.length > 0 && `(${selectedItems.length})`}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="details" className="flex-1 space-y-4 mt-0">
-          {/* Visual Route Header */}
-          <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-4">
-            <div className="flex items-center justify-center gap-3">
-              <div className="text-center">
-                <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-1">
-                  <Building2 className="h-5 w-5 text-primary" />
-                </div>
-                <p className="text-xs font-medium">{selectedSupplier?.name || 'Supplier'}</p>
-              </div>
-              <ArrowRight className="h-5 w-5 text-muted-foreground" />
-              <div className="text-center">
-                <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-1">
-                  <Package className="h-5 w-5 text-primary" />
-                </div>
-                <p className="text-xs font-medium">{mainWarehouse?.name || 'Warehouse'}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <Label className="text-sm font-medium">Supplier *</Label>
-              <Select value={formData.supplier_id} onValueChange={(value) => setFormData({ ...formData, supplier_id: value })}>
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue placeholder="Select supplier" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers.map(supplier => (
-                    <SelectItem key={supplier.id} value={supplier.id}>
-                      <span className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                        {supplier.name} <span className="text-muted-foreground">({supplier.code})</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium">Receiving Location</Label>
-              <Input 
-                value={mainWarehouse?.name || 'Main Warehouse'} 
-                disabled 
-                className="bg-muted mt-1.5"
-              />
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium">Expected Delivery Date</Label>
-              <Input
-                type="date"
-                value={formData.expected_delivery_date}
-                onChange={(e) => setFormData({ ...formData, expected_delivery_date: e.target.value })}
-                className="mt-1.5"
-              />
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium">Notes</Label>
-              <Textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Add any notes for the supplier..."
-                className="mt-1.5 min-h-[80px]"
-              />
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="items" className="flex-1 flex flex-col mt-0 space-y-4">
-          {!formData.supplier_id ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center p-6">
-                <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">Select a supplier first to view available items</p>
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Item Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search products or packaging..."
-                  value={itemSearch}
-                  onChange={(e) => setItemSearch(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-
-              {/* Search Results */}
-              {itemSearch && allAvailableItems.length > 0 && (
-                <Card className="border-dashed">
-                  <ScrollArea className="max-h-[200px]">
-                    <div className="p-2 space-y-1">
-                      {allAvailableItems.slice(0, 10).map(item => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => addItem(item.id, item.name, item.type, item.cost, item.sku)}
-                          className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors text-left"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${item.type === 'product' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
-                              <Package className="h-4 w-4" />
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">{item.name}</p>
-                              <p className="text-xs text-muted-foreground">{item.sku} • {item.type}</p>
-                            </div>
-                          </div>
-                          <Badge variant="secondary" className="text-xs">
-                            {currency} {item.cost.toLocaleString()}
-                          </Badge>
-                        </button>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </Card>
-              )}
-
-              {itemSearch && allAvailableItems.length === 0 && (
-                <div className="text-center py-4 text-sm text-muted-foreground">
-                  No items found matching "{itemSearch}"
-                </div>
-              )}
-
-              {/* Selected Items */}
-              <div className="flex-1">
-                <Label className="text-sm font-medium mb-2 block">
-                  Selected Items ({selectedItems.length})
-                </Label>
-                {selectedItems.length === 0 ? (
-                  <div className="border-2 border-dashed rounded-lg p-6 text-center">
-                    <Package className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">Search and add items above</p>
-                  </div>
-                ) : (
-                  <ScrollArea className={isMobile ? 'max-h-[250px]' : 'max-h-[300px]'}>
-                    <div className="space-y-2">
-                      {selectedItems.map(item => (
-                        <div key={item.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                          <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${item.type === 'product' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
-                            <Package className="h-4 w-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">{item.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {currency} {item.unit_price.toLocaleString()} each
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => updateItemQuantity(item.id, item.quantity - 1)}
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <Input
-                              type="number"
-                              min="1"
-                              value={item.quantity}
-                              onChange={(e) => updateItemQuantity(item.id, parseInt(e.target.value) || 1)}
-                              className="w-16 h-8 text-center"
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => updateItemQuantity(item.id, item.quantity + 1)}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => removeItem(item.id)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                )}
-              </div>
-            </>
-          )}
-        </TabsContent>
-      </Tabs>
-
-      {/* Footer with Total */}
-      <div className="border-t pt-4 mt-4 space-y-4">
-        {selectedItems.length > 0 && (
-          <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg">
-            <span className="font-medium">Total Value</span>
-            <span className="text-lg font-bold text-primary">{currency} {totalValue.toLocaleString()}</span>
-          </div>
-        )}
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" className="flex-1" onClick={() => setIsDialogOpen(false)}>
-            Cancel
-          </Button>
-          <Button 
-            type="submit" 
-            className="flex-1"
-            disabled={createMutation.isPending || !formData.supplier_id || selectedItems.length === 0}
-          >
-            {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {createMutation.isPending ? 'Creating...' : 'Create PO'}
-          </Button>
-        </div>
-      </div>
-    </form>
-  );
-
   return (
     <PageContainer>
       <PageHeader
@@ -760,36 +525,250 @@ const PurchaseOrderDashboard = () => {
         }
       />
 
-      {/* Create PO Sheet for Mobile, Dialog for Desktop */}
-      {isMobile ? (
-        <Sheet open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <SheetContent side="right" className="w-full sm:max-w-lg flex flex-col p-0">
-            <SheetHeader className="p-4 border-b">
-              <SheetTitle className="flex items-center gap-2">
-                <ClipboardList className="h-5 w-5" />
-                Create Purchase Order
-              </SheetTitle>
-            </SheetHeader>
-            <div className="flex-1 overflow-auto p-4">
-              <CreatePOFormContent />
+      {/* Create PO Sheet - Same UX as Add Supplier */}
+      <Sheet open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <SheetContent className={cn("overflow-y-auto", isMobile ? "w-full" : "sm:max-w-lg")}>
+          <SheetHeader className="pb-4 border-b">
+            <SheetTitle className="flex items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-primary" />
+              Create Purchase Order
+            </SheetTitle>
+          </SheetHeader>
+
+          <form onSubmit={handleSubmit} className="mt-6">
+            <Tabs defaultValue="details">
+              <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="items">
+                  Items {selectedItems.length > 0 && `(${selectedItems.length})`}
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="details" className="space-y-4 mt-0">
+                {/* Visual Route Header */}
+                <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-4">
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="text-center">
+                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-1">
+                        <Building2 className="h-5 w-5 text-primary" />
+                      </div>
+                      <p className="text-xs font-medium">{selectedSupplier?.name || 'Supplier'}</p>
+                    </div>
+                    <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                    <div className="text-center">
+                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-1">
+                        <Package className="h-5 w-5 text-primary" />
+                      </div>
+                      <p className="text-xs font-medium">{mainWarehouse?.name || 'Warehouse'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="supplier_id">Supplier *</Label>
+                  <Select value={formData.supplier_id} onValueChange={(value) => setFormData({ ...formData, supplier_id: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select supplier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {suppliers.map(supplier => (
+                        <SelectItem key={supplier.id} value={supplier.id}>
+                          <span className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-muted-foreground" />
+                            {supplier.name} <span className="text-muted-foreground">({supplier.code})</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="outlet_id">Receiving Location</Label>
+                  <Input 
+                    value={mainWarehouse?.name || 'Main Warehouse'} 
+                    disabled 
+                    className="bg-muted"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="expected_delivery_date">Expected Delivery Date</Label>
+                  <Input
+                    id="expected_delivery_date"
+                    type="date"
+                    value={formData.expected_delivery_date}
+                    onChange={(e) => setFormData({ ...formData, expected_delivery_date: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea
+                    id="notes"
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Add any notes for the supplier..."
+                    rows={3}
+                  />
+                </div>
+              </TabsContent>
+
+              <TabsContent value="items" className="space-y-4 mt-0">
+                {!formData.supplier_id ? (
+                  <div className="text-center p-8 border-2 border-dashed rounded-lg">
+                    <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-muted-foreground">Select a supplier first to view available items</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Item Search */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search products or packaging..."
+                        value={itemSearch}
+                        onChange={(e) => setItemSearch(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+
+                    {/* Search Results */}
+                    {itemSearch && allAvailableItems.length > 0 && (
+                      <Card className="border-dashed">
+                        <ScrollArea className="max-h-[200px]">
+                          <div className="p-2 space-y-1">
+                            {allAvailableItems.slice(0, 10).map(item => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => addItem(item.id, item.name, item.type, item.cost, item.sku)}
+                                className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors text-left"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${item.type === 'product' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
+                                    <Package className="h-4 w-4" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-sm">{item.name}</p>
+                                    <p className="text-xs text-muted-foreground">{item.sku} • {item.type}</p>
+                                  </div>
+                                </div>
+                                <Badge variant="secondary" className="text-xs">
+                                  {currency} {item.cost.toLocaleString()}
+                                </Badge>
+                              </button>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </Card>
+                    )}
+
+                    {itemSearch && allAvailableItems.length === 0 && (
+                      <div className="text-center py-4 text-sm text-muted-foreground">
+                        No items found matching "{itemSearch}"
+                      </div>
+                    )}
+
+                    {/* Selected Items */}
+                    <div>
+                      <Label className="text-sm font-medium mb-2 block">
+                        Selected Items ({selectedItems.length})
+                      </Label>
+                      {selectedItems.length === 0 ? (
+                        <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                          <Package className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm text-muted-foreground">Search and add items above</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                          {selectedItems.map(item => (
+                            <div key={item.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                              <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${item.type === 'product' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
+                                <Package className="h-4 w-4" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm truncate">{item.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {currency} {item.unit_price.toLocaleString()} each
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => updateItemQuantity(item.id, item.quantity - 1)}
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={item.quantity}
+                                  onChange={(e) => updateItemQuantity(item.id, parseInt(e.target.value) || 1)}
+                                  className="w-16 h-8 text-center"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => updateItemQuantity(item.id, item.quantity + 1)}
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => removeItem(item.id)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Total Value */}
+                    {selectedItems.length > 0 && (
+                      <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg border border-primary/20">
+                        <span className="font-medium">Total Value</span>
+                        <span className="text-lg font-bold text-primary">{currency} {totalValue.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </TabsContent>
+            </Tabs>
+
+            <div className="flex gap-3 mt-8 pt-4 border-t">
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                className="flex-1"
+                disabled={createMutation.isPending || !formData.supplier_id || selectedItems.length === 0}
+              >
+                {createMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>Create PO</>
+                )}
+              </Button>
             </div>
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-lg max-h-[85vh] flex flex-col p-0">
-            <DialogHeader className="p-6 pb-4 border-b">
-              <DialogTitle className="flex items-center gap-2">
-                <ClipboardList className="h-5 w-5" />
-                Create Purchase Order
-              </DialogTitle>
-            </DialogHeader>
-            <div className="flex-1 overflow-auto p-6 pt-4">
-              <CreatePOFormContent />
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+          </form>
+        </SheetContent>
+      </Sheet>
 
       {/* Stats Grid - Responsive */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
