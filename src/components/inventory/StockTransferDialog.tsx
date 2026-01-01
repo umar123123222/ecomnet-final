@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,8 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Package, Plus, Trash2, Box, ShoppingBag, Gift, Search, Minus, X, ArrowRight, FileText } from "lucide-react";
+import { Loader2, Package, Plus, Trash2, Box, ShoppingBag, Gift, Search, Minus, X, ArrowRight, FileText, Warehouse, Building2, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
 const transferSchema = z.object({
   from_outlet_id: z.string().min(1, "Source outlet is required"),
@@ -27,11 +28,6 @@ const transferSchema = z.object({
 });
 
 type TransferFormData = z.infer<typeof transferSchema>;
-
-interface SelectedProduct {
-  product_id: string;
-  quantity: number;
-}
 
 interface PackagingItem {
   packaging_item_id: string;
@@ -62,12 +58,10 @@ export function StockTransferDialog({
   const queryClient = useQueryClient();
   const { user, profile } = useAuth();
 
-  // Find main warehouse
   const mainWarehouse = outlets?.find(
     (outlet) => outlet.outlet_type === 'warehouse' && outlet.name.toLowerCase().includes('main')
   ) || outlets?.find((outlet) => outlet.outlet_type === 'warehouse');
 
-  // Check if user is store manager and get their assigned outlet
   const isStoreManager = profile?.role === 'store_manager';
   
   const { data: userOutlet } = useQuery({
@@ -75,7 +69,6 @@ export function StockTransferDialog({
     queryFn: async () => {
       if (!user?.id) return null;
       
-      // Check if user is an outlet manager
       const { data: managedOutlet } = await supabase
         .from("outlets")
         .select("id, name, outlet_type")
@@ -84,7 +77,6 @@ export function StockTransferDialog({
       
       if (managedOutlet) return managedOutlet;
       
-      // Check outlet_staff assignment
       const { data: staffOutlet } = await supabase
         .from("outlet_staff")
         .select("outlet:outlets(id, name, outlet_type)")
@@ -96,7 +88,6 @@ export function StockTransferDialog({
     enabled: open && isStoreManager && !!user?.id,
   });
 
-  // Fetch packaging items from database
   const { data: availablePackaging } = useQuery({
     queryKey: ["packaging-items-for-transfer"],
     queryFn: async () => {
@@ -110,7 +101,6 @@ export function StockTransferDialog({
     enabled: open,
   });
 
-  // Fetch inventory for warehouse
   const { data: warehouseInventory } = useQuery({
     queryKey: ["warehouse-inventory", mainWarehouse?.id],
     queryFn: async () => {
@@ -144,21 +134,17 @@ export function StockTransferDialog({
     },
   });
 
-  // Set outlet IDs when dialog opens and data is available
   useEffect(() => {
     if (open) {
-      // Set source outlet
       if (mainWarehouse?.id) {
         setValue("from_outlet_id", mainWarehouse.id);
       }
-      // Set destination outlet for store managers
       if (isStoreManager && userOutlet?.id) {
         setValue("to_outlet_id", userOutlet.id);
       }
     }
   }, [open, mainWarehouse?.id, isStoreManager, userOutlet?.id, setValue]);
 
-  // Filter products by search
   const filteredProducts = useMemo(() => {
     if (!products) return [];
     if (!productSearch.trim()) return products;
@@ -170,7 +156,6 @@ export function StockTransferDialog({
     );
   }, [products, productSearch]);
 
-  // Available packaging for selection (exclude already added)
   const selectablePackaging = useMemo(() => {
     if (!availablePackaging) return [];
     const addedIds = new Set(packagingItems.map((p) => p.packaging_item_id));
@@ -178,10 +163,7 @@ export function StockTransferDialog({
   }, [availablePackaging, packagingItems]);
 
   const addProduct = (productId: string) => {
-    setSelectedProducts((prev) => ({
-      ...prev,
-      [productId]: 1,
-    }));
+    setSelectedProducts((prev) => ({ ...prev, [productId]: 1 }));
   };
 
   const removeProduct = (productId: string) => {
@@ -259,20 +241,18 @@ export function StockTransferDialog({
 
     setIsSubmitting(true);
     try {
-      // Prepare items array
       const items = Object.entries(selectedProducts).map(([product_id, quantity]) => ({
         product_id,
         quantity,
       }));
 
-      // All packaging is manually selected
       const allPackaging = packagingItems.map((p) => ({
         packaging_item_id: p.packaging_item_id,
         quantity: p.quantity,
         is_auto_calculated: false,
       }));
 
-      const { data: result, error } = await supabase.functions.invoke(
+      const { error } = await supabase.functions.invoke(
         "stock-transfer-request",
         {
           body: {
@@ -289,8 +269,8 @@ export function StockTransferDialog({
       if (error) throw error;
 
       toast({
-        title: "Success",
-        description: `Created stock transfer request with ${items.length} product(s) and ${allPackaging.length} packaging item(s)`,
+        title: "Transfer request created",
+        description: `${items.length} product(s) and ${allPackaging.length} packaging item(s) added`,
       });
 
       queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
@@ -310,7 +290,6 @@ export function StockTransferDialog({
     }
   };
 
-  // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
       setSelectedProducts({});
@@ -326,6 +305,10 @@ export function StockTransferDialog({
     return products?.find((p) => p.id === productId)?.name || "Unknown Product";
   };
 
+  const getProductSku = (productId: string) => {
+    return products?.find((p) => p.id === productId)?.sku || "";
+  };
+
   const getProductStock = (productId: string) => {
     const stock = warehouseInventory?.[productId];
     return stock?.available_quantity ?? stock?.quantity ?? 0;
@@ -339,334 +322,344 @@ export function StockTransferDialog({
   };
 
   const destinationOutlets = outlets?.filter((outlet) => outlet.id !== mainWarehouse?.id) || [];
+  const destinationOutletName = watch("to_outlet_id") 
+    ? outlets?.find(o => o.id === watch("to_outlet_id"))?.name 
+    : null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[85vh] overflow-hidden flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b bg-muted/30 shrink-0">
-          <DialogTitle className="text-xl">New Stock Transfer</DialogTitle>
-          <DialogDescription>
-            Transfer products and packaging from warehouse to outlets
-          </DialogDescription>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-2xl p-0 flex flex-col">
+        <SheetHeader className="px-6 py-5 border-b bg-muted/30 shrink-0">
+          <SheetTitle className="text-xl font-semibold">New Transfer Request</SheetTitle>
+          <SheetDescription>
+            Request inventory transfer from warehouse to your outlet
+          </SheetDescription>
+        </SheetHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-hidden flex flex-col min-h-0">
-          <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-2 min-h-0">
-            {/* Left Panel - Product Selection */}
-            <div className="flex flex-col overflow-hidden border-r">
-              <div className="p-4 border-b bg-background shrink-0">
-                <Label className="text-sm font-medium mb-2 block">Select Products</Label>
+        <form onSubmit={handleSubmit(onSubmit)} className="flex-1 flex flex-col min-h-0">
+          {/* Transfer Route Visual */}
+          <div className="px-6 py-4 border-b bg-gradient-to-r from-primary/5 to-transparent">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <Warehouse className="h-5 w-5 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">From</p>
+                  <p className="font-medium truncate">{mainWarehouse?.name || "Main Warehouse"}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-1 text-muted-foreground shrink-0">
+                <div className="h-px w-6 bg-border" />
+                <ArrowRight className="h-4 w-4" />
+                <div className="h-px w-6 bg-border" />
+              </div>
+              
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className={cn(
+                  "h-10 w-10 rounded-xl flex items-center justify-center shrink-0",
+                  destinationOutletName ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-muted"
+                )}>
+                  <Building2 className={cn(
+                    "h-5 w-5",
+                    destinationOutletName ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                  )} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">To</p>
+                  {isStoreManager && userOutlet ? (
+                    <p className="font-medium truncate">{userOutlet.name}</p>
+                  ) : destinationOutletName ? (
+                    <p className="font-medium truncate">{destinationOutletName}</p>
+                  ) : (
+                    <Select
+                      value={watch("to_outlet_id")}
+                      onValueChange={(value) => setValue("to_outlet_id", value)}
+                    >
+                      <SelectTrigger className={cn(
+                        "h-8 w-full border-dashed text-sm",
+                        errors.to_outlet_id && "border-destructive"
+                      )}>
+                        <SelectValue placeholder="Select outlet..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover z-50">
+                        {destinationOutlets.map((outlet) => (
+                          <SelectItem key={outlet.id} value={outlet.id}>
+                            {outlet.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
+            </div>
+            {errors.to_outlet_id && (
+              <p className="text-xs text-destructive mt-2">{errors.to_outlet_id.message}</p>
+            )}
+          </div>
+
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="p-6 space-y-6">
+              {/* Product Search */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Add Products</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search products..."
+                    placeholder="Search by name or SKU..."
                     value={productSearch}
                     onChange={(e) => setProductSearch(e.target.value)}
                     className="pl-9"
                   />
                 </div>
-              </div>
-              
-              <ScrollArea className="flex-1 min-h-0">
-                <div className="p-2 space-y-1">
-                  {filteredProducts.length === 0 ? (
-                    <div className="p-8 text-center">
-                      <Package className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-                      <p className="text-sm text-muted-foreground">
-                        {productSearch ? "No products found" : "No products available"}
-                      </p>
-                    </div>
-                  ) : (
-                    filteredProducts.map((product) => {
-                      const isSelected = !!selectedProducts[product.id];
-                      const stock = getProductStock(product.id);
-                      const isOutOfStock = stock <= 0;
-                      
-                      return (
-                        <div
-                          key={product.id}
-                          className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
-                            isSelected 
-                              ? "bg-primary/10 border border-primary/30" 
-                              : isOutOfStock
-                              ? "bg-muted/50 opacity-60"
-                              : "hover:bg-muted/50 cursor-pointer"
-                          }`}
-                          onClick={() => !isSelected && !isOutOfStock && addProduct(product.id)}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">{product.name}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-xs text-muted-foreground">{product.sku}</span>
-                              <Badge 
-                                variant={stock > 10 ? "secondary" : stock > 0 ? "outline" : "destructive"}
-                                className="text-xs h-5"
-                              >
-                                Stock: {stock}
-                              </Badge>
-                            </div>
-                          </div>
-                          
-                          {isSelected ? (
-                            <div className="flex items-center gap-1 ml-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={() => decrementQuantity(product.id)}
-                              >
-                                {selectedProducts[product.id] === 1 ? (
-                                  <Trash2 className="h-3 w-3 text-destructive" />
-                                ) : (
-                                  <Minus className="h-3 w-3" />
-                                )}
-                              </Button>
-                              <Input
-                                type="number"
-                                min="1"
-                                max={stock}
-                                value={selectedProducts[product.id]}
-                                onChange={(e) => updateQuantity(product.id, parseInt(e.target.value) || 1)}
-                                className="w-14 h-7 text-center text-sm"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={() => incrementQuantity(product.id)}
-                                disabled={selectedProducts[product.id] >= stock}
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ) : !isOutOfStock ? (
-                            <Button type="button" variant="ghost" size="sm" className="h-7 ml-2 shrink-0">
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                          ) : null}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </ScrollArea>
-            </div>
-
-            {/* Right Panel - Transfer Details */}
-            <div className="flex flex-col overflow-hidden bg-muted/10">
-              <ScrollArea className="flex-1 min-h-0">
-                <div className="p-4 space-y-5">
-                  {/* Destination Selection */}
-                  <div>
-                    <Label className="text-sm font-medium mb-2 block">Transfer To</Label>
-                    {isStoreManager && userOutlet ? (
-                      <div className="flex items-center gap-2 p-3 bg-muted rounded-md border">
-                        <Package className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">{userOutlet.name}</span>
-                        <Badge variant="secondary" className="text-xs">Your Outlet</Badge>
+                
+                {productSearch && (
+                  <Card className="mt-2 max-h-48 overflow-y-auto divide-y">
+                    {filteredProducts.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-muted-foreground">
+                        No products found
                       </div>
                     ) : (
-                      <Select
-                        value={watch("to_outlet_id")}
-                        onValueChange={(value) => setValue("to_outlet_id", value)}
-                      >
-                        <SelectTrigger className={`w-full ${errors.to_outlet_id ? "border-destructive" : ""}`}>
-                          <SelectValue placeholder="Select destination outlet..." />
-                        </SelectTrigger>
-                        <SelectContent className="bg-popover z-50">
-                          {destinationOutlets.length === 0 ? (
-                            <div className="p-2 text-sm text-muted-foreground text-center">
-                              No outlets available
-                            </div>
-                          ) : (
-                            destinationOutlets.map((outlet) => (
-                              <SelectItem key={outlet.id} value={outlet.id}>
-                                {outlet.name} ({outlet.outlet_type === "warehouse" ? "Warehouse" : "Outlet"})
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    )}
-                    {errors.to_outlet_id && (
-                      <p className="text-xs text-destructive mt-1">{errors.to_outlet_id.message}</p>
-                    )}
-                  </div>
-
-                  {/* Selected Products Summary */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <Label className="text-sm font-medium">Selected Items</Label>
-                      {selectedProductsList.length > 0 && (
-                        <Badge variant="secondary" className="text-xs">
-                          {selectedProductsList.length} products • {totalProducts} units
-                        </Badge>
-                      )}
-                    </div>
-                    
-                    {selectedProductsList.length === 0 ? (
-                      <Card className="p-6 text-center border-dashed bg-background">
-                        <Package className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-                        <p className="text-sm text-muted-foreground">
-                          Select products from the left panel
-                        </p>
-                      </Card>
-                    ) : (
-                      <Card className="divide-y bg-background">
-                        {selectedProductsList.map((productId) => (
-                          <div key={productId} className="p-3 flex items-center justify-between gap-2">
+                      filteredProducts.slice(0, 10).map((product) => {
+                        const isSelected = !!selectedProducts[product.id];
+                        const stock = getProductStock(product.id);
+                        const isOutOfStock = stock <= 0;
+                        
+                        return (
+                          <div
+                            key={product.id}
+                            className={cn(
+                              "flex items-center justify-between p-3 transition-colors",
+                              isSelected 
+                                ? "bg-primary/5" 
+                                : isOutOfStock 
+                                ? "opacity-50" 
+                                : "hover:bg-muted/50 cursor-pointer"
+                            )}
+                            onClick={() => !isSelected && !isOutOfStock && addProduct(product.id)}
+                          >
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{getProductName(productId)}</p>
+                              <p className="text-sm font-medium truncate">{product.name}</p>
+                              <p className="text-xs text-muted-foreground">{product.sku}</p>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
-                              <Badge variant="outline">×{selectedProducts[productId]}</Badge>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => removeProduct(productId)}
+                              <Badge 
+                                variant={stock > 10 ? "secondary" : stock > 0 ? "outline" : "destructive"}
+                                className="text-xs"
                               >
-                                <X className="h-3 w-3" />
-                              </Button>
+                                {stock} in stock
+                              </Badge>
+                              {isSelected ? (
+                                <CheckCircle2 className="h-4 w-4 text-primary" />
+                              ) : !isOutOfStock ? (
+                                <Plus className="h-4 w-4 text-muted-foreground" />
+                              ) : null}
                             </div>
                           </div>
-                        ))}
-                      </Card>
+                        );
+                      })
                     )}
-                  </div>
-
-                  {/* Packaging Items */}
-                  <div>
-                    <Label className="text-sm font-medium mb-2 block">Packaging Items</Label>
-                    <div className="space-y-2">
-                      {packagingItems.length > 0 && (
-                        <Card className="divide-y bg-background">
-                          {packagingItems.map((item) => (
-                            <div key={item.packaging_item_id} className="p-3 flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0 flex-1">
-                                {getPackagingIcon(item.name)}
-                                <div className="min-w-0">
-                                  <span className="text-sm truncate block">{item.name}</span>
-                                  {item.current_stock < item.quantity && (
-                                    <Badge variant="destructive" className="text-xs mt-1">
-                                      Low stock ({item.current_stock})
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <Input
-                                  type="number"
-                                  min="1"
-                                  value={item.quantity}
-                                  onChange={(e) =>
-                                    updatePackagingQuantity(
-                                      item.packaging_item_id,
-                                      parseInt(e.target.value) || 1
-                                    )
-                                  }
-                                  className="w-16 h-7 text-center"
-                                />
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                  onClick={() => removePackaging(item.packaging_item_id)}
-                                >
-                                  <Trash2 className="h-3 w-3 text-destructive" />
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </Card>
-                      )}
-
-                      {selectablePackaging.length > 0 ? (
-                        <Select onValueChange={addPackaging} value="">
-                          <SelectTrigger className="border-dashed bg-background">
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                              <Plus className="h-4 w-4" />
-                              <span>Add packaging item...</span>
-                            </div>
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover z-50">
-                            {selectablePackaging.map((packaging) => (
-                              <SelectItem key={packaging.id} value={packaging.id}>
-                                <div className="flex items-center justify-between gap-4">
-                                  <span>{packaging.name}</span>
-                                  <Badge variant="outline" className="text-xs">
-                                    Stock: {packaging.current_stock}
-                                  </Badge>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : packagingItems.length === 0 ? (
-                        <Card className="p-4 text-center border-dashed bg-background">
-                          <Box className="h-6 w-6 mx-auto text-muted-foreground/50 mb-2" />
-                          <p className="text-sm text-muted-foreground">
-                            No packaging items available
-                          </p>
-                        </Card>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  {/* Notes */}
-                  <div>
-                    <Label htmlFor="notes" className="text-sm font-medium mb-2 block">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        Notes
-                      </div>
-                    </Label>
-                    <Textarea
-                      id="notes"
-                      {...register("notes")}
-                      placeholder="Optional notes for this transfer..."
-                      rows={3}
-                      className="resize-none bg-background"
-                    />
-                  </div>
-                </div>
-              </ScrollArea>
-            </div>
-          </div>
-
-          <DialogFooter className="px-6 py-4 border-t bg-muted/30 shrink-0">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-3">
-              <div className="text-sm text-muted-foreground">
-                From: <span className="font-medium text-foreground">{mainWarehouse?.name || "Main Warehouse"}</span>
+                  </Card>
+                )}
               </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+
+              {/* Selected Products */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <Label className="text-sm font-medium">Selected Products</Label>
+                  {selectedProductsList.length > 0 && (
+                    <Badge variant="secondary" className="gap-1">
+                      <Package className="h-3 w-3" />
+                      {selectedProductsList.length} products • {totalProducts} units
+                    </Badge>
+                  )}
+                </div>
+                
+                {selectedProductsList.length === 0 ? (
+                  <Card className="p-8 text-center border-dashed">
+                    <div className="h-12 w-12 rounded-xl bg-muted mx-auto mb-3 flex items-center justify-center">
+                      <Package className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm font-medium mb-1">No products selected</p>
+                    <p className="text-xs text-muted-foreground">
+                      Search and select products above to add them to this transfer
+                    </p>
+                  </Card>
+                ) : (
+                  <Card className="divide-y">
+                    {selectedProductsList.map((productId) => {
+                      const stock = getProductStock(productId);
+                      const qty = selectedProducts[productId];
+                      
+                      return (
+                        <div key={productId} className="p-3 flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                            <Package className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{getProductName(productId)}</p>
+                            <p className="text-xs text-muted-foreground">{getProductSku(productId)} • {stock} available</p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => decrementQuantity(productId)}
+                            >
+                              {qty === 1 ? <Trash2 className="h-3.5 w-3.5 text-destructive" /> : <Minus className="h-3.5 w-3.5" />}
+                            </Button>
+                            <Input
+                              type="number"
+                              min="1"
+                              max={stock}
+                              value={qty}
+                              onChange={(e) => updateQuantity(productId, parseInt(e.target.value) || 1)}
+                              className="w-14 h-8 text-center text-sm"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => incrementQuantity(productId)}
+                              disabled={qty >= stock}
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </Card>
+                )}
+              </div>
+
+              {/* Packaging Items */}
+              <div>
+                <Label className="text-sm font-medium mb-3 block">Packaging Items (Optional)</Label>
+                <div className="space-y-2">
+                  {packagingItems.length > 0 && (
+                    <Card className="divide-y">
+                      {packagingItems.map((item) => (
+                        <div key={item.packaging_item_id} className="p-3 flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                            {getPackagingIcon(item.name)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium truncate block">{item.name}</span>
+                            {item.current_stock < item.quantity && (
+                              <Badge variant="destructive" className="text-xs mt-1">
+                                Low stock ({item.current_stock})
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) =>
+                                updatePackagingQuantity(
+                                  item.packaging_item_id,
+                                  parseInt(e.target.value) || 1
+                                )
+                              }
+                              className="w-16 h-8 text-center"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => removePackaging(item.packaging_item_id)}
+                            >
+                              <X className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </Card>
+                  )}
+
+                  {selectablePackaging.length > 0 && (
+                    <Select onValueChange={addPackaging} value="">
+                      <SelectTrigger className="border-dashed">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Plus className="h-4 w-4" />
+                          <span>Add packaging item...</span>
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover z-50">
+                        {selectablePackaging.map((packaging) => (
+                          <SelectItem key={packaging.id} value={packaging.id}>
+                            <div className="flex items-center justify-between gap-4">
+                              <span>{packaging.name}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {packaging.current_stock} available
+                              </Badge>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <Label htmlFor="notes" className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  Notes
+                </Label>
+                <Textarea
+                  id="notes"
+                  {...register("notes")}
+                  placeholder="Add any special instructions or notes..."
+                  rows={3}
+                  className="resize-none"
+                />
+              </div>
+            </div>
+          </ScrollArea>
+
+          {/* Footer */}
+          <div className="px-6 py-4 border-t bg-muted/30 shrink-0">
+            <div className="flex items-center justify-between gap-4">
+              <div className="text-sm text-muted-foreground">
+                {selectedProductsList.length > 0 ? (
+                  <span className="text-foreground font-medium">{selectedProductsList.length} products</span>
+                ) : (
+                  "No products selected"
+                )}
+              </div>
+              <div className="flex items-center gap-2">
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                   Cancel
                 </Button>
                 <Button 
                   type="submit" 
                   disabled={isSubmitting || selectedProductsList.length === 0}
-                  className="min-w-[140px]"
+                  className="min-w-[140px] gap-2"
                 >
                   {isSubmitting ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
-                      Create Transfer
-                      <ArrowRight className="ml-2 h-4 w-4" />
+                      Create Request
+                      <ArrowRight className="h-4 w-4" />
                     </>
                   )}
                 </Button>
               </div>
             </div>
-          </DialogFooter>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }

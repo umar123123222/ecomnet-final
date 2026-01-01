@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowRightLeft, Clock, CheckCircle, XCircle, Plus, Loader2, PackageCheck, Truck, Eye, Package } from "lucide-react";
+import { ArrowRightLeft, Clock, CheckCircle, XCircle, Plus, Loader2, PackageCheck, Truck, Eye, Package, ArrowRight, Calendar, User, Building2 } from "lucide-react";
 import { format } from "date-fns";
 import { StockTransferRequest, Product, Outlet } from "@/types/inventory";
 import { StockTransferDialog } from "@/components/inventory/StockTransferDialog";
@@ -15,9 +15,8 @@ import { RejectTransferDialog } from "@/components/inventory/RejectTransferDialo
 import { useToast } from "@/hooks/use-toast";
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { useAuth } from '@/contexts/AuthContext';
-import { PageContainer, PageHeader, StatsCard, StatsGrid } from "@/components/layout";
-import { EmptyTransfers } from "@/components/ui/empty-state";
-import { DataTableSkeleton } from "@/components/ui/data-table-skeleton";
+import { PageContainer, PageHeader } from "@/components/layout";
+import { cn } from "@/lib/utils";
 
 type TransferWithRelations = Omit<StockTransferRequest, 'from_outlet' | 'to_outlet'> & {
   from_outlet?: { name: string };
@@ -31,6 +30,45 @@ type TransferWithRelations = Omit<StockTransferRequest, 'from_outlet' | 'to_outl
     quantity_approved: number | null;
     product: { name: string; sku: string };
   }[];
+};
+
+const statusConfig = {
+  pending: { 
+    label: 'Pending', 
+    icon: Clock, 
+    className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800',
+    dotColor: 'bg-amber-500'
+  },
+  approved: { 
+    label: 'Approved', 
+    icon: CheckCircle, 
+    className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800',
+    dotColor: 'bg-blue-500'
+  },
+  in_transit: { 
+    label: 'In Transit', 
+    icon: Truck, 
+    className: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800',
+    dotColor: 'bg-purple-500'
+  },
+  completed: { 
+    label: 'Completed', 
+    icon: CheckCircle, 
+    className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800',
+    dotColor: 'bg-emerald-500'
+  },
+  rejected: { 
+    label: 'Rejected', 
+    icon: XCircle, 
+    className: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800',
+    dotColor: 'bg-red-500'
+  },
+  cancelled: { 
+    label: 'Cancelled', 
+    icon: XCircle, 
+    className: 'bg-muted text-muted-foreground border-border',
+    dotColor: 'bg-muted-foreground'
+  },
 };
 
 const StockTransferDashboard = () => {
@@ -108,12 +146,22 @@ const StockTransferDashboard = () => {
     }
   });
 
-  const pendingCount = transfers?.filter(t => t.status === 'pending').length || 0;
-  const approvedCount = transfers?.filter(t => t.status === 'approved').length || 0;
-  const inTransitCount = transfers?.filter(t => t.status === 'in_transit').length || 0;
-  const completedCount = transfers?.filter(t => t.status === 'completed').length || 0;
+  const getStatusCounts = () => {
+    if (!transfers) return { pending: 0, approved: 0, in_transit: 0, completed: 0, rejected: 0, all: 0 };
+    return {
+      pending: transfers.filter(t => t.status === 'pending').length,
+      approved: transfers.filter(t => t.status === 'approved').length,
+      in_transit: transfers.filter(t => t.status === 'in_transit').length,
+      completed: transfers.filter(t => t.status === 'completed').length,
+      rejected: transfers.filter(t => t.status === 'rejected').length,
+      all: transfers.length,
+    };
+  };
+
+  const counts = getStatusCounts();
 
   const handleApprove = async (transferId: string) => {
+    setLoadingActions(prev => ({ ...prev, [transferId]: 'approve' }));
     try {
       const { error } = await supabase.functions.invoke("stock-transfer-request", {
         body: { action: "approve", transfer_id: transferId }
@@ -123,6 +171,8 @@ const StockTransferDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
     } catch (error: any) {
       toast({ title: "Error", description: error.message || "Failed to approve transfer", variant: "destructive" });
+    } finally {
+      setLoadingActions(prev => ({ ...prev, [transferId]: null }));
     }
   };
 
@@ -172,231 +222,238 @@ const StockTransferDashboard = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { className: string; icon: typeof Clock; label: string }> = {
-      pending: { className: "bg-yellow-100 text-yellow-800 border-yellow-300", icon: Clock, label: "Pending" },
-      approved: { className: "bg-blue-100 text-blue-800 border-blue-300", icon: CheckCircle, label: "Approved" },
-      in_transit: { className: "bg-purple-100 text-purple-800 border-purple-300", icon: Truck, label: "Dispatched" },
-      completed: { className: "bg-green-100 text-green-800 border-green-300", icon: CheckCircle, label: "Completed" },
-      rejected: { className: "bg-red-100 text-red-800 border-red-300", icon: XCircle, label: "Rejected" },
-      cancelled: { className: "bg-gray-100 text-gray-800 border-gray-300", icon: XCircle, label: "Cancelled" },
-    };
-    const config = variants[status] || variants.pending;
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
     const Icon = config.icon;
     return (
-      <Badge variant="outline" className={`${config.className} border gap-1`}>
-        <Icon className="h-3 w-3" />
+      <Badge variant="outline" className={cn("gap-1.5 font-medium", config.className)}>
+        <span className={cn("h-1.5 w-1.5 rounded-full", config.dotColor)} />
         {config.label}
       </Badge>
     );
   };
 
-  const getItemsSummary = (transfer: TransferWithRelations) => {
-    const productCount = transfer.items?.length || 0;
-    const totalUnits = transfer.items?.reduce((sum, item) => sum + (item.quantity_approved || item.quantity_requested), 0) || 0;
-    
-    return (
-      <div className="flex items-center gap-2">
-        <Badge variant="secondary" className="text-xs gap-1">
-          <Package className="h-3 w-3" />
-          {productCount} products
-        </Badge>
-        <span className="text-xs text-muted-foreground">({totalUnits} units)</span>
-      </div>
-    );
-  };
+  const filterTabs = [
+    { value: 'all', label: 'All', count: counts.all },
+    { value: 'pending', label: 'Pending', count: counts.pending },
+    { value: 'approved', label: 'Approved', count: counts.approved },
+    { value: 'in_transit', label: 'In Transit', count: counts.in_transit },
+    { value: 'completed', label: 'Completed', count: counts.completed },
+    { value: 'rejected', label: 'Rejected', count: counts.rejected },
+  ];
 
   return (
     <PageContainer>
       <PageHeader
-        title="Stock Transfer Requests"
-        description={isStoreManager ? 'Request inventory from warehouse and receive transfers' : 'Manage inventory transfers between outlets'}
+        title="Stock Transfers"
+        description={isStoreManager ? 'Request inventory from warehouse and track incoming transfers' : 'Manage inventory transfers between outlets'}
         icon={ArrowRightLeft}
         actions={
-          <Button onClick={() => setTransferDialogOpen(true)} className="gap-2">
+          <Button onClick={() => setTransferDialogOpen(true)} size="lg" className="gap-2 shadow-sm">
             <Plus className="h-4 w-4" />
-            Request Transfer
+            New Transfer Request
           </Button>
         }
       />
 
-      {/* Summary Cards */}
-      <StatsGrid columns={5}>
-        <StatsCard
-          title="Pending"
-          value={pendingCount}
-          description="Awaiting approval"
-          icon={Clock}
-          variant="warning"
-        />
-        <StatsCard
-          title="Approved"
-          value={approvedCount}
-          description="Ready to dispatch"
-          icon={CheckCircle}
-          variant="info"
-        />
-        <StatsCard
-          title="In Transit"
-          value={inTransitCount}
-          description="Awaiting receipt"
-          icon={Truck}
-        />
-        <StatsCard
-          title="Completed"
-          value={completedCount}
-          description="Successfully received"
-          icon={CheckCircle}
-          variant="success"
-        />
-        <StatsCard
-          title="Total"
-          value={transfers?.length || 0}
-          description="All requests"
-          icon={ArrowRightLeft}
-        />
-      </StatsGrid>
+      {/* Status Filter Tabs */}
+      <Card className="p-1.5 bg-muted/50">
+        <div className="flex gap-1 overflow-x-auto">
+          {filterTabs.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setFilterStatus(tab.value)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap",
+                filterStatus === tab.value
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+              )}
+            >
+              {tab.label}
+              <Badge 
+                variant={filterStatus === tab.value ? "default" : "secondary"} 
+                className={cn(
+                  "h-5 min-w-[20px] px-1.5 text-xs",
+                  filterStatus === tab.value ? "" : "bg-muted-foreground/10"
+                )}
+              >
+                {tab.count}
+              </Badge>
+            </button>
+          ))}
+        </div>
+      </Card>
 
       {/* Transfers Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Transfer History</CardTitle>
-          <CardDescription>View and manage stock transfer requests</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2 mb-4 flex-wrap">
-            {[
-              { value: 'all', label: 'All' },
-              { value: 'pending', label: 'Pending' },
-              { value: 'approved', label: 'Approved' },
-              { value: 'in_transit', label: 'Dispatched' },
-              { value: 'completed', label: 'Completed' },
-              { value: 'rejected', label: 'Rejected' }
-            ].map(status => (
-              <Button
-                key={status.value}
-                variant={filterStatus === status.value ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilterStatus(status.value)}
-              >
-                {status.label}
-              </Button>
-            ))}
-          </div>
-
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+      <Card className="overflow-hidden">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Loading transfers...</p>
             </div>
-          ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>From → To</TableHead>
-                    <TableHead>Items</TableHead>
-                    <TableHead>Requested By</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {transfers && transfers.length > 0 ? (
-                    transfers.map(transfer => (
-                      <TableRow key={transfer.id}>
-                        <TableCell className="text-sm">
-                          {format(new Date(transfer.created_at), "MMM dd, yyyy")}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{transfer.from_outlet?.name}</span>
-                            <ArrowRightLeft className="h-3 w-3 text-muted-foreground" />
-                            <span className="font-medium">{transfer.to_outlet?.name}</span>
+          </div>
+        ) : transfers && transfers.length > 0 ? (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30 hover:bg-muted/30">
+                  <TableHead className="font-semibold">Transfer Route</TableHead>
+                  <TableHead className="font-semibold">Items</TableHead>
+                  <TableHead className="font-semibold">Requested By</TableHead>
+                  <TableHead className="font-semibold">Date</TableHead>
+                  <TableHead className="font-semibold">Status</TableHead>
+                  <TableHead className="text-right font-semibold">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {transfers.map((transfer) => {
+                  const productCount = transfer.items?.length || 0;
+                  const totalUnits = transfer.items?.reduce((sum, item) => sum + (item.quantity_approved || item.quantity_requested), 0) || 0;
+                  
+                  return (
+                    <TableRow 
+                      key={transfer.id} 
+                      className="group cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => openViewDetails(transfer)}
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                            <ArrowRightLeft className="h-5 w-5 text-primary" />
                           </div>
-                        </TableCell>
-                        <TableCell>{getItemsSummary(transfer)}</TableCell>
-                        <TableCell>{transfer.requester?.full_name}</TableCell>
-                        <TableCell>{getStatusBadge(transfer.status)}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex gap-1 justify-end">
-                            {/* View Details - Always visible */}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="gap-1"
-                              onClick={() => openViewDetails(transfer)}
-                            >
-                              <Eye className="h-4 w-4" />
-                              View
-                            </Button>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 text-sm">
+                              <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                              <span className="font-medium truncate">{transfer.from_outlet?.name || 'Unknown'}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
+                              <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{transfer.to_outlet?.name || 'Unknown'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-md bg-secondary flex items-center justify-center">
+                            <Package className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{productCount} products</p>
+                            <p className="text-xs text-muted-foreground">{totalUnits} units total</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-full bg-secondary flex items-center justify-center">
+                            <User className="h-3.5 w-3.5 text-muted-foreground" />
+                          </div>
+                          <span className="text-sm">{transfer.requester?.full_name || 'Unknown'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Calendar className="h-3.5 w-3.5" />
+                          {format(new Date(transfer.created_at), "MMM dd, yyyy")}
+                        </div>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(transfer.status)}</TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex gap-1.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 gap-1.5"
+                            onClick={() => openViewDetails(transfer)}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            View
+                          </Button>
 
-                            {/* Pending: Warehouse/Admin can approve/reject */}
-                            {transfer.status === 'pending' && isWarehouseOrAdmin && (
-                              <>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-green-600 hover:bg-green-50 hover:text-green-700"
-                                  onClick={() => handleApprove(transfer.id)}
-                                  disabled={loadingActions[transfer.id] === 'approve'}
-                                >
-                                  {loadingActions[transfer.id] === 'approve' && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                                  Approve
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                                  onClick={() => openRejectDialog(transfer)}
-                                  disabled={!!loadingActions[transfer.id]}
-                                >
-                                  Reject
-                                </Button>
-                              </>
-                            )}
-
-                            {/* Approved: Warehouse/Admin can dispatch */}
-                            {transfer.status === 'approved' && isWarehouseOrAdmin && (
+                          {transfer.status === 'pending' && isWarehouseOrAdmin && (
+                            <>
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="gap-1"
-                                onClick={() => handleDispatch(transfer.id)}
-                                disabled={loadingActions[transfer.id] === 'dispatch'}
+                                className="h-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200"
+                                onClick={() => handleApprove(transfer.id)}
+                                disabled={loadingActions[transfer.id] === 'approve'}
                               >
-                                {loadingActions[transfer.id] === 'dispatch' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
-                                Dispatch
+                                {loadingActions[transfer.id] === 'approve' ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                                )}
+                                Approve
                               </Button>
-                            )}
-
-                            {/* In Transit: Store manager can receive */}
-                            {transfer.status === 'in_transit' && isStoreManager && (
                               <Button
-                                variant="default"
+                                variant="outline"
                                 size="sm"
-                                className="gap-1"
-                                onClick={() => openReceiveDialog(transfer)}
+                                className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                                onClick={() => openRejectDialog(transfer)}
+                                disabled={!!loadingActions[transfer.id]}
                               >
-                                <PackageCheck className="h-4 w-4" />
-                                Receive
+                                <XCircle className="h-3.5 w-3.5 mr-1" />
+                                Reject
                               </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        No transfer requests found
+                            </>
+                          )}
+
+                          {transfer.status === 'approved' && isWarehouseOrAdmin && (
+                            <Button
+                              size="sm"
+                              className="h-8 gap-1.5"
+                              onClick={() => handleDispatch(transfer.id)}
+                              disabled={loadingActions[transfer.id] === 'dispatch'}
+                            >
+                              {loadingActions[transfer.id] === 'dispatch' ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Truck className="h-3.5 w-3.5" />
+                              )}
+                              Dispatch
+                            </Button>
+                          )}
+
+                          {transfer.status === 'in_transit' && isStoreManager && (
+                            <Button
+                              size="sm"
+                              className="h-8 gap-1.5"
+                              onClick={() => openReceiveDialog(transfer)}
+                            >
+                              <PackageCheck className="h-3.5 w-3.5" />
+                              Receive
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+              <ArrowRightLeft className="h-8 w-8 text-muted-foreground" />
             </div>
-          )}
-        </CardContent>
+            <h3 className="text-lg font-semibold mb-1">No transfers found</h3>
+            <p className="text-sm text-muted-foreground text-center max-w-sm mb-6">
+              {filterStatus === 'all' 
+                ? "Create your first stock transfer request to move inventory between outlets."
+                : `No transfers with "${filterStatus.replace('_', ' ')}" status.`}
+            </p>
+            {filterStatus === 'all' && (
+              <Button onClick={() => setTransferDialogOpen(true)} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Create Transfer Request
+              </Button>
+            )}
+          </div>
+        )}
       </Card>
 
       {/* Dialogs */}
