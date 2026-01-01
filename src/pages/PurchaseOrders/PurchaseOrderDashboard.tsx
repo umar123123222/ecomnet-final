@@ -3,20 +3,23 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, FileText, Calendar, DollarSign, XCircle, CheckCircle, Send, CreditCard, AlertCircle, Loader2, ClipboardList } from 'lucide-react';
-import { PageContainer, PageHeader } from '@/components/layout';
+import { Plus, Search, FileText, Calendar, DollarSign, XCircle, CheckCircle, CreditCard, Loader2, ClipboardList, Package, Truck, Building2, ArrowRight, Minus, X } from 'lucide-react';
+import { PageContainer, PageHeader, StatsCard, StatsGrid } from '@/components/layout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCurrency } from '@/hooks/useCurrency';
 import { format } from 'date-fns';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface PurchaseOrder {
   id: string;
@@ -39,6 +42,7 @@ const PurchaseOrderDashboard = () => {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const { currency } = useCurrency();
+  const isMobile = useIsMobile();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -46,8 +50,8 @@ const PurchaseOrderDashboard = () => {
   const [paymentDialog, setPaymentDialog] = useState<{ open: boolean; po: PurchaseOrder | null; suggestedAmount: number | null }>({ open: false, po: null, suggestedAmount: null });
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
-  const [activeTab, setActiveTab] = useState('all');
   const [loadingSuggestion, setLoadingSuggestion] = useState(false);
+  const [itemSearch, setItemSearch] = useState('');
 
   const [formData, setFormData] = useState({
     supplier_id: '',
@@ -62,6 +66,7 @@ const PurchaseOrderDashboard = () => {
     type: 'product' | 'packaging';
     quantity: number;
     unit_price: number;
+    sku: string;
   }>>([]);
 
   // Fetch POs
@@ -118,7 +123,7 @@ const PurchaseOrderDashboard = () => {
     }
   });
 
-  // Fetch supplier assigned products (from supplier_products table)
+  // Fetch supplier assigned products
   const { data: supplierProducts = [] } = useQuery({
     queryKey: ['supplier-assigned-products', formData.supplier_id],
     queryFn: async () => {
@@ -136,7 +141,6 @@ const PurchaseOrderDashboard = () => {
         .eq('supplier_id', formData.supplier_id);
       if (error) throw error;
       
-      // Separate products and packaging
       const products = data?.filter(sp => sp.product_id && sp.products).map(sp => ({
         id: sp.products!.id,
         name: sp.products!.name,
@@ -149,7 +153,7 @@ const PurchaseOrderDashboard = () => {
     enabled: !!formData.supplier_id
   });
 
-  // Fetch supplier assigned packaging (from supplier_products table)
+  // Fetch supplier assigned packaging
   const { data: supplierPackaging = [] } = useQuery({
     queryKey: ['supplier-assigned-packaging', formData.supplier_id],
     queryFn: async () => {
@@ -189,6 +193,7 @@ const PurchaseOrderDashboard = () => {
   // Reset items when supplier changes
   useEffect(() => {
     setSelectedItems([]);
+    setItemSearch('');
   }, [formData.supplier_id]);
 
   // Generate PO number
@@ -204,7 +209,6 @@ const PurchaseOrderDashboard = () => {
       const poNumber = generatePONumber();
       const totalAmount = selectedItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
       
-      // Fix: Convert empty string to null for timestamp fields
       const insertData = {
         supplier_id: data.supplier_id,
         outlet_id: data.outlet_id,
@@ -227,7 +231,6 @@ const PurchaseOrderDashboard = () => {
       
       if (poError) throw poError;
 
-      // Create PO items
       const poItems = selectedItems.map(item => ({
         po_id: poData.id,
         product_id: item.type === 'product' ? item.id : null,
@@ -243,7 +246,6 @@ const PurchaseOrderDashboard = () => {
       
       if (itemsError) throw itemsError;
 
-      // Send email notification to warehouse managers, creator, super managers, and super admins
       try {
         await supabase.functions.invoke('send-po-notification', {
           body: {
@@ -261,10 +263,8 @@ const PurchaseOrderDashboard = () => {
             notify_admins: true
           }
         });
-        console.log('PO notification emails sent');
       } catch (emailError) {
         console.error('Failed to send PO notification emails:', emailError);
-        // Don't throw - PO was created successfully, email is secondary
       }
       
       return poData;
@@ -286,8 +286,6 @@ const PurchaseOrderDashboard = () => {
       });
     }
   });
-
-  // REMOVED: Approve mutation - no longer needed since POs go directly to supplier
 
   // Cancel PO
   const cancelMutation = useMutation({
@@ -360,6 +358,7 @@ const PurchaseOrderDashboard = () => {
       notes: ''
     });
     setSelectedItems([]);
+    setItemSearch('');
   };
 
   // Open payment dialog and calculate suggested amount
@@ -370,7 +369,6 @@ const PurchaseOrderDashboard = () => {
     setPaymentReference('');
     
     try {
-      // Fetch GRN items to calculate suggested payment based on received quantities
       const { data: grnData } = await supabase
         .from('goods_received_notes')
         .select(`
@@ -390,14 +388,12 @@ const PurchaseOrderDashboard = () => {
       let suggestedAmount = 0;
       
       if (grnData?.grn_items && grnData.grn_items.length > 0) {
-        // Calculate based on received quantities
         suggestedAmount = grnData.grn_items.reduce((sum: number, item: any) => {
           const received = item.quantity_received || 0;
           const unitPrice = item.unit_cost || item.purchase_order_items?.unit_price || 0;
           return sum + (received * unitPrice);
         }, 0);
         
-        // Add shipping cost if available
         const { data: poData } = await supabase
           .from('purchase_orders')
           .select('shipping_cost')
@@ -408,7 +404,6 @@ const PurchaseOrderDashboard = () => {
           suggestedAmount += poData.shipping_cost;
         }
       } else {
-        // No GRN, use original PO total
         suggestedAmount = po.total_amount;
       }
       
@@ -421,15 +416,17 @@ const PurchaseOrderDashboard = () => {
     }
   };
 
-  const addItem = (itemId: string, itemName: string, itemType: 'product' | 'packaging', cost: number) => {
+  const addItem = (itemId: string, itemName: string, itemType: 'product' | 'packaging', cost: number, sku: string) => {
     if (selectedItems.find(i => i.id === itemId)) return;
     setSelectedItems([...selectedItems, {
       id: itemId,
       name: itemName,
       type: itemType,
       quantity: 1,
-      unit_price: cost || 0
+      unit_price: cost || 0,
+      sku
     }]);
+    setItemSearch('');
   };
 
   const updateItemQuantity = (itemId: string, quantity: number) => {
@@ -459,26 +456,42 @@ const PurchaseOrderDashboard = () => {
     po.po_number.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Filter available items for search
+  const allAvailableItems = [
+    ...supplierProducts.map(p => ({ ...p, type: 'product' as const })),
+    ...supplierPackaging.map(p => ({ ...p, type: 'packaging' as const }))
+  ].filter(item => 
+    !selectedItems.find(s => s.id === item.id) &&
+    (item.name.toLowerCase().includes(itemSearch.toLowerCase()) || 
+     item.sku.toLowerCase().includes(itemSearch.toLowerCase()))
+  );
+
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string, className?: string }> = {
-      pending: { variant: 'secondary', label: 'Awaiting Supplier' },
-      draft: { variant: 'secondary', label: 'Draft' },
-      sent: { variant: 'outline', label: 'Sent to Supplier' },
-      confirmed: { variant: 'default', label: 'Confirmed' },
-      supplier_rejected: { variant: 'destructive', label: 'Supplier Rejected' },
-      in_transit: { variant: 'default', label: 'In Transit', className: 'bg-blue-500' },
-      partially_received: { variant: 'outline', label: 'Partial Received' },
-      completed: { variant: 'default', label: 'Completed', className: 'bg-green-500' },
-      cancelled: { variant: 'destructive', label: 'Cancelled' }
+    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string, className?: string, icon?: any }> = {
+      pending: { variant: 'secondary', label: 'Awaiting Supplier', icon: ClipboardList },
+      draft: { variant: 'secondary', label: 'Draft', icon: FileText },
+      sent: { variant: 'outline', label: 'Sent to Supplier', icon: FileText },
+      confirmed: { variant: 'default', label: 'Confirmed', icon: CheckCircle },
+      supplier_rejected: { variant: 'destructive', label: 'Rejected', icon: XCircle },
+      in_transit: { variant: 'default', label: 'In Transit', className: 'bg-blue-500 hover:bg-blue-600', icon: Truck },
+      partially_received: { variant: 'outline', label: 'Partial', icon: Package },
+      completed: { variant: 'default', label: 'Completed', className: 'bg-green-500 hover:bg-green-600', icon: CheckCircle },
+      cancelled: { variant: 'destructive', label: 'Cancelled', icon: XCircle }
     };
     const config = variants[status] || variants.pending;
-    return <Badge variant={config.variant} className={config.className}>{config.label}</Badge>;
+    const Icon = config.icon;
+    return (
+      <Badge variant={config.variant} className={`${config.className || ''} gap-1`}>
+        {Icon && <Icon className="h-3 w-3" />}
+        {config.label}
+      </Badge>
+    );
   };
 
   const getPaymentBadge = (status: string | null) => {
-    if (!status || status === 'pending') return <Badge variant="outline">Unpaid</Badge>;
-    if (status === 'partial') return <Badge className="bg-orange-500">Partial</Badge>;
-    if (status === 'paid') return <Badge className="bg-green-500">Paid</Badge>;
+    if (!status || status === 'pending') return <Badge variant="outline" className="gap-1"><DollarSign className="h-3 w-3" />Unpaid</Badge>;
+    if (status === 'partial') return <Badge className="bg-orange-500 hover:bg-orange-600 gap-1"><DollarSign className="h-3 w-3" />Partial</Badge>;
+    if (status === 'paid') return <Badge className="bg-green-500 hover:bg-green-600 gap-1"><CheckCircle className="h-3 w-3" />Paid</Badge>;
     return null;
   };
 
@@ -493,215 +506,347 @@ const PurchaseOrderDashboard = () => {
     ).length
   };
 
-  return (
-    <PageContainer>
-      <PageHeader
-        title="Purchase Orders"
-        description="Manage purchase orders and supplier orders"
-        icon={ClipboardList}
-        actions={
-          <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
-            {createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-            {createMutation.isPending ? 'Creating...' : 'Create PO'}
-          </Button>
-        }
-      />
+  const totalValue = selectedItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+  const selectedSupplier = suppliers.find(s => s.id === formData.supplier_id);
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Purchase Order</DialogTitle>
-          </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="supplier_id">Supplier *</Label>
-                <Select value={formData.supplier_id} onValueChange={(value) => setFormData({ ...formData, supplier_id: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select supplier" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {suppliers.map(supplier => (
-                      <SelectItem key={supplier.id} value={supplier.id}>
-                        {supplier.name} ({supplier.code})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+  // Create PO Form Content
+  const CreatePOFormContent = () => (
+    <form onSubmit={handleSubmit} className="flex flex-col h-full">
+      <Tabs defaultValue="details" className="flex-1 flex flex-col">
+        <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsTrigger value="details" className="text-sm">Details</TabsTrigger>
+          <TabsTrigger value="items" className="text-sm">
+            Items {selectedItems.length > 0 && `(${selectedItems.length})`}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="details" className="flex-1 space-y-4 mt-0">
+          {/* Visual Route Header */}
+          <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-4">
+            <div className="flex items-center justify-center gap-3">
+              <div className="text-center">
+                <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-1">
+                  <Building2 className="h-5 w-5 text-primary" />
+                </div>
+                <p className="text-xs font-medium">{selectedSupplier?.name || 'Supplier'}</p>
               </div>
-
-              <div>
-                <Label htmlFor="outlet_id">Receiving Location</Label>
-                <Input 
-                  value={mainWarehouse?.name || 'Main Warehouse'} 
-                  disabled 
-                  className="bg-muted"
-                />
+              <ArrowRight className="h-5 w-5 text-muted-foreground" />
+              <div className="text-center">
+                <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-1">
+                  <Package className="h-5 w-5 text-primary" />
+                </div>
+                <p className="text-xs font-medium">{mainWarehouse?.name || 'Warehouse'}</p>
               </div>
+            </div>
+          </div>
 
-              <div>
-                <Label htmlFor="expected_delivery_date">Recommended Delivery Date</Label>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium">Supplier *</Label>
+              <Select value={formData.supplier_id} onValueChange={(value) => setFormData({ ...formData, supplier_id: value })}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Select supplier" />
+                </SelectTrigger>
+                <SelectContent>
+                  {suppliers.map(supplier => (
+                    <SelectItem key={supplier.id} value={supplier.id}>
+                      <span className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4 text-muted-foreground" />
+                        {supplier.name} <span className="text-muted-foreground">({supplier.code})</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium">Receiving Location</Label>
+              <Input 
+                value={mainWarehouse?.name || 'Main Warehouse'} 
+                disabled 
+                className="bg-muted mt-1.5"
+              />
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium">Expected Delivery Date</Label>
+              <Input
+                type="date"
+                value={formData.expected_delivery_date}
+                onChange={(e) => setFormData({ ...formData, expected_delivery_date: e.target.value })}
+                className="mt-1.5"
+              />
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium">Notes</Label>
+              <Textarea
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                placeholder="Add any notes for the supplier..."
+                className="mt-1.5 min-h-[80px]"
+              />
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="items" className="flex-1 flex flex-col mt-0 space-y-4">
+          {!formData.supplier_id ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center p-6">
+                <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">Select a supplier first to view available items</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Item Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  id="expected_delivery_date"
-                  type="date"
-                  value={formData.expected_delivery_date}
-                  onChange={(e) => setFormData({ ...formData, expected_delivery_date: e.target.value })}
+                  placeholder="Search products or packaging..."
+                  value={itemSearch}
+                  onChange={(e) => setItemSearch(e.target.value)}
+                  className="pl-10"
                 />
               </div>
 
-              <div>
-                <Label>Items</Label>
-                <div className="space-y-2">
-                  <Select onValueChange={(value) => {
-                    const [type, id] = value.split(':');
-                    const item = type === 'product' 
-                      ? supplierProducts.find(p => p.id === id)
-                      : supplierPackaging.find(p => p.id === id);
-                    if (item) {
-                      addItem(item.id, item.name, type as 'product' | 'packaging', item.cost || 0);
-                    }
-                  }} disabled={!formData.supplier_id}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select item to add" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {supplierProducts.length > 0 && (
-                        <>
-                          <div className="px-2 py-1.5 text-sm font-semibold">Products</div>
-                          {supplierProducts.map(product => (
-                            <SelectItem key={`product:${product.id}`} value={`product:${product.id}`}>
-                              {product.name} ({product.sku})
-                            </SelectItem>
-                          ))}
-                        </>
-                      )}
-                      {supplierPackaging.length > 0 && (
-                        <>
-                          <div className="px-2 py-1.5 text-sm font-semibold">Packaging</div>
-                          {supplierPackaging.map(pkg => (
-                            <SelectItem key={`packaging:${pkg.id}`} value={`packaging:${pkg.id}`}>
-                              {pkg.name} ({pkg.sku})
-                            </SelectItem>
-                          ))}
-                        </>
-                      )}
-                      {supplierProducts.length === 0 && supplierPackaging.length === 0 && (
-                        <div className="px-2 py-1.5 text-sm text-muted-foreground">No items available</div>
-                      )}
-                    </SelectContent>
-                  </Select>
-
-                  {selectedItems.length > 0 && (
-                    <div className="border rounded-md divide-y">
-                      {selectedItems.map(item => (
-                        <div key={item.id} className="p-3 flex items-center gap-2">
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">{item.name}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{item.type}</p>
+              {/* Search Results */}
+              {itemSearch && allAvailableItems.length > 0 && (
+                <Card className="border-dashed">
+                  <ScrollArea className="max-h-[200px]">
+                    <div className="p-2 space-y-1">
+                      {allAvailableItems.slice(0, 10).map(item => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => addItem(item.id, item.name, item.type, item.cost, item.sku)}
+                          className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors text-left"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${item.type === 'product' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
+                              <Package className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">{item.name}</p>
+                              <p className="text-xs text-muted-foreground">{item.sku} • {item.type}</p>
+                            </div>
                           </div>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) => updateItemQuantity(item.id, parseInt(e.target.value) || 1)}
-                            className="w-20"
-                            placeholder="Qty"
-                          />
+                          <Badge variant="secondary" className="text-xs">
+                            {currency} {item.cost.toLocaleString()}
+                          </Badge>
+                        </button>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </Card>
+              )}
+
+              {itemSearch && allAvailableItems.length === 0 && (
+                <div className="text-center py-4 text-sm text-muted-foreground">
+                  No items found matching "{itemSearch}"
+                </div>
+              )}
+
+              {/* Selected Items */}
+              <div className="flex-1">
+                <Label className="text-sm font-medium mb-2 block">
+                  Selected Items ({selectedItems.length})
+                </Label>
+                {selectedItems.length === 0 ? (
+                  <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                    <Package className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">Search and add items above</p>
+                  </div>
+                ) : (
+                  <ScrollArea className={isMobile ? 'max-h-[250px]' : 'max-h-[300px]'}>
+                    <div className="space-y-2">
+                      {selectedItems.map(item => (
+                        <div key={item.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                          <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${item.type === 'product' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
+                            <Package className="h-4 w-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{item.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {currency} {item.unit_price.toLocaleString()} each
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => updateItemQuantity(item.id, item.quantity - 1)}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => updateItemQuantity(item.id, parseInt(e.target.value) || 1)}
+                              className="w-16 h-8 text-center"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => updateItemQuantity(item.id, item.quantity + 1)}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
                           <Button
                             type="button"
                             variant="ghost"
-                            size="sm"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
                             onClick={() => removeItem(item.id)}
                           >
-                            ×
+                            <X className="h-4 w-4" />
                           </Button>
                         </div>
                       ))}
                     </div>
-                  )}
-                </div>
+                  </ScrollArea>
+                )}
               </div>
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
 
-              <div>
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                />
-              </div>
+      {/* Footer with Total */}
+      <div className="border-t pt-4 mt-4 space-y-4">
+        {selectedItems.length > 0 && (
+          <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg">
+            <span className="font-medium">Total Value</span>
+            <span className="text-lg font-bold text-primary">{currency} {totalValue.toLocaleString()}</span>
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" className="flex-1" onClick={() => setIsDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button 
+            type="submit" 
+            className="flex-1"
+            disabled={createMutation.isPending || !formData.supplier_id || selectedItems.length === 0}
+          >
+            {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {createMutation.isPending ? 'Creating...' : 'Create PO'}
+          </Button>
+        </div>
+      </div>
+    </form>
+  );
 
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={createMutation.isPending || !formData.supplier_id || !formData.outlet_id || selectedItems.length === 0}>
-                  {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  {createMutation.isPending ? 'Creating...' : 'Create PO'}
-                </Button>
-              </div>
-            </form>
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Purchase Orders"
+        description="Manage supplier orders and procurement"
+        icon={ClipboardList}
+        actions={
+          <Button onClick={() => { resetForm(); setIsDialogOpen(true); }} className="gap-2">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Create PO</span>
+            <span className="sm:hidden">New</span>
+          </Button>
+        }
+      />
+
+      {/* Create PO Sheet for Mobile, Dialog for Desktop */}
+      {isMobile ? (
+        <Sheet open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <SheetContent side="right" className="w-full sm:max-w-lg flex flex-col p-0">
+            <SheetHeader className="p-4 border-b">
+              <SheetTitle className="flex items-center gap-2">
+                <ClipboardList className="h-5 w-5" />
+                Create Purchase Order
+              </SheetTitle>
+            </SheetHeader>
+            <div className="flex-1 overflow-auto p-4">
+              <CreatePOFormContent />
+            </div>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="max-w-lg max-h-[85vh] flex flex-col p-0">
+            <DialogHeader className="p-6 pb-4 border-b">
+              <DialogTitle className="flex items-center gap-2">
+                <ClipboardList className="h-5 w-5" />
+                Create Purchase Order
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-auto p-6 pt-4">
+              <CreatePOFormContent />
+            </div>
           </DialogContent>
         </Dialog>
+      )}
 
-
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.pending}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Sent/Confirmed</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.sent}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">In Transit</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.inTransit}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Completed</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.completed}</div>
-          </CardContent>
-        </Card>
+      {/* Stats Grid - Responsive */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <StatsCard
+          title="Pending"
+          value={stats.pending}
+          icon={ClipboardList}
+          description="Awaiting supplier"
+          onClick={() => setStatusFilter('pending')}
+          className={statusFilter === 'pending' ? 'ring-2 ring-primary' : 'cursor-pointer hover:shadow-md transition-shadow'}
+        />
+        <StatsCard
+          title="Confirmed"
+          value={stats.sent}
+          icon={CheckCircle}
+          description="By supplier"
+          onClick={() => setStatusFilter('confirmed')}
+          className={statusFilter === 'confirmed' ? 'ring-2 ring-primary' : 'cursor-pointer hover:shadow-md transition-shadow'}
+        />
+        <StatsCard
+          title="In Transit"
+          value={stats.inTransit}
+          icon={Truck}
+          description="On the way"
+          onClick={() => setStatusFilter('in_transit')}
+          className={statusFilter === 'in_transit' ? 'ring-2 ring-primary' : 'cursor-pointer hover:shadow-md transition-shadow'}
+        />
+        <StatsCard
+          title="Completed"
+          value={stats.completed}
+          icon={Package}
+          description="Received"
+          onClick={() => setStatusFilter('completed')}
+          className={statusFilter === 'completed' ? 'ring-2 ring-primary' : 'cursor-pointer hover:shadow-md transition-shadow'}
+        />
       </div>
 
-      {/* Filters */}
+      {/* Filters - Responsive */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by PO number..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+        <CardContent className="p-3 md:p-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by PO number..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending Approval</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="sent">Sent</SelectItem>
                 <SelectItem value="confirmed">Confirmed</SelectItem>
                 <SelectItem value="supplier_rejected">Rejected</SelectItem>
@@ -711,52 +856,120 @@ const PurchaseOrderDashboard = () => {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
+            {statusFilter !== 'all' && (
+              <Button variant="ghost" size="sm" onClick={() => setStatusFilter('all')} className="shrink-0">
+                Clear
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
 
       {/* PO List */}
       {isLoading ? (
-        <div className="text-center py-12">Loading purchase orders...</div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
       ) : filteredPOs.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No purchase orders found. Create your first PO to get started.</p>
+            <h3 className="font-medium text-lg mb-1">No Purchase Orders</h3>
+            <p className="text-muted-foreground text-sm">Create your first PO to get started.</p>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {filteredPOs.map((po) => (
-            <Card key={po.id} className="hover:shadow-lg transition-shadow">
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-3 flex-1">
+            <Card key={po.id} className="hover:shadow-md transition-shadow group">
+              <CardContent className="p-4">
+                {/* Mobile Layout */}
+                <div className="md:hidden space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-semibold">{po.po_number}</h3>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        {po.suppliers?.name}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      {getStatusBadge(po.status)}
+                      {getPaymentBadge(po.payment_status)}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-4 text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3.5 w-3.5" />
+                        {format(new Date(po.order_date), 'MMM dd')}
+                      </span>
+                    </div>
+                    <div className="font-semibold">
+                      {currency} {po.total_amount.toLocaleString()}
+                    </div>
+                  </div>
+
+                  {/* Mobile Actions */}
+                  <div className="flex gap-2 pt-2 border-t">
+                    {(po.status === 'completed' || po.status === 'partially_received') && 
+                     po.payment_status !== 'paid' &&
+                     !po.supplier_payment_confirmed &&
+                     (profile?.role === 'super_admin' || profile?.role === 'finance') && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openPaymentDialog(po)}
+                        className="flex-1 text-blue-600"
+                      >
+                        <CreditCard className="mr-1.5 h-3.5 w-3.5" />
+                        Pay
+                      </Button>
+                    )}
+                    {['pending', 'draft', 'sent', 'confirmed'].includes(po.status) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCancelDialog({ open: true, po })}
+                        className="flex-1 text-destructive"
+                      >
+                        <XCircle className="mr-1.5 h-3.5 w-3.5" />
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Desktop Layout */}
+                <div className="hidden md:flex items-start justify-between">
+                  <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-3">
-                      <FileText className="h-5 w-5 text-primary" />
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <FileText className="h-5 w-5 text-primary" />
+                      </div>
                       <div>
                         <h3 className="font-semibold text-lg">{po.po_number}</h3>
                         <p className="text-sm text-muted-foreground">
                           {po.suppliers?.name} → {po.outlets?.name}
                           {po.profiles && (
-                            <span className="ml-2">• Created by: {po.profiles.full_name || po.profiles.email}</span>
+                            <span className="ml-2">• {po.profiles.full_name || po.profiles.email}</span>
                           )}
                         </p>
                       </div>
                     </div>
                     
-                    <div className="flex gap-6 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex gap-6 text-sm pl-13">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
                         <span>{format(new Date(po.order_date), 'MMM dd, yyyy')}</span>
                       </div>
                       {po.expected_delivery_date && (
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span>Expected: {format(new Date(po.expected_delivery_date), 'MMM dd, yyyy')}</span>
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Truck className="h-4 w-4" />
+                          <span>Expected: {format(new Date(po.expected_delivery_date), 'MMM dd')}</span>
                         </div>
                       )}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 font-medium">
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                         <span>{currency} {po.total_amount.toLocaleString()}</span>
                       </div>
@@ -764,9 +977,6 @@ const PurchaseOrderDashboard = () => {
                         <div className="flex items-center gap-2 text-green-600">
                           <CheckCircle className="h-4 w-4" />
                           <span>Paid: {currency} {po.paid_amount.toLocaleString()}</span>
-                          {po.payment_reference && (
-                            <span className="text-muted-foreground">({po.payment_reference})</span>
-                          )}
                         </div>
                       )}
                     </div>
@@ -777,11 +987,7 @@ const PurchaseOrderDashboard = () => {
                       {getStatusBadge(po.status)}
                       {getPaymentBadge(po.payment_status)}
                     </div>
-                    <div className="flex gap-1">
-                      {/* Payment button for completed/partially received POs - only for super_admin and super_manager */}
-                      
-                      {/* Payment button for completed/partially received POs - only for finance and super_admin */}
-                      {/* Hide when fully paid OR when supplier has confirmed payment receipt */}
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {(po.status === 'completed' || po.status === 'partially_received') && 
                        po.payment_status !== 'paid' &&
                        !po.supplier_payment_confirmed &&
@@ -792,12 +998,10 @@ const PurchaseOrderDashboard = () => {
                           onClick={() => openPaymentDialog(po)}
                           className="text-blue-600 hover:text-blue-700"
                         >
-                          <CreditCard className="mr-1 h-3 w-3" />
+                          <CreditCard className="mr-1.5 h-3.5 w-3.5" />
                           Record Payment
                         </Button>
                       )}
-                      
-                      {/* Cancel button */}
                       {['pending', 'draft', 'sent', 'confirmed'].includes(po.status) && (
                         <Button
                           variant="outline"
@@ -805,7 +1009,7 @@ const PurchaseOrderDashboard = () => {
                           onClick={() => setCancelDialog({ open: true, po })}
                           className="text-destructive hover:text-destructive"
                         >
-                          <XCircle className="mr-1 h-3 w-3" />
+                          <XCircle className="mr-1.5 h-3.5 w-3.5" />
                           Cancel
                         </Button>
                       )}
@@ -829,8 +1033,8 @@ const PurchaseOrderDashboard = () => {
               This will:
               <ul className="list-disc list-inside mt-2 space-y-1">
                 <li>Mark the PO as cancelled</li>
-                <li>Prevent any further receiving or processing</li>
-                <li>Notify the supplier (if already sent)</li>
+                <li>Prevent any further receiving</li>
+                <li>Notify the supplier</li>
               </ul>
               <br />
               This action cannot be undone.
@@ -848,70 +1052,80 @@ const PurchaseOrderDashboard = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* REMOVED: Approve Confirmation Dialog - no longer needed */}
-
       {/* Payment Dialog */}
       <Dialog open={paymentDialog.open} onOpenChange={(open) => setPaymentDialog({ ...paymentDialog, open })}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Record Payment</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Record Payment
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>PO: {paymentDialog.po?.po_number}</Label>
-              <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg">
-                <div>
-                  <p className="text-xs text-muted-foreground">Original PO Total</p>
-                  <p className="text-lg font-semibold">{currency} {paymentDialog.po?.total_amount?.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Suggested Payment</p>
-                  {loadingSuggestion ? (
-                    <p className="text-lg font-semibold text-muted-foreground">Calculating...</p>
-                  ) : (
-                    <p className={`text-lg font-semibold ${paymentDialog.suggestedAmount !== paymentDialog.po?.total_amount ? 'text-amber-600' : 'text-green-600'}`}>
-                      {currency} {paymentDialog.suggestedAmount?.toLocaleString()}
-                    </p>
-                  )}
-                </div>
+            <div className="p-4 bg-muted/50 rounded-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">PO Number</span>
+                <span className="font-medium">{paymentDialog.po?.po_number}</span>
               </div>
-              {paymentDialog.suggestedAmount !== null && paymentDialog.suggestedAmount !== paymentDialog.po?.total_amount && (
-                <p className="text-xs text-amber-600">
-                  * Suggested amount differs from original due to partial receiving
-                </p>
-              )}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Original Total</span>
+                <span className="font-medium">{currency} {paymentDialog.po?.total_amount?.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between border-t pt-2">
+                <span className="text-sm font-medium">Suggested Payment</span>
+                {loadingSuggestion ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <span className={`font-bold ${paymentDialog.suggestedAmount !== paymentDialog.po?.total_amount ? 'text-amber-600' : 'text-green-600'}`}>
+                    {currency} {paymentDialog.suggestedAmount?.toLocaleString()}
+                  </span>
+                )}
+              </div>
             </div>
+
+            {paymentDialog.suggestedAmount !== null && paymentDialog.suggestedAmount !== paymentDialog.po?.total_amount && (
+              <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                Suggested amount differs from original due to partial receiving
+              </p>
+            )}
+
             <div>
-              <Label>Amount Paid *</Label>
+              <Label className="text-sm font-medium">Amount Paid *</Label>
               <Input
                 type="number"
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
-                placeholder={paymentDialog.suggestedAmount ? `Suggested: ${paymentDialog.suggestedAmount}` : 'Enter amount'}
+                placeholder="Enter amount"
+                className="mt-1.5"
               />
               {paymentDialog.suggestedAmount && !paymentAmount && (
                 <Button 
                   variant="link" 
                   size="sm" 
-                  className="p-0 h-auto text-xs"
+                  className="p-0 h-auto text-xs mt-1"
                   onClick={() => setPaymentAmount(paymentDialog.suggestedAmount?.toString() || '')}
                 >
                   Use suggested amount
                 </Button>
               )}
             </div>
+
             <div>
-              <Label>Payment Reference</Label>
+              <Label className="text-sm font-medium">Payment Reference</Label>
               <Input
                 value={paymentReference}
                 onChange={(e) => setPaymentReference(e.target.value)}
-                placeholder="Transaction ID, cheque number, etc."
+                placeholder="Transaction ID, cheque number..."
+                className="mt-1.5"
               />
             </div>
           </div>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => setPaymentDialog({ open: false, po: null, suggestedAmount: null })}>Cancel</Button>
+          <div className="flex gap-2 mt-4">
+            <Button variant="outline" className="flex-1" onClick={() => setPaymentDialog({ open: false, po: null, suggestedAmount: null })}>
+              Cancel
+            </Button>
             <Button
+              className="flex-1"
               onClick={() => paymentDialog.po && paymentMutation.mutate({
                 po_id: paymentDialog.po.id,
                 amount: parseFloat(paymentAmount),
