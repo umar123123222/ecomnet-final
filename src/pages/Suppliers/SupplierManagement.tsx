@@ -386,41 +386,68 @@ const SupplierManagement = () => {
         }
       />
 
-      {/* Stats Cards */}
-      <StatsGrid columns={4}>
-        <StatsCard
-          title="Total Suppliers"
-          value={suppliers.length}
-          icon={Building2}
-          description="All suppliers"
-        />
-        <StatsCard
-          title="Active"
-          value={activeCount}
-          icon={CheckCircle}
-          description="Currently active"
-          className="border-l-4 border-l-emerald-500"
-        />
-        <StatsCard
-          title="Portal Access"
-          value={withPortalCount}
-          icon={Mail}
-          description="With portal access"
-        />
-        <StatsCard
-          title="Blacklisted"
-          value={blacklistedCount}
-          icon={AlertCircle}
-          description="Blocked suppliers"
-          className={blacklistedCount > 0 ? "border-l-4 border-l-destructive" : ""}
-        />
-      </StatsGrid>
+      {/* Stats Cards - 2 columns on mobile, 4 on desktop */}
+      {isMobile ? (
+        <div className="grid grid-cols-2 gap-3">
+          <Card className="p-3">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Building2 className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-lg font-bold">{suppliers.length}</p>
+                <p className="text-xs text-muted-foreground">Total</p>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-3 border-l-4 border-l-emerald-500">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                <CheckCircle className="h-4 w-4 text-emerald-500" />
+              </div>
+              <div>
+                <p className="text-lg font-bold">{activeCount}</p>
+                <p className="text-xs text-muted-foreground">Active</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      ) : (
+        <StatsGrid columns={4}>
+          <StatsCard
+            title="Total Suppliers"
+            value={suppliers.length}
+            icon={Building2}
+            description="All suppliers"
+          />
+          <StatsCard
+            title="Active"
+            value={activeCount}
+            icon={CheckCircle}
+            description="Currently active"
+            className="border-l-4 border-l-emerald-500"
+          />
+          <StatsCard
+            title="Portal Access"
+            value={withPortalCount}
+            icon={Mail}
+            description="With portal access"
+          />
+          <StatsCard
+            title="Blacklisted"
+            value={blacklistedCount}
+            icon={AlertCircle}
+            description="Blocked suppliers"
+            className={blacklistedCount > 0 ? "border-l-4 border-l-destructive" : ""}
+          />
+        </StatsGrid>
+      )}
 
       {/* Filters Bar */}
       <Card className="border-border/50">
-        <CardContent className="py-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1 relative">
+        <CardContent className={cn("py-3", isMobile && "px-3")}>
+          <div className="flex flex-col gap-3">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by name or code..."
@@ -429,28 +456,78 @@ const SupplierManagement = () => {
                 className="pl-10"
               />
             </div>
-            <div className="flex gap-2">
-              {['all', 'active', 'inactive', 'blacklisted'].map((status) => (
-                <Button
-                  key={status}
-                  variant={statusFilter === status ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setStatusFilter(status)}
-                  className={cn(
-                    "capitalize",
-                    statusFilter === status && status === 'active' && "bg-emerald-500 hover:bg-emerald-600",
-                    statusFilter === status && status === 'blacklisted' && "bg-destructive hover:bg-destructive/90"
-                  )}
-                >
-                  {status === 'all' ? 'All' : status}
-                  {status !== 'all' && (
-                    <span className="ml-1.5 text-xs opacity-70">
-                      ({status === 'active' ? activeCount : status === 'inactive' ? inactiveCount : blacklistedCount})
-                    </span>
-                  )}
-                </Button>
-              ))}
-            </div>
+            {isMobile ? (
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    <div className="flex items-center gap-2">
+                      <div className={cn(
+                        "h-2 w-2 rounded-full",
+                        statusFilter === 'active' && "bg-emerald-500",
+                        statusFilter === 'inactive' && "bg-muted-foreground",
+                        statusFilter === 'blacklisted' && "bg-destructive",
+                        statusFilter === 'all' && "bg-primary"
+                      )} />
+                      <span className="capitalize">{statusFilter === 'all' ? 'All Status' : statusFilter}</span>
+                      <span className="text-muted-foreground">
+                        ({statusFilter === 'all' ? suppliers.length : 
+                          statusFilter === 'active' ? activeCount : 
+                          statusFilter === 'inactive' ? inactiveCount : blacklistedCount})
+                      </span>
+                    </div>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-primary" />
+                      All Status ({suppliers.length})
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="active">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                      Active ({activeCount})
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="inactive">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-muted-foreground" />
+                      Inactive ({inactiveCount})
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="blacklisted">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-destructive" />
+                      Blacklisted ({blacklistedCount})
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex gap-2">
+                {['all', 'active', 'inactive', 'blacklisted'].map((status) => (
+                  <Button
+                    key={status}
+                    variant={statusFilter === status ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatusFilter(status)}
+                    className={cn(
+                      "capitalize",
+                      statusFilter === status && status === 'active' && "bg-emerald-500 hover:bg-emerald-600",
+                      statusFilter === status && status === 'blacklisted' && "bg-destructive hover:bg-destructive/90"
+                    )}
+                  >
+                    {status === 'all' ? 'All' : status}
+                    {status !== 'all' && (
+                      <span className="ml-1.5 text-xs opacity-70">
+                        ({status === 'active' ? activeCount : status === 'inactive' ? inactiveCount : blacklistedCount})
+                      </span>
+                    )}
+                  </Button>
+                ))}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -471,83 +548,99 @@ const SupplierManagement = () => {
           }
         />
       ) : isMobile ? (
-        // Mobile Card View
+        // Mobile Card View - Enhanced
         <div className="space-y-3">
           {filteredSuppliers.map((supplier) => (
             <Card 
               key={supplier.id} 
               className={cn(
-                "overflow-hidden transition-all",
+                "overflow-hidden transition-all active:scale-[0.99]",
                 supplier.status === 'blacklisted' && "border-destructive/30 bg-destructive/5"
               )}
             >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold truncate">{supplier.name}</h3>
-                      {getStatusBadge(supplier.status)}
+              <CardContent className="p-0">
+                {/* Header with name and status */}
+                <div className="p-3 pb-2 border-b border-border/50">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-base truncate">{supplier.name}</h3>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-muted-foreground font-mono">{supplier.code}</span>
+                        {getStatusBadge(supplier.status)}
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground font-mono">{supplier.code}</p>
+                    <div className="flex-shrink-0">
+                      {getRatingStars(supplier.rating)}
+                    </div>
                   </div>
-                  {getRatingStars(supplier.rating)}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                {/* Contact Info */}
+                <div className="p-3 py-2 space-y-1.5">
                   {supplier.contact_person && (
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <User className="h-3.5 w-3.5" />
+                    <div className="flex items-center gap-2 text-sm">
+                      <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <span className="truncate">{supplier.contact_person}</span>
                     </div>
                   )}
-                  {supplier.phone && (
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <Phone className="h-3.5 w-3.5" />
-                      <span className="truncate">{supplier.phone}</span>
-                    </div>
-                  )}
-                  {supplier.city && (
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <MapPin className="h-3.5 w-3.5" />
-                      <span className="truncate">{supplier.city}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-4">
+                    {supplier.phone && (
+                      <a href={`tel:${supplier.phone}`} className="flex items-center gap-2 text-sm text-primary">
+                        <Phone className="h-4 w-4 flex-shrink-0" />
+                        <span className="truncate">{supplier.phone}</span>
+                      </a>
+                    )}
+                    {supplier.city && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <MapPin className="h-4 w-4 flex-shrink-0" />
+                        <span className="truncate">{supplier.city}</span>
+                      </div>
+                    )}
+                  </div>
                   {supplier.has_portal_access && (
-                    <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-                      <CheckCircle className="h-3.5 w-3.5" />
-                      <span className="text-xs">Portal Active</span>
+                    <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 rounded-full px-2 py-1 w-fit">
+                      <CheckCircle className="h-3 w-3" />
+                      <span>Portal Access Active</span>
                     </div>
                   )}
                 </div>
 
-                <div className="flex gap-2">
-                  {permissions.canManageSuppliers && (
-                    <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEdit(supplier)}>
-                      <Edit2 className="h-3.5 w-3.5 mr-1" />
-                      Edit
-                    </Button>
-                  )}
-                  {hasAnyRole(['super_admin', 'super_manager']) && (
-                    <Button 
-                      size="sm" 
-                      variant="secondary" 
-                      className="flex-1" 
-                      onClick={() => setAssignProductsDialog({ open: true, supplierId: supplier.id, supplierName: supplier.name })}
-                    >
-                      <Package className="h-3.5 w-3.5 mr-1" />
-                      Products
-                    </Button>
-                  )}
-                  {permissions.canManageSuppliers && (
-                    <Button 
-                      size="sm" 
-                      variant="ghost" 
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => setDeleteDialog({ open: true, supplier })}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
+                {/* Action Buttons */}
+                <div className="p-3 pt-2 border-t border-border/50 bg-muted/30">
+                  <div className="flex gap-2">
+                    {permissions.canManageSuppliers && (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1 h-9" 
+                        onClick={() => handleEdit(supplier)}
+                      >
+                        <Edit2 className="h-4 w-4 mr-1.5" />
+                        Edit
+                      </Button>
+                    )}
+                    {hasAnyRole(['super_admin', 'super_manager']) && (
+                      <Button 
+                        size="sm" 
+                        variant="secondary" 
+                        className="flex-1 h-9" 
+                        onClick={() => setAssignProductsDialog({ open: true, supplierId: supplier.id, supplierName: supplier.name })}
+                      >
+                        <Package className="h-4 w-4 mr-1.5" />
+                        Products
+                      </Button>
+                    )}
+                    {permissions.canManageSuppliers && (
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        className="h-9 w-9 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setDeleteDialog({ open: true, supplier })}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
