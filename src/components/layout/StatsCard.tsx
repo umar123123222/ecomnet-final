@@ -3,13 +3,14 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { LucideIcon } from "lucide-react";
 type StatsVariant = "default" | "success" | "warning" | "danger" | "info";
-interface StatsCardProps {
+export interface StatsCardProps {
   title: string;
   value: string | number;
   description?: string;
   icon?: LucideIcon;
   variant?: StatsVariant;
   className?: string;
+  onClick?: () => void;
 }
 const variantStyles: Record<StatsVariant, {
   bg: string;
@@ -42,10 +43,11 @@ export function StatsCard({
   description,
   icon: Icon,
   variant = "default",
-  className
+  className,
+  onClick
 }: StatsCardProps) {
   const styles = variantStyles[variant];
-  return <Card className={cn("", className)}>
+  return <Card className={cn("", onClick && "cursor-pointer", className)} onClick={onClick}>
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="space-y-0.5 min-w-0 flex-1">
