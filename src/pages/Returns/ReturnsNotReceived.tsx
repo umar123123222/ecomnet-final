@@ -495,54 +495,54 @@ const ReturnsNotReceived = () => {
                   </TabsList>
                 </Tabs>
                 
-                <div className="flex items-center gap-2 ml-auto">
-                  {selectedReturns.length > 0 && (
-                    <Button variant="outline" size="sm" onClick={handleExportSelected}>
-                      <Download className="h-4 w-4 mr-2" />
-                      <span className="hidden sm:inline">Export</span> ({selectedReturns.length})
-                    </Button>
-                  )}
+                {selectedReturns.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={handleExportSelected} className="ml-auto">
+                    <Download className="h-4 w-4 mr-2" />
+                    <span className="hidden sm:inline">Export</span> ({selectedReturns.length})
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <CardContent className="p-3 sm:p-6">
+              {/* Search Bar with Filter */}
+              <div className="mb-4 sm:mb-6">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Input 
+                      placeholder="Search order, customer, phone, tracking..." 
+                      value={searchTerm} 
+                      onChange={e => setSearchTerm(e.target.value)} 
+                      className="pl-10 pr-10 h-11" 
+                    />
+                    {searchTerm && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8"
+                        onClick={() => setSearchTerm('')}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                   <Button 
                     variant="outline" 
-                    size="sm" 
-                    className="sm:hidden"
+                    size="icon"
+                    className={`sm:hidden h-11 w-11 shrink-0 ${showFilters ? 'bg-primary text-primary-foreground' : ''}`}
                     onClick={() => setShowFilters(!showFilters)}
                   >
                     <Filter className="h-4 w-4" />
                   </Button>
                 </div>
-              </div>
-              
-              {/* Mobile Filters */}
-              {showFilters && (
-                <div className="mt-3 sm:hidden space-y-3 animate-fade-in">
-                  <DatePickerWithRange date={dateRange} setDate={setDateRange} />
-                </div>
-              )}
-            </div>
-
-            <CardContent className="p-3 sm:p-6">
-              {/* Search Bar */}
-              <div className="mb-4 sm:mb-6">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                  <Input 
-                    placeholder="Search order, customer, phone, tracking..." 
-                    value={searchTerm} 
-                    onChange={e => setSearchTerm(e.target.value)} 
-                    className="pl-10 pr-10 h-11" 
-                  />
-                  {searchTerm && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8"
-                      onClick={() => setSearchTerm('')}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
+                
+                {/* Mobile Filters - Expandable */}
+                {showFilters && (
+                  <div className="mt-3 sm:hidden animate-fade-in">
+                    <DatePickerWithRange date={dateRange} setDate={setDateRange} />
+                  </div>
+                )}
               </div>
 
               {/* Mobile Card View */}
