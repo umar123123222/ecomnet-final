@@ -12,6 +12,7 @@ import { useUserRoles } from '@/hooks/useUserRoles';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
 import VersionDisplay from '@/components/VersionDisplay';
 import { useToast } from '@/hooks/use-toast';
+import { OfflineIndicator } from '@/components/OfflineIndicator';
 
 const Layout = () => {
   const [isDark, setIsDark] = useState(false);
@@ -77,6 +78,7 @@ const Layout = () => {
 
   return (
     <SidebarProvider>
+      <OfflineIndicator />
       <div className="min-h-screen flex w-full bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900">
         <Sidebar className="border-r border-white/20 bg-gradient-to-b from-slate-900 via-purple-900/50 to-slate-900 dark:from-gray-950 dark:via-purple-950/50 dark:to-gray-950" collapsible="icon">
           <SidebarHeader className="p-4 border-b border-white/10">
