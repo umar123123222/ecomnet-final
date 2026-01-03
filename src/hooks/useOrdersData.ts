@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { formatCurrency } from '@/utils/currency';
 
 export type SearchType = 'all' | 'order_number' | 'tracking_id' | 'tags' | 'order_id';
 
@@ -492,7 +493,7 @@ export const useOrdersData = () => {
           courier: order.courier || 'N/A',
           status: order.status,
           verificationStatus: order.verification_status || 'pending',
-          amount: `PKR ${actualTotal.toLocaleString()}`,
+          amount: formatCurrency(actualTotal),
           date: new Date(order.created_at || '').toLocaleDateString(),
           createdAtISO: order.created_at,
           address: order.customer_address,

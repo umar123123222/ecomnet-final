@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/table";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { SupplierMetricsCards, SupplierPerformanceOrderCard } from "./SupplierPerformanceMobileCard";
+import { useCurrency } from "@/hooks/useCurrency";
+import { formatCurrency } from "@/utils/currency";
 
 interface SupplierPerformanceProps {
   supplierId: string;
@@ -25,6 +27,7 @@ interface SupplierPerformanceProps {
 
 export function SupplierPerformance({ supplierId }: SupplierPerformanceProps) {
   const isMobile = useIsMobile();
+  const { currency } = useCurrency();
   const { data: metrics, isLoading } = useQuery({
     queryKey: ["supplier-performance", supplierId],
     queryFn: async () => {
@@ -214,7 +217,7 @@ export function SupplierPerformance({ supplierId }: SupplierPerformanceProps) {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Total Value</p>
-              <p className="text-2xl font-bold">PKR {(metrics?.totalValue || 0).toLocaleString()}</p>
+              <p className="text-2xl font-bold">{formatCurrency(metrics?.totalValue || 0, currency)}</p>
             </div>
           </div>
         </Card>
@@ -313,7 +316,7 @@ export function SupplierPerformance({ supplierId }: SupplierPerformanceProps) {
                         <span className="text-sm">{fulfillment}%</span>
                       </div>
                     </TableCell>
-                    <TableCell>PKR {order.total_amount?.toLocaleString()}</TableCell>
+                    <TableCell>{formatCurrency(order.total_amount || 0, currency)}</TableCell>
                     <TableCell>
                       <Badge variant={
                         order.status === "delivered" ? "default" :

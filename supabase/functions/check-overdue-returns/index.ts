@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.50.2";
+import { getCompanyCurrency, formatCurrencyAmount } from "../_shared/currency.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -95,13 +96,14 @@ serve(async (req) => {
           .eq('is_active', true);
 
         if (managers) {
+          const companyCurrency = await getCompanyCurrency(supabase);
           for (const manager of managers) {
             await supabase.from('notifications').insert({
               user_id: manager.user_id,
               type: 'alert',
               priority: severity === 'critical' ? 'urgent' : 'high',
               title: `Overdue Return: ${order.order_number}`,
-              message: `Return not received for ${daysOverdue} days. Value: ₨${order.total_amount.toLocaleString()}`,
+              message: `Return not received for ${daysOverdue} days. Value: ${formatCurrencyAmount(order.total_amount, companyCurrency)}`,
               action_url: `/returns-not-received`,
               metadata: {
                 order_id: order.id,

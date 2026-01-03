@@ -24,6 +24,8 @@ import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { FormattedOrder, SummaryData, OrderFilters } from '@/hooks/useOrdersData';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { useCurrency } from '@/hooks/useCurrency';
+import { formatCurrency as formatCurrencyUtil } from '@/utils/currency';
 
 interface OrdersMobileViewProps {
   orders: FormattedOrder[];
@@ -99,8 +101,10 @@ const OrdersMobileView: React.FC<OrdersMobileViewProps> = ({
     fetchBundles();
   }, []);
 
+  const { currency } = useCurrency();
+
   const formatCurrency = (amount: number) => {
-    return `₨${amount?.toLocaleString() || 0}`;
+    return formatCurrencyUtil(amount, currency);
   };
 
   const formatDate = (dateStr: string) => {

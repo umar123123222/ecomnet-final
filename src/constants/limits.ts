@@ -1,0 +1,33 @@
+/**
+ * System Limits and Pagination Constants
+ */
+
+// Pagination Limits
+export const PAGINATION = {
+  DEFAULT_PAGE_SIZE: 20,
+  ORDER_PAGE_SIZE: 100,
+  DISPATCH_LIMIT: 500,
+  RETURNS_LIMIT: 500,
+  ACTIVITY_LOG_LIMIT: 100,
+  NOTIFICATION_LIMIT: 50,
+  SEARCH_RESULT_LIMIT: 50,
+  EXPORT_BATCH_SIZE: 1000,
+  MAX_IDS_PER_QUERY: 100,
+} as const;
+
+// Batch Processing Limits
+export const BATCH_LIMITS = {
+  BULK_BOOKING: 50,
+  BULK_TRACKING: 50,
+  BULK_PRINT: 50,
+  BULK_UPDATE: 100,
+  SYNC_BATCH_SIZE: 50,
+  BACKFILL_BATCH_SIZE: 100,
+} as const;
+
+// API Rate Limits
+export const RATE_LIMITS = {
+  COURIER_API_DELAY_MS: 500,
+  SHOPIFY_API_DELAY_MS: 500,
+  TRACKING_UPDATE_DELAY_MS: 1000,
+} as const;
