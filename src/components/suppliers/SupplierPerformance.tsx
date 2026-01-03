@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   BarChart3, TrendingUp, Clock, CheckCircle, 
   XCircle, Package, Truck, DollarSign 
@@ -15,12 +16,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { SupplierMetricsCards, SupplierPerformanceOrderCard } from "./SupplierPerformanceMobileCard";
 
 interface SupplierPerformanceProps {
   supplierId: string;
 }
 
 export function SupplierPerformance({ supplierId }: SupplierPerformanceProps) {
+  const isMobile = useIsMobile();
   const { data: metrics, isLoading } = useQuery({
     queryKey: ["supplier-performance", supplierId],
     queryFn: async () => {
@@ -100,8 +104,65 @@ export function SupplierPerformance({ supplierId }: SupplierPerformanceProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Loading performance data...</p>
+      <div className="space-y-6">
+        {isMobile ? (
+          <div className="space-y-4">
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-16 w-28 shrink-0 rounded-lg" />
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-24 rounded-lg" />
+              ))}
+            </div>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-20 rounded-lg" />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-4">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-20 rounded-lg" />
+              ))}
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-32 rounded-lg" />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Mobile view
+  if (isMobile && metrics) {
+    return (
+      <div className="space-y-6">
+        <SupplierMetricsCards metrics={metrics} />
+        
+        {/* Recent Orders */}
+        <div className="space-y-3">
+          <h3 className="font-semibold text-sm flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            Recent Orders
+          </h3>
+          {metrics.recentOrders?.length === 0 ? (
+            <Card className="p-6 text-center text-muted-foreground">
+              No order history
+            </Card>
+          ) : (
+            metrics.recentOrders?.map((order: any) => (
+              <SupplierPerformanceOrderCard key={order.id} order={order} />
+            ))
+          )}
+        </div>
       </div>
     );
   }

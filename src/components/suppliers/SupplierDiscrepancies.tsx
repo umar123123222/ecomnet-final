@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -37,6 +38,8 @@ import {
   Loader2
 } from "lucide-react";
 import { toast } from "sonner";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { SupplierDiscrepancyMobileCard } from "./SupplierDiscrepancyMobileCard";
 
 interface SupplierDiscrepanciesProps {
   supplierId: string;
@@ -44,6 +47,7 @@ interface SupplierDiscrepanciesProps {
 
 export function SupplierDiscrepancies({ supplierId }: SupplierDiscrepanciesProps) {
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const [expandedGRN, setExpandedGRN] = useState<string | null>(null);
   const [respondDialog, setRespondDialog] = useState<{
     grn_id: string;
@@ -186,8 +190,19 @@ export function SupplierDiscrepancies({ supplierId }: SupplierDiscrepanciesProps
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <Card key={i} className="p-4">
+            <div className="flex items-start justify-between">
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+              <Skeleton className="h-6 w-20" />
+            </div>
+          </Card>
+        ))}
       </div>
     );
   }
@@ -220,12 +235,33 @@ export function SupplierDiscrepancies({ supplierId }: SupplierDiscrepanciesProps
         </div>
       )}
 
-      <ScrollArea className="h-[600px]">
+      <ScrollArea className={isMobile ? "h-auto max-h-[calc(100vh-200px)]" : "h-[600px]"}>
         <div className="space-y-3">
           {discrepancies.map((grn: any) => {
             const isExpanded = expandedGRN === grn.id;
             const ack = acknowledgments?.[grn.id];
             const hasResponded = !!ack?.response;
+
+            if (isMobile) {
+              return (
+                <SupplierDiscrepancyMobileCard
+                  key={grn.id}
+                  grn={grn}
+                  isExpanded={isExpanded}
+                  onToggle={() => setExpandedGRN(isExpanded ? null : grn.id)}
+                  hasResponded={hasResponded}
+                  acknowledgment={ack}
+                  onRespond={() => setRespondDialog({
+                    grn_id: grn.id,
+                    grn_number: grn.grn_number,
+                    po_number: grn.purchase_orders?.po_number || "",
+                    po_id: grn.po_id,
+                  })}
+                  getStatusBadge={getStatusBadge}
+                  getDefectBadge={getDefectBadge}
+                />
+              );
+            }
 
             return (
               <Card key={grn.id} className="overflow-hidden">
@@ -278,44 +314,46 @@ export function SupplierDiscrepancies({ supplierId }: SupplierDiscrepanciesProps
                       {/* Items with Issues */}
                       <div className="mt-4">
                         <h4 className="font-medium mb-3">Items with Issues</h4>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Item</TableHead>
-                              <TableHead className="text-center">Expected</TableHead>
-                              <TableHead className="text-center">Received</TableHead>
-                              <TableHead className="text-center">Variance</TableHead>
-                              <TableHead>Issue Type</TableHead>
-                              <TableHead>Notes</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {grn.grn_items
-                              ?.filter((item: any) => item.quantity_received !== item.quantity_expected || item.defect_type)
-                              .map((item: any) => {
-                                const name = item.products?.name || item.packaging_items?.name || "Unknown";
-                                const variance = item.quantity_expected - item.quantity_received;
-                                return (
-                                  <TableRow key={item.id}>
-                                    <TableCell className="font-medium">{name}</TableCell>
-                                    <TableCell className="text-center">{item.quantity_expected}</TableCell>
-                                    <TableCell className="text-center">{item.quantity_received}</TableCell>
-                                    <TableCell className="text-center">
-                                      {variance !== 0 && (
-                                        <span className={variance > 0 ? "text-destructive" : "text-green-600"}>
-                                          {variance > 0 ? `-${variance}` : `+${Math.abs(variance)}`}
-                                        </span>
-                                      )}
-                                    </TableCell>
-                                    <TableCell>{getDefectBadge(item.defect_type)}</TableCell>
-                                    <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
-                                      {item.notes || "-"}
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                          </TableBody>
-                        </Table>
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Item</TableHead>
+                                <TableHead className="text-center">Expected</TableHead>
+                                <TableHead className="text-center">Received</TableHead>
+                                <TableHead className="text-center">Variance</TableHead>
+                                <TableHead>Issue Type</TableHead>
+                                <TableHead>Notes</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {grn.grn_items
+                                ?.filter((item: any) => item.quantity_received !== item.quantity_expected || item.defect_type)
+                                .map((item: any) => {
+                                  const name = item.products?.name || item.packaging_items?.name || "Unknown";
+                                  const variance = item.quantity_expected - item.quantity_received;
+                                  return (
+                                    <TableRow key={item.id}>
+                                      <TableCell className="font-medium">{name}</TableCell>
+                                      <TableCell className="text-center">{item.quantity_expected}</TableCell>
+                                      <TableCell className="text-center">{item.quantity_received}</TableCell>
+                                      <TableCell className="text-center">
+                                        {variance !== 0 && (
+                                          <span className={variance > 0 ? "text-destructive" : "text-green-600"}>
+                                            {variance > 0 ? `-${variance}` : `+${Math.abs(variance)}`}
+                                          </span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell>{getDefectBadge(item.defect_type)}</TableCell>
+                                      <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
+                                        {item.notes || "-"}
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                            </TableBody>
+                          </Table>
+                        </div>
                       </div>
 
                       {/* Warehouse Notes */}

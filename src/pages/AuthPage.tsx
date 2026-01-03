@@ -138,8 +138,9 @@ const AuthPage = () => {
       setIsResettingPassword(false);
     }
   };
-  return <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 p-4">
-      <Card className="w-full max-w-md">
+  return (
+    <div className="min-h-screen min-h-[100dvh] flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 p-4 sm:p-6 safe-area-inset">
+      <Card className="w-full max-w-md mx-auto shadow-lg">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
           <CardDescription>
@@ -239,6 +240,7 @@ const AuthPage = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </div>;
+    </div>
+  );
 };
 export default AuthPage;
