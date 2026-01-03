@@ -1,43 +1,39 @@
-import { useCallback, useMemo } from 'react';
-
-// Optimized status color mapping - memoized lookup
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
-  confirmed: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-  booked: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
-  dispatched: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400',
-  delivered: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-  cancelled: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-  returned: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
-};
-
-const DEFAULT_COLOR = 'bg-muted text-muted-foreground';
+import { useCallback } from 'react';
+import { ORDER_STATUS_COLORS, DEFAULT_STATUS_COLOR } from '@/constants/ui';
+import { ORDER_STATUS_DATE_FIELDS } from '@/constants/statuses';
+import { formatCurrency as formatCurrencyUtil } from '@/utils/currency';
+import { useCurrency } from '@/hooks/useCurrency';
+import { DEFAULT_LOCALE, DATE_LOCALE_OPTIONS } from '@/constants/locale';
 
 export function useOrderHelpers() {
+  const { currency } = useCurrency();
+
   // Memoized status color getter
   const getStatusColor = useCallback((status: string): string => {
-    return STATUS_COLORS[status] || DEFAULT_COLOR;
+    return ORDER_STATUS_COLORS[status] || DEFAULT_STATUS_COLOR;
   }, []);
 
-  // Format currency
+  // Format currency using system currency
   const formatCurrency = useCallback((amount: number): string => {
-    return `PKR ${amount.toLocaleString()}`;
-  }, []);
+    return formatCurrencyUtil(amount, currency);
+  }, [currency]);
 
-  // Format date
+  // Format date using system locale
   const formatDate = useCallback((date: string | Date): string => {
     const d = new Date(date);
-    return d.toLocaleDateString('en-GB', {
+    const locale = DATE_LOCALE_OPTIONS[DEFAULT_LOCALE as keyof typeof DATE_LOCALE_OPTIONS] || 'en-GB';
+    return d.toLocaleDateString(locale, {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
     });
   }, []);
 
-  // Format datetime
+  // Format datetime using system locale
   const formatDateTime = useCallback((date: string | Date): string => {
     const d = new Date(date);
-    return d.toLocaleString('en-GB', {
+    const locale = DATE_LOCALE_OPTIONS[DEFAULT_LOCALE as keyof typeof DATE_LOCALE_OPTIONS] || 'en-GB';
+    return d.toLocaleString(locale, {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
@@ -48,21 +44,7 @@ export function useOrderHelpers() {
 
   // Get status date field for filtering
   const getStatusDateField = useCallback((status: string): string => {
-    switch (status) {
-      case 'pending':
-        return 'created_at';
-      case 'booked':
-        return 'booked_at';
-      case 'dispatched':
-        return 'dispatched_at';
-      case 'delivered':
-        return 'delivered_at';
-      case 'returned':
-      case 'cancelled':
-        return 'updated_at';
-      default:
-        return 'created_at';
-    }
+    return ORDER_STATUS_DATE_FIELDS[status as keyof typeof ORDER_STATUS_DATE_FIELDS] || 'created_at';
   }, []);
 
   return {

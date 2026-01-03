@@ -6,6 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, Package, Calendar, RotateCcw, AlertTriangle, DollarSign } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
+import { useCurrency } from "@/hooks/useCurrency";
+import { formatCurrency } from "@/utils/currency";
 
 interface CustomerInsightsWidgetProps {
   customerId: string | null;
@@ -13,6 +15,7 @@ interface CustomerInsightsWidgetProps {
 }
 
 export const CustomerInsightsWidget = ({ customerId, customerName }: CustomerInsightsWidgetProps) => {
+  const { currency } = useCurrency();
   const { data: customer, isLoading: customerLoading } = useQuery({
     queryKey: ['customer-details', customerId],
     queryFn: async () => {
@@ -113,7 +116,7 @@ export const CustomerInsightsWidget = ({ customerId, customerName }: CustomerIns
               Lifetime Value
             </div>
             <div className="text-2xl font-bold">
-              {totalSpent.toLocaleString('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 })}
+              {formatCurrency(totalSpent, currency)}
             </div>
           </div>
 
@@ -131,7 +134,7 @@ export const CustomerInsightsWidget = ({ customerId, customerName }: CustomerIns
               Avg Spend/Order
             </div>
             <div className="text-lg font-semibold">
-              {avgSpend.toLocaleString('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 })}
+              {formatCurrency(avgSpend, currency)}
             </div>
           </div>
 
@@ -185,7 +188,7 @@ export const CustomerInsightsWidget = ({ customerId, customerName }: CustomerIns
               <XAxis dataKey="month" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
               <Tooltip 
-                formatter={(value: number) => value.toLocaleString('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 })}
+                formatter={(value: number) => formatCurrency(value, currency)}
               />
               <Bar dataKey="amount" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
             </BarChart>

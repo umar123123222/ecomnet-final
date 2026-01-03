@@ -20,6 +20,8 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, Trash2, Package } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrency } from '@/hooks/useCurrency';
+import { formatCurrency } from '@/utils/currency';
 
 interface Product {
   id: string;
@@ -43,6 +45,7 @@ const NewOrderDialog = ({ onOrderCreated, open: controlledOpen, onOpenChange }: 
   const [users, setUsers] = useState<any[]>([]);
   const [availableProducts, setAvailableProducts] = useState<any[]>([]);
   const { toast } = useToast();
+  const { currency } = useCurrency();
 
   // Form state
   const [customerName, setCustomerName] = useState('');
@@ -411,7 +414,7 @@ const NewOrderDialog = ({ onOrderCreated, open: controlledOpen, onOpenChange }: 
                       value={product.id.toString()}
                       disabled={selectedProducts.some(p => p.id === product.id.toString())}
                     >
-                      {product.name} - PKR {product.price}
+                      {product.name} - {formatCurrency(product.price, currency)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -462,7 +465,7 @@ const NewOrderDialog = ({ onOrderCreated, open: controlledOpen, onOpenChange }: 
             
             <div className="text-right">
               <p className="text-lg font-semibold">
-                Total: PKR {calculateTotal().toLocaleString()}
+                Total: {formatCurrency(calculateTotal(), currency)}
               </p>
             </div>
           </div>

@@ -46,11 +46,14 @@ import { InventorySummaryWidget } from "@/components/inventory/InventorySummaryW
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { AdvancedFilterPanel } from "@/components/AdvancedFilterPanel";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { useCurrency } from "@/hooks/useCurrency";
+import { formatCurrency } from "@/utils/currency";
 
 
 const InventoryDashboard = () => {
   const { user, profile } = useAuth();
   const { permissions, primaryRole } = useUserRoles();
+  const { currency } = useCurrency();
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
   const [bulkAdjustmentDialogOpen, setBulkAdjustmentDialogOpen] = useState(false);
   const [quickTransferDialogOpen, setQuickTransferDialogOpen] = useState(false);
@@ -284,7 +287,7 @@ const InventoryDashboard = () => {
         />
         <StatsCard
           title="Total Value"
-          value={`PKR ${totalValue.toLocaleString()}`}
+          value={formatCurrency(totalValue, currency)}
           description="Inventory worth"
           icon={DollarSign}
           variant="info"

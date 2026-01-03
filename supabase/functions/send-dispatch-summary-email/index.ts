@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import nodemailer from "npm:nodemailer@6.9.7";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.50.2";
+import { getCompanyCurrency, formatCurrencyAmount } from "../_shared/currency.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,8 +73,9 @@ const handler = async (req: Request): Promise<Response> => {
     // Helper function to format numbers with commas
     const formatNumber = (num: number) => Math.abs(num).toLocaleString('en-US');
     
-    // Helper function to format currency
-    const formatCurrency = (num: number) => `Rs. ${Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    // Get company currency for formatting
+    const companyCurrency = await getCompanyCurrency(supabase);
+    const formatCurrency = (num: number) => formatCurrencyAmount(num, companyCurrency);
     
     // Calculate COGS if not provided - fetch product costs from database
     let totalCogs = summaryData.total_cogs || 0;

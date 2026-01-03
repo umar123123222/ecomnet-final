@@ -3,6 +3,8 @@
  * Analyzes orders and customers for fraudulent patterns
  */
 
+import { FRAUD_THRESHOLDS } from '@/constants/thresholds';
+
 export interface FraudIndicators {
   riskScore: number; // 0-100
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
@@ -43,20 +45,21 @@ export const calculateOrderFraudRisk = (
   const autoActions: string[] = [];
   let riskScore = 0;
 
-  // 1. High-value order (>50,000 PKR)
-  if (order.total_amount > 50000) {
+  // 1. High-value order
+  if (order.total_amount > FRAUD_THRESHOLDS.HIGH_VALUE_ORDER) {
     flags.push('High Value Order');
     riskScore += 20;
   }
 
   // 2. Multiple orders from same phone in short time
+  const rapidOrderWindow = FRAUD_THRESHOLDS.RAPID_ORDER_HOURS * 60 * 60 * 1000;
   const samePhoneOrders = allOrders.filter(o => 
     o.customer_phone === order.customer_phone && 
     o.id !== order.id &&
-    (new Date(order.created_at).getTime() - new Date(o.created_at).getTime()) < 24 * 60 * 60 * 1000
+    (new Date(order.created_at).getTime() - new Date(o.created_at).getTime()) < rapidOrderWindow
   );
-  if (samePhoneOrders.length >= 3) {
-    flags.push(`${samePhoneOrders.length + 1} Orders in 24hrs`);
+  if (samePhoneOrders.length >= FRAUD_THRESHOLDS.RAPID_ORDER_COUNT) {
+    flags.push(`${samePhoneOrders.length + 1} Orders in ${FRAUD_THRESHOLDS.RAPID_ORDER_HOURS}hrs`);
     patterns.push('Rapid Order Velocity');
     riskScore += 25;
   }
@@ -76,14 +79,14 @@ export const calculateOrderFraudRisk = (
     customerOrders.filter(o => o.customer_phone === order.customer_phone)
       .map(o => o.customer_address.toLowerCase().trim())
   );
-  if (uniqueAddresses.size >= 4) {
+  if (uniqueAddresses.size >= FRAUD_THRESHOLDS.MAX_ADDRESSES_NORMAL) {
     flags.push(`${uniqueAddresses.size} Different Addresses`);
     patterns.push('Address Hopping Pattern');
     riskScore += 20;
   }
 
   // 5. First-time customer with high-value order
-  if (customerOrders.length <= 1 && order.total_amount > 30000) {
+  if (customerOrders.length <= 1 && order.total_amount > FRAUD_THRESHOLDS.NEW_CUSTOMER_HIGH_VALUE) {
     flags.push('New Customer - High Value');
     riskScore += 20;
   }
@@ -91,7 +94,7 @@ export const calculateOrderFraudRisk = (
   // 6. High return rate for customer
   const returnOrders = customerOrders.filter(o => o.status === 'cancelled' || o.status === 'returned');
   const returnRate = customerOrders.length > 0 ? (returnOrders.length / customerOrders.length) * 100 : 0;
-  if (returnRate > 50 && customerOrders.length >= 3) {
+  if (returnRate > FRAUD_THRESHOLDS.HIGH_RETURN_RATE_PERCENT && customerOrders.length >= FRAUD_THRESHOLDS.MIN_ORDERS_FOR_RETURN_CHECK) {
     flags.push(`${returnRate.toFixed(0)}% Return Rate`);
     patterns.push('High Return Pattern');
     riskScore += 30;
@@ -122,7 +125,7 @@ export const calculateOrderFraudRisk = (
     o.status === 'cancelled' && 
     o.notes?.toLowerCase().includes('delivery failed')
   );
-  if (failedDeliveries.length >= 2) {
+  if (failedDeliveries.length >= FRAUD_THRESHOLDS.MIN_FAILED_DELIVERIES_FLAG) {
     flags.push(`${failedDeliveries.length} Failed Deliveries`);
     patterns.push('Repeated Delivery Failures');
     riskScore += 20;
@@ -130,18 +133,18 @@ export const calculateOrderFraudRisk = (
 
   // Determine risk level
   let riskLevel: 'low' | 'medium' | 'high' | 'critical' = 'low';
-  if (riskScore >= 80) riskLevel = 'critical';
-  else if (riskScore >= 60) riskLevel = 'high';
-  else if (riskScore >= 40) riskLevel = 'medium';
+  if (riskScore >= FRAUD_THRESHOLDS.RISK_SCORE_BLOCK) riskLevel = 'critical';
+  else if (riskScore >= FRAUD_THRESHOLDS.RISK_SCORE_FLAG) riskLevel = 'high';
+  else if (riskScore >= FRAUD_THRESHOLDS.RISK_SCORE_MONITOR) riskLevel = 'medium';
 
   // Determine automated actions
-  if (riskScore >= 80) {
+  if (riskScore >= FRAUD_THRESHOLDS.RISK_SCORE_BLOCK) {
     autoActions.push('AUTO-BLOCK: Order requires manual approval');
     autoActions.push('ALERT: Notify fraud team immediately');
-  } else if (riskScore >= 60) {
+  } else if (riskScore >= FRAUD_THRESHOLDS.RISK_SCORE_FLAG) {
     autoActions.push('FLAG: Mark order for review');
     autoActions.push('VERIFY: Require additional verification');
-  } else if (riskScore >= 40) {
+  } else if (riskScore >= FRAUD_THRESHOLDS.RISK_SCORE_MONITOR) {
     autoActions.push('MONITOR: Track order closely');
   }
 
@@ -151,8 +154,8 @@ export const calculateOrderFraudRisk = (
     flags,
     patterns,
     autoActions,
-    shouldBlock: riskScore >= 80,
-    shouldFlag: riskScore >= 60
+    shouldBlock: riskScore >= FRAUD_THRESHOLDS.RISK_SCORE_BLOCK,
+    shouldFlag: riskScore >= FRAUD_THRESHOLDS.RISK_SCORE_FLAG
   };
 };
 
@@ -179,7 +182,7 @@ export const analyzeCustomerRisk = (
   const suspiciousPatterns: string[] = [];
   
   if (returnRate > 40) suspiciousPatterns.push('High return rate');
-  if (addressChanges >= 5) suspiciousPatterns.push('Frequent address changes');
+  if (addressChanges >= FRAUD_THRESHOLDS.MIN_ADDRESSES_SUSPICIOUS) suspiciousPatterns.push('Frequent address changes');
   if (totalOrders > 10 && successfulOrders < 3) suspiciousPatterns.push('Low success rate');
   
   // Calculate overall customer risk score

@@ -29,6 +29,7 @@ import { useScannerMode } from '@/hooks/useScannerMode';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { useCurrency } from '@/hooks/useCurrency';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { PAGINATION, TIMEOUTS } from '@/constants';
 
 const ReturnsDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');

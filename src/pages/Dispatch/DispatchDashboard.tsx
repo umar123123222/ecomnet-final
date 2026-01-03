@@ -32,6 +32,7 @@ import { useHandheldScanner } from '@/contexts/HandheldScannerContext';
 import { useScannerMode } from '@/hooks/useScannerMode';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import WarehouseBulkPrint from '@/components/dispatch/WarehouseBulkPrint';
+import { PAGINATION } from '@/constants/limits';
 
 const DispatchDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -249,10 +250,9 @@ useEffect(() => {
         dataQuery = dataQuery.eq('dispatched_by', userFilter);
       }
       
-      const DISPATCH_LIMIT = 500;
       dataQuery = dataQuery
         .order('dispatch_date', { ascending: false })
-        .limit(DISPATCH_LIMIT);
+        .limit(PAGINATION.DISPATCH_LIMIT);
 
       const { data, error } = await dataQuery;
 
