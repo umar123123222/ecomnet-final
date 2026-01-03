@@ -12,14 +12,14 @@ export function OrderSyncControl() {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      // Note: You may need to create this edge function if it doesn't exist
-      const { data, error } = await supabase.functions.invoke('sync-shopify-orders');
+      // Use sync-missing-orders which handles order sync from Shopify
+      const { data, error } = await supabase.functions.invoke('sync-missing-orders');
 
       if (error) throw error;
 
       toast({
         title: "Orders Synced",
-        description: data.message || `Successfully synced ${data.synced} orders`,
+        description: data?.message || `Successfully synced orders from Shopify`,
       });
     } catch (error: any) {
       toast({
