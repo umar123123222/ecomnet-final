@@ -44,6 +44,14 @@ const POSMain = () => {
 
   const handleAddToCart = (product: any, quantity: number) => {
     const existingItem = cart.find(item => item.product_id === product.id);
+    const currentQtyInCart = existingItem?.quantity || 0;
+    const newTotalQty = currentQtyInCart + quantity;
+    
+    // Real-time stock validation
+    if (product.available_quantity !== undefined && newTotalQty > product.available_quantity) {
+      toast.error(`Only ${product.available_quantity} units available (${currentQtyInCart} already in cart)`);
+      return;
+    }
     
     if (existingItem) {
       setCart(cart.map(item =>
@@ -69,6 +77,12 @@ const POSMain = () => {
     if (quantity <= 0) {
       setCart(cart.filter(item => item.product_id !== productId));
     } else {
+      const item = cart.find(i => i.product_id === productId);
+      // Validate against available quantity
+      if (item?.available_quantity !== undefined && quantity > item.available_quantity) {
+        toast.error(`Only ${item.available_quantity} units available`);
+        return;
+      }
       setCart(cart.map(item =>
         item.product_id === productId ? { ...item, quantity } : item
       ));

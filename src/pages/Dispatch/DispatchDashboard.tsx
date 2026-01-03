@@ -249,9 +249,10 @@ useEffect(() => {
         dataQuery = dataQuery.eq('dispatched_by', userFilter);
       }
       
+      const DISPATCH_LIMIT = 500;
       dataQuery = dataQuery
         .order('dispatch_date', { ascending: false })
-        .limit(500);
+        .limit(DISPATCH_LIMIT);
 
       const { data, error } = await dataQuery;
 
@@ -355,6 +356,7 @@ useEffect(() => {
       return matchesSearch && matchesCourier && matchesUser;
     });
   }, [filteredByDate, searchTerm, courierFilter, userFilter]);
+const DISPATCH_LIMIT = 500;
 const metrics = useMemo(() => {
   const totalDispatches = totalDispatchCount ?? filteredByDate.length;
   const worthOfDispatches = filteredByDate.reduce((total, dispatch) => {
@@ -368,10 +370,16 @@ const metrics = useMemo(() => {
   const mostUsedCourier = entries.length > 0 
     ? entries.sort((a, b) => (b[1] as number) - (a[1] as number))[0][0] 
     : 'N/A';
+  
+  // Check if we hit the display limit
+  const isLimitReached = totalDispatchCount !== null && totalDispatchCount > DISPATCH_LIMIT;
+  
   return {
     totalDispatches,
     worthOfDispatches,
-    mostUsedCourier
+    mostUsedCourier,
+    isLimitReached,
+    displayedCount: filteredByDate.length
   };
 }, [filteredByDate, filteredDispatches, totalDispatchCount]);
   const handleSelectDispatch = useCallback((dispatchId: string) => {

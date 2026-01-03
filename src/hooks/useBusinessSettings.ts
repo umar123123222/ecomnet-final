@@ -27,7 +27,7 @@ export const useBusinessSettings = () => {
     },
   });
 
-  // Real-time subscription to api_settings changes
+  // Real-time subscription to api_settings changes (silent refresh - no toast spam)
   useEffect(() => {
     const channel = supabase
       .channel('business-settings-changes')
@@ -41,17 +41,9 @@ export const useBusinessSettings = () => {
         (payload) => {
           console.log('Business settings changed:', payload);
           
-          // Invalidate and refetch settings
+          // Silently invalidate and refetch settings - no toast to avoid spam
           queryClient.invalidateQueries({ queryKey: ['business-settings'] });
           queryClient.invalidateQueries({ queryKey: ['company-currency'] });
-          
-          // Show toast notification for changes made by others
-          if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-            toast({
-              title: "Settings Updated",
-              description: "Business settings have been updated by another administrator.",
-            });
-          }
         }
       )
       .subscribe();
@@ -59,7 +51,7 @@ export const useBusinessSettings = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient, toast]);
+  }, [queryClient]);
 
   // Mutation to update a setting
   const updateSettingMutation = useMutation({

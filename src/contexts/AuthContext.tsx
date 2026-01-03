@@ -39,6 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profileFetchedFor, setProfileFetchedFor] = useState<string | null>(null);
   const fetchingPromiseRef = useRef<Promise<boolean> | null>(null);
   const fetchingUserIdRef = useRef<string | null>(null);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchUserProfile = async (userId: string): Promise<boolean> => {
     // Skip if already fetched for this user
@@ -118,6 +119,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
     
+    // Safety timeout - if loading takes more than 8 seconds, force stop
+    loadingTimeoutRef.current = setTimeout(() => {
+      if (mounted && isLoading) {
+        console.warn('Auth loading timeout - forcing completion');
+        setIsLoading(false);
+      }
+    }, 8000);
+    
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -155,6 +164,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       mounted = false;
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
       subscription.unsubscribe();
     };
   }, []);

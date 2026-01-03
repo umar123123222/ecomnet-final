@@ -330,25 +330,27 @@ export const useOrdersData = () => {
       // Apply the order ID filter if we have one (batch in chunks to avoid URL limits)
       if (orderIdFilter && orderIdFilter.length > 0) {
         // Supabase has a ~4KB URL limit, roughly 50-60 UUIDs max
-        // We need to limit the IDs we pass. For large sets, we'll query in chunks
-        // For the main list view, we apply pagination after filtering
+        // For larger sets, we use .in() with a reasonable limit and show warning
         const MAX_IDS_PER_QUERY = 100;
+        const totalMatchingOrders = orderIdFilter.length;
         
         if (orderIdFilter.length <= MAX_IDS_PER_QUERY) {
           query = query.in('id', orderIdFilter);
         } else {
-          // For large result sets, we need to paginate within the filtered IDs
-          // Get the slice of IDs for the current page
-          const sortedIds = [...orderIdFilter]; // We'll sort these after getting more info
-          
-          // Since we can't sort the IDs properly here, we'll use a workaround:
-          // First, get just the IDs from the filtered set that match our other criteria
-          // Then paginate within those
-          
-          // Apply the filter in batches and collect results
-          // For now, limit to first 500 matching orders (reasonable for filter results)
-          const limitedIds = orderIdFilter.slice(0, 500);
+          // Limit to MAX_IDS_PER_QUERY to avoid URL overflow
+          // Show warning to user about partial results
+          const limitedIds = orderIdFilter.slice(0, MAX_IDS_PER_QUERY);
           query = query.in('id', limitedIds);
+          
+          // Log warning for debugging
+          console.warn(`Bundle/Product filter matched ${totalMatchingOrders} orders, showing first ${MAX_IDS_PER_QUERY}. Consider narrowing your search.`);
+          
+          // Show toast warning to user (only once per filter change)
+          toast({ 
+            title: "Partial Results", 
+            description: `Found ${totalMatchingOrders} matching orders. Showing first ${MAX_IDS_PER_QUERY}. Add more filters to narrow results.`,
+            duration: 5000
+          });
         }
       }
 

@@ -125,14 +125,19 @@ const StockTransferDashboard = () => {
         `)
         .order("created_at", { ascending: false });
 
-      if (isStoreManager) {
-        const { data: userOutlet } = await supabase
+      if (isStoreManager && profile?.id) {
+        // Get outlets where current user is assigned as manager OR staff
+        const { data: userOutlets } = await supabase
           .from("outlets")
           .select("id")
-          .eq("manager_id", profile?.id)
-          .single();
-        if (userOutlet) {
-          query = query.eq("to_outlet_id", userOutlet.id);
+          .or(`manager_id.eq.${profile.id}`);
+        
+        if (userOutlets && userOutlets.length > 0) {
+          const outletIds = userOutlets.map(o => o.id);
+          query = query.in("to_outlet_id", outletIds);
+        } else {
+          // No outlets found - show empty result
+          query = query.eq("to_outlet_id", "00000000-0000-0000-0000-000000000000");
         }
       }
 

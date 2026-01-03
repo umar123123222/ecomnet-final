@@ -28,7 +28,7 @@ export const useNotifications = () => {
       return data as Notification[];
     },
     enabled: !!user,
-    refetchInterval: 120000, // Reduced from 30s to 2 minutes
+    refetchInterval: 60000, // 1 minute - balanced between responsiveness and performance
   });
 
   // Update unread count

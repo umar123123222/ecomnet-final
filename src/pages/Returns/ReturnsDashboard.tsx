@@ -27,6 +27,7 @@ import { useHandheldScanner } from '@/contexts/HandheldScannerContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useScannerMode } from '@/hooks/useScannerMode';
 import { useUserRoles } from '@/hooks/useUserRoles';
+import { useCurrency } from '@/hooks/useCurrency';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const ReturnsDashboard = () => {
@@ -74,6 +75,7 @@ const ReturnsDashboard = () => {
   const handheldScanner = useHandheldScanner();
   const queryClient = useQueryClient();
   const { primaryRole } = useUserRoles();
+  const { currency } = useCurrency();
   
   // Only returns_manager, warehouse_manager, super_manager, super_admin can use scan/mark returns
   // senior_staff can view but not make entries
@@ -149,6 +151,12 @@ const ReturnsDashboard = () => {
           console.warn('Date range required for returns fetch');
           if (isMountedRef.current) {
             setLoading(false);
+            toast({
+              title: "Date Range Required",
+              description: "Please select a date range to view returns",
+              variant: "default",
+              duration: 4000,
+            });
           }
           return;
         }
@@ -253,11 +261,13 @@ const ReturnsDashboard = () => {
     const returnedWorth = filteredByDate.reduce((sum, returnItem) => {
       return sum + (returnItem.worth || 0);
     }, 0);
+    const hasNoDateRange = !dateRange?.from;
     return {
       returnedCount,
-      returnedWorth: `PKR ${returnedWorth.toLocaleString()}`
+      returnedWorth: `${currency} ${returnedWorth.toLocaleString()}`,
+      hasNoDateRange
     };
-  }, [filteredByDate]);
+  }, [filteredByDate, dateRange, currency]);
 
   const toggleRowExpansion = useCallback((returnId: string) => {
     setExpandedRows(prev => prev.includes(returnId) ? prev.filter(id => id !== returnId) : [...prev, returnId]);
@@ -1406,7 +1416,7 @@ const ReturnsDashboard = () => {
                       <TableCell>{returnItem.orders?.customer_name || 'N/A'}</TableCell>
                       <TableCell>{returnItem.orders?.customer_phone || 'N/A'}</TableCell>
                       <TableCell>{returnItem.reason || 'N/A'}</TableCell>
-                      <TableCell>PKR {(returnItem.worth || 0).toLocaleString()}</TableCell>
+                      <TableCell>{currency} {(returnItem.worth || 0).toLocaleString()}</TableCell>
                       <TableCell>
                         <div className="text-sm">
                           {returnItem.received_by_profile?.full_name || 'Not received'}
