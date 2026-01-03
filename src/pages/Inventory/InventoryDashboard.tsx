@@ -460,8 +460,8 @@ const InventoryDashboard = () => {
               <div className="px-4 py-2 bg-muted/50 text-sm text-muted-foreground border-b">
                 Showing {filteredInventory?.length || 0} items
               </div>
-              <div className="rounded-b-lg border-t-0">
-                <Table>
+              <div className="rounded-b-lg border-t-0 overflow-x-auto">
+                <Table className="min-w-[800px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>SKU</TableHead>

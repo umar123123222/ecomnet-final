@@ -1378,7 +1378,8 @@ const ReturnsDashboard = () => {
             
           </div>
 
-          <Table>
+          <div className="overflow-x-auto">
+          <Table className="min-w-[900px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Order ID</TableHead>
@@ -1453,6 +1454,7 @@ const ReturnsDashboard = () => {
                   </React.Fragment>)}
             </TableBody>
           </Table>
+          </div>
 
           {/* Record Count & Pagination Controls */}
           {!loading && filteredReturns.length > 0 && (
