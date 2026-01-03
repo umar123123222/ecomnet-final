@@ -59,7 +59,14 @@ export function ReservationDateFilter({
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-4" align="start">
+        <PopoverContent 
+          className="w-auto p-4 max-w-[calc(100vw-32px)]" 
+          align="start"
+          side="bottom"
+          sideOffset={4}
+          avoidCollisions={true}
+          collisionPadding={16}
+        >
           <div className="space-y-4">
             <div className="text-sm font-medium">
               Show reserved quantities from orders placed:
