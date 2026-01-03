@@ -46,6 +46,12 @@ const ReturnsMobileView: React.FC<ReturnsMobileViewProps> = ({
 }) => {
   const [showFilters, setShowFilters] = React.useState(false);
 
+  // Calculate active filter count
+  const activeFilterCount = React.useMemo(() => {
+    let count = 0;
+    if (dateRange?.from || dateRange?.to) count++;
+    return count;
+  }, [dateRange]);
   const getStatusColor = (status?: string) => {
     switch (status) {
       case 'received':
@@ -101,10 +107,15 @@ const ReturnsMobileView: React.FC<ReturnsMobileViewProps> = ({
         <Button
           variant="outline"
           size="icon"
-          className="h-10 w-10 shrink-0"
+          className={`h-10 w-10 shrink-0 relative transition-all active:scale-95 ${showFilters || activeFilterCount > 0 ? 'border-primary bg-primary/5' : ''}`}
           onClick={() => setShowFilters(!showFilters)}
         >
-          <Filter className="h-4 w-4" />
+          <Filter className={`h-4 w-4 ${activeFilterCount > 0 ? 'text-primary' : ''}`} />
+          {activeFilterCount > 0 && (
+            <Badge className="absolute -top-1.5 -right-1.5 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-primary">
+              {activeFilterCount}
+            </Badge>
+          )}
         </Button>
       </div>
 
