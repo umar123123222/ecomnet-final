@@ -9,6 +9,7 @@ import { downloadCourierLabel } from '@/utils/courierLabelDownload';
 import { useToast } from '@/hooks/use-toast';
 import type { FormattedOrder } from '@/hooks/useOrdersData';
 import TagsNotes from '@/components/TagsNotes';
+import { useCurrency } from '@/hooks/useCurrency';
 
 interface OrderExpandedRowProps {
   order: FormattedOrder;
@@ -32,6 +33,7 @@ interface GroupedBundle {
 
 export const OrderExpandedRow = memo(({ order }: OrderExpandedRowProps) => {
   const { toast } = useToast();
+  const { formatCurrency } = useCurrency();
 
   const handleCopyTracking = async () => {
     await navigator.clipboard.writeText(order.trackingId);
@@ -275,7 +277,7 @@ export const OrderExpandedRow = memo(({ order }: OrderExpandedRowProps) => {
                       {standaloneItems.map((item, idx) => (
                         <div key={idx} className="flex justify-between items-center py-2 border-b border-border/50 last:border-0">
                           <span className="text-sm">{item.item_name}</span>
-                          <span className="text-sm text-muted-foreground">x{item.quantity} @ PKR {item.price}</span>
+                          <span className="text-sm text-muted-foreground">x{item.quantity} @ {formatCurrency(item.price)}</span>
                         </div>
                       ))}
                     </div>

@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Search, AlertTriangle, CheckCircle2, XCircle, TrendingUp, Shield, Eye, Flag } from 'lucide-react';
 import { format } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useCurrency } from '@/hooks/useCurrency';
 
 interface Variance {
   id: string;
@@ -110,6 +111,7 @@ const calculateFraudRisk = (variance: Variance, allVariances: Variance[]): Fraud
 const VarianceManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { formatCurrency, currencySymbol } = useCurrency();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [severityFilter, setSeverityFilter] = useState<string>('all');

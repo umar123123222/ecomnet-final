@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Search, Package, Box } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface SupplierProductsDialogProps {
   open: boolean;
@@ -26,6 +27,7 @@ export function SupplierProductsDialog({ open, onOpenChange, supplierId, supplie
   const [productMOQs, setProductMOQs] = useState<Record<string, number>>({});
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { formatCurrency, currencySymbol } = useCurrency();
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
@@ -209,13 +211,13 @@ export function SupplierProductsDialog({ open, onOpenChange, supplierId, supplie
                       <Badge variant="outline" className="text-xs">{product.sku}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground mb-2">
-                      Price: PKR {product.price.toFixed(2)}
+                      Price: {formatCurrency(product.price)}
                       {product.size && ` • ${product.size}${product.unit_type ? ` ${product.unit_type}` : ''}`}
                     </p>
                     {selectedProducts.has(product.id) && (
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <Label className="text-xs">Unit Cost (PKR)</Label>
+                          <Label className="text-xs">Unit Cost ({currencySymbol})</Label>
                           <Input
                             type="number"
                             step="0.01"
@@ -265,13 +267,13 @@ export function SupplierProductsDialog({ open, onOpenChange, supplierId, supplie
                       <Badge variant="outline" className="text-xs">{item.sku}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground mb-2">
-                      Cost: PKR {item.cost.toFixed(2)} • Stock: {item.current_stock}
+                      Cost: {formatCurrency(item.cost)} • Stock: {item.current_stock}
                       {item.size && ` • ${item.size}`}
                     </p>
                     {selectedPackaging.has(item.id) && (
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <Label className="text-xs">Unit Cost (PKR)</Label>
+                          <Label className="text-xs">Unit Cost ({currencySymbol})</Label>
                           <Input
                             type="number"
                             step="0.01"

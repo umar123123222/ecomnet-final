@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCurrency } from '@/hooks/useCurrency';
 
 interface TrackingJob {
   id: string;
@@ -72,6 +73,7 @@ const StuckOrdersDashboard = () => {
   const { primaryRole } = useUserRoles();
   const queryClient = useQueryClient();
   const canPerformActions = primaryRole !== 'finance';
+  const { formatCurrency } = useCurrency();
 
   // Fetch active tracking job on mount
   useEffect(() => {
@@ -677,7 +679,7 @@ const StuckOrdersDashboard = () => {
                                   <div className="font-medium text-xs sm:text-sm">{formatDistanceToNow(new Date(order.updated_at))} ago</div>
                                 </div>
                                 <div className="font-semibold text-sm sm:text-base lg:text-right">
-                                  Rs. {order.total_amount?.toLocaleString() || 0}
+                                  {formatCurrency(order.total_amount || 0)}
                                 </div>
                                 <Button 
                                   variant="outline" 

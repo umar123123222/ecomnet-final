@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { formatCurrency as formatCurrencyUtil } from '@/utils/currency';
 
 export interface WhatsAppMessageParams {
   to: string;
@@ -158,5 +159,5 @@ export const WhatsAppTemplates = {
     `Hi ${customerName}! We've received your return for order #${orderNumber}. We're processing it now and will update you soon.`,
 
   returnRefunded: (customerName: string, orderNumber: string, amount: number) =>
-    `Hi ${customerName}! Your refund for order #${orderNumber} has been processed. Amount: Rs. ${amount.toLocaleString()}. It will reflect in your account in 3-5 business days.`,
+    `Hi ${customerName}! Your refund for order #${orderNumber} has been processed. Amount: ${formatCurrencyUtil(amount)}. It will reflect in your account in 3-5 business days.`,
 };

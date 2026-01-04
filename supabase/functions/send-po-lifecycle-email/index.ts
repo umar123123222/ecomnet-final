@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import nodemailer from "npm:nodemailer@6.9.7";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.50.2";
+import { getLocaleSettings } from "../_shared/locale.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -117,7 +118,8 @@ const handler = async (req: Request): Promise<Response> => {
     const creatorName = po.profiles?.full_name || 'Unknown User';
     const supplierName = po.suppliers?.name || 'Supplier';
     const supplierEmail = po.suppliers?.email;
-    const timestamp = new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short', timeZone: 'Asia/Karachi' });
+    const localeSettings = await getLocaleSettings(supabase);
+    const timestamp = new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short', timeZone: localeSettings.timezone });
 
     // Build items table HTML
     const items = po.purchase_order_items || [];

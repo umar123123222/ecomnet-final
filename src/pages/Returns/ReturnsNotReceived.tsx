@@ -18,6 +18,7 @@ import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import { DateRange } from "react-day-picker";
 import { subDays, startOfDay, endOfDay } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface ReturnNotReceived {
   id: string;
@@ -41,6 +42,7 @@ const ITEMS_PER_PAGE = 50;
 const ReturnsNotReceived = () => {
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const { formatCurrency, currencySymbol } = useCurrency();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedReturns, setSelectedReturns] = useState<string[]>([]);
   const [allReturns, setAllReturns] = useState<ReturnNotReceived[]>([]);
@@ -337,7 +339,7 @@ const ReturnsNotReceived = () => {
         returnItem.trackingId, 
         returnItem.markedReturnedDate, 
         returnItem.daysSinceMarked.toString(), 
-        `₨${returnItem.returnValue.toLocaleString()}`
+        formatCurrency(returnItem.returnValue)
       ])
     ].map(row => row.join(',')).join('\n');
     
@@ -414,7 +416,7 @@ const ReturnsNotReceived = () => {
                     <DollarSign className="h-3.5 w-3.5 text-primary" />
                   </div>
                 </div>
-                <p className="text-lg font-bold text-foreground">₨{(metrics.totalValue / 1000).toFixed(0)}k</p>
+                <p className="text-lg font-bold text-foreground">{currencySymbol}{(metrics.totalValue / 1000).toFixed(0)}k</p>
                 <p className="text-xs text-muted-foreground">At Risk</p>
               </div>
               <div className="flex-shrink-0 w-[140px] rounded-xl border bg-card p-3">

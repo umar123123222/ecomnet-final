@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import nodemailer from "npm:nodemailer@6.9.7";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.50.2";
 import { getCompanyCurrency, formatCurrencyAmount } from "../_shared/currency.ts";
+import { getLocaleSettings } from "../_shared/locale.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -77,6 +78,8 @@ const handler = async (req: Request): Promise<Response> => {
     const companyCurrency = await getCompanyCurrency(supabase);
     const formatCurrency = (num: number) => formatCurrencyAmount(num, companyCurrency);
     
+    // Get locale settings for timezone
+    const localeSettings = await getLocaleSettings(supabase);
     // Calculate COGS if not provided - fetch product costs from database
     let totalCogs = summaryData.total_cogs || 0;
     if (!summaryData.total_cogs && Object.keys(summaryData.product_items || {}).length > 0) {
@@ -133,7 +136,7 @@ const handler = async (req: Request): Promise<Response> => {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
-      timeZone: 'Asia/Karachi'
+      timeZone: localeSettings.timezone
     });
 
     const emailHTML = `

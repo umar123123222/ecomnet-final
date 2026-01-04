@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, TrendingDown, Zap, Scale } from 'lucide-react';
 import { getCourierRates, bookCourier, CourierRate, BookingParams } from '@/utils/courierHelpers';
 import { toast } from 'sonner';
+import { useCurrency } from '@/hooks/useCurrency';
 
 interface CourierRateComparisonProps {
   orderId: string;
@@ -34,6 +35,7 @@ export function CourierRateComparison({
   const [fastest, setFastest] = useState<CourierRate | null>(null);
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState<string | null>(null);
+  const { formatCurrency } = useCurrency();
 
   useEffect(() => {
     loadRates();
@@ -119,7 +121,7 @@ export function CourierRateComparison({
               <span className="font-semibold text-sm">Cheapest</span>
             </div>
             <div className="text-2xl font-bold text-green-700">
-              Rs. {cheapest.rate.toLocaleString()}
+              {formatCurrency(cheapest.rate)}
             </div>
             <div className="text-sm text-muted-foreground mt-1">
               {cheapest.courierName}
@@ -137,7 +139,7 @@ export function CourierRateComparison({
               {fastest.estimatedDays} days
             </div>
             <div className="text-sm text-muted-foreground mt-1">
-              {fastest.courierName} - Rs. {fastest.rate.toLocaleString()}
+              {fastest.courierName} - {formatCurrency(fastest.rate)}
             </div>
           </Card>
         )}
@@ -179,7 +181,7 @@ export function CourierRateComparison({
                   )}
                 </div>
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <span>Rate: Rs. {rate.rate.toLocaleString()}</span>
+                  <span>Rate: {formatCurrency(rate.rate)}</span>
                   {rate.estimatedDays && (
                     <span>ETA: {rate.estimatedDays} days</span>
                   )}

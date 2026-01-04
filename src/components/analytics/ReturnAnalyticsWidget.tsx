@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TrendingDown, Package, AlertTriangle } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { useCurrency } from '@/hooks/useCurrency';
 
 interface ReturnAnalytics {
   totalReturns: number;
@@ -16,6 +17,7 @@ interface ReturnAnalytics {
 const COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
 
 const ReturnAnalyticsWidget = () => {
+  const { formatCurrency } = useCurrency();
   const { data: analytics, isLoading } = useQuery({
     queryKey: ['return-analytics'],
     queryFn: async () => {
@@ -112,7 +114,7 @@ const ReturnAnalyticsWidget = () => {
             <CardContent>
               <div className="text-3xl font-bold text-red-600">{analytics.highValueReturns}</div>
               <p className="text-sm text-muted-foreground mt-1">
-                Returns worth &gt;PKR 5,000
+                Returns worth &gt;{formatCurrency(5000)}
               </p>
             </CardContent>
           </Card>
