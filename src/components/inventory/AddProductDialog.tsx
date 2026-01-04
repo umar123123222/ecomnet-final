@@ -17,6 +17,7 @@ import { Loader2, Package, Gift, DollarSign, Tag, Boxes, Info, Settings2 } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { useCurrency } from "@/hooks/useCurrency";
 
 const productSchema = z.object({
   sku: z.string().trim().max(50, "SKU must be less than 50 characters").nullable().transform(v => v ?? "").optional().or(z.literal("")),
@@ -49,6 +50,7 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
   const [bundleSearchTerm, setBundleSearchTerm] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { currencySymbol } = useCurrency();
 
   // Fetch suppliers
   const { data: suppliers = [] } = useQuery({
@@ -560,9 +562,9 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
                 <TabsContent value="pricing" className="mt-0 space-y-5">
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="cost" className="text-sm font-medium">Cost (PKR) <span className="text-destructive">*</span></Label>
+                      <Label htmlFor="cost" className="text-sm font-medium">Cost <span className="text-destructive">*</span></Label>
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rs.</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">{currencySymbol}</span>
                         <Input
                           id="cost"
                           type="number"
@@ -577,9 +579,9 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="price" className="text-sm font-medium">Retail Price (PKR) <span className="text-destructive">*</span></Label>
+                      <Label htmlFor="price" className="text-sm font-medium">Retail Price <span className="text-destructive">*</span></Label>
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rs.</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">{currencySymbol}</span>
                         <Input
                           id="price"
                           type="number"

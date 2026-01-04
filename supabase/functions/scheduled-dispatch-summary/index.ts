@@ -44,9 +44,10 @@ serve(async (req: Request) => {
     if (!summary) {
       console.log("No dispatch summary found for today, checking if there were any dispatches...");
       
-      // Check if there were any dispatches today
-      const startOfDay = `${todayStr}T00:00:00+05:00`;
-      const endOfDay = `${todayStr}T23:59:59+05:00`;
+      // Check if there were any dispatches today - use timezone offset from settings
+      const offsetStr = localeSettings.timezoneOffset >= 0 ? `+${String(localeSettings.timezoneOffset).padStart(2, '0')}:00` : `-${String(Math.abs(localeSettings.timezoneOffset)).padStart(2, '0')}:00`;
+      const startOfDay = `${todayStr}T00:00:00${offsetStr}`;
+      const endOfDay = `${todayStr}T23:59:59${offsetStr}`;
       
       const { count: dispatchCount } = await supabase
         .from('dispatches')

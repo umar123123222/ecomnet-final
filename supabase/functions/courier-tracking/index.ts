@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.50.2";
 import { getAPISetting } from "../_shared/apiSettings.ts";
+import { TIMEZONE_OFFSETS, DEFAULT_TIMEZONE } from "../_shared/locale.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -494,13 +495,13 @@ function parseTCSDateTime(datetime: string): string | null {
     };
     const month = months[monthStr] ?? 0;
     
-    // Create date in PKT (UTC+5), subtract 5 hours to get correct UTC time
-    const pktOffsetHours = 5;
+    // Create date in company timezone, subtract offset to get correct UTC time
+    const timezoneOffset = TIMEZONE_OFFSETS[DEFAULT_TIMEZONE] || 5;
     const date = new Date(Date.UTC(
       parseInt(year),
       month,
       parseInt(day),
-      parseInt(hours) - pktOffsetHours,  // Convert PKT to UTC
+      parseInt(hours) - timezoneOffset,  // Convert local time to UTC
       parseInt(minutes)
     ));
     

@@ -3,8 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Loader2 } from "lucide-react";
+import { useCurrency } from "@/hooks/useCurrency";
 
 export const InventoryValueChart = memo(() => {
+  const { currencySymbol } = useCurrency();
   const { data: inventoryValue, isLoading } = useQuery({
     queryKey: ["inventory-value"],
     queryFn: async () => {
@@ -77,7 +79,7 @@ export const InventoryValueChart = memo(() => {
         <YAxis 
           className="text-xs"
           tick={{ fill: 'hsl(var(--muted-foreground))' }}
-          tickFormatter={(value) => `Rs. ${(value / 1000).toFixed(0)}k`}
+          tickFormatter={(value) => `${currencySymbol} ${(value / 1000).toFixed(0)}k`}
         />
         <Tooltip
           contentStyle={{
@@ -85,7 +87,7 @@ export const InventoryValueChart = memo(() => {
             border: '1px solid hsl(var(--border))',
             borderRadius: '6px',
           }}
-          formatter={(value: any) => [`Rs. ${value.toLocaleString()}`, 'Total Value']}
+          formatter={(value: any) => [`${currencySymbol} ${value.toLocaleString()}`, 'Total Value']}
         />
         <Area
           type="monotone"

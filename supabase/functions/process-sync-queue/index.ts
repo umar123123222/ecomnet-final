@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
+import { getLocaleSettings, formatLocalDateTime } from '../_shared/locale.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -290,7 +291,8 @@ Deno.serve(async (req) => {
               }
               
               // Add attribution note to Shopify order
-              const timestamp = new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' });
+              const localeSettings = await getLocaleSettings(supabase);
+              const timestamp = formatLocalDateTime(new Date(), localeSettings.locale);
               const attributionNote = `Address updated by ${userName} via ERP on ${timestamp}`;
               
               console.log('Adding address change attribution note:', attributionNote);

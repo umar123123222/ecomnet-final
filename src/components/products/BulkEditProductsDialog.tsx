@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrency } from "@/hooks/useCurrency";
 import {
   bulkUpdateProductCategory,
   bulkUpdateProductSupplier,
@@ -59,6 +60,7 @@ export function BulkEditProductsDialog({
   onComplete,
 }: BulkEditProductsDialogProps) {
   const { toast } = useToast();
+  const { currencySymbol } = useCurrency();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedField, setSelectedField] = useState<EditField | "">("");
   
@@ -313,7 +315,7 @@ export function BulkEditProductsDialog({
       case "cost":
         return (
           <div className="space-y-2">
-            <Label>Cost (Rs.)</Label>
+            <Label>Cost ({currencySymbol})</Label>
             <Input
               type="number"
               min={0}
@@ -327,7 +329,7 @@ export function BulkEditProductsDialog({
       case "retail_price":
         return (
           <div className="space-y-2">
-            <Label>Retail Price (Rs.)</Label>
+            <Label>Retail Price ({currencySymbol})</Label>
             <Input
               type="number"
               min={0}

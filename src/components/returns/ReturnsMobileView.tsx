@@ -7,6 +7,7 @@ import { Camera, Search, Filter, RotateCcw, Package } from 'lucide-react';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
+import { useCurrency } from '@/hooks/useCurrency';
 
 interface ReturnsMobileViewProps {
   onOpenScanner: () => void;
@@ -45,6 +46,7 @@ const ReturnsMobileView: React.FC<ReturnsMobileViewProps> = ({
   onDateRangeChange,
 }) => {
   const [showFilters, setShowFilters] = React.useState(false);
+  const { formatCurrency } = useCurrency();
 
   // Calculate active filter count
   const activeFilterCount = React.useMemo(() => {
@@ -165,7 +167,7 @@ const ReturnsMobileView: React.FC<ReturnsMobileViewProps> = ({
                   </div>
                   <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
                     <span>{returnItem.orders?.customer_name || 'Unknown'}</span>
-                    <span>₨{(returnItem.worth || 0).toLocaleString()}</span>
+                    <span>{formatCurrency(returnItem.worth || 0)}</span>
                   </div>
                 </CardContent>
               </Card>

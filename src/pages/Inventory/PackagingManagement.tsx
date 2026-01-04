@@ -48,6 +48,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useCurrency } from "@/hooks/useCurrency";
 import * as z from "zod";
 import { PackagingAdjustmentDialog } from "@/components/inventory/PackagingAdjustmentDialog";
 import { PackagingRulesManager } from "@/components/inventory/PackagingRulesManager";
@@ -83,6 +84,7 @@ export default function PackagingManagement() {
   const { permissions, primaryRole } = useUserRoles();
   const isFinanceUser = primaryRole === 'finance';
   const { progress, executeBulkOperation, resetProgress } = useBulkOperations();
+  const { formatCurrency } = useCurrency();
   
   // Date filter for reserved quantities
   const {
@@ -421,7 +423,7 @@ export default function PackagingManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Inventory Value</p>
-                <p className="text-2xl font-bold">PKR {totalValue.toLocaleString()}</p>
+                <p className="text-2xl font-bold">{formatCurrency(totalValue)}</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
                 <DollarSign className="h-5 w-5 text-green-600" />

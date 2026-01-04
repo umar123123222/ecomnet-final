@@ -16,6 +16,7 @@ import { EditTrackingDialog } from "./EditTrackingDialog";
 import { OrderActivityLog } from "./OrderActivityLog";
 import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+import { useCurrency } from "@/hooks/useCurrency";
 
 // Compact Vertical Tracking Timeline Component
 const TrackingTimeline = ({ 
@@ -175,6 +176,7 @@ export const OrderDetailsModal = ({
   const [showEditTrackingDialog, setShowEditTrackingDialog] = useState(false);
   const [activeTab, setActiveTab] = useState("tracking");
   const [autoFetchAttempted, setAutoFetchAttempted] = useState(false);
+  const { formatCurrency } = useCurrency();
 
   // Fetch packaging recommendation
   const { data: packagingRecommendation, isLoading: packagingLoading } = useQuery({
@@ -409,26 +411,26 @@ export const OrderDetailsModal = ({
                       <div className="flex justify-between text-xs sm:text-sm">
                         <span className="text-muted-foreground">Subtotal:</span>
                         <span className="font-mono">
-                          PKR {(totalAmount - shippingCharges).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {formatCurrency(totalAmount - shippingCharges)}
                         </span>
                       </div>
                       <div className="flex justify-between text-xs sm:text-sm">
                         <span className="text-muted-foreground">Shipping:</span>
                         <span className="font-mono">
-                          PKR {shippingCharges.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {formatCurrency(shippingCharges)}
                         </span>
                       </div>
                       <div className="border-t pt-1 mt-1"></div>
                       <div className="flex justify-between font-semibold text-sm sm:text-base">
                         <span>Total:</span>
                         <span className="font-mono">
-                          PKR {totalAmount.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {formatCurrency(totalAmount)}
                         </span>
                       </div>
                     </div>
                   ) : (
                     <div className="font-semibold font-mono text-sm sm:text-base">
-                      PKR {totalAmount.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {formatCurrency(totalAmount)}
                     </div>
                   );
                 })()}
@@ -494,7 +496,7 @@ export const OrderDetailsModal = ({
                         <div className="flex items-center gap-3 text-xs sm:text-sm shrink-0 ml-2">
                           <span className="text-muted-foreground">×{item.quantity || 1}</span>
                           <span className="font-mono font-medium">
-                            PKR {((item.price || 0) * (item.quantity || 1)).toLocaleString()}
+                            {formatCurrency((item.price || 0) * (item.quantity || 1))}
                           </span>
                         </div>
                       </div>

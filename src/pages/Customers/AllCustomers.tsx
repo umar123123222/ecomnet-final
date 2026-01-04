@@ -27,6 +27,7 @@ import { Search, Download, Eye, Edit, MessageCircle, RefreshCw, Loader2, Users }
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from '@/components/layout';
 import TagsNotes from '@/components/TagsNotes';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCurrency } from '@/hooks/useCurrency';
 
 const AllCustomers = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,6 +49,7 @@ const AllCustomers = () => {
   const [pageSize] = useState(50);
   const { toast } = useToast();
   const { user, profile } = useAuth();
+  const { formatCurrency } = useCurrency();
 
   const fetchCustomerOrders = async (customerId: string) => {
     setLoadingOrders(true);
@@ -127,7 +129,7 @@ const AllCustomers = () => {
           email: customer.email || 'N/A',
           status: 'Active',
           totalOrders: orderData.count,
-          totalSpent: `Rs. ${orderData.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          totalSpent: formatCurrency(orderData.total),
           joinDate: new Date(customer.created_at).toLocaleDateString(),
           createdAt: customer.created_at,
           ordersDelivered: customer.delivered_count || 0,
