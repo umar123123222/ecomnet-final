@@ -4,8 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Package, TrendingUp, AlertCircle, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useCurrency } from "@/hooks/useCurrency";
 
 export function ProductStockWidget() {
+  const { formatCurrency } = useCurrency();
   const { data: stockSummary, isLoading } = useQuery({
     queryKey: ['product-stock-summary'],
     queryFn: async () => {
@@ -81,7 +83,7 @@ export function ProductStockWidget() {
           </div>
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">Total Value</p>
-            <p className="text-2xl font-bold">Rs {totals?.totalValue?.toFixed(0) || 0}</p>
+            <p className="text-2xl font-bold">{formatCurrency(totals?.totalValue || 0)}</p>
           </div>
         </div>
 

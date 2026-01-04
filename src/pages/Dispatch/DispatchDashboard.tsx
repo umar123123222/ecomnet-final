@@ -33,8 +33,10 @@ import { useScannerMode } from '@/hooks/useScannerMode';
 import { useUserRoles } from '@/hooks/useUserRoles';
 import WarehouseBulkPrint from '@/components/dispatch/WarehouseBulkPrint';
 import { PAGINATION } from '@/constants/limits';
+import { useCurrency } from '@/hooks/useCurrency';
 
 const DispatchDashboard = () => {
+  const { formatCurrency } = useCurrency();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDispatches, setSelectedDispatches] = useState<string[]>([]);
   const [dispatches, setDispatches] = useState<any[]>([]);
@@ -1770,7 +1772,7 @@ const metrics = useMemo(() => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">Rs. {metrics.worthOfDispatches.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-green-600">{formatCurrency(metrics.worthOfDispatches)}</div>
           </CardContent>
         </Card>
       </div>

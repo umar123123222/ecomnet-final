@@ -28,11 +28,13 @@ import { useUserRoles } from '@/hooks/useUserRoles';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useReservationDateFilter } from "@/hooks/useReservationDateFilter";
 import { ReservationDateFilter } from "@/components/ReservationDateFilter";
+import { useCurrency } from "@/hooks/useCurrency";
 
 const ProductManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { permissions, primaryRole } = useUserRoles();
+  const { formatCurrency } = useCurrency();
   const isFinanceUser = primaryRole === 'finance';
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -347,7 +349,7 @@ const ProductManagement = () => {
       <StatsGrid columns={3}>
         <StatsCard title="Total Products" value={allProducts?.length || 0} description={`${activeProducts} active`} icon={Package} />
         <StatsCard title="Categories" value={new Set(allProducts?.map(p => p.category)).size} description="Unique categories" icon={Layers} />
-        <StatsCard title="Avg. Price" value={`Rs. ${allProducts && allProducts.length > 0 ? Math.round(totalValue / allProducts.length) : 0}`} description="Average product price" icon={DollarSign} />
+        <StatsCard title="Avg. Price" value={formatCurrency(allProducts && allProducts.length > 0 ? Math.round(totalValue / allProducts.length) : 0)} description="Average product price" icon={DollarSign} />
       </StatsGrid>
 
       {/* Bulk Operations Panel */}
@@ -589,12 +591,12 @@ const ProductManagement = () => {
                             value={product.cost ?? 0}
                             onSave={(val) => handleInlineUpdate(product.id, 'cost', val)}
                             type="number"
-                            prefix="Rs. "
+                            prefix=""
                             disabled={isFinanceUser}
-                            formatDisplay={(val) => `Rs. ${(val as number)?.toLocaleString() || '0'}`}
+                            formatDisplay={(val) => formatCurrency(val as number || 0)}
                           />
                         ) : (
-                          <span>Rs. {product.cost?.toLocaleString() || '0'}</span>
+                          <span>{formatCurrency(product.cost || 0)}</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -603,12 +605,12 @@ const ProductManagement = () => {
                             value={product.price ?? 0}
                             onSave={(val) => handleInlineUpdate(product.id, 'price', val)}
                             type="number"
-                            prefix="Rs. "
+                            prefix=""
                             disabled={isFinanceUser}
-                            formatDisplay={(val) => `Rs. ${(val as number)?.toLocaleString() || '0'}`}
+                            formatDisplay={(val) => formatCurrency(val as number || 0)}
                           />
                         ) : (
-                          <span>Rs. {product.price?.toLocaleString()}</span>
+                          <span>{formatCurrency(product.price || 0)}</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">

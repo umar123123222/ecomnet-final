@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface Order {
   id: string;
@@ -27,6 +28,7 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(true);
+  const { formatCurrency } = useCurrency();
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -185,7 +187,7 @@ export const OrderKPIPanel = ({ isVisible }: OrderKPIPanelProps) => {
                 <Package className="h-3.5 w-3.5 text-primary" />
                 <span className="text-xs text-muted-foreground">Avg Order</span>
               </div>
-              <div className="text-lg font-bold">Rs {Math.round(aov).toLocaleString()}</div>
+              <div className="text-lg font-bold">{formatCurrency(Math.round(aov))}</div>
               <div className="text-[10px] text-muted-foreground">{filteredOrders.length} orders</div>
             </CardContent>
           </Card>

@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/sheet";
 import { PODetailsDialog } from "./PODetailsDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface SupplierPurchaseOrdersProps {
   supplierId: string;
@@ -48,6 +49,7 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
+  const { formatCurrency } = useCurrency();
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedPO, setSelectedPO] = useState<any>(null);
   const [actionDialog, setActionDialog] = useState<{ type: string; po: any } | null>(null);
@@ -333,7 +335,7 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
           </div>
           <div className="space-y-0.5">
             <p className="text-xs text-muted-foreground">Amount</p>
-            <p className="font-semibold">PKR {po.total_amount?.toLocaleString()}</p>
+            <p className="font-semibold">{formatCurrency(po.total_amount || 0)}</p>
           </div>
           <div className="space-y-0.5">
             <p className="text-xs text-muted-foreground">Delivery</p>
@@ -359,7 +361,7 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
                 </Badge>
               ) : po.paid_amount > 0 ? (
                 <Badge className="bg-purple-500 text-xs">
-                  PKR {po.paid_amount?.toLocaleString()}
+                  {formatCurrency(po.paid_amount || 0)}
                 </Badge>
               ) : null}
             </div>
@@ -429,7 +431,7 @@ export function SupplierPurchaseOrders({ supplierId }: SupplierPurchaseOrdersPro
               { icon: Check, label: "Confirmed", value: confirmedPOs, color: "text-green-600", bg: "bg-green-500/10" },
               { icon: Truck, label: "Shipped", value: shippedPOs, color: "text-blue-600", bg: "bg-blue-500/10" },
               { icon: CreditCard, label: "Payments to Confirm", value: paidPOs, color: "text-purple-600", bg: "bg-purple-500/10" },
-              { icon: DollarSign, label: "Total Value", value: `PKR ${(purchaseOrders?.reduce((sum: number, po: any) => sum + (po.total_amount || 0), 0) || 0).toLocaleString()}`, color: "text-primary", bg: "bg-primary/10" },
+              { icon: DollarSign, label: "Total Value", value: formatCurrency(purchaseOrders?.reduce((sum: number, po: any) => sum + (po.total_amount || 0), 0) || 0), color: "text-primary", bg: "bg-primary/10" },
             ].map((stat, idx) => (
               <Card key={idx} className="shrink-0 w-[150px] sm:w-auto p-3 sm:p-4 rounded-xl">
                 <div className="flex items-center gap-2 sm:gap-3">

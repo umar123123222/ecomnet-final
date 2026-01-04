@@ -50,7 +50,7 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
   const [bundleSearchTerm, setBundleSearchTerm] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { currencySymbol } = useCurrency();
+  const { currencySymbol, formatCurrency } = useCurrency();
 
   // Fetch suppliers
   const { data: suppliers = [] } = useQuery({
@@ -616,7 +616,7 @@ export function AddProductDialog({ open, onOpenChange, product }: AddProductDial
                         <span className="text-sm font-medium text-green-700 dark:text-green-400">Profit Margin</span>
                         <div className="text-right">
                           <span className="text-lg font-bold text-green-700 dark:text-green-400">
-                            Rs. {(watch("price") - watch("cost")).toFixed(2)}
+                            {formatCurrency(watch("price") - watch("cost"))}
                           </span>
                           <span className="text-xs text-green-600 dark:text-green-500 ml-2">
                             ({((watch("price") - watch("cost")) / watch("price") * 100).toFixed(1)}%)

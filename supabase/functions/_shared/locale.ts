@@ -18,6 +18,23 @@ export const TIMEZONE_OFFSETS: Record<string, number> = {
   'America/Los_Angeles': -8,
 };
 
+// Timezone abbreviations for display
+export const TIMEZONE_ABBREVIATIONS: Record<string, string> = {
+  'Asia/Karachi': 'PKT',
+  'Asia/Dubai': 'GST',
+  'Asia/Riyadh': 'AST',
+  'Europe/London': 'GMT',
+  'America/New_York': 'EST',
+  'America/Los_Angeles': 'PST',
+};
+
+/**
+ * Get timezone abbreviation from timezone name
+ */
+export function getTimezoneAbbreviation(timezone: string): string {
+  return TIMEZONE_ABBREVIATIONS[timezone] || timezone;
+}
+
 export interface LocaleSettings {
   timezone: string;
   locale: string;

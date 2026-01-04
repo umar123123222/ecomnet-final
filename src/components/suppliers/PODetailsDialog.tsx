@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/table";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Card } from "@/components/ui/card";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface PODetailsDialogProps {
   po: any;
@@ -30,6 +31,7 @@ interface PODetailsDialogProps {
 export function PODetailsDialog({ po, supplierId, onClose }: PODetailsDialogProps) {
   const items = po.purchase_order_items || [];
   const isMobile = useIsMobile();
+  const { formatCurrency } = useCurrency();
 
   const { data: grnData } = useQuery({
     queryKey: ["po-grn-details", po.id],
@@ -84,7 +86,7 @@ export function PODetailsDialog({ po, supplierId, onClose }: PODetailsDialogProp
             <p className="font-medium text-sm truncate">{product?.name || "Unknown"}</p>
             <p className="text-xs text-muted-foreground">{product?.sku || "-"}</p>
           </div>
-          <p className="font-semibold text-sm">PKR {item.total_price?.toLocaleString()}</p>
+          <p className="font-semibold text-sm">{formatCurrency(item.total_price || 0)}</p>
         </div>
         <div className="grid grid-cols-3 gap-2 text-xs">
           <div className="bg-muted/50 rounded-lg p-2 text-center">
@@ -99,7 +101,7 @@ export function PODetailsDialog({ po, supplierId, onClose }: PODetailsDialogProp
           </div>
           <div className="bg-muted/50 rounded-lg p-2 text-center">
             <p className="text-muted-foreground">Unit Price</p>
-            <p className="font-semibold">PKR {item.unit_price?.toLocaleString()}</p>
+            <p className="font-semibold">{formatCurrency(item.unit_price || 0)}</p>
           </div>
         </div>
         {variance > 0 && item.quantity_received > 0 && (
@@ -192,20 +194,20 @@ export function PODetailsDialog({ po, supplierId, onClose }: PODetailsDialogProp
               <Card className="p-4 rounded-xl space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span>PKR {(po.total_amount - (po.tax_amount || 0) - (po.shipping_cost || 0)).toLocaleString()}</span>
+                  <span>{formatCurrency((po.total_amount - (po.tax_amount || 0) - (po.shipping_cost || 0)))}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Tax</span>
-                  <span>PKR {(po.tax_amount || 0).toLocaleString()}</span>
+                  <span>{formatCurrency(po.tax_amount || 0)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Shipping</span>
-                  <span>PKR {(po.shipping_cost || 0).toLocaleString()}</span>
+                  <span>{formatCurrency(po.shipping_cost || 0)}</span>
                 </div>
                 <Separator className="my-2" />
                 <div className="flex justify-between font-semibold">
                   <span>Total</span>
-                  <span className="text-lg">PKR {po.total_amount?.toLocaleString()}</span>
+                  <span className="text-lg">{formatCurrency(po.total_amount || 0)}</span>
                 </div>
 
                 {/* Payment Breakdown */}
@@ -225,18 +227,18 @@ export function PODetailsDialog({ po, supplierId, onClose }: PODetailsDialogProp
                         <>
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Received Value</span>
-                            <span>PKR {receivedTotal.toLocaleString()}</span>
+                            <span>{formatCurrency(receivedTotal)}</span>
                           </div>
                           <div className="flex justify-between text-sm font-medium">
                             <span>Payable Amount</span>
-                            <span>PKR {payableAmount.toLocaleString()}</span>
+                            <span>{formatCurrency(payableAmount)}</span>
                           </div>
                         </>
                       )}
                       {po.paid_amount > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Paid</span>
-                          <span className="text-green-600 font-medium">PKR {po.paid_amount.toLocaleString()}</span>
+                          <span className="text-green-600 font-medium">{formatCurrency(po.paid_amount)}</span>
                         </div>
                       )}
                       {hasReceivingDifference && (
@@ -377,8 +379,8 @@ export function PODetailsDialog({ po, supplierId, onClose }: PODetailsDialogProp
                                 <Badge variant="destructive" className="ml-2 text-xs">-{variance}</Badge>
                               )}
                             </TableCell>
-                            <TableCell className="text-right">PKR {item.unit_price?.toLocaleString()}</TableCell>
-                            <TableCell className="text-right font-medium">PKR {item.total_price?.toLocaleString()}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(item.unit_price || 0)}</TableCell>
+                            <TableCell className="text-right font-medium">{formatCurrency(item.total_price || 0)}</TableCell>
                           </TableRow>
                         );
                       })}

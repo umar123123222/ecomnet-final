@@ -615,7 +615,7 @@ const AllCustomers = () => {
                                               {order.status}
                                             </Badge>
                                           </TableCell>
-                                          <TableCell>Rs. {Number(order.total_amount || 0).toLocaleString()}</TableCell>
+                                          <TableCell>{formatCurrency(Number(order.total_amount || 0))}</TableCell>
                                         </TableRow>
                                       ))
                                     )}
