@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrency } from '@/hooks/useCurrency';
 import { 
   Shield, AlertTriangle, TrendingUp, Lock, Eye, 
   BarChart3, FileText, Download, RefreshCw, CheckCircle
@@ -25,6 +26,7 @@ import {
 
 const FraudReportDashboard = () => {
   const { toast } = useToast();
+  const { formatCurrency } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<any[]>([]);
   const [fraudAnalyses, setFraudAnalyses] = useState<OrderFraudAnalysis[]>([]);
@@ -374,7 +376,7 @@ const FraudReportDashboard = () => {
                       <div className="grid grid-cols-3 gap-4 text-sm border-t pt-4">
                         <div>
                           <span className="text-muted-foreground">Amount:</span>{' '}
-                          <span className="font-semibold">{order.total_amount?.toLocaleString()} PKR</span>
+                          <span className="font-semibold">{formatCurrency(order.total_amount || 0)}</span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">City:</span>{' '}

@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useCurrency } from "@/hooks/useCurrency";
 import { AssignedInventoryMobileCard } from "./AssignedInventoryMobileCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -32,6 +33,7 @@ export function AssignedInventory({ supplierId }: AssignedInventoryProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const isMobile = useIsMobile();
+  const { formatCurrency } = useCurrency();
 
   const { data: inventory, isLoading } = useQuery({
     queryKey: ["supplier-inventory", supplierId],
@@ -283,7 +285,7 @@ export function AssignedInventory({ supplierId }: AssignedInventoryProps) {
                             {isProduct ? "Product" : data?.type}
                           </Badge>
                         </TableCell>
-                        <TableCell>PKR {item.unit_cost?.toFixed(2) || "0.00"}</TableCell>
+                        <TableCell>{formatCurrency(item.unit_cost || 0)}</TableCell>
                         <TableCell>{item.minimum_order_quantity || 1}</TableCell>
                         <TableCell>{item.lead_time_days || 7} days</TableCell>
                         <TableCell className={currentStock <= reorderLevel ? "text-destructive font-medium" : ""}>

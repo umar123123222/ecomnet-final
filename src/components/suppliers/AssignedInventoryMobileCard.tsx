@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Package, DollarSign, Clock, AlertTriangle } from "lucide-react";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface AssignedInventoryMobileCardProps {
   item: any;
@@ -8,6 +9,8 @@ interface AssignedInventoryMobileCardProps {
 }
 
 export function AssignedInventoryMobileCard({ item, getStockStatus }: AssignedInventoryMobileCardProps) {
+  const { formatCurrency } = useCurrency();
+  
   const status = getStockStatus(item);
   const isProduct = !!item.product;
   const data = isProduct ? item.product : item.packaging_item;
@@ -51,7 +54,7 @@ export function AssignedInventoryMobileCard({ item, getStockStatus }: AssignedIn
             <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
             <div>
               <p className="text-muted-foreground">Unit Cost</p>
-              <p className="font-semibold">PKR {item.unit_cost?.toFixed(0) || "0"}</p>
+              <p className="font-semibold">{formatCurrency(item.unit_cost || 0)}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

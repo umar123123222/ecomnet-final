@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRoles } from '@/hooks/useUserRoles';
+import { useCurrency } from '@/hooks/useCurrency';
 import { Loader2, FileWarning, ShieldAlert, Truck, Package, User, Hash } from 'lucide-react';
 
 interface ClaimSheetProps {
@@ -29,6 +30,7 @@ const ClaimSheet = ({ open, onOpenChange, order, onSuccess }: ClaimSheetProps) =
   const { toast } = useToast();
   const { user } = useAuth();
   const { hasAnyRole } = useUserRoles();
+  const { formatCurrency, currencySymbol } = useCurrency();
   const [loading, setLoading] = useState(false);
   const [claimReference, setClaimReference] = useState('');
   const [claimAmount, setClaimAmount] = useState('');
@@ -116,7 +118,7 @@ const ClaimSheet = ({ open, onOpenChange, order, onSuccess }: ClaimSheetProps) =
 
       toast({
         title: "Claim Filed Successfully",
-        description: `Claim for ${order.orderNumber} - ₨${parseFloat(claimAmount).toLocaleString()}`,
+        description: `Claim for ${order.orderNumber} - ${formatCurrency(parseFloat(claimAmount))}`,
       });
 
       onSuccess();
@@ -206,7 +208,7 @@ const ClaimSheet = ({ open, onOpenChange, order, onSuccess }: ClaimSheetProps) =
           <div className="space-y-2">
             <Label htmlFor="claimAmount">Claim Amount</Label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">₨</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">{currencySymbol}</span>
               <Input
                 id="claimAmount"
                 type="number"

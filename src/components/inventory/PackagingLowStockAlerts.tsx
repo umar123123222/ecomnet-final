@@ -5,8 +5,11 @@ import { AlertTriangle, Package, TrendingDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCurrency } from '@/hooks/useCurrency';
 
 export const PackagingLowStockAlerts = () => {
+  const { formatCurrency } = useCurrency();
+  
   const { data: lowStockItems, isLoading } = useQuery({
     queryKey: ['packaging-low-stock'],
     queryFn: async () => {
@@ -105,7 +108,7 @@ export const PackagingLowStockAlerts = () => {
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
                       <span>SKU: {item.sku}</span>
                       <span>Type: {item.type}</span>
-                      <span>Cost: PKR {item.cost}</span>
+                      <span>Cost: {formatCurrency(item.cost)}</span>
                     </div>
                     <div className="flex items-center gap-4 text-sm">
                       <span className="text-muted-foreground">

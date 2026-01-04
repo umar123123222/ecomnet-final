@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrency } from '@/hooks/useCurrency';
 import { Plus, Search, ClipboardCheck, AlertTriangle, BarChart3 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
@@ -34,6 +35,7 @@ interface CountItem {
 
 const StockAuditDashboard = () => {
   const { toast } = useToast();
+  const { formatCurrency } = useCurrency();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
@@ -382,7 +384,7 @@ const StockAuditDashboard = () => {
                       </div>
                       <div>
                         <span className="text-muted-foreground">Variance:</span>{' '}
-                        {count.items_with_variance} items ({count.total_variance_value.toLocaleString()} PKR)
+                        {count.items_with_variance} items ({formatCurrency(count.total_variance_value)})
                       </div>
                       {count.items_with_variance > 0 && (
                         <div className="flex items-center gap-1 text-amber-600">

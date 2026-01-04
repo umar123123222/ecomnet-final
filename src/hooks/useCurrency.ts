@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { formatCurrency as formatCurrencyUtil, getCurrencySymbol } from "@/utils/currency";
 
 export const useCurrency = () => {
   const { data: currency = 'PKR', isLoading } = useQuery({
@@ -20,5 +21,13 @@ export const useCurrency = () => {
     },
   });
 
-  return { currency, isLoading };
+  // Helper function to format currency with the loaded currency code
+  const formatCurrency = (amount: number) => {
+    return formatCurrencyUtil(amount, currency);
+  };
+
+  // Get currency symbol
+  const currencySymbol = getCurrencySymbol(currency);
+
+  return { currency, isLoading, formatCurrency, currencySymbol };
 };

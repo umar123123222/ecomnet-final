@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Truck, Package } from "lucide-react";
 import { bookCourier } from "@/utils/courierHelpers";
+import { useBusinessSettings } from "@/hooks/useBusinessSettings";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface NewDispatchDialogProps {
   open: boolean;
@@ -21,6 +23,8 @@ interface NewDispatchDialogProps {
 const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispatchDialogProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { getSetting } = useBusinessSettings();
+  const { formatCurrency } = useCurrency();
   const [formData, setFormData] = useState({
     order_id: preSelectedOrderId || "",
     tracking_id: "",
@@ -150,15 +154,30 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
         throw new Error("Courier not found");
       }
 
-      // Prepare booking parameters
+      // Prepare booking parameters - fetch pickup address from business settings
+      const pickupName = getSetting('PICKUP_ADDRESS_NAME') || getSetting('company_name') || 'Warehouse';
+      const pickupPhone = getSetting('PICKUP_ADDRESS_PHONE') || getSetting('company_phone') || '';
+      const pickupAddr = getSetting('PICKUP_ADDRESS_ADDRESS') || '';
+      const pickupCityVal = getSetting('PICKUP_ADDRESS_CITY') || 'Karachi';
+
+      if (!pickupName || !pickupPhone || !pickupAddr) {
+        toast({
+          title: "Pickup Address Not Configured",
+          description: "Please configure pickup address in Business Settings > Company Information",
+          variant: "destructive",
+        });
+        setIsBooking(false);
+        return;
+      }
+
       const bookingParams = {
         orderId: formData.order_id,
         courierId: courier.id,
         pickupAddress: {
-          name: "Your Business Name", // TODO: Get from business settings
-          phone: "+92-300-1234567", // TODO: Get from business settings
-          address: "Your Warehouse Address", // TODO: Get from business settings
-          city: "Karachi", // TODO: Get from business settings
+          name: pickupName,
+          phone: pickupPhone,
+          address: pickupAddr,
+          city: pickupCityVal,
         },
         deliveryAddress: {
           name: deliveryName,
@@ -382,7 +401,7 @@ const NewDispatchDialog = ({ open, onOpenChange, preSelectedOrderId }: NewDispat
                   <p>Phone: {selectedOrder.customer_phone || 'Not provided'}</p>
                   <p>Address: {selectedOrder.customer_address?.trim() || 'Not provided'}</p>
                   <p>City: {selectedOrder.city ? selectedOrder.city.charAt(0).toUpperCase() + selectedOrder.city.slice(1).toLowerCase() : 'Not provided'}</p>
-                  <p>Amount: Rs. {selectedOrder.total_amount?.toLocaleString()}</p>
+                  <p>Amount: {formatCurrency(selectedOrder.total_amount)}</p>
                 </div>
               )}
 
