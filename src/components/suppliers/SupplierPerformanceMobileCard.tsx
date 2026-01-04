@@ -5,6 +5,7 @@ import {
   Package, CheckCircle, XCircle, DollarSign, 
   TrendingUp, Clock, Truck, ChevronRight 
 } from "lucide-react";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface SupplierPerformanceMobileCardProps {
   order: {
@@ -19,6 +20,8 @@ interface SupplierPerformanceMobileCardProps {
 }
 
 export function SupplierPerformanceOrderCard({ order }: SupplierPerformanceMobileCardProps) {
+  const { formatCurrency } = useCurrency();
+  
   const fulfillment = order.items_ordered > 0 
     ? Math.round((order.items_received / order.items_ordered) * 100) 
     : 0;
@@ -57,7 +60,7 @@ export function SupplierPerformanceOrderCard({ order }: SupplierPerformanceMobil
 
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">Amount:</span>
-          <span className="font-semibold">PKR {order.total_amount?.toLocaleString()}</span>
+          <span className="font-semibold">{formatCurrency(order.total_amount || 0)}</span>
         </div>
       </CardContent>
     </Card>
@@ -77,6 +80,8 @@ interface SupplierMetricsCardProps {
 }
 
 export function SupplierMetricsCards({ metrics }: SupplierMetricsCardProps) {
+  const { currencySymbol } = useCurrency();
+  
   return (
     <div className="space-y-4">
       {/* Stats Row - Horizontally scrollable */}
@@ -113,7 +118,7 @@ export function SupplierMetricsCards({ metrics }: SupplierMetricsCardProps) {
             <DollarSign className="h-4 w-4 text-blue-600" />
             <div>
               <p className="text-xs text-muted-foreground">Value</p>
-              <p className="text-lg font-bold">₨{(metrics.totalValue / 1000).toFixed(0)}k</p>
+              <p className="text-lg font-bold">{currencySymbol}{(metrics.totalValue / 1000).toFixed(0)}k</p>
             </div>
           </div>
         </Card>

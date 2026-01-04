@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.50.2";
+import { getLocaleSettings, getTodayDateString } from "../_shared/locale.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,11 +20,12 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Get today's date in Pakistan timezone (UTC+5)
-    const now = new Date();
-    const pakistanOffset = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
-    const pakistanTime = new Date(now.getTime() + pakistanOffset);
-    const todayStr = pakistanTime.toISOString().split('T')[0];
+    // Get locale settings from database for dynamic timezone
+    const localeSettings = await getLocaleSettings(supabase);
+    console.log(`Using timezone: ${localeSettings.timezone} (UTC+${localeSettings.timezoneOffset})`);
+
+    // Get today's date in company timezone
+    const todayStr = getTodayDateString(localeSettings.timezoneOffset);
 
     console.log(`Fetching dispatch summary for date: ${todayStr}`);
 

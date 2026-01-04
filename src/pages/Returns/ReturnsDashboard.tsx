@@ -76,7 +76,7 @@ const ReturnsDashboard = () => {
   const handheldScanner = useHandheldScanner();
   const queryClient = useQueryClient();
   const { primaryRole } = useUserRoles();
-  const { currency } = useCurrency();
+  const { formatCurrency, currency } = useCurrency();
   
   // Only returns_manager, warehouse_manager, super_manager, super_admin can use scan/mark returns
   // senior_staff can view but not make entries
@@ -1451,7 +1451,7 @@ const ReturnsDashboard = () => {
                               <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                                 <p className="font-semibold text-amber-800 mb-2">Courier Claim Details</p>
                                 <div className="grid grid-cols-2 gap-2 text-sm">
-                                  <p><strong>Claim Amount:</strong> ₨{(returnItem.claim_amount || 0).toLocaleString()}</p>
+                                  <p><strong>Claim Amount:</strong> {formatCurrency(returnItem.claim_amount || 0)}</p>
                                   <p><strong>Claim Status:</strong> {returnItem.claim_status || 'pending'}</p>
                                   {returnItem.claim_reference && <p><strong>Reference #:</strong> {returnItem.claim_reference}</p>}
                                   {returnItem.claimed_at && <p><strong>Claimed On:</strong> {new Date(returnItem.claimed_at).toLocaleDateString()}</p>}

@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRoles } from '@/hooks/useUserRoles';
+import { useCurrency } from '@/hooks/useCurrency';
 import { Loader2, FileWarning, ShieldAlert } from 'lucide-react';
 
 interface ClaimDialogProps {
@@ -29,6 +30,7 @@ const ClaimDialog = ({ open, onOpenChange, order, onSuccess }: ClaimDialogProps)
   const { toast } = useToast();
   const { user } = useAuth();
   const { hasAnyRole } = useUserRoles();
+  const { formatCurrency, currencySymbol } = useCurrency();
   const [loading, setLoading] = useState(false);
   const [claimReference, setClaimReference] = useState('');
   const [claimAmount, setClaimAmount] = useState(order.returnValue.toString());
@@ -115,7 +117,7 @@ const ClaimDialog = ({ open, onOpenChange, order, onSuccess }: ClaimDialogProps)
 
       toast({
         title: "Claim Filed",
-        description: `Claim filed for ${order.orderNumber} - Amount: ₨${parseFloat(claimAmount).toLocaleString()}`,
+        description: `Claim filed for ${order.orderNumber} - Amount: ${formatCurrency(parseFloat(claimAmount))}`,
       });
 
       onSuccess();

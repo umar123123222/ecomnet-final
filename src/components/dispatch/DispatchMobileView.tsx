@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { DatePickerWithRange } from '@/components/DatePickerWithRange';
 import { DateRange } from 'react-day-picker';
+import { useCurrency } from '@/hooks/useCurrency';
 
 interface DispatchMobileViewProps {
   onOpenScanner: () => void;
@@ -53,6 +54,7 @@ const DispatchMobileView: React.FC<DispatchMobileViewProps> = ({
   dateRange,
   onDateRangeChange,
 }) => {
+  const { formatCurrency, currencySymbol } = useCurrency();
   const [showFilters, setShowFilters] = React.useState(false);
 
   // Calculate active filter count
@@ -93,7 +95,7 @@ const DispatchMobileView: React.FC<DispatchMobileViewProps> = ({
         </Card>
         <Card className="bg-card">
           <CardContent className="p-3 text-center">
-            <div className="text-xl font-bold text-green-600">₨{(metrics.worthOfDispatches / 1000).toFixed(0)}K</div>
+            <div className="text-xl font-bold text-green-600">{currencySymbol}{(metrics.worthOfDispatches / 1000).toFixed(0)}K</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Worth</div>
           </CardContent>
         </Card>

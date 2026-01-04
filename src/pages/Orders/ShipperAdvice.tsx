@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import TagsNotes from "@/components/TagsNotes";
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrency } from '@/hooks/useCurrency';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,6 +41,7 @@ const ShipperAdvice = () => {
     isBulk: boolean;
   }>({ open: false, type: 'reattempt', isBulk: false });
   const { toast } = useToast();
+  const { formatCurrency } = useCurrency();
 
   useEffect(() => {
     const fetchProblematicOrders = async () => {
@@ -324,7 +326,7 @@ const ShipperAdvice = () => {
         order.courier,
         order.attemptCount.toString(),
         order.daysStuck.toString(),
-        `₨${order.totalAmount.toLocaleString()}`
+        formatCurrency(order.totalAmount)
       ])
     ].map(row => row.join(',')).join('\n');
 
@@ -576,7 +578,7 @@ const ShipperAdvice = () => {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Value at Risk</p>
                 <p className="text-2xl font-bold text-green-600">
-                  ₨{filteredOrders.reduce((sum, order) => sum + order.totalAmount, 0).toLocaleString()}
+                  {formatCurrency(filteredOrders.reduce((sum, order) => sum + order.totalAmount, 0))}
                 </p>
               </div>
               <div className="h-8 w-8 bg-green-100 rounded-lg flex items-center justify-center">
@@ -703,7 +705,7 @@ const ShipperAdvice = () => {
                              {order.daysStuck} days
                            </span>
                          </TableCell>
-                         <TableCell className="font-medium">₨{order.totalAmount.toLocaleString()}</TableCell>
+                         <TableCell className="font-medium">{formatCurrency(order.totalAmount)}</TableCell>
                           <TableCell>
                             <div className="flex gap-1">
                               {courierSupportsAdvice(order.courier) ? (

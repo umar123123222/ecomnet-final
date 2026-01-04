@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, FileWarning, Phone, Package, Truck, Calendar, Clock, AlertTriangle } from "lucide-react";
+import { useCurrency } from '@/hooks/useCurrency';
 
 interface ReturnNotReceived {
   id: string;
@@ -38,6 +39,8 @@ const ReturnNotReceivedCard = ({
   onClaim,
   activeTab 
 }: ReturnNotReceivedCardProps) => {
+  const { formatCurrency } = useCurrency();
+  
   const getPriorityColor = (days: number) => {
     if (days >= 10) return 'bg-destructive/10 text-destructive border-destructive/30';
     if (days >= 7) return 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800';
@@ -81,10 +84,10 @@ const ReturnNotReceivedCard = ({
         </div>
         <div className="text-right">
           <p className="font-bold text-foreground">
-            ₨{(activeTab === 'claimed' && returnItem.claimAmount 
+            {formatCurrency(activeTab === 'claimed' && returnItem.claimAmount 
               ? returnItem.claimAmount 
               : returnItem.returnValue
-            ).toLocaleString()}
+            )}
           </p>
           {activeTab === 'claimed' ? (
             <Badge variant="outline" className={`text-xs ${getClaimStatusColor(returnItem.claimStatus)}`}>
