@@ -792,7 +792,7 @@ const SupplierManagement = () => {
                   })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="minimum_order_value">Min Order (PKR)</Label>
+                    <Label htmlFor="minimum_order_value">Min Order Value</Label>
                     <Input id="minimum_order_value" type="number" min="0" step="100" value={formData.minimum_order_value} onChange={e => setFormData({
                     ...formData,
                     minimum_order_value: parseFloat(e.target.value) || 0

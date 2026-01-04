@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { getCompanyCurrency, formatCurrencyAmount } from '../_shared/currency.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -63,7 +64,7 @@ Deno.serve(async (req) => {
     }
 
     // Prepare confirmation message
-    const messageContent = buildConfirmationMessage(confirmation);
+    const messageContent = await buildConfirmationMessage(confirmation, supabase);
 
     // Send via WhatsApp
     const waResponse = await sendWhatsAppMessage(
@@ -119,14 +120,17 @@ Deno.serve(async (req) => {
   }
 });
 
-function buildConfirmationMessage(confirmation: any): string {
+async function buildConfirmationMessage(confirmation: any, supabase: any): Promise<string> {
   const order = confirmation.order;
   const customer = confirmation.customer;
+  
+  // Get company currency
+  const currency = await getCompanyCurrency(supabase);
 
   let message = `Hello ${customer.name}!\n\n`;
   message += `Thank you for your order #${order.order_number}.\n\n`;
   message += `📦 *Order Details:*\n`;
-  message += `Total: Rs ${order.total_amount}\n`;
+  message += `Total: ${formatCurrencyAmount(order.total_amount, currency)}\n`;
   message += `Delivery Address: ${order.customer_address}\n`;
   message += `City: ${order.city}\n\n`;
   message += `Please confirm your order by replying:\n`;

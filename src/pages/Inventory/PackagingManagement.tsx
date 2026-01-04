@@ -84,7 +84,7 @@ export default function PackagingManagement() {
   const { permissions, primaryRole } = useUserRoles();
   const isFinanceUser = primaryRole === 'finance';
   const { progress, executeBulkOperation, resetProgress } = useBulkOperations();
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, currencySymbol } = useCurrency();
   
   // Date filter for reserved quantities
   const {
@@ -657,7 +657,7 @@ export default function PackagingManagement() {
                         {status.label}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right font-medium">PKR {item.cost.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-medium">{formatCurrency(item.cost)}</TableCell>
                     {!isFinanceUser && (
                       <TableCell>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -843,10 +843,10 @@ export default function PackagingManagement() {
                       name="cost"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Cost (PKR) <span className="text-destructive">*</span></FormLabel>
+                          <FormLabel>Cost <span className="text-destructive">*</span></FormLabel>
                           <FormControl>
                             <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rs.</span>
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">{currencySymbol}</span>
                               <Input
                                 type="number"
                                 step="0.01"

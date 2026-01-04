@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import nodemailer from "npm:nodemailer@6.9.7";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.50.2";
+import { getCompanyCurrency, formatCurrencyAmount } from '../_shared/currency.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -100,6 +101,9 @@ const handler = async (req: Request): Promise<Response> => {
       dateStyle: 'full', 
       timeStyle: 'short' 
     });
+    
+    // Get company currency
+    const currency = await getCompanyCurrency(supabase);
 
     // Build additional info HTML
     let additionalInfoHTML = '';
@@ -150,7 +154,7 @@ const handler = async (req: Request): Promise<Response> => {
                 </tr>
                 <tr>
                   <td style="padding: 8px 0; color: #6b7280;">Total Amount:</td>
-                  <td style="padding: 8px 0; font-weight: bold;">PKR ${po.total_amount?.toLocaleString() || '0'}</td>
+                  <td style="padding: 8px 0; font-weight: bold;">${formatCurrencyAmount(po.total_amount || 0, currency)}</td>
                 </tr>
                 <tr>
                   <td style="padding: 8px 0; color: #6b7280;">Changed By:</td>

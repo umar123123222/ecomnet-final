@@ -6,9 +6,11 @@ import { Building2, Warehouse, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { useCurrency } from "@/hooks/useCurrency";
 
 export function OutletStockWidget() {
   const [expanded, setExpanded] = useState(false);
+  const { formatCurrency } = useCurrency();
   
   const { data: outletSummary, isLoading } = useQuery({
     queryKey: ['outlet-stock-summary'],
@@ -84,7 +86,7 @@ export function OutletStockWidget() {
               </div>
               <div className="mt-2 pt-2 border-t">
                 <p className="text-xs text-muted-foreground">Stock Value</p>
-                <p className="font-semibold">Rs {outlet.total_value?.toFixed(0) || 0}</p>
+                <p className="font-semibold">{formatCurrency(outlet.total_value || 0)}</p>
               </div>
             </div>
           ))}

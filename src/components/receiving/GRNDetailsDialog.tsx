@@ -20,6 +20,7 @@ import {
   X
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useCurrency } from '@/hooks/useCurrency';
 
 interface GRNDetailsDialogProps {
   isOpen: boolean;
@@ -55,6 +56,7 @@ const GRNDetailsDialog: React.FC<GRNDetailsDialogProps> = ({ isOpen, onClose, gr
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { hasAnyRole } = useUserRoles();
+  const { formatCurrency } = useCurrency();
   
   const canResolve = hasAnyRole(['super_admin', 'super_manager']);
   
@@ -350,7 +352,7 @@ const GRNDetailsDialog: React.FC<GRNDetailsDialogProps> = ({ isOpen, onClose, gr
                           </div>
                           <div className="text-right">
                             <p className="text-sm text-muted-foreground">Unit Cost</p>
-                            <p className="font-medium">Rs. {item.unit_cost.toLocaleString()}</p>
+                            <p className="font-medium">{formatCurrency(item.unit_cost)}</p>
                           </div>
                         </div>
 

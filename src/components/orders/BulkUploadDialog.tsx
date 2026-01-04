@@ -11,6 +11,7 @@ import { Upload, Download, FileSpreadsheet, CheckCircle2, XCircle, AlertCircle, 
 import { parseFile } from '@/utils/csvParser';
 import { generateOrderTemplate, exportErrorsToCSV } from '@/utils/orderTemplate';
 import { processOrdersForImport, bulkCreateOrders, type ValidatedOrder } from '@/utils/orderBulkImport';
+import { useCurrency } from '@/hooks/useCurrency';
 
 interface BulkUploadDialogProps {
   open: boolean;
@@ -29,6 +30,7 @@ export function BulkUploadDialog({ open, onOpenChange, onSuccess }: BulkUploadDi
   const [progress, setProgress] = useState(0);
   const [importResult, setImportResult] = useState<{ success: number; failed: number } | null>(null);
   const { toast } = useToast();
+  const { formatCurrency } = useCurrency();
 
   const resetDialog = () => {
     setStep('upload');
@@ -288,7 +290,7 @@ export function BulkUploadDialog({ open, onOpenChange, onSuccess }: BulkUploadDi
                           <TableCell>{order.data.customer_name}</TableCell>
                           <TableCell>{order.data.customer_phone}</TableCell>
                           <TableCell>{order.data.city}</TableCell>
-                          <TableCell>Rs. {order.data.total_amount}</TableCell>
+                          <TableCell>{formatCurrency(order.data.total_amount || 0)}</TableCell>
                           <TableCell>{order.data.items?.length || 0}</TableCell>
                         </TableRow>
                       ))}

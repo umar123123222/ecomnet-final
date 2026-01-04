@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import nodemailer from "npm:nodemailer@6.9.7";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.50.2";
 import { getCompanyCurrency, formatCurrencyAmount } from "../_shared/currency.ts";
-import { getLocaleSettings } from "../_shared/locale.ts";
+import { getLocaleSettings, getTimezoneAbbreviation } from "../_shared/locale.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -138,6 +138,7 @@ const handler = async (req: Request): Promise<Response> => {
       hour12: true,
       timeZone: localeSettings.timezone
     });
+    const timezoneLabel = getTimezoneAbbreviation(localeSettings.timezone);
 
     const emailHTML = `
       <!DOCTYPE html>
@@ -339,7 +340,7 @@ const handler = async (req: Request): Promise<Response> => {
                         <tr>
                           <td style="text-align: center;">
                             <p style="margin: 0 0 8px 0; font-size: 13px; color: #64748b;">
-                              📊 Automated report generated at ${generatedAt} PKT
+                              📊 Automated report generated at ${generatedAt} ${timezoneLabel}
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #94a3b8;">
                               © ${new Date().getFullYear()} ${fromName} • Inventory Management System
