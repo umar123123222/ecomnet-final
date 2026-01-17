@@ -148,15 +148,15 @@ const SupplierAnalyticsDashboard = () => {
     .sort((a, b) => b.spent - a.spent);
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-4 sm:py-6 px-4 space-y-4 sm:space-y-6 overflow-hidden max-w-full">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3">
-            <TrendingUp className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
-            Supplier Performance Analytics
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold flex items-center gap-2 sm:gap-3">
+            <TrendingUp className="h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 text-primary shrink-0" />
+            <span className="truncate">Supplier Analytics</span>
           </h1>
-          <p className="text-muted-foreground text-sm sm:text-base">Track and analyze supplier reliability and quality</p>
+          <p className="text-muted-foreground text-xs sm:text-sm md:text-base truncate">Track supplier reliability and quality</p>
         </div>
         {/* Mobile: Grid layout with abbreviated labels */}
         <div className="flex sm:hidden w-full">
@@ -195,7 +195,7 @@ const SupplierAnalyticsDashboard = () => {
       </div>
 
       {/* Overall Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Suppliers</CardTitle>
@@ -265,8 +265,8 @@ const SupplierAnalyticsDashboard = () => {
       </div>
 
       {/* Performance Charts */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
+      <div className="grid gap-4 md:grid-cols-2 min-w-0">
+        <Card className="min-w-0 overflow-hidden">
           <CardHeader>
             <CardTitle>PO Completion & Receiving Accuracy</CardTitle>
           </CardHeader>
@@ -291,7 +291,7 @@ const SupplierAnalyticsDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-w-0 overflow-hidden">
           <CardHeader>
             <CardTitle>Spending by Supplier</CardTitle>
           </CardHeader>
