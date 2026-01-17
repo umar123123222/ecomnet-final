@@ -8,6 +8,7 @@ import { TrendingUp, Clock, CheckCircle2, XCircle, Star, Package, DollarSign, Fi
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 import { formatCurrency } from '@/utils/currency';
 import { useCurrency } from '@/hooks/useCurrency';
+import { cn } from '@/lib/utils';
 
 interface SupplierMetrics {
   id: string;
@@ -157,12 +158,38 @@ const SupplierAnalyticsDashboard = () => {
           </h1>
           <p className="text-muted-foreground text-sm sm:text-base">Track and analyze supplier reliability and quality</p>
         </div>
-        <Tabs value={timeRange} onValueChange={setTimeRange} className="w-full sm:w-auto">
-          <TabsList className="flex flex-wrap h-auto gap-1 w-full sm:w-auto">
-            <TabsTrigger value="7" className="flex-1 sm:flex-none whitespace-normal text-xs sm:text-sm px-2 sm:px-3">7 Days</TabsTrigger>
-            <TabsTrigger value="30" className="flex-1 sm:flex-none whitespace-normal text-xs sm:text-sm px-2 sm:px-3">30 Days</TabsTrigger>
-            <TabsTrigger value="90" className="flex-1 sm:flex-none whitespace-normal text-xs sm:text-sm px-2 sm:px-3">90 Days</TabsTrigger>
-            <TabsTrigger value="365" className="flex-1 sm:flex-none whitespace-normal text-xs sm:text-sm px-2 sm:px-3">1 Year</TabsTrigger>
+        {/* Mobile: Grid layout with abbreviated labels */}
+        <div className="flex sm:hidden w-full">
+          <div className="grid grid-cols-4 gap-1 w-full bg-muted p-1 rounded-md">
+            {[
+              { value: "7", label: "7D" },
+              { value: "30", label: "30D" },
+              { value: "90", label: "90D" },
+              { value: "365", label: "1Y" }
+            ].map((item) => (
+              <button
+                key={item.value}
+                onClick={() => setTimeRange(item.value)}
+                className={cn(
+                  "py-1.5 text-xs font-medium rounded-sm transition-all text-center",
+                  timeRange === item.value
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        {/* Desktop: Original Tabs component */}
+        <Tabs value={timeRange} onValueChange={setTimeRange} className="hidden sm:block">
+          <TabsList>
+            <TabsTrigger value="7">7 Days</TabsTrigger>
+            <TabsTrigger value="30">30 Days</TabsTrigger>
+            <TabsTrigger value="90">90 Days</TabsTrigger>
+            <TabsTrigger value="365">1 Year</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
