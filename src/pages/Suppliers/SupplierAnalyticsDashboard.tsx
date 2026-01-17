@@ -148,54 +148,29 @@ const SupplierAnalyticsDashboard = () => {
     .sort((a, b) => b.spent - a.spent);
 
   return (
-    <div className="container mx-auto py-4 sm:py-6 px-4 space-y-4 sm:space-y-6 overflow-hidden max-w-full">
+    <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold flex items-center gap-2 sm:gap-3">
-            <TrendingUp className="h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 text-primary shrink-0" />
-            <span className="truncate">Supplier Analytics</span>
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3">
+            <TrendingUp className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
+            Supplier Performance Analytics
           </h1>
-          <p className="text-muted-foreground text-xs sm:text-sm md:text-base truncate">Track supplier reliability and quality</p>
+          <p className="text-muted-foreground text-sm sm:text-base">Track and analyze supplier reliability and quality</p>
         </div>
-        {/* Mobile: Grid layout with abbreviated labels */}
-        <div className="flex sm:hidden w-full">
-          <div className="grid grid-cols-4 gap-1 w-full bg-muted p-1 rounded-md">
-            {[
-              { value: "7", label: "7D" },
-              { value: "30", label: "30D" },
-              { value: "90", label: "90D" },
-              { value: "365", label: "1Y" }
-            ].map((item) => (
-              <button
-                key={item.value}
-                onClick={() => setTimeRange(item.value)}
-                className={cn(
-                  "py-1.5 text-xs font-medium rounded-sm transition-all text-center",
-                  timeRange === item.value
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        
-        {/* Desktop: Original Tabs component */}
-        <Tabs value={timeRange} onValueChange={setTimeRange} className="hidden sm:block">
-          <TabsList>
-            <TabsTrigger value="7">7 Days</TabsTrigger>
-            <TabsTrigger value="30">30 Days</TabsTrigger>
-            <TabsTrigger value="90">90 Days</TabsTrigger>
-            <TabsTrigger value="365">1 Year</TabsTrigger>
+        {/* Time Range Tabs - flex-wrap for mobile */}
+        <Tabs value={timeRange} onValueChange={setTimeRange}>
+          <TabsList className="flex flex-wrap w-full gap-1" style={{ whiteSpace: 'normal' }}>
+            <TabsTrigger value="7" className="min-w-0" style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>7 Days</TabsTrigger>
+            <TabsTrigger value="30" className="min-w-0" style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>30 Days</TabsTrigger>
+            <TabsTrigger value="90" className="min-w-0" style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>90 Days</TabsTrigger>
+            <TabsTrigger value="365" className="min-w-0" style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>1 Year</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
 
       {/* Overall Stats */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Suppliers</CardTitle>
@@ -265,8 +240,8 @@ const SupplierAnalyticsDashboard = () => {
       </div>
 
       {/* Performance Charts */}
-      <div className="grid gap-4 md:grid-cols-2 min-w-0">
-        <Card className="min-w-0 overflow-hidden">
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
           <CardHeader>
             <CardTitle>PO Completion & Receiving Accuracy</CardTitle>
           </CardHeader>
@@ -291,7 +266,7 @@ const SupplierAnalyticsDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="min-w-0 overflow-hidden">
+        <Card>
           <CardHeader>
             <CardTitle>Spending by Supplier</CardTitle>
           </CardHeader>
