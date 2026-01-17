@@ -149,20 +149,20 @@ const SupplierAnalyticsDashboard = () => {
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <TrendingUp className="h-8 w-8 text-primary" />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3">
+            <TrendingUp className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
             Supplier Performance Analytics
           </h1>
-          <p className="text-muted-foreground">Track and analyze supplier reliability and quality</p>
+          <p className="text-muted-foreground text-sm sm:text-base">Track and analyze supplier reliability and quality</p>
         </div>
-        <Tabs value={timeRange} onValueChange={setTimeRange}>
-          <TabsList>
-            <TabsTrigger value="7">7 Days</TabsTrigger>
-            <TabsTrigger value="30">30 Days</TabsTrigger>
-            <TabsTrigger value="90">90 Days</TabsTrigger>
-            <TabsTrigger value="365">1 Year</TabsTrigger>
+        <Tabs value={timeRange} onValueChange={setTimeRange} className="w-full sm:w-auto">
+          <TabsList className="flex flex-wrap h-auto gap-1 w-full sm:w-auto">
+            <TabsTrigger value="7" className="flex-1 sm:flex-none whitespace-normal text-xs sm:text-sm px-2 sm:px-3">7 Days</TabsTrigger>
+            <TabsTrigger value="30" className="flex-1 sm:flex-none whitespace-normal text-xs sm:text-sm px-2 sm:px-3">30 Days</TabsTrigger>
+            <TabsTrigger value="90" className="flex-1 sm:flex-none whitespace-normal text-xs sm:text-sm px-2 sm:px-3">90 Days</TabsTrigger>
+            <TabsTrigger value="365" className="flex-1 sm:flex-none whitespace-normal text-xs sm:text-sm px-2 sm:px-3">1 Year</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
