@@ -108,6 +108,51 @@ async function sendEmailNotifications(
   }
 }
 
+// Helper function to check if user has inventory access to an outlet
+// Broader than has_outlet_access() RPC - allows any staff assignment, not just POS
+async function hasInventoryAccess(
+  supabaseClient: any,
+  userId: string,
+  outletId: string
+): Promise<boolean> {
+  // Check 1: Super roles via profiles.role (includes warehouse_manager)
+  const { data: profile } = await supabaseClient
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+
+  if (profile?.role && ['super_admin', 'super_manager', 'warehouse_manager'].includes(profile.role)) {
+    return true
+  }
+
+  // Check 2: User is the designated manager of this outlet
+  const { data: managedOutlet } = await supabaseClient
+    .from('outlets')
+    .select('id')
+    .eq('id', outletId)
+    .eq('manager_id', userId)
+    .maybeSingle()
+
+  if (managedOutlet) {
+    return true
+  }
+
+  // Check 3: User is assigned to this outlet as staff (any assignment, not just POS)
+  const { data: staffAssignment } = await supabaseClient
+    .from('outlet_staff')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('outlet_id', outletId)
+    .maybeSingle()
+
+  if (staffAssignment) {
+    return true
+  }
+
+  return false
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -147,15 +192,12 @@ serve(async (req) => {
         const finalFromOutletId = from_outlet_id || fromOutletId
         const finalToOutletId = to_outlet_id || toOutletId
         
-        // Check if requesting user has access to destination outlet
-        const { data: hasAccess } = await supabaseClient.rpc('has_outlet_access', {
-          _user_id: user.id,
-          _outlet_id: finalToOutletId
-        })
+        // Check if requesting user has inventory access to destination outlet
+        const hasAccess = await hasInventoryAccess(supabaseClient, user.id, finalToOutletId)
 
         if (!hasAccess) {
           return new Response(
-            JSON.stringify({ error: 'No access to destination outlet' }),
+            JSON.stringify({ error: 'No access to destination outlet. You must be assigned as manager or staff of this outlet.' }),
             { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
@@ -681,14 +723,11 @@ serve(async (req) => {
           )
         }
 
-        const { data: hasAccess } = await supabaseClient.rpc('has_outlet_access', {
-          _user_id: user.id,
-          _outlet_id: transfer.to_outlet_id
-        })
+        const hasAccess = await hasInventoryAccess(supabaseClient, user.id, transfer.to_outlet_id)
 
         if (!hasAccess) {
           return new Response(
-            JSON.stringify({ error: 'No access to receiving outlet' }),
+            JSON.stringify({ error: 'No access to receiving outlet. You must be assigned as manager or staff of this outlet.' }),
             { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
