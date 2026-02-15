@@ -321,10 +321,10 @@ const SupplierManagement = () => {
       contact_person: supplier.contact_person || '',
       phone: supplier.phone || '',
       email: supplier.email || '',
-      address: '',
+      address: (supplier as any).address || '',
       city: supplier.city || '',
       payment_terms: (supplier as any).payment_terms || 'Net 30',
-      tax_id: '',
+      tax_id: (supplier as any).tax_id || '',
       status: supplier.status,
       notes: '',
       whatsapp_number: (supplier as any).whatsapp_number || '',
@@ -336,9 +336,39 @@ const SupplierManagement = () => {
   };
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Validate required fields across all tabs
+    const errors: string[] = [];
+    if (!formData.name.trim()) errors.push('Supplier Name');
+    if (!formData.code.trim()) errors.push('Supplier Code');
+    if (!formData.contact_person.trim()) errors.push('Contact Person');
+    if (!formData.phone.trim()) errors.push('Phone');
+    if (!formData.whatsapp_number.trim()) errors.push('WhatsApp');
+    if (!formData.email.trim()) errors.push('Email');
+    if (!formData.city.trim()) errors.push('City');
+    if (!formData.address.trim()) errors.push('Address');
+    
+    if (errors.length > 0) {
+      toast({
+        title: 'Missing Required Fields',
+        description: `Please fill in: ${errors.join(', ')}`,
+        variant: 'destructive',
+      });
+      // Switch to the tab containing the first missing field
+      if (!formData.name.trim() || !formData.code.trim()) setFormTab('basic');
+      else if (!formData.contact_person.trim() || !formData.phone.trim() || !formData.email.trim() || !formData.city.trim() || !formData.address.trim() || !formData.whatsapp_number.trim()) setFormTab('contact');
+      return;
+    }
     saveMutation.mutate(formData);
   };
-  const filteredSuppliers = suppliers.filter(supplier => supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) || supplier.code.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredSuppliers = suppliers.filter(supplier => {
+    const term = searchTerm.toLowerCase();
+    return supplier.name.toLowerCase().includes(term) ||
+      supplier.code.toLowerCase().includes(term) ||
+      (supplier.contact_person || '').toLowerCase().includes(term) ||
+      (supplier.email || '').toLowerCase().includes(term) ||
+      (supplier.phone || '').toLowerCase().includes(term) ||
+      (supplier.city || '').toLowerCase().includes(term);
+  });
   const getStatusBadge = (status: string) => {
     const config: Record<string, {
       variant: 'default' | 'secondary' | 'destructive';
@@ -377,7 +407,7 @@ const SupplierManagement = () => {
       <PageHeader title="Supplier Management" description="Manage your suppliers and track their performance" icon={Building2} actions={permissions.canManageSuppliers ? <Button onClick={() => {
       resetForm();
       setIsDialogOpen(true);
-    }} size={isMobile ? 'sm' : 'default'} className="my-0 mx-0 px-[133px]">
+    }} size={isMobile ? 'sm' : 'default'} className="gap-2">
               <Plus className="mr-2 h-4 w-4" />
               {isMobile ? 'Add' : 'Add Supplier'}
             </Button> : undefined} />
@@ -419,7 +449,7 @@ const SupplierManagement = () => {
           <div className="flex flex-col gap-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search by name or code..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
+              <Input placeholder="Search by name, code, contact, email..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
             </div>
             {isMobile ? <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-full">
@@ -598,12 +628,12 @@ const SupplierManagement = () => {
                         <CheckCircle className="h-3 w-3 mr-1" />
                         Active
                       </Badge> : supplier.email ? <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => grantAccessMutation.mutate(supplier)} disabled={grantAccessMutation.isPending}>
-                        <Mail className="h-3 w-3 mr-1" />
+                        {grantAccessMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Mail className="h-3 w-3 mr-1" />}
                         Grant
                       </Button> : <span className="text-xs text-muted-foreground">No email</span>}
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-1">
                       {permissions.canManageSuppliers && <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleEdit(supplier)}>
                           <Edit2 className="h-4 w-4" />
                         </Button>}

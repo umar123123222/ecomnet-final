@@ -235,15 +235,14 @@ serve(async (req) => {
         console.log(`[adjustStock] Starting adjustment - Product: ${productId}, Outlet: ${outletId}, Adjustment: ${quantity}`)
         
         // ========== SERVER-SIDE OUTLET VALIDATION ==========
-        // Get user's role from user_roles table
-        const { data: userRoleData, error: roleError } = await supabaseClient
-          .from('user_roles')
+        // Get user's role from profiles table (primary role source)
+        const { data: profileData, error: roleError } = await supabaseClient
+          .from('profiles')
           .select('role')
-          .eq('user_id', user.id)
-          .eq('is_active', true)
+          .eq('id', user.id)
           .single()
         
-        const userRole = userRoleData?.role
+        const userRole = profileData?.role
         console.log(`[adjustStock] User ${user.id} has role: ${userRole}`)
         
         // For warehouse_manager and store_manager, validate outlet assignment
@@ -422,14 +421,13 @@ serve(async (req) => {
         // Check if this is an outlet-level adjustment (store manager damage reporting)
         if (outletId) {
           // Validate outlet assignment for store managers
-          const { data: userRoleData } = await supabaseClient
-            .from('user_roles')
+          const { data: profileRoleData } = await supabaseClient
+            .from('profiles')
             .select('role')
-            .eq('user_id', user.id)
-            .eq('is_active', true)
+            .eq('id', user.id)
             .single()
           
-          const userRole = userRoleData?.role
+          const userRole = profileRoleData?.role
           
           if (userRole === 'store_manager') {
             // Verify store manager is assigned to this outlet
