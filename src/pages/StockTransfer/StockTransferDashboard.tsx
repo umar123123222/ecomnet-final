@@ -127,14 +127,18 @@ const StockTransferDashboard = () => {
 
       if (isStoreManager && profile?.id) {
         // Get outlets where current user is assigned as manager OR staff
-        const { data: userOutlets } = await supabase
-          .from("outlets")
-          .select("id")
-          .or(`manager_id.eq.${profile.id}`);
+        const [managedResult, staffResult] = await Promise.all([
+          supabase.from("outlets").select("id").eq("manager_id", profile.id),
+          supabase.from("outlet_staff").select("outlet_id").eq("user_id", profile.id)
+        ]);
         
-        if (userOutlets && userOutlets.length > 0) {
-          const outletIds = userOutlets.map(o => o.id);
-          query = query.in("to_outlet_id", outletIds);
+        const outletIds = [
+          ...(managedResult.data?.map(o => o.id) || []),
+          ...(staffResult.data?.map(o => o.outlet_id) || [])
+        ].filter((id, idx, arr) => arr.indexOf(id) === idx); // deduplicate
+        
+        if (outletIds.length > 0) {
+          query = query.or(`to_outlet_id.in.(${outletIds.join(',')}),from_outlet_id.in.(${outletIds.join(',')})`);
         } else {
           // No outlets found - show empty result
           query = query.eq("to_outlet_id", "00000000-0000-0000-0000-000000000000");

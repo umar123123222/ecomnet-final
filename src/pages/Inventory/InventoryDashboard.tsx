@@ -278,7 +278,7 @@ const InventoryDashboard = () => {
       <InventorySummaryWidget />
 
       {/* Summary Cards */}
-      <StatsGrid columns={3}>
+      <StatsGrid columns={deficitCount > 0 ? 4 : 3}>
         <StatsCard
           title="Total Items"
           value={totalItems.toLocaleString()}
@@ -299,6 +299,15 @@ const InventoryDashboard = () => {
           icon={AlertTriangle}
           variant="warning"
         />
+        {deficitCount > 0 && (
+          <StatsCard
+            title="Deficit Items"
+            value={deficitCount}
+            description="Negative available qty"
+            icon={AlertTriangle}
+            variant="danger"
+          />
+        )}
       </StatsGrid>
 
       {/* Inventory Table with Integrated Filters */}
