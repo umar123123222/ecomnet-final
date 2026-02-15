@@ -82,6 +82,16 @@ const SupplierManagement = () => {
     minimum_order_value: 0
   });
 
+  // Auto-generate next supplier code
+  const generateNextCode = (): string => {
+    const existingCodes = suppliers
+      .map(s => s.code)
+      .filter(c => /^SUP-\d{4}$/.test(c))
+      .map(c => parseInt(c.replace('SUP-', ''), 10));
+    const maxNum = existingCodes.length > 0 ? Math.max(...existingCodes) : 0;
+    return `SUP-${String(maxNum + 1).padStart(4, '0')}`;
+  };
+
   // Fetch suppliers with portal access info
   const {
     data: suppliers = [],
@@ -296,22 +306,22 @@ const SupplierManagement = () => {
   const resetForm = () => {
     setFormData({
       name: '',
-      code: '',
-      contact_person: '',
-      phone: '',
-      email: '',
-      address: '',
-      city: '',
-      payment_terms: 'Net 30',
-      tax_id: '',
-      status: 'active',
-      notes: '',
-      whatsapp_number: '',
-      lead_time_days: 7,
-      minimum_order_value: 0
-    });
-    setEditingSupplier(null);
-    setFormTab('basic');
+    code: generateNextCode(),
+    contact_person: '',
+    phone: '',
+    email: '',
+    address: '',
+    city: '',
+    payment_terms: 'Net 30',
+    tax_id: '',
+    status: 'active',
+    notes: '',
+    whatsapp_number: '',
+    lead_time_days: 7,
+    minimum_order_value: 0
+  });
+  setEditingSupplier(null);
+  setFormTab('basic');
   };
   const handleEdit = (supplier: Supplier) => {
     setEditingSupplier(supplier);
@@ -339,7 +349,6 @@ const SupplierManagement = () => {
     // Validate required fields across all tabs
     const errors: string[] = [];
     if (!formData.name.trim()) errors.push('Supplier Name');
-    if (!formData.code.trim()) errors.push('Supplier Code');
     if (!formData.contact_person.trim()) errors.push('Contact Person');
     if (!formData.phone.trim()) errors.push('Phone');
     if (!formData.whatsapp_number.trim()) errors.push('WhatsApp');
@@ -354,7 +363,7 @@ const SupplierManagement = () => {
         variant: 'destructive',
       });
       // Switch to the tab containing the first missing field
-      if (!formData.name.trim() || !formData.code.trim()) setFormTab('basic');
+      if (!formData.name.trim()) setFormTab('basic');
       else if (!formData.contact_person.trim() || !formData.phone.trim() || !formData.email.trim() || !formData.city.trim() || !formData.address.trim() || !formData.whatsapp_number.trim()) setFormTab('contact');
       return;
     }
@@ -691,11 +700,9 @@ const SupplierManagement = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="code">Supplier Code *</Label>
-                  <Input id="code" value={formData.code} onChange={e => setFormData({
-                  ...formData,
-                  code: e.target.value
-                })} placeholder="SUP001" required />
+                  <Label htmlFor="code">Supplier Code</Label>
+                  <Input id="code" value={formData.code} readOnly className="bg-muted cursor-not-allowed" />
+                  <p className="text-xs text-muted-foreground">Auto-generated</p>
                 </div>
 
                 <div className="space-y-2">
