@@ -82,13 +82,15 @@ const SupplierManagement = () => {
     minimum_order_value: 0
   });
 
-  // Auto-generate next supplier code
+  // Auto-generate next supplier code - handles any legacy format
   const generateNextCode = (): string => {
-    const existingCodes = suppliers
-      .map(s => s.code)
-      .filter(c => /^SUP-\d{4}$/.test(c))
-      .map(c => parseInt(c.replace('SUP-', ''), 10));
-    const maxNum = existingCodes.length > 0 ? Math.max(...existingCodes) : 0;
+    const existingNums = suppliers
+      .map(s => {
+        const match = (s.code || '').toUpperCase().match(/SUP-?(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
+      })
+      .filter(n => n > 0);
+    const maxNum = existingNums.length > 0 ? Math.max(...existingNums) : 0;
     return `SUP-${String(maxNum + 1).padStart(4, '0')}`;
   };
 
