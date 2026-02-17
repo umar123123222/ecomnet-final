@@ -379,10 +379,10 @@ const StockTransferDashboard = () => {
                           </Button>
                           {transfer.status === 'pending' && isWarehouseOrAdmin && (
                             <>
-                              <Button variant="outline" size="sm" className="h-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200" onClick={() => handleApprove(transfer.id)} disabled={loadingActions[transfer.id] === 'approve'}>
+                              <Button variant="outline" size="sm" className="h-8 text-primary hover:text-primary hover:bg-primary/10 border-primary/30" onClick={() => handleApprove(transfer.id)} disabled={loadingActions[transfer.id] === 'approve'}>
                                 {loadingActions[transfer.id] === 'approve' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5 mr-1" />} Approve
                               </Button>
-                              <Button variant="outline" size="sm" className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => openRejectDialog(transfer)} disabled={!!loadingActions[transfer.id]}>
+                              <Button variant="outline" size="sm" className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30" onClick={() => openRejectDialog(transfer)} disabled={!!loadingActions[transfer.id]}>
                                 <XCircle className="h-3.5 w-3.5 mr-1" /> Reject
                               </Button>
                             </>
@@ -413,7 +413,7 @@ const StockTransferDashboard = () => {
                               </DropdownMenuItem>
                               {transfer.status === 'pending' && isWarehouseOrAdmin && (
                                 <>
-                                  <DropdownMenuItem onClick={() => handleApprove(transfer.id)} disabled={loadingActions[transfer.id] === 'approve'} className="gap-2 text-emerald-600">
+                                  <DropdownMenuItem onClick={() => handleApprove(transfer.id)} disabled={loadingActions[transfer.id] === 'approve'} className="gap-2 text-primary">
                                     <CheckCircle className="h-4 w-4" /> Approve
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => openRejectDialog(transfer)} disabled={!!loadingActions[transfer.id]} className="gap-2 text-destructive">
