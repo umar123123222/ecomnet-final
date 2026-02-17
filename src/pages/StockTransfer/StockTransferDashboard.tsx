@@ -5,7 +5,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowRightLeft, Clock, CheckCircle, XCircle, Plus, Loader2, PackageCheck, Truck, Eye, Package, ArrowRight, Calendar, User, Building2 } from "lucide-react";
+import { ArrowRightLeft, Clock, CheckCircle, XCircle, Plus, Loader2, PackageCheck, Truck, Eye, Package, ArrowRight, Calendar, User, Building2, MoreVertical } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { format } from "date-fns";
 import { StockTransferRequest, Product, Outlet } from "@/types/inventory";
 import { StockTransferDialog } from "@/components/inventory/StockTransferDialog";
@@ -370,72 +372,67 @@ const StockTransferDashboard = () => {
                       </TableCell>
                       <TableCell>{getStatusBadge(transfer.status)}</TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex gap-1.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 gap-1.5"
-                            onClick={() => openViewDetails(transfer)}
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                            View
+                        {/* Desktop: inline buttons on hover */}
+                        <div className="hidden md:flex gap-1.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={() => openViewDetails(transfer)}>
+                            <Eye className="h-3.5 w-3.5" /> View
                           </Button>
-
                           {transfer.status === 'pending' && isWarehouseOrAdmin && (
                             <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200"
-                                onClick={() => handleApprove(transfer.id)}
-                                disabled={loadingActions[transfer.id] === 'approve'}
-                              >
-                                {loadingActions[transfer.id] === 'approve' ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <CheckCircle className="h-3.5 w-3.5 mr-1" />
-                                )}
-                                Approve
+                              <Button variant="outline" size="sm" className="h-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200" onClick={() => handleApprove(transfer.id)} disabled={loadingActions[transfer.id] === 'approve'}>
+                                {loadingActions[transfer.id] === 'approve' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5 mr-1" />} Approve
                               </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                                onClick={() => openRejectDialog(transfer)}
-                                disabled={!!loadingActions[transfer.id]}
-                              >
-                                <XCircle className="h-3.5 w-3.5 mr-1" />
-                                Reject
+                              <Button variant="outline" size="sm" className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => openRejectDialog(transfer)} disabled={!!loadingActions[transfer.id]}>
+                                <XCircle className="h-3.5 w-3.5 mr-1" /> Reject
                               </Button>
                             </>
                           )}
-
                           {transfer.status === 'approved' && isWarehouseOrAdmin && (
-                            <Button
-                              size="sm"
-                              className="h-8 gap-1.5"
-                              onClick={() => handleDispatch(transfer.id)}
-                              disabled={loadingActions[transfer.id] === 'dispatch'}
-                            >
-                              {loadingActions[transfer.id] === 'dispatch' ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Truck className="h-3.5 w-3.5" />
-                              )}
-                              Dispatch
+                            <Button size="sm" className="h-8 gap-1.5" onClick={() => handleDispatch(transfer.id)} disabled={loadingActions[transfer.id] === 'dispatch'}>
+                              {loadingActions[transfer.id] === 'dispatch' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" />} Dispatch
                             </Button>
                           )}
-
                           {transfer.status === 'in_transit' && isStoreManager && (
-                            <Button
-                              size="sm"
-                              className="h-8 gap-1.5"
-                              onClick={() => openReceiveDialog(transfer)}
-                            >
-                              <PackageCheck className="h-3.5 w-3.5" />
-                              Receive
+                            <Button size="sm" className="h-8 gap-1.5" onClick={() => openReceiveDialog(transfer)}>
+                              <PackageCheck className="h-3.5 w-3.5" /> Receive
                             </Button>
                           )}
+                        </div>
+
+                        {/* Mobile: always-visible dropdown menu */}
+                        <div className="md:hidden flex justify-end">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-popover z-50">
+                              <DropdownMenuItem onClick={() => openViewDetails(transfer)} className="gap-2">
+                                <Eye className="h-4 w-4" /> View Details
+                              </DropdownMenuItem>
+                              {transfer.status === 'pending' && isWarehouseOrAdmin && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handleApprove(transfer.id)} disabled={loadingActions[transfer.id] === 'approve'} className="gap-2 text-emerald-600">
+                                    <CheckCircle className="h-4 w-4" /> Approve
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => openRejectDialog(transfer)} disabled={!!loadingActions[transfer.id]} className="gap-2 text-destructive">
+                                    <XCircle className="h-4 w-4" /> Reject
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {transfer.status === 'approved' && isWarehouseOrAdmin && (
+                                <DropdownMenuItem onClick={() => handleDispatch(transfer.id)} disabled={loadingActions[transfer.id] === 'dispatch'} className="gap-2">
+                                  <Truck className="h-4 w-4" /> Dispatch
+                                </DropdownMenuItem>
+                              )}
+                              {transfer.status === 'in_transit' && isStoreManager && (
+                                <DropdownMenuItem onClick={() => openReceiveDialog(transfer)} className="gap-2">
+                                  <PackageCheck className="h-4 w-4" /> Receive
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </TableCell>
                     </TableRow>
