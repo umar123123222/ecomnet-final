@@ -34,6 +34,8 @@ interface Supplier {
   created_at: string;
   has_portal_access?: boolean;
 }
+const SUPPLIER_CODE_REGEX = /^SUP-\d{4}$/;
+
 const SupplierManagement = () => {
   const {
     toast
@@ -65,6 +67,7 @@ const SupplierManagement = () => {
     supplier: null
   });
   const [formTab, setFormTab] = useState('basic');
+  const [codeError, setCodeError] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     code: '',
@@ -346,7 +349,27 @@ const SupplierManagement = () => {
     setFormTab('basic');
     setIsDialogOpen(true);
   };
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleCodeChange = (value: string) => {
+    const upper = value.toUpperCase();
+    setFormData(prev => ({ ...prev, code: upper }));
+    if (!upper.trim()) {
+      setCodeError('');
+    } else if (!SUPPLIER_CODE_REGEX.test(upper)) {
+      setCodeError('Format must be SUP-XXXX (e.g. SUP-0005)');
+    } else {
+      setCodeError('');
+    }
+  };
+
+  const handleCodeBlur = () => {
+    if (!formData.code.trim()) {
+      const next = generateNextCode();
+      setFormData(prev => ({ ...prev, code: next }));
+      setCodeError('');
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     // Validate required fields across all tabs
     const errors: string[] = [];
@@ -358,17 +381,42 @@ const SupplierManagement = () => {
     if (!formData.city.trim()) errors.push('City');
     if (!formData.address.trim()) errors.push('Address');
     
+    // Validate supplier code format
+    if (!SUPPLIER_CODE_REGEX.test(formData.code)) {
+      errors.push('Supplier Code (invalid format)');
+      setCodeError('Format must be SUP-XXXX (e.g. SUP-0005)');
+    }
+
     if (errors.length > 0) {
       toast({
         title: 'Missing Required Fields',
         description: `Please fill in: ${errors.join(', ')}`,
         variant: 'destructive',
       });
-      // Switch to the tab containing the first missing field
-      if (!formData.name.trim()) setFormTab('basic');
+      if (!formData.name.trim() || !SUPPLIER_CODE_REGEX.test(formData.code)) setFormTab('basic');
       else if (!formData.contact_person.trim() || !formData.phone.trim() || !formData.email.trim() || !formData.city.trim() || !formData.address.trim() || !formData.whatsapp_number.trim()) setFormTab('contact');
       return;
     }
+
+    // Check uniqueness against database (skip if editing same supplier with same code)
+    if (!editingSupplier || editingSupplier.code !== formData.code) {
+      const { data: existing } = await supabase
+        .from('suppliers')
+        .select('id')
+        .eq('code', formData.code)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        setCodeError('This supplier code already exists');
+        setFormTab('basic');
+        toast({
+          title: 'Duplicate Supplier Code',
+          description: `Code ${formData.code} is already in use. Please choose a different code.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     saveMutation.mutate(formData);
   };
   const filteredSuppliers = suppliers.filter(supplier => {
@@ -703,8 +751,19 @@ const SupplierManagement = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="code">Supplier Code</Label>
-                  <Input id="code" value={formData.code} readOnly className="bg-muted cursor-not-allowed" />
-                  <p className="text-xs text-muted-foreground">Auto-generated</p>
+                  <Input
+                    id="code"
+                    value={formData.code}
+                    onChange={e => handleCodeChange(e.target.value)}
+                    onBlur={handleCodeBlur}
+                    placeholder="SUP-0001"
+                    className={cn(codeError && "border-destructive focus-visible:border-destructive")}
+                  />
+                  {codeError ? (
+                    <p className="text-xs text-destructive">{codeError}</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Auto-generated. Edit to customize.</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
