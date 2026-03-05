@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   AlertTriangle, Search, Clock, Truck, Package, ExternalLink, 
@@ -15,12 +16,16 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow, differenceInDays, format } from 'date-fns';
 import { Link } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 import { PageContainer, PageHeader, StatsGrid, StatsCard } from '@/components/layout';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRoles } from '@/hooks/useUserRoles';
+import { useAuth } from '@/contexts/AuthContext';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCurrency } from '@/hooks/useCurrency';
+import { BulkSelectionBar } from '@/components/stuck-orders/BulkSelectionBar';
+import { BulkStatusUpdateModal, type BulkActionType } from '@/components/stuck-orders/BulkStatusUpdateModal';
 
 interface TrackingJob {
   id: string;
@@ -69,8 +74,13 @@ const StuckOrdersDashboard = () => {
     description: string;
     count: number;
   } | null>(null);
+  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkActionType, setBulkActionType] = useState<BulkActionType>('delivered');
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const { toast } = useToast();
   const { primaryRole } = useUserRoles();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const canPerformActions = primaryRole !== 'finance';
   const { formatCurrency } = useCurrency();
@@ -303,6 +313,122 @@ const StuckOrdersDashboard = () => {
   const refreshAll = () => {
     refetchStats();
     refetchOrders();
+  };
+  // --- Bulk Selection Helpers ---
+  const currentOrderIds = useMemo(
+    () => (ordersData?.orders || []).map(o => o.id),
+    [ordersData?.orders]
+  );
+
+  const allVisibleSelected = currentOrderIds.length > 0 && currentOrderIds.every(id => selectedOrders.has(id));
+
+  const toggleSelectOrder = useCallback((orderId: string) => {
+    setSelectedOrders(prev => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    if (allVisibleSelected) {
+      setSelectedOrders(prev => {
+        const next = new Set(prev);
+        currentOrderIds.forEach(id => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedOrders(prev => {
+        const next = new Set(prev);
+        currentOrderIds.forEach(id => next.add(id));
+        return next;
+      });
+    }
+  }, [allVisibleSelected, currentOrderIds]);
+
+  const clearSelection = useCallback(() => setSelectedOrders(new Set()), []);
+
+  const openBulkModal = useCallback((type: BulkActionType) => {
+    setBulkActionType(type);
+    setBulkModalOpen(true);
+  }, []);
+
+  const handleBulkConfirm = async (dateTime: Date, notes: string) => {
+    if (!user?.id || selectedOrders.size === 0) return;
+    setIsBulkProcessing(true);
+
+    const ids = Array.from(selectedOrders);
+    const now = new Date().toISOString();
+    const dtIso = dateTime.toISOString();
+    let successCount = 0;
+    let failCount = 0;
+    const failedIds: string[] = [];
+
+    // Process in batches of 25
+    const BATCH = 25;
+    for (let i = 0; i < ids.length; i += BATCH) {
+      const batch = ids.slice(i, i + BATCH);
+
+      // Build update payload
+      const updatePayload: Record<string, any> = bulkActionType === 'delivered'
+        ? { status: 'delivered', delivered_at: dtIso, updated_at: now }
+        : { status: 'returned', updated_at: now };
+
+      if (notes.trim()) {
+        updatePayload.notes = notes.trim();
+      }
+
+      const { error } = await supabase
+        .from('orders')
+        .update(updatePayload)
+        .in('id', batch);
+
+      if (error) {
+        failCount += batch.length;
+        failedIds.push(...batch);
+        console.error('Bulk update error:', error);
+      } else {
+        successCount += batch.length;
+        // Log to activity_logs for audit trail
+        const logEntries = batch.map(orderId => ({
+          user_id: user.id,
+          entity_type: 'order',
+          entity_id: orderId,
+          action: `bulk_mark_${bulkActionType}`,
+          details: {
+            effective_datetime: dtIso,
+            marked_at: now,
+            notes: notes.trim() || null,
+          },
+        }));
+        await supabase.from('activity_logs').insert(logEntries).then(res => {
+          if (res.error) console.error('Activity log error:', res.error);
+        });
+      }
+    }
+
+    setIsBulkProcessing(false);
+    setBulkModalOpen(false);
+
+    if (successCount > 0) {
+      toast({
+        title: `${successCount} order${successCount !== 1 ? 's' : ''} marked ${bulkActionType === 'delivered' ? 'Delivered' : 'Returned'}`,
+        description: failCount > 0 ? `${failCount} failed — still selected for retry.` : undefined,
+      });
+      refreshAll();
+    }
+
+    if (failCount > 0 && successCount === 0) {
+      toast({ title: 'Bulk update failed', description: `All ${failCount} updates failed.`, variant: 'destructive' });
+    }
+
+    // Keep failed IDs selected for retry, clear the rest
+    if (failedIds.length > 0) {
+      setSelectedOrders(new Set(failedIds));
+    } else {
+      clearSelection();
+    }
   };
 
   // Bulk operations
@@ -608,12 +734,38 @@ const StuckOrdersDashboard = () => {
             </Card>
           ) : (
             <>
+              {/* Bulk Selection Bar */}
+              {canPerformActions && (
+                <BulkSelectionBar
+                  selectedCount={selectedOrders.size}
+                  isProcessing={isBulkProcessing}
+                  onMarkDelivered={() => openBulkModal('delivered')}
+                  onMarkReturned={() => openBulkModal('returned')}
+                  onClearSelection={clearSelection}
+                />
+              )}
+
+              {/* Select All */}
+              {canPerformActions && ordersData.orders.length > 0 && (
+                <div className="flex items-center gap-2 px-1">
+                  <Checkbox
+                    checked={allVisibleSelected}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all visible orders"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    Select all on this page ({currentOrderIds.length})
+                  </span>
+                </div>
+              )}
+
               <div className="space-y-2">
                 {ordersData.orders.map(order => {
                   const severity = getStuckSeverity(order.days_stuck);
+                  const isSelected = selectedOrders.has(order.id);
                   
                   return (
-                    <Card key={order.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                    <Card key={order.id} className={cn("overflow-hidden hover:shadow-md transition-shadow", isSelected && "ring-2 ring-primary/40")}>
                       <CardContent className="p-0">
                         <div className="flex flex-col md:flex-row">
                           {/* Severity Indicator */}
@@ -622,6 +774,16 @@ const StuckOrdersDashboard = () => {
                           {/* Main Content */}
                           <div className="flex-1 p-3 sm:p-4">
                             <div className="flex flex-col lg:flex-row lg:items-center gap-2 sm:gap-3">
+                              {/* Checkbox */}
+                              {canPerformActions && (
+                                <div className="shrink-0 self-start pt-0.5">
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={() => toggleSelectOrder(order.id)}
+                                    aria-label={`Select order ${order.order_number}`}
+                                  />
+                                </div>
+                              )}
                               {/* Order Info */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
@@ -761,6 +923,16 @@ const StuckOrdersDashboard = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Status Update Modal */}
+      <BulkStatusUpdateModal
+        open={bulkModalOpen}
+        onOpenChange={setBulkModalOpen}
+        actionType={bulkActionType}
+        selectedCount={selectedOrders.size}
+        isProcessing={isBulkProcessing}
+        onConfirm={handleBulkConfirm}
+      />
     </PageContainer>
   );
 };
