@@ -78,6 +78,8 @@ const StuckOrdersDashboard = () => {
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [bulkActionType, setBulkActionType] = useState<BulkActionType>('delivered');
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [shopifyCheckOpen, setShopifyCheckOpen] = useState(false);
+  const [isShopifyChecking, setIsShopifyChecking] = useState(false);
   const { toast } = useToast();
   const { primaryRole } = useUserRoles();
   const { user } = useAuth();
@@ -431,6 +433,58 @@ const StuckOrdersDashboard = () => {
     }
   };
 
+  const handleShopifyCheck = async () => {
+    if (!user?.id || selectedOrders.size === 0) return;
+    setShopifyCheckOpen(false);
+    setIsShopifyChecking(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('check-shopify-delivery', {
+        body: {
+          orderIds: Array.from(selectedOrders),
+          userId: user.id,
+          userName: user.user_metadata?.full_name || user.email || 'Unknown',
+        },
+      });
+
+      if (error) throw error;
+
+      const { updated = 0, failed = 0, failedIds = [], skippedNoShopifyId = 0 } = data || {};
+
+      if (updated > 0) {
+        toast({
+          title: `${updated} order${updated !== 1 ? 's' : ''} updated from Shopify`,
+          description: [
+            failed > 0 ? `${failed} failed — still selected for retry.` : null,
+            skippedNoShopifyId > 0 ? `${skippedNoShopifyId} skipped (no Shopify ID).` : null,
+          ].filter(Boolean).join(' ') || undefined,
+        });
+        refreshAll();
+      } else {
+        toast({
+          title: 'No orders updated',
+          description: `No selected orders are marked delivered in Shopify.${skippedNoShopifyId > 0 ? ` ${skippedNoShopifyId} skipped (no Shopify ID).` : ''}`,
+        });
+      }
+
+      if (failed > 0 && updated === 0) {
+        toast({ title: 'Shopify check failed', description: `All ${failed} checks failed.`, variant: 'destructive' });
+      }
+
+      // Keep failed selected for retry, clear the rest
+      if (failedIds.length > 0) {
+        setSelectedOrders(new Set(failedIds));
+      } else {
+        clearSelection();
+      }
+    } catch (error: any) {
+      console.error('Shopify check error:', error);
+      toast({ title: 'Shopify check failed', description: error.message || 'An error occurred', variant: 'destructive' });
+    } finally {
+      setIsShopifyChecking(false);
+    }
+  };
+
   // Bulk operations
   const runBulkOperation = async (operation: string, ageThresholdDays: number = 2) => {
     setIsProcessing(operation);
@@ -738,9 +792,10 @@ const StuckOrdersDashboard = () => {
               {canPerformActions && (
                 <BulkSelectionBar
                   selectedCount={selectedOrders.size}
-                  isProcessing={isBulkProcessing}
+                  isProcessing={isBulkProcessing || isShopifyChecking}
                   onMarkDelivered={() => openBulkModal('delivered')}
                   onMarkReturned={() => openBulkModal('returned')}
+                  onCheckShopify={() => setShopifyCheckOpen(true)}
                   onClearSelection={clearSelection}
                 />
               )}
@@ -933,6 +988,28 @@ const StuckOrdersDashboard = () => {
         isProcessing={isBulkProcessing}
         onConfirm={handleBulkConfirm}
       />
+      {/* Shopify Delivery Check Confirmation */}
+      <AlertDialog open={shopifyCheckOpen} onOpenChange={setShopifyCheckOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Check delivery status with Shopify</AlertDialogTitle>
+            <AlertDialogDescription>
+              We'll check the {selectedOrders.size} selected order{selectedOrders.size !== 1 ? 's' : ''} in Shopify. Any orders marked Delivered in Shopify will be marked Delivered here and removed from stuck orders.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isShopifyChecking}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleShopifyCheck} disabled={isShopifyChecking || selectedOrders.size === 0}>
+              {isShopifyChecking ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Checking...
+                </>
+              ) : 'Check with Shopify'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageContainer>
   );
 };
