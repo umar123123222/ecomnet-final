@@ -82,7 +82,7 @@ const StuckOrdersDashboard = () => {
   const [isShopifyChecking, setIsShopifyChecking] = useState(false);
   const { toast } = useToast();
   const { primaryRole } = useUserRoles();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const canPerformActions = primaryRole !== 'finance';
   const { formatCurrency } = useCurrency();
@@ -310,6 +310,7 @@ const StuckOrdersDashboard = () => {
   const handleTabChange = (value: string) => {
     setStuckType(value);
     setPage(0);
+    clearSelection();
   };
 
   const refreshAll = () => {
@@ -375,10 +376,10 @@ const StuckOrdersDashboard = () => {
       // Build update payload
       const updatePayload: Record<string, any> = bulkActionType === 'delivered'
         ? { status: 'delivered', delivered_at: dtIso, updated_at: now }
-        : { status: 'returned', updated_at: now };
+        : { status: 'returned', returned_at: dtIso, updated_at: now };
 
       if (notes.trim()) {
-        updatePayload.notes = notes.trim();
+        updatePayload.delivery_notes = notes.trim();
       }
 
       const { error } = await supabase
@@ -393,6 +394,7 @@ const StuckOrdersDashboard = () => {
       } else {
         successCount += batch.length;
         // Log to activity_logs for audit trail
+        const userName = profile?.full_name || user.email || 'Unknown';
         const logEntries = batch.map(orderId => ({
           user_id: user.id,
           entity_type: 'order',
@@ -401,6 +403,8 @@ const StuckOrdersDashboard = () => {
           details: {
             effective_datetime: dtIso,
             marked_at: now,
+            marked_by_user_id: user.id,
+            marked_by_user_name: userName,
             notes: notes.trim() || null,
           },
         }));
@@ -443,7 +447,7 @@ const StuckOrdersDashboard = () => {
         body: {
           orderIds: Array.from(selectedOrders),
           userId: user.id,
-          userName: user.user_metadata?.full_name || user.email || 'Unknown',
+          userName: profile?.full_name || user.email || 'Unknown',
         },
       });
 
