@@ -2,13 +2,14 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { CheckCircle, RotateCcw, ChevronDown, X, Loader2 } from 'lucide-react';
+import { CheckCircle, RotateCcw, ChevronDown, X, Loader2, RefreshCw } from 'lucide-react';
 
 interface BulkSelectionBarProps {
   selectedCount: number;
   isProcessing: boolean;
   onMarkDelivered: () => void;
   onMarkReturned: () => void;
+  onCheckShopify?: () => void;
   onClearSelection: () => void;
 }
 
@@ -17,6 +18,7 @@ export const BulkSelectionBar: React.FC<BulkSelectionBarProps> = ({
   isProcessing,
   onMarkDelivered,
   onMarkReturned,
+  onCheckShopify,
   onClearSelection,
 }) => {
   if (selectedCount === 0) return null;
@@ -58,6 +60,12 @@ export const BulkSelectionBar: React.FC<BulkSelectionBarProps> = ({
                 <RotateCcw className="h-4 w-4 text-destructive" />
                 Mark Returned
               </DropdownMenuItem>
+              {onCheckShopify && (
+                <DropdownMenuItem onClick={onCheckShopify} className="gap-2 cursor-pointer">
+                  <RefreshCw className="h-4 w-4 text-primary" />
+                  Check status with Shopify
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
