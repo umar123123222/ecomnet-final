@@ -56,7 +56,7 @@ const Layout = () => {
 
   const { primaryRole } = useUserRoles();
   const displayName = (profile?.full_name && profile.full_name !== 'New User') ? profile.full_name : (profile?.email || user?.email);
-  const formatRole = (primaryRole as string).replace(/_/g, ' ');
+  const formatRole = (primaryRole || 'staff').replace(/_/g, ' ');
 
   const navigationItems = user ? getNavigationItems(primaryRole as any) : [];
 
