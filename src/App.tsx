@@ -227,9 +227,9 @@ const App = () => {
                   <Route path="settings" element={<Suspense fallback={<PageLoader />}>
                       <Settings />
                     </Suspense>} />
-                  <Route path="business-settings" element={<Suspense fallback={<PageLoader />}>
+                  <Route path="business-settings" element={<RoleGuard permissionKey="canAccessBusinessSettings"><Suspense fallback={<PageLoader />}>
                       <BusinessSettings />
-                    </Suspense>} />
+                    </Suspense></RoleGuard>} />
                   <Route path="shipper-advice" element={<Suspense fallback={<PageLoader />}>
                       <ShipperAdvice />
                     </Suspense>} />
