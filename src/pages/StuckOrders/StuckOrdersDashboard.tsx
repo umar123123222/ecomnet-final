@@ -179,26 +179,24 @@ const StuckOrdersDashboard = () => {
     queryKey: ['stuck-orders', stuckType, page, deferredSearch, sortBy],
     queryFn: async () => {
       const offset = page * ITEMS_PER_PAGE;
-      
-      const sortOrders = (orders: StuckOrder[]) => {
-        switch (sortBy) {
-          case 'newest':
-            return orders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-          case 'days_stuck':
-            return orders.sort((a, b) => b.days_stuck - a.days_stuck);
-          case 'amount':
-            return orders.sort((a, b) => (b.total_amount || 0) - (a.total_amount || 0));
-          case 'oldest':
-          default:
-            return orders.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-        }
+      const searchTrimmed = deferredSearch.trim();
+
+      // Map sort option to DB column + direction
+      const sortMap: Record<SortOption, { column: string; direction: string }> = {
+        oldest: { column: 'created_at', direction: 'asc' },
+        newest: { column: 'created_at', direction: 'desc' },
+        days_stuck: { column: 'created_at', direction: 'asc' }, // oldest created = most days stuck
+        amount: { column: 'total_amount', direction: 'desc' },
       };
-      
+      const { column: sortColumn, direction: sortDirection } = sortMap[sortBy] || sortMap.oldest;
+
       if (stuckType === 'our_end') {
         const { data, error } = await supabase.rpc('get_stuck_orders_at_our_end', {
-          search_query: searchQuery.trim(),
+          search_query: searchTrimmed,
           page_offset: offset,
-          page_limit: ITEMS_PER_PAGE
+          page_limit: ITEMS_PER_PAGE,
+          sort_column: sortColumn,
+          sort_direction: sortDirection,
         });
         if (error) throw error;
         
@@ -208,14 +206,16 @@ const StuckOrdersDashboard = () => {
         }));
         
         return {
-          orders: sortOrders(enrichedOrders),
+          orders: enrichedOrders,
           totalCount: stats?.atOurEnd || 0
         };
       } else if (stuckType === 'courier_end') {
         const { data, error } = await supabase.rpc('get_stuck_orders_at_courier_end', {
-          search_query: searchQuery.trim(),
+          search_query: searchTrimmed,
           page_offset: offset,
-          page_limit: ITEMS_PER_PAGE
+          page_limit: ITEMS_PER_PAGE,
+          sort_column: sortColumn,
+          sort_direction: sortDirection,
         });
         if (error) throw error;
         
@@ -226,24 +226,28 @@ const StuckOrdersDashboard = () => {
         }));
         
         return {
-          orders: sortOrders(enrichedOrders),
+          orders: enrichedOrders,
           totalCount: stats?.atCourierEnd || 0
         };
       } else {
         // For the "All" tab, fetch both sources from offset 0 up to (offset + ITEMS_PER_PAGE)
-        // then merge, sort, and slice to the correct page window
+        // then merge, deduplicate, and slice to the correct page window
         const fetchLimit = offset + ITEMS_PER_PAGE;
         
         const [ourEndResult, courierEndResult] = await Promise.all([
           supabase.rpc('get_stuck_orders_at_our_end', {
-            search_query: searchQuery.trim(),
+            search_query: searchTrimmed,
             page_offset: 0,
-            page_limit: fetchLimit
+            page_limit: fetchLimit,
+            sort_column: sortColumn,
+            sort_direction: sortDirection,
           }),
           supabase.rpc('get_stuck_orders_at_courier_end', {
-            search_query: searchQuery.trim(),
+            search_query: searchTrimmed,
             page_offset: 0,
-            page_limit: fetchLimit
+            page_limit: fetchLimit,
+            sort_column: sortColumn,
+            sort_direction: sortDirection,
           })
         ]);
         
@@ -261,7 +265,7 @@ const StuckOrdersDashboard = () => {
           last_tracking_update: order.last_tracking_check
         }));
         
-        // Deduplicate by ID, merge, sort, then slice to current page
+        // Deduplicate by ID, merge, then slice to current page
         const mergedMap = new Map<string, StuckOrder>();
         [...ourEndOrders, ...courierEndOrders].forEach((order: any) => {
           if (!mergedMap.has(order.id)) {
@@ -269,7 +273,7 @@ const StuckOrdersDashboard = () => {
           }
         });
         
-        const allOrders = sortOrders(Array.from(mergedMap.values()) as StuckOrder[])
+        const allOrders = Array.from(mergedMap.values())
           .slice(offset, offset + ITEMS_PER_PAGE);
         
         return {
