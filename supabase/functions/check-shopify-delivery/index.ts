@@ -94,11 +94,11 @@ Deno.serve(async (req) => {
     const { data: orders, error: fetchError } = await supabaseAdmin
       .from('orders')
       .select('id, order_number, shopify_order_id, status')
-      .in('id', orderIds);
+      .in('id', batchIds);
 
     if (fetchError) throw fetchError;
     if (!orders || orders.length === 0) {
-      return new Response(JSON.stringify({ updated: 0, failed: 0, failedIds: [], skippedNoShopifyId: 0 }), {
+      return new Response(JSON.stringify({ updated: 0, failed: 0, failedIds: [], skippedNoShopifyId: 0, hasMore, remainingIds }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
