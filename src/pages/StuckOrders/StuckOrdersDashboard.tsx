@@ -229,16 +229,20 @@ const StuckOrdersDashboard = () => {
           totalCount: stats?.atCourierEnd || 0
         };
       } else {
+        // For the "All" tab, fetch both sources from offset 0 up to (offset + ITEMS_PER_PAGE)
+        // then merge, sort, and slice to the correct page window
+        const fetchLimit = offset + ITEMS_PER_PAGE;
+        
         const [ourEndResult, courierEndResult] = await Promise.all([
           supabase.rpc('get_stuck_orders_at_our_end', {
             search_query: searchQuery.trim(),
-            page_offset: offset,
-            page_limit: ITEMS_PER_PAGE
+            page_offset: 0,
+            page_limit: fetchLimit
           }),
           supabase.rpc('get_stuck_orders_at_courier_end', {
             search_query: searchQuery.trim(),
-            page_offset: offset,
-            page_limit: ITEMS_PER_PAGE
+            page_offset: 0,
+            page_limit: fetchLimit
           })
         ]);
         
@@ -256,8 +260,16 @@ const StuckOrdersDashboard = () => {
           last_tracking_update: order.last_tracking_check
         }));
         
-        const allOrders = sortOrders([...ourEndOrders, ...courierEndOrders] as StuckOrder[])
-          .slice(0, ITEMS_PER_PAGE);
+        // Deduplicate by ID, merge, sort, then slice to current page
+        const mergedMap = new Map<string, StuckOrder>();
+        [...ourEndOrders, ...courierEndOrders].forEach((order: any) => {
+          if (!mergedMap.has(order.id)) {
+            mergedMap.set(order.id, order);
+          }
+        });
+        
+        const allOrders = sortOrders(Array.from(mergedMap.values()) as StuckOrder[])
+          .slice(offset, offset + ITEMS_PER_PAGE);
         
         return {
           orders: allOrders,
