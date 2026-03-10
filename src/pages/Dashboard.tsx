@@ -352,7 +352,7 @@ const Dashboard = () => {
         .select('courier, status')
         .not('courier', 'is', null)
         .in('status', ['delivered', 'returned'])
-        .limit(100000); // High limit to get all orders
+        .limit(5000);
       
       if (dateRange?.from) {
         query = query.gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd);

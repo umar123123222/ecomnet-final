@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import RoleGuard from "@/components/RoleGuard";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Layout from "@/components/Layout";
 import { Loader2 } from "lucide-react";
@@ -220,15 +221,15 @@ const App = () => {
                   <Route path="address-verification" element={<Suspense fallback={<PageLoader />}>
                       <AddressVerification />
                     </Suspense>} />
-                  <Route path="user-management" element={<Suspense fallback={<PageLoader />}>
+                  <Route path="user-management" element={<RoleGuard permissionKey="canAccessUserManagement"><Suspense fallback={<PageLoader />}>
                       <UserManagement />
-                    </Suspense>} />
+                    </Suspense></RoleGuard>} />
                   <Route path="settings" element={<Suspense fallback={<PageLoader />}>
                       <Settings />
                     </Suspense>} />
-                  <Route path="business-settings" element={<Suspense fallback={<PageLoader />}>
+                  <Route path="business-settings" element={<RoleGuard permissionKey="canAccessBusinessSettings"><Suspense fallback={<PageLoader />}>
                       <BusinessSettings />
-                    </Suspense>} />
+                    </Suspense></RoleGuard>} />
                   <Route path="shipper-advice" element={<Suspense fallback={<PageLoader />}>
                       <ShipperAdvice />
                     </Suspense>} />
@@ -274,12 +275,12 @@ const App = () => {
                   <Route path="fraud-reporting" element={<Suspense fallback={<PageLoader />}>
                       <FraudReportDashboard />
                     </Suspense>} />
-                  <Route path="activity-logs" element={<Suspense fallback={<PageLoader />}>
+                  <Route path="activity-logs" element={<RoleGuard permissionKey="canAccessActivityLogs"><Suspense fallback={<PageLoader />}>
                       <ActivityLogs />
-                    </Suspense>} />
-                  <Route path="pos" element={<Suspense fallback={<PageLoader />}>
+                    </Suspense></RoleGuard>} />
+                  <Route path="pos" element={<RoleGuard permissionKey="canAccessPOS"><Suspense fallback={<PageLoader />}>
                       <POSMain />
-                    </Suspense>} />
+                    </Suspense></RoleGuard>} />
                   <Route path="stuck-orders" element={<Suspense fallback={<PageLoader />}>
                       <StuckOrdersDashboard />
                     </Suspense>} />
