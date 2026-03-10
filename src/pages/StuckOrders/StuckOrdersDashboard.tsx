@@ -176,7 +176,7 @@ const StuckOrdersDashboard = () => {
     isLoading,
     refetch: refetchOrders
   } = useQuery({
-    queryKey: ['stuck-orders', stuckType, page, searchQuery, sortBy],
+    queryKey: ['stuck-orders', stuckType, page, deferredSearch, sortBy],
     queryFn: async () => {
       const offset = page * ITEMS_PER_PAGE;
       
