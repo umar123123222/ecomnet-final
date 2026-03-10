@@ -13,9 +13,10 @@ import { NotificationsPanel } from '@/components/NotificationsPanel';
 import VersionDisplay from '@/components/VersionDisplay';
 import { useToast } from '@/hooks/use-toast';
 import { OfflineIndicator } from '@/components/OfflineIndicator';
+import { useTheme } from 'next-themes';
 
 const Layout = () => {
-  const [isDark, setIsDark] = useState(false);
+  const { theme, setTheme } = useTheme();
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const { user, profile, userRole, signOut } = useAuth();
   const location = useLocation();
@@ -23,8 +24,7 @@ const Layout = () => {
   const { toast } = useToast();
 
   const toggleTheme = () => {
-    setIsDark(!isDark);
-    document.documentElement.classList.toggle('dark');
+    setTheme(theme === 'dark' ? 'light' : 'dark');
   };
 
   const handleLogout = async () => {
