@@ -275,9 +275,9 @@ const App = () => {
                   <Route path="fraud-reporting" element={<Suspense fallback={<PageLoader />}>
                       <FraudReportDashboard />
                     </Suspense>} />
-                  <Route path="activity-logs" element={<Suspense fallback={<PageLoader />}>
+                  <Route path="activity-logs" element={<RoleGuard permissionKey="canAccessActivityLogs"><Suspense fallback={<PageLoader />}>
                       <ActivityLogs />
-                    </Suspense>} />
+                    </Suspense></RoleGuard>} />
                   <Route path="pos" element={<Suspense fallback={<PageLoader />}>
                       <POSMain />
                     </Suspense>} />
