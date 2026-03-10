@@ -182,6 +182,7 @@ const App = () => {
   }, []);
   return <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
         <TooltipProvider delayDuration={300}>
           <BrowserRouter>
             <VersionChecker />
