@@ -62,6 +62,7 @@ type SortOption = 'oldest' | 'newest' | 'days_stuck' | 'amount';
 
 const StuckOrdersDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearch = useDeferredValue(searchQuery);
   const [stuckType, setStuckType] = useState<string>('all');
   const [page, setPage] = useState(0);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
