@@ -202,7 +202,7 @@ const Layout = () => {
                 </Button>
                 
                 <ModernButton variant="ghost" size="icon" onClick={toggleTheme}>
-                  {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                  {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </ModernButton>
                 
                 <ModernButton variant="destructive" size="sm" onClick={handleLogout} className="gap-2">

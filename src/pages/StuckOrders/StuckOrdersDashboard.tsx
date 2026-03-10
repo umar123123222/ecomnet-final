@@ -375,7 +375,7 @@ const StuckOrdersDashboard = () => {
   }, []);
 
   const handleBulkConfirm = async (dateTime: Date, notes: string) => {
-    if (!user?.id || selectedOrders.size === 0) return;
+    if (!user?.id || selectedOrders.size === 0 || isBulkProcessing) return;
     setIsBulkProcessing(true);
 
     const ids = Array.from(selectedOrders);
