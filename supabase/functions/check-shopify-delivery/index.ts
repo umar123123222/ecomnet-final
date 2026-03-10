@@ -60,7 +60,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log(`check-shopify-delivery: processing ${orderIds.length} orders for user ${userName}`);
+    // Batch limit to avoid 60s edge function timeout
+    const BATCH_LIMIT = 25;
+    const batchIds = orderIds.slice(0, BATCH_LIMIT);
+    const hasMore = orderIds.length > BATCH_LIMIT;
+    const remainingIds = hasMore ? orderIds.slice(BATCH_LIMIT) : [];
+
+    console.log(`check-shopify-delivery: processing ${batchIds.length} of ${orderIds.length} orders for user ${userName}`);
 
     // Get Shopify credentials from api_settings
     const { data: settings } = await supabaseAdmin
@@ -88,11 +94,11 @@ Deno.serve(async (req) => {
     const { data: orders, error: fetchError } = await supabaseAdmin
       .from('orders')
       .select('id, order_number, shopify_order_id, status')
-      .in('id', orderIds);
+      .in('id', batchIds);
 
     if (fetchError) throw fetchError;
     if (!orders || orders.length === 0) {
-      return new Response(JSON.stringify({ updated: 0, failed: 0, failedIds: [], skippedNoShopifyId: 0 }), {
+      return new Response(JSON.stringify({ updated: 0, failed: 0, failedIds: [], skippedNoShopifyId: 0, hasMore, remainingIds }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
@@ -206,7 +212,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const result = { updated, failed, failedIds, skippedNoShopifyId };
+    const result = { updated, failed, failedIds, skippedNoShopifyId, hasMore, remainingIds };
     console.log(`check-shopify-delivery complete:`, result);
 
     return new Response(JSON.stringify(result), {

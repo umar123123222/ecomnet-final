@@ -13,9 +13,10 @@ import { NotificationsPanel } from '@/components/NotificationsPanel';
 import VersionDisplay from '@/components/VersionDisplay';
 import { useToast } from '@/hooks/use-toast';
 import { OfflineIndicator } from '@/components/OfflineIndicator';
+import { useTheme } from 'next-themes';
 
 const Layout = () => {
-  const [isDark, setIsDark] = useState(false);
+  const { theme, setTheme } = useTheme();
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const { user, profile, userRole, signOut } = useAuth();
   const location = useLocation();
@@ -23,8 +24,7 @@ const Layout = () => {
   const { toast } = useToast();
 
   const toggleTheme = () => {
-    setIsDark(!isDark);
-    document.documentElement.classList.toggle('dark');
+    setTheme(theme === 'dark' ? 'light' : 'dark');
   };
 
   const handleLogout = async () => {
@@ -56,7 +56,7 @@ const Layout = () => {
 
   const { primaryRole } = useUserRoles();
   const displayName = (profile?.full_name && profile.full_name !== 'New User') ? profile.full_name : (profile?.email || user?.email);
-  const formatRole = (primaryRole as string).replace(/_/g, ' ');
+  const formatRole = (primaryRole || 'staff').replace(/_/g, ' ');
 
   const navigationItems = user ? getNavigationItems(primaryRole as any) : [];
 
@@ -202,7 +202,7 @@ const Layout = () => {
                 </Button>
                 
                 <ModernButton variant="ghost" size="icon" onClick={toggleTheme}>
-                  {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                  {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </ModernButton>
                 
                 <ModernButton variant="destructive" size="sm" onClick={handleLogout} className="gap-2">

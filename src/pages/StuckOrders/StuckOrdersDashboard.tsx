@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -62,6 +62,7 @@ type SortOption = 'oldest' | 'newest' | 'days_stuck' | 'amount';
 
 const StuckOrdersDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearch = useDeferredValue(searchQuery);
   const [stuckType, setStuckType] = useState<string>('all');
   const [page, setPage] = useState(0);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
@@ -175,10 +176,12 @@ const StuckOrdersDashboard = () => {
     isLoading,
     refetch: refetchOrders
   } = useQuery({
-    queryKey: ['stuck-orders', stuckType, page, searchQuery, sortBy],
+    queryKey: ['stuck-orders', stuckType, page, deferredSearch, sortBy],
     queryFn: async () => {
       const offset = page * ITEMS_PER_PAGE;
-      
+      const searchTrimmed = deferredSearch.trim();
+
+      // Client-side sorting (RPCs don't support sort params)
       const sortOrders = (orders: StuckOrder[]) => {
         switch (sortBy) {
           case 'newest':
@@ -192,12 +195,12 @@ const StuckOrdersDashboard = () => {
             return orders.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
         }
       };
-      
+
       if (stuckType === 'our_end') {
         const { data, error } = await supabase.rpc('get_stuck_orders_at_our_end', {
-          search_query: searchQuery.trim(),
+          search_query: searchTrimmed,
           page_offset: offset,
-          page_limit: ITEMS_PER_PAGE
+          page_limit: ITEMS_PER_PAGE,
         });
         if (error) throw error;
         
@@ -212,9 +215,9 @@ const StuckOrdersDashboard = () => {
         };
       } else if (stuckType === 'courier_end') {
         const { data, error } = await supabase.rpc('get_stuck_orders_at_courier_end', {
-          search_query: searchQuery.trim(),
+          search_query: searchTrimmed,
           page_offset: offset,
-          page_limit: ITEMS_PER_PAGE
+          page_limit: ITEMS_PER_PAGE,
         });
         if (error) throw error;
         
@@ -229,20 +232,18 @@ const StuckOrdersDashboard = () => {
           totalCount: stats?.atCourierEnd || 0
         };
       } else {
-        // For the "All" tab, fetch both sources from offset 0 up to (offset + ITEMS_PER_PAGE)
-        // then merge, sort, and slice to the correct page window
         const fetchLimit = offset + ITEMS_PER_PAGE;
         
         const [ourEndResult, courierEndResult] = await Promise.all([
           supabase.rpc('get_stuck_orders_at_our_end', {
-            search_query: searchQuery.trim(),
+            search_query: searchTrimmed,
             page_offset: 0,
-            page_limit: fetchLimit
+            page_limit: fetchLimit,
           }),
           supabase.rpc('get_stuck_orders_at_courier_end', {
-            search_query: searchQuery.trim(),
+            search_query: searchTrimmed,
             page_offset: 0,
-            page_limit: fetchLimit
+            page_limit: fetchLimit,
           })
         ]);
         
@@ -260,7 +261,6 @@ const StuckOrdersDashboard = () => {
           last_tracking_update: order.last_tracking_check
         }));
         
-        // Deduplicate by ID, merge, sort, then slice to current page
         const mergedMap = new Map<string, StuckOrder>();
         [...ourEndOrders, ...courierEndOrders].forEach((order: any) => {
           if (!mergedMap.has(order.id)) {
@@ -370,7 +370,7 @@ const StuckOrdersDashboard = () => {
   }, []);
 
   const handleBulkConfirm = async (dateTime: Date, notes: string) => {
-    if (!user?.id || selectedOrders.size === 0) return;
+    if (!user?.id || selectedOrders.size === 0 || isBulkProcessing) return;
     setIsBulkProcessing(true);
 
     const ids = Array.from(selectedOrders);
@@ -450,46 +450,60 @@ const StuckOrdersDashboard = () => {
   };
 
   const handleShopifyCheck = async () => {
-    if (!user?.id || selectedOrders.size === 0) return;
+    if (!user?.id || selectedOrders.size === 0 || isShopifyChecking) return;
     setShopifyCheckOpen(false);
     setIsShopifyChecking(true);
 
+    let remainingIds = Array.from(selectedOrders);
+    let totalUpdated = 0;
+    let totalFailed = 0;
+    let totalSkipped = 0;
+    const allFailedIds: string[] = [];
+
     try {
-      const { data, error } = await supabase.functions.invoke('check-shopify-delivery', {
-        body: {
-          orderIds: Array.from(selectedOrders),
-          userId: user.id,
-          userName: profile?.full_name || user.email || 'Unknown',
-        },
-      });
+      while (remainingIds.length > 0) {
+        const { data, error } = await supabase.functions.invoke('check-shopify-delivery', {
+          body: {
+            orderIds: remainingIds,
+            userId: user.id,
+            userName: profile?.full_name || user.email || 'Unknown',
+          },
+        });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      const { updated = 0, failed = 0, failedIds = [], skippedNoShopifyId = 0 } = data || {};
+        const { updated = 0, failed = 0, failedIds = [], skippedNoShopifyId = 0, hasMore = false, remainingIds: nextBatch = [] } = data || {};
+        totalUpdated += updated;
+        totalFailed += failed;
+        totalSkipped += skippedNoShopifyId;
+        allFailedIds.push(...failedIds);
 
-      if (updated > 0) {
+        if (!hasMore || nextBatch.length === 0) break;
+        remainingIds = nextBatch;
+      }
+
+      if (totalUpdated > 0) {
         toast({
-          title: `${updated} order${updated !== 1 ? 's' : ''} updated from Shopify`,
+          title: `${totalUpdated} order${totalUpdated !== 1 ? 's' : ''} updated from Shopify`,
           description: [
-            failed > 0 ? `${failed} failed — still selected for retry.` : null,
-            skippedNoShopifyId > 0 ? `${skippedNoShopifyId} skipped (no Shopify ID).` : null,
+            totalFailed > 0 ? `${totalFailed} failed — still selected for retry.` : null,
+            totalSkipped > 0 ? `${totalSkipped} skipped (no Shopify ID).` : null,
           ].filter(Boolean).join(' ') || undefined,
         });
         refreshAll();
       } else {
         toast({
           title: 'No orders updated',
-          description: `No selected orders are marked delivered in Shopify.${skippedNoShopifyId > 0 ? ` ${skippedNoShopifyId} skipped (no Shopify ID).` : ''}`,
+          description: `No selected orders are marked delivered in Shopify.${totalSkipped > 0 ? ` ${totalSkipped} skipped (no Shopify ID).` : ''}`,
         });
       }
 
-      if (failed > 0 && updated === 0) {
-        toast({ title: 'Shopify check failed', description: `All ${failed} checks failed.`, variant: 'destructive' });
+      if (totalFailed > 0 && totalUpdated === 0) {
+        toast({ title: 'Shopify check failed', description: `All ${totalFailed} checks failed.`, variant: 'destructive' });
       }
 
-      // Keep failed selected for retry, clear the rest
-      if (failedIds.length > 0) {
-        setSelectedOrders(new Set(failedIds));
+      if (allFailedIds.length > 0) {
+        setSelectedOrders(new Set(allFailedIds));
       } else {
         clearSelection();
       }
