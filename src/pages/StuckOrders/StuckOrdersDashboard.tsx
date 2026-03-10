@@ -450,46 +450,60 @@ const StuckOrdersDashboard = () => {
   };
 
   const handleShopifyCheck = async () => {
-    if (!user?.id || selectedOrders.size === 0) return;
+    if (!user?.id || selectedOrders.size === 0 || isShopifyChecking) return;
     setShopifyCheckOpen(false);
     setIsShopifyChecking(true);
 
+    let remainingIds = Array.from(selectedOrders);
+    let totalUpdated = 0;
+    let totalFailed = 0;
+    let totalSkipped = 0;
+    const allFailedIds: string[] = [];
+
     try {
-      const { data, error } = await supabase.functions.invoke('check-shopify-delivery', {
-        body: {
-          orderIds: Array.from(selectedOrders),
-          userId: user.id,
-          userName: profile?.full_name || user.email || 'Unknown',
-        },
-      });
+      while (remainingIds.length > 0) {
+        const { data, error } = await supabase.functions.invoke('check-shopify-delivery', {
+          body: {
+            orderIds: remainingIds,
+            userId: user.id,
+            userName: profile?.full_name || user.email || 'Unknown',
+          },
+        });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      const { updated = 0, failed = 0, failedIds = [], skippedNoShopifyId = 0 } = data || {};
+        const { updated = 0, failed = 0, failedIds = [], skippedNoShopifyId = 0, hasMore = false, remainingIds: nextBatch = [] } = data || {};
+        totalUpdated += updated;
+        totalFailed += failed;
+        totalSkipped += skippedNoShopifyId;
+        allFailedIds.push(...failedIds);
 
-      if (updated > 0) {
+        if (!hasMore || nextBatch.length === 0) break;
+        remainingIds = nextBatch;
+      }
+
+      if (totalUpdated > 0) {
         toast({
-          title: `${updated} order${updated !== 1 ? 's' : ''} updated from Shopify`,
+          title: `${totalUpdated} order${totalUpdated !== 1 ? 's' : ''} updated from Shopify`,
           description: [
-            failed > 0 ? `${failed} failed — still selected for retry.` : null,
-            skippedNoShopifyId > 0 ? `${skippedNoShopifyId} skipped (no Shopify ID).` : null,
+            totalFailed > 0 ? `${totalFailed} failed — still selected for retry.` : null,
+            totalSkipped > 0 ? `${totalSkipped} skipped (no Shopify ID).` : null,
           ].filter(Boolean).join(' ') || undefined,
         });
         refreshAll();
       } else {
         toast({
           title: 'No orders updated',
-          description: `No selected orders are marked delivered in Shopify.${skippedNoShopifyId > 0 ? ` ${skippedNoShopifyId} skipped (no Shopify ID).` : ''}`,
+          description: `No selected orders are marked delivered in Shopify.${totalSkipped > 0 ? ` ${totalSkipped} skipped (no Shopify ID).` : ''}`,
         });
       }
 
-      if (failed > 0 && updated === 0) {
-        toast({ title: 'Shopify check failed', description: `All ${failed} checks failed.`, variant: 'destructive' });
+      if (totalFailed > 0 && totalUpdated === 0) {
+        toast({ title: 'Shopify check failed', description: `All ${totalFailed} checks failed.`, variant: 'destructive' });
       }
 
-      // Keep failed selected for retry, clear the rest
-      if (failedIds.length > 0) {
-        setSelectedOrders(new Set(failedIds));
+      if (allFailedIds.length > 0) {
+        setSelectedOrders(new Set(allFailedIds));
       } else {
         clearSelection();
       }
