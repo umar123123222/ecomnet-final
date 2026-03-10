@@ -60,7 +60,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log(`check-shopify-delivery: processing ${orderIds.length} orders for user ${userName}`);
+    // Batch limit to avoid 60s edge function timeout
+    const BATCH_LIMIT = 25;
+    const batchIds = orderIds.slice(0, BATCH_LIMIT);
+    const hasMore = orderIds.length > BATCH_LIMIT;
+    const remainingIds = hasMore ? orderIds.slice(BATCH_LIMIT) : [];
+
+    console.log(`check-shopify-delivery: processing ${batchIds.length} of ${orderIds.length} orders for user ${userName}`);
 
     // Get Shopify credentials from api_settings
     const { data: settings } = await supabaseAdmin
