@@ -278,9 +278,9 @@ const App = () => {
                   <Route path="activity-logs" element={<RoleGuard permissionKey="canAccessActivityLogs"><Suspense fallback={<PageLoader />}>
                       <ActivityLogs />
                     </Suspense></RoleGuard>} />
-                  <Route path="pos" element={<Suspense fallback={<PageLoader />}>
+                  <Route path="pos" element={<RoleGuard permissionKey="canAccessPOS"><Suspense fallback={<PageLoader />}>
                       <POSMain />
-                    </Suspense>} />
+                    </Suspense></RoleGuard>} />
                   <Route path="stuck-orders" element={<Suspense fallback={<PageLoader />}>
                       <StuckOrdersDashboard />
                     </Suspense>} />
