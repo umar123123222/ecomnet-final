@@ -212,7 +212,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const result = { updated, failed, failedIds, skippedNoShopifyId };
+    const result = { updated, failed, failedIds, skippedNoShopifyId, hasMore, remainingIds };
     console.log(`check-shopify-delivery complete:`, result);
 
     return new Response(JSON.stringify(result), {
