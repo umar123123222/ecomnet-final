@@ -211,30 +211,63 @@ Deno.serve(async (req) => {
       alreadyExists: [] as string[],
     };
 
+    // Function to fetch a Shopify order by order number using search API
+    const fetchOrderByName = async (orderName: string): Promise<ShopifyOrder> => {
+      // Strip # prefix if present
+      const cleanName = orderName.replace(/^#/, '');
+      const searchUrl = `https://${storeUrl}/admin/api/${apiVersion}/orders.json?name=${encodeURIComponent(cleanName)}&status=any&limit=1`;
+      console.log(`Searching Shopify for order by name: ${cleanName}`);
+
+      const response = await fetch(searchUrl, {
+        headers: {
+          'X-Shopify-Access-Token': accessToken,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Shopify search API error: ${response.status} - ${errorText}`);
+      }
+
+      const { orders } = await response.json() as { orders: ShopifyOrder[] };
+      if (!orders || orders.length === 0) {
+        throw new Error(`Order "${orderName}" not found in Shopify`);
+      }
+      return orders[0];
+    };
+
+    // Function to fetch a Shopify order by numeric ID
+    const fetchOrderById = async (shopifyId: string): Promise<ShopifyOrder> => {
+      const shopifyUrl = `https://${storeUrl}/admin/api/${apiVersion}/orders/${shopifyId}.json`;
+      console.log(`Fetching order from Shopify by ID: ${shopifyId}`);
+
+      const response = await fetch(shopifyUrl, {
+        headers: {
+          'X-Shopify-Access-Token': accessToken,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Shopify API error: ${response.status} - ${errorText}`);
+      }
+
+      const { order } = await response.json() as { order: ShopifyOrder };
+      if (!order) {
+        throw new Error(`Order with Shopify ID ${shopifyId} not found`);
+      }
+      return order;
+    };
+
     // Function to fetch and sync a single order
     const syncOrder = async (identifier: string, isShopifyId: boolean) => {
       try {
-        // Fetch order from Shopify
-        const shopifyUrl = `https://${storeUrl}/admin/api/${apiVersion}/orders/${identifier}.json`;
-        console.log(`Fetching order from Shopify: ${shopifyUrl}`);
-
-        const response = await fetch(shopifyUrl, {
-          headers: {
-            'X-Shopify-Access-Token': accessToken,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Shopify API error: ${response.status} - ${errorText}`);
-        }
-
-        const { order } = await response.json() as { order: ShopifyOrder };
-
-        if (!order) {
-          throw new Error('Order not found in Shopify');
-        }
+        // Use the correct API endpoint based on identifier type
+        const order = isShopifyId
+          ? await fetchOrderById(identifier)
+          : await fetchOrderByName(identifier);
 
         // Check if order already exists
         const { data: existingOrder } = await supabaseClient
