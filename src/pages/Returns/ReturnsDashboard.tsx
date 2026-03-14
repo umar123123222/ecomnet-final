@@ -244,7 +244,24 @@ const ReturnsDashboard = () => {
         abortControllerRef.current.abort();
       }
     };
-  }, [toast, dateRange]);
+  }, [toast, dateRange, realtimeTrigger]);
+
+  // Real-time subscription for returns changes
+  useEffect(() => {
+    let debounceTimer: NodeJS.Timeout;
+    const channel = supabase
+      .channel('returns-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'returns' }, () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => setRealtimeTrigger(prev => prev + 1), 500);
+      })
+      .subscribe();
+
+    return () => {
+      clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
+  }, []);
   // Date filtering now happens server-side
   const filteredByDate = useMemo(() => {
     return returns;
