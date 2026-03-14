@@ -36,8 +36,8 @@ const ReturnsDashboard = () => {
   const [returns, setReturns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: new Date(),
-    to: addDays(new Date(), 7)
+    from: addDays(new Date(), -30),
+    to: new Date()
   });
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);

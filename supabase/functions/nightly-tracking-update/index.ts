@@ -327,6 +327,7 @@ serve(async (req) => {
                 
                 // BUG-8 FIX: Create a returns record for courier-marked returns
                 // This ensures courier-marked returns appear in ReturnsDashboard
+                // Uses existing schema columns: tracking_id (required), reason, notes, return_status
                 const { data: existingReturn } = await supabase
                   .from('returns')
                   .select('id')
@@ -338,10 +339,10 @@ serve(async (req) => {
                     .from('returns')
                     .insert({
                       order_id: order.id,
-                      return_type: 'courier_marked',
+                      tracking_id: order.tracking_id,
                       reason: 'Courier marked as returned/RTO',
-                      status: 'courier_returned',
-                      courier_return_date: finalReturnDate,
+                      notes: `[courier_marked_return] Automatically created from tracking update. Return date: ${finalReturnDate}`,
+                      return_status: 'in_transit',
                       created_at: new Date().toISOString(),
                     });
                   
