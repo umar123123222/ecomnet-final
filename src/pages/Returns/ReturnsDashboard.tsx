@@ -48,6 +48,7 @@ const ReturnsDashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [visibleCount, setVisibleCount] = useState(100);
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
+  const [realtimeTrigger, setRealtimeTrigger] = useState(0);
   
   const isMobile = useIsMobile();
   
