@@ -48,6 +48,7 @@ const ReturnsDashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [visibleCount, setVisibleCount] = useState(100);
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
+  const [realtimeTrigger, setRealtimeTrigger] = useState(0);
   
   const isMobile = useIsMobile();
   
@@ -243,7 +244,24 @@ const ReturnsDashboard = () => {
         abortControllerRef.current.abort();
       }
     };
-  }, [toast, dateRange]);
+  }, [toast, dateRange, realtimeTrigger]);
+
+  // Real-time subscription for returns changes
+  useEffect(() => {
+    let debounceTimer: NodeJS.Timeout;
+    const channel = supabase
+      .channel('returns-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'returns' }, () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => setRealtimeTrigger(prev => prev + 1), 500);
+      })
+      .subscribe();
+
+    return () => {
+      clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
+  }, []);
   // Date filtering now happens server-side
   const filteredByDate = useMemo(() => {
     return returns;

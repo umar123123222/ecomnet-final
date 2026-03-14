@@ -40,7 +40,7 @@ serve(async (req) => {
         booked_at,
         created_at
       `)
-      .eq('status', 'dispatched')
+      .in('status', ['dispatched', 'booked'])
       .not('tracking_id', 'is', null)
       .neq('tracking_id', '')
       .order('booked_at', { ascending: true, nullsFirst: true }) // Oldest first
