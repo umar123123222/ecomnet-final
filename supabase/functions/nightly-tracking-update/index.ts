@@ -325,6 +325,35 @@ serve(async (req) => {
                   })
                   .eq('id', order.id);
                 
+                // BUG-8 FIX: Create a returns record for courier-marked returns
+                // This ensures courier-marked returns appear in ReturnsDashboard
+                const { data: existingReturn } = await supabase
+                  .from('returns')
+                  .select('id')
+                  .eq('order_id', order.id)
+                  .maybeSingle();
+                
+                if (!existingReturn) {
+                  const { error: returnError } = await supabase
+                    .from('returns')
+                    .insert({
+                      order_id: order.id,
+                      return_type: 'courier_marked',
+                      reason: 'Courier marked as returned/RTO',
+                      status: 'courier_returned',
+                      courier_return_date: finalReturnDate,
+                      created_at: new Date().toISOString(),
+                    });
+                  
+                  if (returnError) {
+                    console.error(`Failed to create return record for ${order.order_number}:`, returnError);
+                  } else {
+                    console.log(`📦 Created courier-marked return record for order ${order.order_number}`);
+                  }
+                } else {
+                  console.log(`📦 Return record already exists for order ${order.order_number}`);
+                }
+                
                 results.returned++;
                 results.updated++;
                 console.log(`↩️ Order ${order.order_number} marked as RETURNED at ${finalReturnDate}`);
