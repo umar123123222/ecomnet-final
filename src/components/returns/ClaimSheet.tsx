@@ -88,6 +88,7 @@ const ClaimSheet = ({ open, onOpenChange, order, onSuccess }: ClaimSheetProps) =
             tracking_id: order.trackingId,
             worth: order.returnValue,
             reason: 'Lost/Stolen by courier - Claimed',
+            return_type: 'courier_marked',
             ...claimData,
           });
         if (insertError) throw insertError;
