@@ -353,6 +353,7 @@ serve(async (req) => {
                       reason: 'Courier marked as returned/RTO',
                       notes: `[courier_marked_return] Automatically created from tracking update. Return date: ${finalReturnDate}`,
                       return_status: 'in_transit',
+                      return_type: 'courier_marked',
                       created_at: new Date().toISOString(),
                     });
                   

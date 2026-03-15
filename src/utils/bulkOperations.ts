@@ -229,6 +229,7 @@ export async function bulkReceiveReturns(
       .from('returns')
       .update({
         return_status: 'received',
+        return_type: 'received_by_us',
         received_at: new Date().toISOString(),
         received_by: userId,
         updated_at: new Date().toISOString(),

@@ -757,6 +757,21 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error('Error processing Shopify webhook:', error);
+
+    // Log sync failure for visibility
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      );
+      const { logSyncFailure } = await import('../_shared/syncFailureLogger.ts');
+      await logSyncFailure(supabase, {
+        source: 'shopify_webhook',
+        order_identifier: 'unknown',
+        error_message: error.message || String(error),
+      });
+    } catch (_) { /* never break the response */ }
+
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -418,6 +418,14 @@ Deno.serve(async (req) => {
         console.error(`Failed to sync order ${identifier}:`, error);
         results.failed.push({ identifier, error: error.message });
 
+        // Log to sync_failures table
+        await logSyncFailure(supabaseClient, {
+          source: 'sync_missing_orders',
+          order_identifier: identifier,
+          error_message: error.message,
+          payload: { isShopifyId },
+        });
+
         // Update missing_orders_log with error
         await supabaseClient
           .from('missing_orders_log')
