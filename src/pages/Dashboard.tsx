@@ -495,6 +495,106 @@ const Dashboard = () => {
           {summaryData.map((item, index) => <SummaryCard key={item.title} item={item} index={index} />)}
         </div>
 
+        {/* D1/D2/D3: Operational Metrics — In Transit, Delivery Rate, Return Rate, Return Separation */}
+        {operationalMetrics && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* D1: In Transit */}
+            <GradientCard className="p-0 overflow-hidden">
+              <div className="h-2 bg-gradient-to-r from-amber-500 to-orange-500"></div>
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2 flex-1">
+                    <p className="text-sm font-medium text-muted-foreground">In Transit</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-foreground">
+                      {operationalMetrics.inTransit.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Dispatched, not yet delivered</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 shadow-lg">
+                    <Navigation className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
+                  </div>
+                </div>
+              </CardContent>
+            </GradientCard>
+
+            {/* D2: Delivery Rate */}
+            <GradientCard className="p-0 overflow-hidden">
+              <div className="h-2 bg-gradient-to-r from-emerald-500 to-green-500"></div>
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2 flex-1">
+                    <p className="text-sm font-medium text-muted-foreground">Delivery Rate</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-foreground">
+                      {operationalMetrics.deliveryRate === 'N/A' ? 'N/A' : `${operationalMetrics.deliveryRate}%`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Delivered / (Delivered + Returned)</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 shadow-lg">
+                    <Percent className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
+                  </div>
+                </div>
+              </CardContent>
+            </GradientCard>
+
+            {/* D2: Return Rate */}
+            <GradientCard className="p-0 overflow-hidden">
+              <div className="h-2 bg-gradient-to-r from-rose-500 to-red-500"></div>
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2 flex-1">
+                    <p className="text-sm font-medium text-muted-foreground">Return Rate</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-foreground">
+                      {operationalMetrics.returnRate === 'N/A' ? 'N/A' : `${operationalMetrics.returnRate}%`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Returned / (Delivered + Returned)</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 shadow-lg">
+                    <RotateCcw className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
+                  </div>
+                </div>
+              </CardContent>
+            </GradientCard>
+
+            {/* D3: Courier-Marked Returns */}
+            <GradientCard className="p-0 overflow-hidden">
+              <div className="h-2 bg-gradient-to-r from-violet-500 to-purple-500"></div>
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2 flex-1">
+                    <p className="text-sm font-medium text-muted-foreground">Courier Returns</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-foreground">
+                      {returnSeparation?.courierMarkedOnly ?? '...'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Marked by courier, not received ≈</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 shadow-lg">
+                    <Truck className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
+                  </div>
+                </div>
+              </CardContent>
+            </GradientCard>
+
+            {/* D3: Physically Received Returns */}
+            <GradientCard className="p-0 overflow-hidden">
+              <div className="h-2 bg-gradient-to-r from-sky-500 to-blue-500"></div>
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2 flex-1">
+                    <p className="text-sm font-medium text-muted-foreground">Received Returns</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-foreground">
+                      {returnSeparation?.physicallyReceived ?? '...'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Physically scanned in warehouse ≈</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-sky-500 to-blue-500 shadow-lg">
+                    <Package className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
+                  </div>
+                </div>
+              </CardContent>
+            </GradientCard>
+          </div>
+        )}
+
         {/* Courier Performance Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {courierData.length > 0 ? courierData.map((courier) => <GradientCard key={courier.name} variant="glass" className="p-4 sm:p-6 text-center">
