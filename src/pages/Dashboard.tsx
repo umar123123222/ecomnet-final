@@ -1,6 +1,6 @@
-import React, { useState, memo, useMemo } from 'react';
+import React, { useState, memo, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GradientCard } from "@/components/ui/gradient-card";
@@ -21,7 +21,7 @@ import { TopPerformers } from "@/components/dashboard/TopPerformers";
 import { PerformanceMetrics } from "@/components/dashboard/PerformanceMetrics";
 import { DeficitProductsWidget } from "@/components/dashboard/DeficitProductsWidget";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Package, Truck, CheckCircle, XCircle, RotateCcw, TrendingUp, TrendingDown, Users, BarChart3, Upload, FileText, Settings, UserCog } from "lucide-react";
+import { Calendar, Package, Truck, CheckCircle, XCircle, RotateCcw, TrendingUp, TrendingDown, Users, BarChart3, Upload, FileText, Settings, UserCog, Navigation, Percent } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 
 // Memoized summary card component for better performance
