@@ -48,10 +48,11 @@ serve(async (req) => {
     }
 
     // Update dispatch record with latest tracking info
+    // NOTE: dispatches table has no 'status' column - status is tracked via
+    // courier_tracking_history table (per-event) and orders table (terminal states)
     await supabase
       .from('dispatches')
       .update({
-        status: trackingData.status,
         last_tracking_update: new Date().toISOString(),
         courier_response: trackingData.raw
       })
@@ -248,14 +249,15 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
   }
 
   // Get dispatch and order info - with auto-create fallback
+  // First try by tracking_id
   let { data: dispatch, error: dispatchError } = await supabaseClient
     .from('dispatches')
     .select('id, order_id, courier_id')
     .eq('tracking_id', trackingId)
-    .single();
+    .maybeSingle();
 
-  // If no dispatch found, try to auto-create one from order
-  if (dispatchError || !dispatch) {
+  // If no dispatch found by tracking_id, try to find or create from order
+  if (!dispatch) {
     console.log(`No dispatch found for tracking ${trackingId}, checking orders table...`);
     
     const { data: order, error: orderError } = await supabaseClient
@@ -265,27 +267,46 @@ async function trackWithCustomEndpoint(trackingId: string, courier: any, supabas
       .single();
     
     if (!orderError && order) {
-      console.log(`Found order ${order.id} with tracking ${trackingId}, auto-creating dispatch record...`);
-      
-      const { data: newDispatch, error: createError } = await supabaseClient
+      // C3 FIX: Check if a dispatch already exists for this order_id first
+      // This prevents creating duplicate dispatches when tracking_id changes
+      const { data: existingByOrder } = await supabaseClient
         .from('dispatches')
-        .insert({
-          order_id: order.id,
-          tracking_id: trackingId,
-          courier: courier.name,
-          courier_id: courier.id,
-          dispatch_date: order.booked_at || order.created_at || new Date().toISOString(),
-          last_tracking_update: new Date().toISOString()
-        })
         .select('id, order_id, courier_id')
-        .single();
+        .eq('order_id', order.id)
+        .maybeSingle();
       
-      if (!createError && newDispatch) {
-        console.log(`Auto-created dispatch ${newDispatch.id} for order ${order.id}`);
-        dispatch = newDispatch;
-        dispatchError = null;
+      if (existingByOrder) {
+        // Update existing dispatch with the new tracking_id instead of creating a duplicate
+        console.log(`Found existing dispatch ${existingByOrder.id} for order ${order.id}, updating tracking_id...`);
+        await supabaseClient
+          .from('dispatches')
+          .update({ 
+            tracking_id: trackingId,
+            last_tracking_update: new Date().toISOString()
+          })
+          .eq('id', existingByOrder.id);
+        dispatch = existingByOrder;
       } else {
-        console.error('Failed to auto-create dispatch:', createError);
+        console.log(`No dispatch exists for order ${order.id}, creating new one...`);
+        const { data: newDispatch, error: createError } = await supabaseClient
+          .from('dispatches')
+          .insert({
+            order_id: order.id,
+            tracking_id: trackingId,
+            courier: courier.name,
+            courier_id: courier.id,
+            dispatch_date: order.booked_at || order.created_at || new Date().toISOString(),
+            last_tracking_update: new Date().toISOString()
+          })
+          .select('id, order_id, courier_id')
+          .single();
+        
+        if (!createError && newDispatch) {
+          console.log(`Auto-created dispatch ${newDispatch.id} for order ${order.id}`);
+          dispatch = newDispatch;
+        } else {
+          console.error('Failed to auto-create dispatch:', createError);
+        }
       }
     } else {
       console.warn('No order found with tracking_id:', trackingId);

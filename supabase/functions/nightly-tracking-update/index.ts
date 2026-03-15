@@ -75,15 +75,24 @@ serve(async (req) => {
           // First check if dispatch exists, create if missing
           const { data: existingDispatch } = await supabase
             .from('dispatches')
-            .select('id, courier_id')
+            .select('id, courier_id, tracking_id')
             .eq('order_id', order.id)
             .maybeSingle();
           
           let dispatchId = existingDispatch?.id;
           let courierId = existingDispatch?.courier_id;
           
-          // Auto-create missing dispatch record
-          if (!existingDispatch) {
+          if (existingDispatch) {
+            // C3 FIX: If dispatch exists but tracking_id differs, update it
+            if (existingDispatch.tracking_id !== order.tracking_id) {
+              console.log(`🔄 Updating dispatch ${existingDispatch.id} tracking_id: ${existingDispatch.tracking_id} → ${order.tracking_id}`);
+              await supabase
+                .from('dispatches')
+                .update({ tracking_id: order.tracking_id })
+                .eq('id', existingDispatch.id);
+            }
+          } else {
+            // Auto-create missing dispatch record
             console.log(`📝 Creating missing dispatch for order ${order.order_number}`);
             
             // Get courier_id from couriers table
