@@ -63,7 +63,36 @@ SummaryCard.displayName = 'SummaryCard';
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+
+  // B1: Real-time subscription — invalidate dashboard cache on order/return changes
+  useEffect(() => {
+    let debounceTimer: NodeJS.Timeout;
+    const channel = supabase
+      .channel('dashboard-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats-optimized'] });
+          queryClient.invalidateQueries({ queryKey: ['courier-performance'] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard-return-separation'] });
+        }, 500);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'returns' }, () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['dashboard-return-separation'] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats-optimized'] });
+        }, 500);
+      })
+      .subscribe();
+
+    return () => {
+      clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Calculate date ranges for current and previous periods
   const getDateRanges = () => {
