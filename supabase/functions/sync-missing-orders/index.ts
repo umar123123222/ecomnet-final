@@ -3,6 +3,7 @@ import { getAPISetting } from '../_shared/apiSettings.ts';
 import { calculateOrderTotal, filterActiveLineItems } from '../_shared/orderTotalCalculator.ts';
 import { syncOrderItems } from '../_shared/orderItemsSync.ts';
 import { getEcomnetStatusTag } from '../_shared/ecomnetStatusTags.ts';
+import { logSyncFailure } from '../_shared/syncFailureLogger.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
