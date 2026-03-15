@@ -1,6 +1,6 @@
-import React, { useState, memo, useMemo } from 'react';
+import React, { useState, memo, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GradientCard } from "@/components/ui/gradient-card";
@@ -21,7 +21,7 @@ import { TopPerformers } from "@/components/dashboard/TopPerformers";
 import { PerformanceMetrics } from "@/components/dashboard/PerformanceMetrics";
 import { DeficitProductsWidget } from "@/components/dashboard/DeficitProductsWidget";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Package, Truck, CheckCircle, XCircle, RotateCcw, TrendingUp, TrendingDown, Users, BarChart3, Upload, FileText, Settings, UserCog } from "lucide-react";
+import { Calendar, Package, Truck, CheckCircle, XCircle, RotateCcw, TrendingUp, TrendingDown, Users, BarChart3, Upload, FileText, Settings, UserCog, Navigation, Percent } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 
 // Memoized summary card component for better performance
@@ -63,7 +63,36 @@ SummaryCard.displayName = 'SummaryCard';
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+
+  // B1: Real-time subscription — invalidate dashboard cache on order/return changes
+  useEffect(() => {
+    let debounceTimer: NodeJS.Timeout;
+    const channel = supabase
+      .channel('dashboard-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats-optimized'] });
+          queryClient.invalidateQueries({ queryKey: ['courier-performance'] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard-return-separation'] });
+        }, 500);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'returns' }, () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['dashboard-return-separation'] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats-optimized'] });
+        }, 500);
+      })
+      .subscribe();
+
+    return () => {
+      clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Calculate date ranges for current and previous periods
   const getDateRanges = () => {
@@ -153,8 +182,8 @@ const Dashboard = () => {
         },
       };
     },
-    refetchInterval: 300000, // Reduced from 30s to 5 minutes
-    staleTime: 240000, // 4 minutes stale time
+    refetchInterval: false, // B1: replaced polling with real-time subscription
+    staleTime: 60000, // 1 minute — real-time invalidation handles freshness
   });
 
   // Format trend percentage
@@ -403,6 +432,39 @@ const Dashboard = () => {
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  // D3: Return separation query — approximate (based on received_at presence)
+  const { data: returnSeparation } = useQuery({
+    queryKey: ['dashboard-return-separation', dateRange],
+    queryFn: async () => {
+      const ranges = getDateRanges();
+      let query = supabase
+        .from('returns')
+        .select('id, received_at, return_status, created_at');
+      if (dateRange?.from) {
+        query = query.gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd);
+      }
+      const { data, error } = await query.limit(10000);
+      if (error) throw error;
+      const all = data || [];
+      const physicallyReceived = all.filter(r => r.received_at !== null).length;
+      const courierMarkedOnly = all.filter(r => r.received_at === null).length;
+      return { total: all.length, physicallyReceived, courierMarkedOnly, isApproximate: true };
+    },
+    staleTime: 60000,
+  });
+
+  // D1/D2: Computed operational metrics
+  const operationalMetrics = useMemo(() => {
+    if (!dashboardData) return null;
+    const stats = dateRange?.from ? dashboardData.current : dashboardData.allTime;
+    const inTransit = stats.dispatchedOrders;
+    const terminalTotal = stats.deliveredOrders + stats.returnedOrders;
+    const deliveryRate = terminalTotal > 0 ? ((stats.deliveredOrders / terminalTotal) * 100).toFixed(1) : 'N/A';
+    const returnRate = terminalTotal > 0 ? ((stats.returnedOrders / terminalTotal) * 100).toFixed(1) : 'N/A';
+    return { inTransit, deliveryRate, returnRate };
+  }, [dashboardData, dateRange]);
+
   return <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900">
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Header */}
@@ -432,6 +494,106 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
           {summaryData.map((item, index) => <SummaryCard key={item.title} item={item} index={index} />)}
         </div>
+
+        {/* D1/D2/D3: Operational Metrics — In Transit, Delivery Rate, Return Rate, Return Separation */}
+        {operationalMetrics && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* D1: In Transit */}
+            <GradientCard className="p-0 overflow-hidden">
+              <div className="h-2 bg-gradient-to-r from-amber-500 to-orange-500"></div>
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2 flex-1">
+                    <p className="text-sm font-medium text-muted-foreground">In Transit</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-foreground">
+                      {operationalMetrics.inTransit.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Dispatched, not yet delivered</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 shadow-lg">
+                    <Navigation className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
+                  </div>
+                </div>
+              </CardContent>
+            </GradientCard>
+
+            {/* D2: Delivery Rate */}
+            <GradientCard className="p-0 overflow-hidden">
+              <div className="h-2 bg-gradient-to-r from-emerald-500 to-green-500"></div>
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2 flex-1">
+                    <p className="text-sm font-medium text-muted-foreground">Delivery Rate</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-foreground">
+                      {operationalMetrics.deliveryRate === 'N/A' ? 'N/A' : `${operationalMetrics.deliveryRate}%`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Delivered / (Delivered + Returned)</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 shadow-lg">
+                    <Percent className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
+                  </div>
+                </div>
+              </CardContent>
+            </GradientCard>
+
+            {/* D2: Return Rate */}
+            <GradientCard className="p-0 overflow-hidden">
+              <div className="h-2 bg-gradient-to-r from-rose-500 to-red-500"></div>
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2 flex-1">
+                    <p className="text-sm font-medium text-muted-foreground">Return Rate</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-foreground">
+                      {operationalMetrics.returnRate === 'N/A' ? 'N/A' : `${operationalMetrics.returnRate}%`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Returned / (Delivered + Returned)</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 shadow-lg">
+                    <RotateCcw className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
+                  </div>
+                </div>
+              </CardContent>
+            </GradientCard>
+
+            {/* D3: Courier-Marked Returns */}
+            <GradientCard className="p-0 overflow-hidden">
+              <div className="h-2 bg-gradient-to-r from-violet-500 to-purple-500"></div>
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2 flex-1">
+                    <p className="text-sm font-medium text-muted-foreground">Courier Returns</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-foreground">
+                      {returnSeparation?.courierMarkedOnly ?? '...'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Marked by courier, not received ≈</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 shadow-lg">
+                    <Truck className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
+                  </div>
+                </div>
+              </CardContent>
+            </GradientCard>
+
+            {/* D3: Physically Received Returns */}
+            <GradientCard className="p-0 overflow-hidden">
+              <div className="h-2 bg-gradient-to-r from-sky-500 to-blue-500"></div>
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2 flex-1">
+                    <p className="text-sm font-medium text-muted-foreground">Received Returns</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-foreground">
+                      {returnSeparation?.physicallyReceived ?? '...'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Physically scanned in warehouse ≈</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-sky-500 to-blue-500 shadow-lg">
+                    <Package className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
+                  </div>
+                </div>
+              </CardContent>
+            </GradientCard>
+          </div>
+        )}
 
         {/* Courier Performance Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
