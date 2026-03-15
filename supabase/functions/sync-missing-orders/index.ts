@@ -3,6 +3,7 @@ import { getAPISetting } from '../_shared/apiSettings.ts';
 import { calculateOrderTotal, filterActiveLineItems } from '../_shared/orderTotalCalculator.ts';
 import { syncOrderItems } from '../_shared/orderItemsSync.ts';
 import { getEcomnetStatusTag } from '../_shared/ecomnetStatusTags.ts';
+import { logSyncFailure } from '../_shared/syncFailureLogger.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -416,6 +417,14 @@ Deno.serve(async (req) => {
       } catch (error: any) {
         console.error(`Failed to sync order ${identifier}:`, error);
         results.failed.push({ identifier, error: error.message });
+
+        // Log to sync_failures table
+        await logSyncFailure(supabaseClient, {
+          source: 'sync_missing_orders',
+          order_identifier: identifier,
+          error_message: error.message,
+          payload: { isShopifyId },
+        });
 
         // Update missing_orders_log with error
         await supabaseClient

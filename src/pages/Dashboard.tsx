@@ -433,23 +433,23 @@ const Dashboard = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  // D3: Return separation query — approximate (based on received_at presence)
+  // D3: Return separation query — EXACT (based on return_type column)
   const { data: returnSeparation } = useQuery({
     queryKey: ['dashboard-return-separation', dateRange],
     queryFn: async () => {
       const ranges = getDateRanges();
       let query = supabase
         .from('returns')
-        .select('id, received_at, return_status, created_at');
+        .select('id, return_type, created_at');
       if (dateRange?.from) {
         query = query.gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd);
       }
       const { data, error } = await query.limit(10000);
       if (error) throw error;
       const all = data || [];
-      const physicallyReceived = all.filter(r => r.received_at !== null).length;
-      const courierMarkedOnly = all.filter(r => r.received_at === null).length;
-      return { total: all.length, physicallyReceived, courierMarkedOnly, isApproximate: true };
+      const physicallyReceived = all.filter((r: any) => r.return_type === 'received_by_us').length;
+      const courierMarkedOnly = all.filter((r: any) => r.return_type === 'courier_marked').length;
+      return { total: all.length, physicallyReceived, courierMarkedOnly, isApproximate: false };
     },
     staleTime: 60000,
   });

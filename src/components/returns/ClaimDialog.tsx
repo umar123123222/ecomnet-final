@@ -84,6 +84,7 @@ const ClaimDialog = ({ open, onOpenChange, order, onSuccess }: ClaimDialogProps)
             tracking_id: order.trackingId,
             worth: order.returnValue,
             reason: 'Lost/Stolen by courier - Claimed',
+            return_type: 'courier_marked',
             ...claimData,
           });
 

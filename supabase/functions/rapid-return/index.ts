@@ -190,6 +190,7 @@ serve(async (req) => {
           order_id: foundOrder.id,
           tracking_id: foundOrder.tracking_id || entry,
           return_status: 'received',
+          return_type: 'received_by_us',
           worth: foundOrder.total_amount || 0,
           reason: 'Scanned at warehouse',
           received_by: userId,
