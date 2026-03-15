@@ -48,10 +48,11 @@ serve(async (req) => {
     }
 
     // Update dispatch record with latest tracking info
+    // NOTE: dispatches table has no 'status' column - status is tracked via
+    // courier_tracking_history table (per-event) and orders table (terminal states)
     await supabase
       .from('dispatches')
       .update({
-        status: trackingData.status,
         last_tracking_update: new Date().toISOString(),
         courier_response: trackingData.raw
       })
