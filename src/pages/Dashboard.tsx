@@ -182,8 +182,8 @@ const Dashboard = () => {
         },
       };
     },
-    refetchInterval: 300000, // Reduced from 30s to 5 minutes
-    staleTime: 240000, // 4 minutes stale time
+    refetchInterval: false, // B1: replaced polling with real-time subscription
+    staleTime: 60000, // 1 minute — real-time invalidation handles freshness
   });
 
   // Format trend percentage
