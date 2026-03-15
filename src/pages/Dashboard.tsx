@@ -432,6 +432,39 @@ const Dashboard = () => {
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  // D3: Return separation query — approximate (based on received_at presence)
+  const { data: returnSeparation } = useQuery({
+    queryKey: ['dashboard-return-separation', dateRange],
+    queryFn: async () => {
+      const ranges = getDateRanges();
+      let query = supabase
+        .from('returns')
+        .select('id, received_at, return_status, created_at');
+      if (dateRange?.from) {
+        query = query.gte('created_at', ranges.currentStart).lte('created_at', ranges.currentEnd);
+      }
+      const { data, error } = await query.limit(10000);
+      if (error) throw error;
+      const all = data || [];
+      const physicallyReceived = all.filter(r => r.received_at !== null).length;
+      const courierMarkedOnly = all.filter(r => r.received_at === null).length;
+      return { total: all.length, physicallyReceived, courierMarkedOnly, isApproximate: true };
+    },
+    staleTime: 60000,
+  });
+
+  // D1/D2: Computed operational metrics
+  const operationalMetrics = useMemo(() => {
+    if (!dashboardData) return null;
+    const stats = dateRange?.from ? dashboardData.current : dashboardData.allTime;
+    const inTransit = stats.dispatchedOrders;
+    const terminalTotal = stats.deliveredOrders + stats.returnedOrders;
+    const deliveryRate = terminalTotal > 0 ? ((stats.deliveredOrders / terminalTotal) * 100).toFixed(1) : 'N/A';
+    const returnRate = terminalTotal > 0 ? ((stats.returnedOrders / terminalTotal) * 100).toFixed(1) : 'N/A';
+    return { inTransit, deliveryRate, returnRate };
+  }, [dashboardData, dateRange]);
+
   return <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900">
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Header */}
