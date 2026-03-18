@@ -140,7 +140,7 @@ export default function AutomationHistory() {
 
   const exportToCSV = () => {
     if (!filteredHistory?.length) {
-      toast.error("No data to export");
+      toast({ title: "No data to export", variant: "destructive" });
       return;
     }
 
