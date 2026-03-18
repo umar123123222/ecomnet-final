@@ -37,7 +37,7 @@ export function CourierTrackingWidget() {
       if (result) {
         setTracking(result);
       } else {
-        toast.error('Tracking information not available');
+        toast({ title: 'Tracking information not available', variant: "destructive" });
       }
     } catch (error) {
       console.error('Tracking error:', error);
