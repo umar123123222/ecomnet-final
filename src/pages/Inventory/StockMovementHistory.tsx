@@ -767,7 +767,7 @@ export default function StockMovementHistory() {
   // Delete dispatch summary (super admin only)
   const handleDeleteSummary = async (summaryId: string, summaryDate: string) => {
     if (!isSuperAdmin) {
-      toast.error("Only super admins can delete dispatch summaries");
+      toast({ title: "Only super admins can delete dispatch summaries", variant: "destructive" });
       return;
     }
 
