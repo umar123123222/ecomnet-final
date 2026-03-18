@@ -49,7 +49,7 @@ const POSMain = () => {
     
     // Real-time stock validation
     if (product.available_quantity !== undefined && newTotalQty > product.available_quantity) {
-      toast.error(`Only ${product.available_quantity} units available (${currentQtyInCart} already in cart)`);
+      toast({ title: `Only ${product.available_quantity} units available (${currentQtyInCart} already in cart)`, variant: "destructive" });
       return;
     }
     
