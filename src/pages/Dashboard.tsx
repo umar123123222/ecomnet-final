@@ -18,7 +18,7 @@ import { AlertsSummary } from "@/components/dashboard/AlertsSummary";
 import { SyncStatusWidget } from "@/components/dashboard/SyncStatusWidget";
 import { AlertsWidget } from "@/components/dashboard/AlertsWidget";
 import { TopPerformers } from "@/components/dashboard/TopPerformers";
-import { PerformanceMetrics } from "@/components/dashboard/PerformanceMetrics";
+
 import { DeficitProductsWidget } from "@/components/dashboard/DeficitProductsWidget";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar, Package, Truck, CheckCircle, XCircle, RotateCcw, TrendingUp, TrendingDown, Users, BarChart3, Upload, FileText, Settings, UserCog, Navigation, Percent } from "lucide-react";
