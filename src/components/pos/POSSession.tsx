@@ -143,7 +143,7 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
 
   const handleCloseSession = async () => {
     if (!currentSession || !closingCash) {
-      toast.error('Please enter closing cash amount');
+      toast({ title: 'Please enter closing cash amount', variant: "destructive" });
       return;
     }
 
