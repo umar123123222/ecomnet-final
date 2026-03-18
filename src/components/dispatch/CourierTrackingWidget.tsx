@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Package, MapPin, Clock } from 'lucide-react';
 import { trackShipment } from '@/utils/courierHelpers';
-import { toast } from 'sonner';
+import { toast } from "@/hooks/use-toast";
 
 interface TrackingInfo {
   status: string;
