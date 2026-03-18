@@ -70,7 +70,7 @@ const POSMain = () => {
         available_quantity: product.available_quantity,
       }]);
     }
-    toast.success(`${product.name} added to cart`);
+    toast({ title: `${product.name} added to cart` });
   };
 
   const handleUpdateQuantity = (productId: string, quantity: number) => {
