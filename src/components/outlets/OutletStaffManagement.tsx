@@ -85,11 +85,11 @@ export const OutletStaffManagement = ({ outletId }: OutletStaffManagementProps) 
       return data;
     },
     onSuccess: () => {
-      toast.success('POS access updated successfully');
+      toast({ title: 'POS access updated successfully' });
       queryClient.invalidateQueries({ queryKey: ['outlet-staff', outletId] });
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to update POS access');
+      toast({ title: error.message || 'Failed to update POS access', variant: "destructive" });
     },
   });
 
