@@ -96,7 +96,7 @@ export function NewProductionBatchDialog({ open, onOpenChange }: Props) {
       });
     },
     onSuccess: () => {
-      toast.success('Production batch created successfully');
+      toast({ title: 'Production batch created successfully' });
       queryClient.invalidateQueries({ queryKey: ['production-batches'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       onOpenChange(false);
