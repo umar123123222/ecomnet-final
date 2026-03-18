@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { toast } from "@/hooks/use-toast";
 import { POSSession as POSSessionType, POSCartItem } from '@/types/pos';
 import POSSession from '@/components/pos/POSSession';
 import ProductSelector from '@/components/pos/ProductSelector';
