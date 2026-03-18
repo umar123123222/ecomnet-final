@@ -70,14 +70,10 @@ export function CourierRateComparison({
       });
 
       if (result.success && result.trackingId) {
-        toast.success(`Booked with ${courierName}`, {
-          description: `Tracking ID: ${result.trackingId}`
-        });
+        toast({ title: `Booked with ${courierName}`, description: `Tracking ID: ${result.trackingId}` });
         onBookingComplete?.(result.trackingId);
       } else {
-        toast.error('Booking failed', {
-          description: result.error || 'Unknown error'
-        });
+        toast({ title: 'Booking failed', description: result.error || 'Unknown error', variant: "destructive" });
       }
     } catch (error) {
       console.error('Booking error:', error);
