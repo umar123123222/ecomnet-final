@@ -161,9 +161,9 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
 
       const difference = data.cash_difference;
       if (Math.abs(difference) > 0.01) {
-        toast.warning(`Session closed. Cash difference: ${difference >= 0 ? '+' : ''}${formatCurrency(Math.abs(difference), currency)}`);
+        toast({ title: `Session closed. Cash difference: ${difference >= 0 ? '+' : ''}${formatCurrency(Math.abs(difference), currency)}` });
       } else {
-        toast.success('Session closed successfully');
+        toast({ title: 'Session closed successfully' });
       }
       
       setCloseDialogOpen(false);
