@@ -60,13 +60,13 @@ export const OutletStaffManagement = ({ outletId }: OutletStaffManagementProps) 
       return data;
     },
     onSuccess: () => {
-      toast.success('Staff member assigned successfully');
+      toast({ title: 'Staff member assigned successfully' });
       queryClient.invalidateQueries({ queryKey: ['outlet-staff', outletId] });
       setIsAddingStaff(false);
       setSelectedUserId('');
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to assign staff member');
+      toast({ title: error.message || 'Failed to assign staff member', variant: "destructive" });
     },
   });
 
