@@ -107,11 +107,11 @@ export const OutletStaffManagement = ({ outletId }: OutletStaffManagementProps) 
       return data;
     },
     onSuccess: () => {
-      toast.success('Staff member removed successfully');
+      toast({ title: 'Staff member removed successfully' });
       queryClient.invalidateQueries({ queryKey: ['outlet-staff', outletId] });
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to remove staff member');
+      toast({ title: error.message || 'Failed to remove staff member', variant: "destructive" });
     },
   });
 
