@@ -203,7 +203,7 @@ export const QuickTransferDialog = ({
     });
 
     if (invalidItems.length > 0) {
-      toast.error('Some items have insufficient stock in the source outlet');
+      toast({ title: 'Some items have insufficient stock in the source outlet', variant: "destructive" });
       return;
     }
 
