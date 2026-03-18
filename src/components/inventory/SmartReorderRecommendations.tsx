@@ -55,12 +55,12 @@ export function SmartReorderRecommendations() {
       return data;
     },
     onSuccess: () => {
-      toast.success("Purchase order created successfully");
+      toast({ title: "Purchase order created successfully" });
       queryClient.invalidateQueries({ queryKey: ['smart-reorder-recommendations'] });
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
     },
     onError: (error) => {
-      toast.error(`Failed to create purchase order: ${error.message}`);
+      toast({ title: `Failed to create purchase order: ${error.message}`, variant: "destructive" });
     },
   });
 

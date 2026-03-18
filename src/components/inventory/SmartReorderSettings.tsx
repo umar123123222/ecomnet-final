@@ -54,12 +54,12 @@ export function SmartReorderSettings({ item, itemType, suppliers, onUpdate }: Sm
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Smart reorder settings updated successfully");
+      toast({ title: "Smart reorder settings updated successfully" });
       queryClient.invalidateQueries({ queryKey: [itemType === 'product' ? 'products' : 'packaging-items'] });
       onUpdate();
     },
     onError: (error) => {
-      toast.error(`Failed to update settings: ${error.message}`);
+      toast({ title: `Failed to update settings: ${error.message}`, variant: "destructive" });
     },
   });
 

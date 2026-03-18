@@ -88,7 +88,7 @@ export function ProductVariantDialog({
       reset();
       onOpenChange(false);
     } catch (error: any) {
-      toast.error(error.message);
+      toast({ title: error.message, variant: "destructive" });
     }
   };
 

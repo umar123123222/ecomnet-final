@@ -264,10 +264,10 @@ export function InventoryReportGenerator() {
         URL.revokeObjectURL(url);
       }
 
-      toast.success(`Report generated: ${fullFileName}`);
+      toast({ title: `Report generated: ${fullFileName}` });
     },
     onError: (error) => {
-      toast.error(`Failed to generate report: ${error.message}`);
+      toast({ title: `Failed to generate report: ${error.message}`, variant: "destructive" });
     },
   });
 

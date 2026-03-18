@@ -24,13 +24,13 @@ export function FixShopifyFulfilledOrders() {
       setResult(data);
       
       if (data.ordersFixed > 0) {
-        toast.success(`Successfully fixed ${data.ordersFixed} orders!`);
+        toast({ title: `Successfully fixed ${data.ordersFixed} orders!` });
       } else {
-        toast.info("No orders needed fixing");
+        toast({ title: "No orders needed fixing" });
       }
     } catch (error: any) {
       console.error('Error fixing orders:', error);
-      toast.error(error.message || "Failed to fix orders");
+      toast({ title: error.message || "Failed to fix orders", variant: "destructive" });
       setResult({ error: error.message });
     } finally {
       setLoading(false);

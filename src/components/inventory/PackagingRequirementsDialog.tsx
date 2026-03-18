@@ -120,10 +120,10 @@ export function PackagingRequirementsDialog({
         .eq('id', requirementId);
       
       if (error) throw error;
-      toast.success("Requirement deleted");
+      toast({ title: "Requirement deleted" });
       queryClient.invalidateQueries({ queryKey: ['packaging-requirements', productId] });
     } catch (error: any) {
-      toast.error(error.message);
+      toast({ title: error.message, variant: "destructive" });
     }
   };
 
