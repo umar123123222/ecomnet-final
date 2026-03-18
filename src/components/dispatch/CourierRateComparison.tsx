@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, TrendingDown, Zap, Scale } from 'lucide-react';
 import { getCourierRates, bookCourier, CourierRate, BookingParams } from '@/utils/courierHelpers';
-import { toast } from 'sonner';
+import { toast } from "@/hooks/use-toast";
 import { useCurrency } from '@/hooks/useCurrency';
 
 interface CourierRateComparisonProps {
