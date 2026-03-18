@@ -442,7 +442,7 @@ export default function StockMovementHistory() {
 
   const handleExportToCSV = () => {
     if (displayItems.length === 0) {
-      toast.error("No data to export");
+      toast({ title: "No data to export", variant: "destructive" });
       return;
     }
 
