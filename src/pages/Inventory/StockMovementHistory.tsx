@@ -783,11 +783,11 @@ export default function StockMovementHistory() {
 
       if (error) throw error;
 
-      toast.success(`Dispatch summary for ${format(new Date(summaryDate), "MMM dd, yyyy")} deleted`);
+      toast({ title: `Dispatch summary for ${format(new Date(summaryDate), "MMM dd, yyyy")} deleted` });
       queryClient.invalidateQueries({ queryKey: ['dispatch-summaries'] });
     } catch (error: any) {
       console.error('Delete error:', error);
-      toast.error(`Failed to delete: ${error.message}`);
+      toast({ title: `Failed to delete: ${error.message}`, variant: "destructive" });
     } finally {
       setDeletingId(null);
     }
