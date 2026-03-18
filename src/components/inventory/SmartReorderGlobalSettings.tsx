@@ -48,11 +48,11 @@ export function SmartReorderSettings() {
       return newSettings;
     },
     onSuccess: () => {
-      toast.success("Smart reorder settings saved successfully");
+      toast({ title: "Smart reorder settings saved successfully" });
       queryClient.invalidateQueries({ queryKey: ['smart-reorder-settings'] });
     },
     onError: (error) => {
-      toast.error(`Failed to save settings: ${error.message}`);
+      toast({ title: `Failed to save settings: ${error.message}`, variant: "destructive" });
     },
   });
 
