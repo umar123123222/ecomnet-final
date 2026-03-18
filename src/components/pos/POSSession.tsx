@@ -129,7 +129,7 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
 
       if (error) throw error;
 
-      toast.success('Session opened successfully');
+      toast({ title: 'Session opened successfully' });
       setOpenDialogOpen(false);
       if (onSessionOpened && data.session) {
         onSessionOpened(data.session);
