@@ -190,7 +190,7 @@ export const QuickTransferDialog = ({
       setItems([{ product_id: '', quantity: 1 }]);
     },
     onError: (error: Error) => {
-      toast.error(`Failed to create transfer: ${error.message}`);
+      toast({ title: `Failed to create transfer: ${error.message}`, variant: "destructive" });
     },
   });
 
