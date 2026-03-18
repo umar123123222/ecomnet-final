@@ -144,12 +144,12 @@ export function SupplierDiscrepancies({ supplierId }: SupplierDiscrepanciesProps
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["supplier-discrepancies"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-acknowledgments"] });
-      toast.success("Response submitted successfully");
+      toast({ title: "Response submitted successfully" });
       setRespondDialog(null);
       setResponseText("");
     },
     onError: (error: any) => {
-      toast.error(`Failed to submit response: ${error.message}`);
+      toast({ title: `Failed to submit response: ${error.message}`, variant: "destructive" });
     },
   });
 

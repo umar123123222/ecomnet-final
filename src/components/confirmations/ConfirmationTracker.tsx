@@ -42,11 +42,11 @@ const ConfirmationTracker = ({ orderId }: ConfirmationTrackerProps) => {
       return data;
     },
     onSuccess: () => {
-      toast.success('Confirmation resent successfully');
+      toast({ title: 'Confirmation resent successfully' });
       queryClient.invalidateQueries({ queryKey: ['order-confirmations', orderId] });
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to resend confirmation');
+      toast({ title: error.message || 'Failed to resend confirmation', variant: "destructive" });
     },
   });
 

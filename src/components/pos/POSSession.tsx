@@ -171,7 +171,7 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
         onSessionClosed();
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to close session');
+      toast({ title: error.message || 'Failed to close session', variant: "destructive" });
     } finally {
       setIsLoading(false);
     }

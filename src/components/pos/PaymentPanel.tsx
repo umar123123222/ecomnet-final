@@ -141,7 +141,7 @@ const PaymentPanel = ({ cart, sessionId, outletId, onBack, onComplete }: Payment
       
       onComplete();
     } catch (error: any) {
-      toast.error(error.message || 'Payment failed');
+      toast({ title: error.message || 'Payment failed', variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }

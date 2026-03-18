@@ -117,7 +117,7 @@ export const OutletStaffManagement = ({ outletId }: OutletStaffManagementProps) 
 
   const handleAssignStaff = () => {
     if (!selectedUserId) {
-      toast.error('Please select a staff member');
+      toast({ title: 'Please select a staff member', variant: "destructive" });
       return;
     }
     assignStaffMutation.mutate(selectedUserId);
