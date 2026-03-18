@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Package, TrendingDown, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/utils/currency";
 import { useCurrency } from "@/hooks/useCurrency";
 
@@ -55,12 +55,12 @@ export function SmartReorderRecommendations() {
       return data;
     },
     onSuccess: () => {
-      toast.success("Purchase order created successfully");
+      toast({ title: "Purchase order created successfully" });
       queryClient.invalidateQueries({ queryKey: ['smart-reorder-recommendations'] });
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
     },
     onError: (error) => {
-      toast.error(`Failed to create purchase order: ${error.message}`);
+      toast({ title: `Failed to create purchase order: ${error.message}`, variant: "destructive" });
     },
   });
 

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, TrendingDown, Zap, Scale } from 'lucide-react';
 import { getCourierRates, bookCourier, CourierRate, BookingParams } from '@/utils/courierHelpers';
-import { toast } from 'sonner';
+import { toast } from "@/hooks/use-toast";
 import { useCurrency } from '@/hooks/useCurrency';
 
 interface CourierRateComparisonProps {
@@ -50,7 +50,7 @@ export function CourierRateComparison({
       setFastest(result.fastest);
     } catch (error) {
       console.error('Error loading rates:', error);
-      toast.error('Failed to load courier rates');
+      toast({ title: 'Failed to load courier rates', variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -70,18 +70,14 @@ export function CourierRateComparison({
       });
 
       if (result.success && result.trackingId) {
-        toast.success(`Booked with ${courierName}`, {
-          description: `Tracking ID: ${result.trackingId}`
-        });
+        toast({ title: `Booked with ${courierName}`, description: `Tracking ID: ${result.trackingId}` });
         onBookingComplete?.(result.trackingId);
       } else {
-        toast.error('Booking failed', {
-          description: result.error || 'Unknown error'
-        });
+        toast({ title: 'Booking failed', description: result.error || 'Unknown error', variant: "destructive" });
       }
     } catch (error) {
       console.error('Booking error:', error);
-      toast.error('Booking failed');
+      toast({ title: 'Booking failed', variant: "destructive" });
     } finally {
       setBooking(null);
     }

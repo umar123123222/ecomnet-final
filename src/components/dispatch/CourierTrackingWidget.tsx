@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Package, MapPin, Clock } from 'lucide-react';
 import { trackShipment } from '@/utils/courierHelpers';
-import { toast } from 'sonner';
+import { toast } from "@/hooks/use-toast";
 
 interface TrackingInfo {
   status: string;
@@ -27,7 +27,7 @@ export function CourierTrackingWidget() {
 
   const handleTrack = async () => {
     if (!trackingId) {
-      toast.error('Please enter a tracking ID');
+      toast({ title: 'Please enter a tracking ID', variant: "destructive" });
       return;
     }
 
@@ -37,11 +37,11 @@ export function CourierTrackingWidget() {
       if (result) {
         setTracking(result);
       } else {
-        toast.error('Tracking information not available');
+        toast({ title: 'Tracking information not available', variant: "destructive" });
       }
     } catch (error) {
       console.error('Tracking error:', error);
-      toast.error('Failed to track shipment');
+      toast({ title: 'Failed to track shipment', variant: "destructive" });
     } finally {
       setLoading(false);
     }

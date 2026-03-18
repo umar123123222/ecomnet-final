@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
+import { toast } from "@/hooks/use-toast";
 import { ConfirmationWithDetails } from '@/types/confirmation';
 import { CheckCircle2, XCircle, Clock, AlertTriangle, Send, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -42,11 +42,11 @@ const ConfirmationTracker = ({ orderId }: ConfirmationTrackerProps) => {
       return data;
     },
     onSuccess: () => {
-      toast.success('Confirmation resent successfully');
+      toast({ title: 'Confirmation resent successfully' });
       queryClient.invalidateQueries({ queryKey: ['order-confirmations', orderId] });
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to resend confirmation');
+      toast({ title: error.message || 'Failed to resend confirmation', variant: "destructive" });
     },
   });
 

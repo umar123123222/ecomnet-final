@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { toast } from "@/hooks/use-toast";
 import { POSSession as POSSessionType, POSCartItem } from '@/types/pos';
 import POSSession from '@/components/pos/POSSession';
 import ProductSelector from '@/components/pos/ProductSelector';
@@ -49,7 +49,7 @@ const POSMain = () => {
     
     // Real-time stock validation
     if (product.available_quantity !== undefined && newTotalQty > product.available_quantity) {
-      toast.error(`Only ${product.available_quantity} units available (${currentQtyInCart} already in cart)`);
+      toast({ title: `Only ${product.available_quantity} units available (${currentQtyInCart} already in cart)`, variant: "destructive" });
       return;
     }
     
@@ -70,7 +70,7 @@ const POSMain = () => {
         available_quantity: product.available_quantity,
       }]);
     }
-    toast.success(`${product.name} added to cart`);
+    toast({ title: `${product.name} added to cart` });
   };
 
   const handleUpdateQuantity = (productId: string, quantity: number) => {
@@ -80,7 +80,7 @@ const POSMain = () => {
       const item = cart.find(i => i.product_id === productId);
       // Validate against available quantity
       if (item?.available_quantity !== undefined && quantity > item.available_quantity) {
-        toast.error(`Only ${item.available_quantity} units available`);
+        toast({ title: `Only ${item.available_quantity} units available`, variant: "destructive" });
         return;
       }
       setCart(cart.map(item =>
@@ -106,7 +106,7 @@ const POSMain = () => {
 
   const handleCheckout = () => {
     if (cart.length === 0) {
-      toast.error('Cart is empty');
+      toast({ title: 'Cart is empty', variant: "destructive" });
       return;
     }
     setShowPayment(true);

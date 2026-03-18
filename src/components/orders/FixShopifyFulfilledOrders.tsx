@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 
 export function FixShopifyFulfilledOrders() {
   const [loading, setLoading] = useState(false);
@@ -15,7 +15,7 @@ export function FixShopifyFulfilledOrders() {
       setLoading(true);
       setResult(null);
       
-      toast.info("Starting fix for affected orders...");
+      toast({ title: "Starting fix for affected orders..." });
 
       const { data, error } = await supabase.functions.invoke('fix-shopify-fulfilled-orders');
 
@@ -24,13 +24,13 @@ export function FixShopifyFulfilledOrders() {
       setResult(data);
       
       if (data.ordersFixed > 0) {
-        toast.success(`Successfully fixed ${data.ordersFixed} orders!`);
+        toast({ title: `Successfully fixed ${data.ordersFixed} orders!` });
       } else {
-        toast.info("No orders needed fixing");
+        toast({ title: "No orders needed fixing" });
       }
     } catch (error: any) {
       console.error('Error fixing orders:', error);
-      toast.error(error.message || "Failed to fix orders");
+      toast({ title: error.message || "Failed to fix orders", variant: "destructive" });
       setResult({ error: error.message });
     } finally {
       setLoading(false);

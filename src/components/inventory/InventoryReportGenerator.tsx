@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FileText, Download, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import * as XLSX from 'xlsx';
 
 type ReportType = 'full-inventory' | 'stock-valuation' | 'low-stock' | 'movement-history' | 'abc-analysis' | 'turnover-report';
@@ -232,7 +232,7 @@ export function InventoryReportGenerator() {
         case 'turnover-report':
           fileName = 'Inventory_Turnover_Report';
           // Similar logic to InventoryTurnoverWidget
-          toast.info('Generating turnover report...');
+          toast({ title: 'Generating turnover report...' });
           break;
       }
 
@@ -240,7 +240,7 @@ export function InventoryReportGenerator() {
     },
     onSuccess: ({ reportData, fileName }) => {
       if (reportData.length === 0) {
-        toast.error('No data available for this report');
+        toast({ title: 'No data available for this report', variant: "destructive" });
         return;
       }
 
@@ -264,10 +264,10 @@ export function InventoryReportGenerator() {
         URL.revokeObjectURL(url);
       }
 
-      toast.success(`Report generated: ${fullFileName}`);
+      toast({ title: `Report generated: ${fullFileName}` });
     },
     onError: (error) => {
-      toast.error(`Failed to generate report: ${error.message}`);
+      toast({ title: `Failed to generate report: ${error.message}`, variant: "destructive" });
     },
   });
 

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
+import { toast } from "@/hooks/use-toast";
 import { Loader2, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -96,7 +96,7 @@ export function NewProductionBatchDialog({ open, onOpenChange }: Props) {
       });
     },
     onSuccess: () => {
-      toast.success('Production batch created successfully');
+      toast({ title: 'Production batch created successfully' });
       queryClient.invalidateQueries({ queryKey: ['production-batches'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       onOpenChange(false);
@@ -110,7 +110,7 @@ export function NewProductionBatchDialog({ open, onOpenChange }: Props) {
       });
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to create production batch');
+      toast({ title: error.message || 'Failed to create production batch', variant: "destructive" });
     },
   });
 

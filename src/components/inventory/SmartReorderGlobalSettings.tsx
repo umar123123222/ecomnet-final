@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Settings, Loader2, Save } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 
 interface SmartReorderSettings {
   enabled: boolean;
@@ -48,11 +48,11 @@ export function SmartReorderSettings() {
       return newSettings;
     },
     onSuccess: () => {
-      toast.success("Smart reorder settings saved successfully");
+      toast({ title: "Smart reorder settings saved successfully" });
       queryClient.invalidateQueries({ queryKey: ['smart-reorder-settings'] });
     },
     onError: (error) => {
-      toast.error(`Failed to save settings: ${error.message}`);
+      toast({ title: `Failed to save settings: ${error.message}`, variant: "destructive" });
     },
   });
 
@@ -66,11 +66,11 @@ export function SmartReorderSettings() {
       return data;
     },
     onSuccess: () => {
-      toast.success("Smart reorder check triggered successfully");
+      toast({ title: "Smart reorder check triggered successfully" });
       queryClient.invalidateQueries({ queryKey: ['smart-reorder-recommendations'] });
     },
     onError: (error) => {
-      toast.error(`Failed to trigger reorder check: ${error.message}`);
+      toast({ title: `Failed to trigger reorder check: ${error.message}`, variant: "destructive" });
     },
   });
 

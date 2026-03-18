@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 const variantSchema = z.object({
@@ -66,7 +66,7 @@ export function ProductVariantDialog({
           .eq('id', variant.id);
         
         if (error) throw error;
-        toast.success("Variant updated successfully");
+        toast({ title: "Variant updated successfully" });
       } else {
         const { error } = await supabase
           .from('product_variants')
@@ -81,14 +81,14 @@ export function ProductVariantDialog({
           }]);
         
         if (error) throw error;
-        toast.success("Variant created successfully");
+        toast({ title: "Variant created successfully" });
       }
       
       queryClient.invalidateQueries({ queryKey: ['product-variants', productId] });
       reset();
       onOpenChange(false);
     } catch (error: any) {
-      toast.error(error.message);
+      toast({ title: error.message, variant: "destructive" });
     }
   };
 

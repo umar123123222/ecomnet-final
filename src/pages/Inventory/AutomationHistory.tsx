@@ -20,7 +20,7 @@ import {
   Download,
   RefreshCw
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useCurrency } from "@/hooks/useCurrency";
 import { formatCurrency } from "@/utils/currency";
@@ -140,7 +140,7 @@ export default function AutomationHistory() {
 
   const exportToCSV = () => {
     if (!filteredHistory?.length) {
-      toast.error("No data to export");
+      toast({ title: "No data to export", variant: "destructive" });
       return;
     }
 
@@ -164,7 +164,7 @@ export default function AutomationHistory() {
     a.href = url;
     a.download = `automation-history-${format(new Date(), "yyyy-MM-dd")}.csv`;
     a.click();
-    toast.success("History exported successfully");
+    toast({ title: "History exported successfully" });
   };
 
   return (

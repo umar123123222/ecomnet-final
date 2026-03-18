@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from 'sonner';
+import { toast } from "@/hooks/use-toast";
 import { UserPlus, Trash2, Shield } from 'lucide-react';
 
 interface OutletStaffManagementProps {
@@ -60,13 +60,13 @@ export const OutletStaffManagement = ({ outletId }: OutletStaffManagementProps) 
       return data;
     },
     onSuccess: () => {
-      toast.success('Staff member assigned successfully');
+      toast({ title: 'Staff member assigned successfully' });
       queryClient.invalidateQueries({ queryKey: ['outlet-staff', outletId] });
       setIsAddingStaff(false);
       setSelectedUserId('');
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to assign staff member');
+      toast({ title: error.message || 'Failed to assign staff member', variant: "destructive" });
     },
   });
 
@@ -85,11 +85,11 @@ export const OutletStaffManagement = ({ outletId }: OutletStaffManagementProps) 
       return data;
     },
     onSuccess: () => {
-      toast.success('POS access updated successfully');
+      toast({ title: 'POS access updated successfully' });
       queryClient.invalidateQueries({ queryKey: ['outlet-staff', outletId] });
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to update POS access');
+      toast({ title: error.message || 'Failed to update POS access', variant: "destructive" });
     },
   });
 
@@ -107,17 +107,17 @@ export const OutletStaffManagement = ({ outletId }: OutletStaffManagementProps) 
       return data;
     },
     onSuccess: () => {
-      toast.success('Staff member removed successfully');
+      toast({ title: 'Staff member removed successfully' });
       queryClient.invalidateQueries({ queryKey: ['outlet-staff', outletId] });
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to remove staff member');
+      toast({ title: error.message || 'Failed to remove staff member', variant: "destructive" });
     },
   });
 
   const handleAssignStaff = () => {
     if (!selectedUserId) {
-      toast.error('Please select a staff member');
+      toast({ title: 'Please select a staff member', variant: "destructive" });
       return;
     }
     assignStaffMutation.mutate(selectedUserId);

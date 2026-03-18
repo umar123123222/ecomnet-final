@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { toast } from "@/hooks/use-toast";
 import { POSSession as POSSessionType } from '@/types/pos';
 import { DoorOpen, DoorClosed } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -114,7 +114,7 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
 
   const handleOpenSession = async () => {
     if (!outletId || !openingCash) {
-      toast.error('Please fill all required fields');
+      toast({ title: 'Please fill all required fields', variant: "destructive" });
       return;
     }
 
@@ -129,13 +129,13 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
 
       if (error) throw error;
 
-      toast.success('Session opened successfully');
+      toast({ title: 'Session opened successfully' });
       setOpenDialogOpen(false);
       if (onSessionOpened && data.session) {
         onSessionOpened(data.session);
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to open session');
+      toast({ title: error.message || 'Failed to open session', variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -143,7 +143,7 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
 
   const handleCloseSession = async () => {
     if (!currentSession || !closingCash) {
-      toast.error('Please enter closing cash amount');
+      toast({ title: 'Please enter closing cash amount', variant: "destructive" });
       return;
     }
 
@@ -161,9 +161,9 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
 
       const difference = data.cash_difference;
       if (Math.abs(difference) > 0.01) {
-        toast.warning(`Session closed. Cash difference: ${difference >= 0 ? '+' : ''}${formatCurrency(Math.abs(difference), currency)}`);
+        toast({ title: `Session closed. Cash difference: ${difference >= 0 ? '+' : ''}${formatCurrency(Math.abs(difference), currency)}` });
       } else {
-        toast.success('Session closed successfully');
+        toast({ title: 'Session closed successfully' });
       }
       
       setCloseDialogOpen(false);
@@ -171,7 +171,7 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
         onSessionClosed();
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to close session');
+      toast({ title: error.message || 'Failed to close session', variant: "destructive" });
     } finally {
       setIsLoading(false);
     }

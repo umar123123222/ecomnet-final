@@ -37,7 +37,7 @@ import {
   MessageSquare,
   Loader2
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { SupplierDiscrepancyMobileCard } from "./SupplierDiscrepancyMobileCard";
 
@@ -144,12 +144,12 @@ export function SupplierDiscrepancies({ supplierId }: SupplierDiscrepanciesProps
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["supplier-discrepancies"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-acknowledgments"] });
-      toast.success("Response submitted successfully");
+      toast({ title: "Response submitted successfully" });
       setRespondDialog(null);
       setResponseText("");
     },
     onError: (error: any) => {
-      toast.error(`Failed to submit response: ${error.message}`);
+      toast({ title: `Failed to submit response: ${error.message}`, variant: "destructive" });
     },
   });
 

@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { POSCartItem } from '@/types/pos';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { toast } from "@/hooks/use-toast";
 import { ArrowLeft, CreditCard, Smartphone, Banknote, Printer } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
 import { formatCurrency } from '@/utils/currency';
@@ -101,7 +101,7 @@ const PaymentPanel = ({ cart, sessionId, outletId, onBack, onComplete }: Payment
 
   const handlePayment = async () => {
     if (parseFloat(amountPaid) < total) {
-      toast.error('Insufficient payment amount');
+      toast({ title: 'Insufficient payment amount', variant: "destructive" });
       return;
     }
 
@@ -134,14 +134,14 @@ const PaymentPanel = ({ cart, sessionId, outletId, onBack, onComplete }: Payment
         .eq('id', outletId)
         .single();
 
-      toast.success(`Sale completed: ${data.sale.sale_number}`);
+      toast({ title: `Sale completed: ${data.sale.sale_number}` });
       
       // Print receipt
       printReceipt(data.sale, outletData);
       
       onComplete();
     } catch (error: any) {
-      toast.error(error.message || 'Payment failed');
+      toast({ title: error.message || 'Payment failed', variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }

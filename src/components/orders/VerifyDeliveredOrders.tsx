@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle, CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 
 export function VerifyDeliveredOrders() {
   const [loading, setLoading] = useState(false);
@@ -16,7 +16,7 @@ export function VerifyDeliveredOrders() {
       setLoading(true);
       setResult(null);
       
-      toast.info(`Processing batch of up to ${batchSize} orders...`);
+      toast({ title: `Processing batch of up to ${batchSize} orders...` });
 
       const { data, error } = await supabase.functions.invoke('verify-delivered-orders', {
         body: { batchSize }
@@ -27,15 +27,15 @@ export function VerifyDeliveredOrders() {
       setResult(data);
       
       if (data.downgraded > 0) {
-        toast.success(`Fixed ${data.downgraded} incorrectly marked orders!`);
+        toast({ title: `Fixed ${data.downgraded} incorrectly marked orders!` });
       } else if (data.verified > 0) {
-        toast.success(`Processed ${data.processed} orders - all verified correct!`);
+        toast({ title: `Processed ${data.processed} orders - all verified correct!` });
       } else {
-        toast.info("No more delivered orders to verify");
+        toast({ title: "No more delivered orders to verify" });
       }
     } catch (error: any) {
       console.error('Error verifying orders:', error);
-      toast.error(error.message || "Failed to verify orders");
+      toast({ title: error.message || "Failed to verify orders", variant: "destructive" });
       setResult({ error: error.message });
     } finally {
       setLoading(false);

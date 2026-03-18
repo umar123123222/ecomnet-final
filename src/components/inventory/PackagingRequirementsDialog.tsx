@@ -8,7 +8,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 
 const requirementSchema = z.object({
@@ -104,11 +104,11 @@ export function PackagingRequirementsDialog({
         });
       
       if (error) throw error;
-      toast.success("Packaging requirement added");
+      toast({ title: "Packaging requirement added" });
       queryClient.invalidateQueries({ queryKey: ['packaging-requirements', productId] });
       reset();
     } catch (error: any) {
-      toast.error(error.message);
+      toast({ title: error.message, variant: "destructive" });
     }
   };
 
@@ -120,10 +120,10 @@ export function PackagingRequirementsDialog({
         .eq('id', requirementId);
       
       if (error) throw error;
-      toast.success("Requirement deleted");
+      toast({ title: "Requirement deleted" });
       queryClient.invalidateQueries({ queryKey: ['packaging-requirements', productId] });
     } catch (error: any) {
-      toast.error(error.message);
+      toast({ title: error.message, variant: "destructive" });
     }
   };
 

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Package, Plus, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from "@/hooks/use-toast";
 import { BillOfMaterial } from '@/types/production';
 
 export default function BOMManagement() {
@@ -102,7 +102,7 @@ export default function BOMManagement() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('BOM item added successfully');
+      toast({ title: 'BOM item added successfully' });
       queryClient.invalidateQueries({ queryKey: ['bom'] });
       setShowDialog(false);
       setFormData({
@@ -116,7 +116,7 @@ export default function BOMManagement() {
       });
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to add BOM item');
+      toast({ title: error.message || 'Failed to add BOM item', variant: "destructive" });
     },
   });
 
@@ -126,11 +126,11 @@ export default function BOMManagement() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('BOM item deleted');
+      toast({ title: 'BOM item deleted' });
       queryClient.invalidateQueries({ queryKey: ['bom'] });
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to delete BOM item');
+      toast({ title: error.message || 'Failed to delete BOM item', variant: "destructive" });
     },
   });
 

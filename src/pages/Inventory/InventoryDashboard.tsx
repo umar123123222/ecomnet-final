@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Package, Search, AlertTriangle, TrendingUp, DollarSign, Loader2, Settings, X, Save, Filter, PlayCircle, History, FileSpreadsheet, ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
 import { PageContainer, PageHeader, StatsCard, StatsGrid } from "@/components/layout";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -99,14 +99,14 @@ const InventoryDashboard = () => {
       
       if (error) {
         console.error('Error triggering automation:', error);
-        toast.error('Failed to trigger smart reorder automation');
+        toast({ title: 'Failed to trigger smart reorder automation', variant: "destructive" });
       } else {
         console.log('Automation triggered:', data);
-        toast.success('Smart reorder automation triggered successfully! Check notifications for results.');
+        toast({ title: 'Smart reorder automation triggered successfully! Check notifications for results.' });
       }
     } catch (err) {
       console.error('Exception triggering automation:', err);
-      toast.error('Failed to trigger automation');
+      toast({ title: 'Failed to trigger automation', variant: "destructive" });
     } finally {
       setTriggering(false);
     }

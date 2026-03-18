@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { toast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -182,7 +182,7 @@ export const QuickTransferDialog = ({
       return result;
     },
     onSuccess: () => {
-      toast.success('Transfer request created successfully');
+      toast({ title: 'Transfer request created successfully' });
       queryClient.invalidateQueries({ queryKey: ['pending-transfers'] });
       queryClient.invalidateQueries({ queryKey: ['stock-transfer-requests'] });
       onOpenChange(false);
@@ -190,7 +190,7 @@ export const QuickTransferDialog = ({
       setItems([{ product_id: '', quantity: 1 }]);
     },
     onError: (error: Error) => {
-      toast.error(`Failed to create transfer: ${error.message}`);
+      toast({ title: `Failed to create transfer: ${error.message}`, variant: "destructive" });
     },
   });
 
@@ -203,12 +203,12 @@ export const QuickTransferDialog = ({
     });
 
     if (invalidItems.length > 0) {
-      toast.error('Some items have insufficient stock in the source outlet');
+      toast({ title: 'Some items have insufficient stock in the source outlet', variant: "destructive" });
       return;
     }
 
     if (data.from_outlet_id === data.to_outlet_id) {
-      toast.error('Source and destination outlets must be different');
+      toast({ title: 'Source and destination outlets must be different', variant: "destructive" });
       return;
     }
 

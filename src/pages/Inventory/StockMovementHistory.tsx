@@ -41,7 +41,7 @@ import { Search, Download, TrendingUp, TrendingDown, ArrowLeftRight, Package, Ca
 import { format } from "date-fns";
 import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import { DateRange } from "react-day-picker";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { StatsCard } from "@/components/layout/StatsCard";
@@ -442,7 +442,7 @@ export default function StockMovementHistory() {
 
   const handleExportToCSV = () => {
     if (displayItems.length === 0) {
-      toast.error("No data to export");
+      toast({ title: "No data to export", variant: "destructive" });
       return;
     }
 
@@ -600,7 +600,7 @@ export default function StockMovementHistory() {
     a.click();
     window.URL.revokeObjectURL(url);
 
-    toast.success("Stock movements exported successfully");
+    toast({ title: "Stock movements exported successfully" });
   };
 
   const toggleRow = (id: string) => {
@@ -767,7 +767,7 @@ export default function StockMovementHistory() {
   // Delete dispatch summary (super admin only)
   const handleDeleteSummary = async (summaryId: string, summaryDate: string) => {
     if (!isSuperAdmin) {
-      toast.error("Only super admins can delete dispatch summaries");
+      toast({ title: "Only super admins can delete dispatch summaries", variant: "destructive" });
       return;
     }
 
@@ -783,11 +783,11 @@ export default function StockMovementHistory() {
 
       if (error) throw error;
 
-      toast.success(`Dispatch summary for ${format(new Date(summaryDate), "MMM dd, yyyy")} deleted`);
+      toast({ title: `Dispatch summary for ${format(new Date(summaryDate), "MMM dd, yyyy")} deleted` });
       queryClient.invalidateQueries({ queryKey: ['dispatch-summaries'] });
     } catch (error: any) {
       console.error('Delete error:', error);
-      toast.error(`Failed to delete: ${error.message}`);
+      toast({ title: `Failed to delete: ${error.message}`, variant: "destructive" });
     } finally {
       setDeletingId(null);
     }
@@ -813,13 +813,13 @@ export default function StockMovementHistory() {
       if (error) throw error;
 
       if (data?.success) {
-        toast.success(`Dispatch summary emailed to ${data.emails_sent} managers`);
+        toast({ title: `Dispatch summary emailed to ${data.emails_sent} managers` });
       } else {
-        toast.error(data?.message || 'Failed to send email');
+        toast({ title: data?.message || 'Failed to send email', variant: "destructive" });
       }
     } catch (error: any) {
       console.error('Email error:', error);
-      toast.error(`Failed to email: ${error.message}`);
+      toast({ title: `Failed to email: ${error.message}`, variant: "destructive" });
     } finally {
       setEmailingId(null);
     }
@@ -1319,7 +1319,7 @@ export default function StockMovementHistory() {
     queryClient.invalidateQueries({ queryKey: ['dispatch-summaries'] });
     queryClient.invalidateQueries({ queryKey: ['product-movements-nondispatch'] });
     queryClient.invalidateQueries({ queryKey: ['packaging-movements-nondispatch'] });
-    toast.success("Refreshing data...");
+    toast({ title: "Refreshing data..." });
   }, [queryClient]);
 
   const hasActiveFilters = categoryFilter !== "all" || outletFilter !== "all" || dateRange?.from || movementTypeFilter !== "all" || searchTerm;
