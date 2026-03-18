@@ -27,7 +27,7 @@ export function CourierTrackingWidget() {
 
   const handleTrack = async () => {
     if (!trackingId) {
-      toast.error('Please enter a tracking ID');
+      toast({ title: 'Please enter a tracking ID', variant: "destructive" });
       return;
     }
 
