@@ -134,7 +134,7 @@ const PaymentPanel = ({ cart, sessionId, outletId, onBack, onComplete }: Payment
         .eq('id', outletId)
         .single();
 
-      toast.success(`Sale completed: ${data.sale.sale_number}`);
+      toast({ title: `Sale completed: ${data.sale.sale_number}` });
       
       // Print receipt
       printReceipt(data.sale, outletData);
