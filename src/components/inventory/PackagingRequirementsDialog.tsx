@@ -104,11 +104,11 @@ export function PackagingRequirementsDialog({
         });
       
       if (error) throw error;
-      toast.success("Packaging requirement added");
+      toast({ title: "Packaging requirement added" });
       queryClient.invalidateQueries({ queryKey: ['packaging-requirements', productId] });
       reset();
     } catch (error: any) {
-      toast.error(error.message);
+      toast({ title: error.message, variant: "destructive" });
     }
   };
 
