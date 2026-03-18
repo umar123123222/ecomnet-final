@@ -600,7 +600,7 @@ export default function StockMovementHistory() {
     a.click();
     window.URL.revokeObjectURL(url);
 
-    toast.success("Stock movements exported successfully");
+    toast({ title: "Stock movements exported successfully" });
   };
 
   const toggleRow = (id: string) => {
