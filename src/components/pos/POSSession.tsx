@@ -135,7 +135,7 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
         onSessionOpened(data.session);
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to open session');
+      toast({ title: error.message || 'Failed to open session', variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
