@@ -232,7 +232,7 @@ export function InventoryReportGenerator() {
         case 'turnover-report':
           fileName = 'Inventory_Turnover_Report';
           // Similar logic to InventoryTurnoverWidget
-          toast.info('Generating turnover report...');
+          toast({ title: 'Generating turnover report...' });
           break;
       }
 
