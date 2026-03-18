@@ -99,14 +99,14 @@ const InventoryDashboard = () => {
       
       if (error) {
         console.error('Error triggering automation:', error);
-        toast.error('Failed to trigger smart reorder automation');
+        toast({ title: 'Failed to trigger smart reorder automation', variant: "destructive" });
       } else {
         console.log('Automation triggered:', data);
-        toast.success('Smart reorder automation triggered successfully! Check notifications for results.');
+        toast({ title: 'Smart reorder automation triggered successfully! Check notifications for results.' });
       }
     } catch (err) {
       console.error('Exception triggering automation:', err);
-      toast.error('Failed to trigger automation');
+      toast({ title: 'Failed to trigger automation', variant: "destructive" });
     } finally {
       setTriggering(false);
     }

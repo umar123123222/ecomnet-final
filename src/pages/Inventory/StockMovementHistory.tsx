@@ -1319,7 +1319,7 @@ export default function StockMovementHistory() {
     queryClient.invalidateQueries({ queryKey: ['dispatch-summaries'] });
     queryClient.invalidateQueries({ queryKey: ['product-movements-nondispatch'] });
     queryClient.invalidateQueries({ queryKey: ['packaging-movements-nondispatch'] });
-    toast.success("Refreshing data...");
+    toast({ title: "Refreshing data..." });
   }, [queryClient]);
 
   const hasActiveFilters = categoryFilter !== "all" || outletFilter !== "all" || dateRange?.from || movementTypeFilter !== "all" || searchTerm;

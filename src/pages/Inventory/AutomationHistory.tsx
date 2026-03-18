@@ -164,7 +164,7 @@ export default function AutomationHistory() {
     a.href = url;
     a.download = `automation-history-${format(new Date(), "yyyy-MM-dd")}.csv`;
     a.click();
-    toast.success("History exported successfully");
+    toast({ title: "History exported successfully" });
   };
 
   return (
