@@ -208,7 +208,7 @@ export const QuickTransferDialog = ({
     }
 
     if (data.from_outlet_id === data.to_outlet_id) {
-      toast.error('Source and destination outlets must be different');
+      toast({ title: 'Source and destination outlets must be different', variant: "destructive" });
       return;
     }
 

@@ -77,7 +77,7 @@ export function CourierRateComparison({
       }
     } catch (error) {
       console.error('Booking error:', error);
-      toast.error('Booking failed');
+      toast({ title: 'Booking failed', variant: "destructive" });
     } finally {
       setBooking(null);
     }

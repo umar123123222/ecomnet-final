@@ -41,7 +41,7 @@ export function CourierTrackingWidget() {
       }
     } catch (error) {
       console.error('Tracking error:', error);
-      toast.error('Failed to track shipment');
+      toast({ title: 'Failed to track shipment', variant: "destructive" });
     } finally {
       setLoading(false);
     }

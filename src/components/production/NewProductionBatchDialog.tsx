@@ -110,7 +110,7 @@ export function NewProductionBatchDialog({ open, onOpenChange }: Props) {
       });
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to create production batch');
+      toast({ title: error.message || 'Failed to create production batch', variant: "destructive" });
     },
   });
 
