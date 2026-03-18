@@ -102,7 +102,7 @@ export default function BOMManagement() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('BOM item added successfully');
+      toast({ title: 'BOM item added successfully' });
       queryClient.invalidateQueries({ queryKey: ['bom'] });
       setShowDialog(false);
       setFormData({
@@ -116,7 +116,7 @@ export default function BOMManagement() {
       });
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to add BOM item');
+      toast({ title: error.message || 'Failed to add BOM item', variant: "destructive" });
     },
   });
 
