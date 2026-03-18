@@ -15,7 +15,7 @@ export function FixShopifyFulfilledOrders() {
       setLoading(true);
       setResult(null);
       
-      toast.info("Starting fix for affected orders...");
+      toast({ title: "Starting fix for affected orders..." });
 
       const { data, error } = await supabase.functions.invoke('fix-shopify-fulfilled-orders');
 

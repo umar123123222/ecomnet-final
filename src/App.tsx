@@ -306,7 +306,6 @@ const App = () => {
                 </Route>
               </Routes>
               <Toaster />
-              <SonnerToaster />
             </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>

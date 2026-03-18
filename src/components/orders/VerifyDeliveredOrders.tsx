@@ -27,15 +27,15 @@ export function VerifyDeliveredOrders() {
       setResult(data);
       
       if (data.downgraded > 0) {
-        toast.success(`Fixed ${data.downgraded} incorrectly marked orders!`);
+        toast({ title: `Fixed ${data.downgraded} incorrectly marked orders!` });
       } else if (data.verified > 0) {
-        toast.success(`Processed ${data.processed} orders - all verified correct!`);
+        toast({ title: `Processed ${data.processed} orders - all verified correct!` });
       } else {
-        toast.info("No more delivered orders to verify");
+        toast({ title: "No more delivered orders to verify" });
       }
     } catch (error: any) {
       console.error('Error verifying orders:', error);
-      toast.error(error.message || "Failed to verify orders");
+      toast({ title: error.message || "Failed to verify orders", variant: "destructive" });
       setResult({ error: error.message });
     } finally {
       setLoading(false);

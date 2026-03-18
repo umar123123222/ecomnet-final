@@ -627,10 +627,9 @@ const Dashboard = () => {
           <AlertsWidget />
         </div>
 
-        {/* Top Performers and System Metrics */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* Top Performers */}
+        <div className="grid grid-cols-1 gap-6">
           <TopPerformers />
-          <PerformanceMetrics />
         </div>
 
         {/* Charts Section - Enhanced Analytics */}
