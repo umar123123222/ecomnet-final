@@ -37,7 +37,7 @@ import {
   MessageSquare,
   Loader2
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { SupplierDiscrepancyMobileCard } from "./SupplierDiscrepancyMobileCard";
 
