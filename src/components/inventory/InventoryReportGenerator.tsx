@@ -240,7 +240,7 @@ export function InventoryReportGenerator() {
     },
     onSuccess: ({ reportData, fileName }) => {
       if (reportData.length === 0) {
-        toast.error('No data available for this report');
+        toast({ title: 'No data available for this report', variant: "destructive" });
         return;
       }
 
