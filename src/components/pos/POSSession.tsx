@@ -114,7 +114,7 @@ const POSSession = ({ currentSession, onSessionOpened, onSessionClosed }: POSSes
 
   const handleOpenSession = async () => {
     if (!outletId || !openingCash) {
-      toast.error('Please fill all required fields');
+      toast({ title: 'Please fill all required fields', variant: "destructive" });
       return;
     }
 
