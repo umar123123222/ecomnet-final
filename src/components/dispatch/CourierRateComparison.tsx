@@ -50,7 +50,7 @@ export function CourierRateComparison({
       setFastest(result.fastest);
     } catch (error) {
       console.error('Error loading rates:', error);
-      toast.error('Failed to load courier rates');
+      toast({ title: 'Failed to load courier rates', variant: "destructive" });
     } finally {
       setLoading(false);
     }
