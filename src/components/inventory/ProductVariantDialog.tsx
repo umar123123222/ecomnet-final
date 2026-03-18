@@ -66,7 +66,7 @@ export function ProductVariantDialog({
           .eq('id', variant.id);
         
         if (error) throw error;
-        toast.success("Variant updated successfully");
+        toast({ title: "Variant updated successfully" });
       } else {
         const { error } = await supabase
           .from('product_variants')
