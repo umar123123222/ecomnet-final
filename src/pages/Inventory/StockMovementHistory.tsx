@@ -41,7 +41,7 @@ import { Search, Download, TrendingUp, TrendingDown, ArrowLeftRight, Package, Ca
 import { format } from "date-fns";
 import { DatePickerWithRange } from "@/components/DatePickerWithRange";
 import { DateRange } from "react-day-picker";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { StatsCard } from "@/components/layout/StatsCard";

@@ -106,7 +106,7 @@ const POSMain = () => {
 
   const handleCheckout = () => {
     if (cart.length === 0) {
-      toast.error('Cart is empty');
+      toast({ title: 'Cart is empty', variant: "destructive" });
       return;
     }
     setShowPayment(true);

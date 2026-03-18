@@ -20,7 +20,7 @@ import {
   Download,
   RefreshCw
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useCurrency } from "@/hooks/useCurrency";
 import { formatCurrency } from "@/utils/currency";

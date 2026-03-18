@@ -126,11 +126,11 @@ export default function BOMManagement() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('BOM item deleted');
+      toast({ title: 'BOM item deleted' });
       queryClient.invalidateQueries({ queryKey: ['bom'] });
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to delete BOM item');
+      toast({ title: error.message || 'Failed to delete BOM item', variant: "destructive" });
     },
   });
 
