@@ -182,7 +182,7 @@ export const QuickTransferDialog = ({
       return result;
     },
     onSuccess: () => {
-      toast.success('Transfer request created successfully');
+      toast({ title: 'Transfer request created successfully' });
       queryClient.invalidateQueries({ queryKey: ['pending-transfers'] });
       queryClient.invalidateQueries({ queryKey: ['stock-transfer-requests'] });
       onOpenChange(false);
