@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { toast } from "@/hooks/use-toast";
 import { POSSession as POSSessionType } from '@/types/pos';
 import { DoorOpen, DoorClosed } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
