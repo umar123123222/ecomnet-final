@@ -80,7 +80,7 @@ const POSMain = () => {
       const item = cart.find(i => i.product_id === productId);
       // Validate against available quantity
       if (item?.available_quantity !== undefined && quantity > item.available_quantity) {
-        toast.error(`Only ${item.available_quantity} units available`);
+        toast({ title: `Only ${item.available_quantity} units available`, variant: "destructive" });
         return;
       }
       setCart(cart.map(item =>
