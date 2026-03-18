@@ -101,7 +101,7 @@ const PaymentPanel = ({ cart, sessionId, outletId, onBack, onComplete }: Payment
 
   const handlePayment = async () => {
     if (parseFloat(amountPaid) < total) {
-      toast.error('Insufficient payment amount');
+      toast({ title: 'Insufficient payment amount', variant: "destructive" });
       return;
     }
 
