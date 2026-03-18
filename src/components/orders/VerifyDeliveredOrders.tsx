@@ -16,7 +16,7 @@ export function VerifyDeliveredOrders() {
       setLoading(true);
       setResult(null);
       
-      toast.info(`Processing batch of up to ${batchSize} orders...`);
+      toast({ title: `Processing batch of up to ${batchSize} orders...` });
 
       const { data, error } = await supabase.functions.invoke('verify-delivered-orders', {
         body: { batchSize }
