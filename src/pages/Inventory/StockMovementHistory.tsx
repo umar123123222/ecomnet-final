@@ -813,13 +813,13 @@ export default function StockMovementHistory() {
       if (error) throw error;
 
       if (data?.success) {
-        toast.success(`Dispatch summary emailed to ${data.emails_sent} managers`);
+        toast({ title: `Dispatch summary emailed to ${data.emails_sent} managers` });
       } else {
-        toast.error(data?.message || 'Failed to send email');
+        toast({ title: data?.message || 'Failed to send email', variant: "destructive" });
       }
     } catch (error: any) {
       console.error('Email error:', error);
-      toast.error(`Failed to email: ${error.message}`);
+      toast({ title: `Failed to email: ${error.message}`, variant: "destructive" });
     } finally {
       setEmailingId(null);
     }
