@@ -81,7 +81,7 @@ export function ProductVariantDialog({
           }]);
         
         if (error) throw error;
-        toast.success("Variant created successfully");
+        toast({ title: "Variant created successfully" });
       }
       
       queryClient.invalidateQueries({ queryKey: ['product-variants', productId] });
